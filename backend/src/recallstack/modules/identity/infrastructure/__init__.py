@@ -1,0 +1,1 @@
+"""SQLAlchemy identity adapter."""
