@@ -224,6 +224,7 @@ Table content_items {
   type content_type [not null]
   difficulty difficulty_level
   current_published_version_id uuid
+  practice_resources_revision bigint [not null, default: 1]
   created_by uuid
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null, default: `now()`]
@@ -232,6 +233,10 @@ Table content_items {
   indexes {
     (domain_id, id) [unique]
     (domain_id, slug) [unique]
+  }
+
+  checks {
+    `practice_resources_revision > 0` [name: 'chk_content_items_practice_resources_revision']
   }
 
 }
@@ -366,10 +371,10 @@ Table practice_resources {
   id uuid [pk, default: `gen_random_uuid()`]
   content_item_id uuid [not null]
   provider_id smallint [not null]
-  external_key varchar(160)
+  external_key varchar(255)
   url text [not null]
   url_hash varchar(64) [not null]
-  title varchar(240)
+  title varchar(300)
   is_primary boolean [not null, default: false]
   sort_order int [not null, default: 0]
   archived_at timestamptz

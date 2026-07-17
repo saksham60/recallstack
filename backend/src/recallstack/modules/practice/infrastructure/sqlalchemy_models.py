@@ -70,10 +70,10 @@ class PracticeResourceModel(Base):
     provider_id: Mapped[int] = mapped_column(
         SmallInteger, ForeignKey("practice_providers.id", ondelete="RESTRICT")
     )
-    external_key: Mapped[str | None] = mapped_column(String(160))
+    external_key: Mapped[str | None] = mapped_column(String(255))
     url: Mapped[str] = mapped_column(Text)
     url_hash: Mapped[str] = mapped_column(String(64))
-    title: Mapped[str | None] = mapped_column(String(240))
+    title: Mapped[str | None] = mapped_column(String(300))
     is_primary: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     sort_order: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

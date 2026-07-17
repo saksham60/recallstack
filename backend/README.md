@@ -59,6 +59,15 @@ Never commit `.env`. `SUPABASE_KEY` is not required by the backend and is not co
 - `GET /api/v1/me/reviews/due`
 - `POST /api/v1/me/reviews/{cardId}/submit`
 - `GET /api/v1/me/reviews/history`
+- `GET /api/v1/search`
+- `POST /api/v1/admin/content`
+- `GET|POST /api/v1/admin/content/{contentId}/versions`
+- `PUT /api/v1/admin/content-versions/{versionId}/document`
+- `PUT /api/v1/admin/content/{contentId}/practice-resources`
+- `POST /api/v1/admin/content-versions/{versionId}/submit-review`
+- `POST /api/v1/admin/content-versions/{versionId}/return-draft`
+- `POST /api/v1/admin/content-versions/{versionId}/publish`
+- `POST /api/v1/admin/content/{contentId}/archive`
 
 Authenticated calls use `Authorization: Bearer <Supabase access token>`. User identity is always the
 verified JWT subject and is never accepted from request JSON or query parameters.
@@ -92,6 +101,23 @@ enum value `understood_not_coded`; application code remains independent of that 
 Recall submissions use a client-generated `review_event_id` and an `expected_row_version`. A normal
 review updates the card only through the submit command, appends immutable history, and records the
 scheduler name/version plus previous and next scheduling values in the same transaction.
+
+Admin content authoring follows `draft -> in_review -> published`. Administrators and content editors
+may create content, edit drafts, manage taxonomy mappings and practice resources, and submit review.
+Only administrators may publish, return an in-review version to draft, or archive a content item.
+Published versions and their block composition are immutable; a subsequent edit starts a new draft
+version cloned from the current published version.
+
+Practice-resource replacement is an atomic set operation. Clients send `expected_revision`, keep IDs
+for resources they intend to update, omit active resources they intend to archive, and receive the new
+revision. Provider IDs are positive JSON integers backed by PostgreSQL `SMALLINT`. URLs must use HTTPS
+and are normalized and hashed by the server. The database never hard-deletes historical resources.
+
+Version listing is paginated and includes workflow history. Draft document updates and workflow
+transitions require `expected_row_version`; stale or concurrent writes return `409 Conflict`. Publishing
+sets `reviewed_by`, `published_by`, and `published_at`, changes the stable content item's current
+published-version pointer, refreshes its PostgreSQL search document, writes status history, and emits a
+catalog-change event after the single database commit.
 
 ## Initial administrator
 

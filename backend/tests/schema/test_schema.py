@@ -80,6 +80,7 @@ def test_critical_constraints_and_indexes_exist(migrated_database_url: str) -> N
         "chk_user_progress_confidence",
         "chk_practice_attempt_duration",
         "chk_review_card_row_version",
+        "chk_content_items_practice_resources_revision",
     } <= constraints
     assert {
         "uq_content_item_topics_one_primary",
@@ -88,6 +89,26 @@ def test_critical_constraints_and_indexes_exist(migrated_database_url: str) -> N
         "ix_user_notes_active_user_content",
         "ix_user_notes_deleted_user_updated",
     } <= indexes
+
+
+def test_admin_practice_resource_revision_schema(migrated_database_url: str) -> None:
+    engine = create_engine(migrated_database_url)
+    inspector = inspect(engine)
+    content_columns = {
+        column["name"]: column for column in inspector.get_columns("content_items", schema="public")
+    }
+    resource_columns = {
+        column["name"]: column
+        for column in inspector.get_columns("practice_resources", schema="public")
+    }
+    assert content_columns["practice_resources_revision"]["nullable"] is False
+    assert str(content_columns["practice_resources_revision"]["default"]) in {
+        "1",
+        "'1'::bigint",
+    }
+    assert resource_columns["external_key"]["type"].length == 255
+    assert resource_columns["title"]["type"].length == 300
+    engine.dispose()
 
 
 async def test_development_seed_is_idempotent(migrated_database_url: str) -> None:
@@ -103,7 +124,12 @@ async def test_development_seed_is_idempotent(migrated_database_url: str) -> Non
             )
         ).scalar_one()
         providers = (
-            connection.execute(text("SELECT slug FROM practice_providers ORDER BY slug"))
+            connection.execute(
+                text(
+                    "SELECT slug FROM practice_providers "
+                    "WHERE slug IN ('geeksforgeeks', 'leetcode') ORDER BY slug"
+                )
+            )
             .scalars()
             .all()
         )

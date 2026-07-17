@@ -33,6 +33,11 @@ Identity, catalog/content, learning/practice, recall, and sync can each become a
 5. Replacing cross-module atomic workflows with explicit orchestration and idempotent compensation.
 
 Catalog and content should remain together until their publication transaction boundary is redesigned.
+The admin module is an application orchestrator over catalog, content, practice-provider, identity, and
+event ports. Its SQLAlchemy adapter lives in the composition root, so the admin application does not
+import another module's persistence models. If extracted, Admin Content should initially move with
+Catalog/Content; splitting it independently would require an outbox, versioned authoring APIs, and a
+replacement for the current atomic publication transaction.
 Learning, practice, and recall should remain together while recording an attempt updates progress and a
 review card atomically. Sync is the strongest early extraction candidate because its traffic and
 retention profile differ, but it still depends on authoritative module mutation contracts.

@@ -84,6 +84,10 @@ class ContentItemModel(Base):
     __table_args__ = (
         UniqueConstraint("domain_id", "id", name="uq_content_items_domain_id_id"),
         UniqueConstraint("domain_id", "slug", name="uq_content_items_domain_id_slug"),
+        CheckConstraint(
+            "practice_resources_revision > 0",
+            name="chk_content_items_practice_resources_revision",
+        ),
         ForeignKeyConstraint(
             ["id", "current_published_version_id"],
             ["content_versions.content_item_id", "content_versions.id"],
@@ -111,6 +115,9 @@ class ContentItemModel(Base):
         Enum(DifficultyLevel, name="difficulty_level", values_callable=enum_values)
     )
     current_published_version_id: Mapped[UUID | None]
+    practice_resources_revision: Mapped[int] = mapped_column(
+        BigInteger, default=1, server_default="1"
+    )
     created_by: Mapped[UUID | None] = mapped_column(ForeignKey("profiles.id", ondelete="SET NULL"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

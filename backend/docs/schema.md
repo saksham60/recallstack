@@ -34,6 +34,23 @@ contract. PostgreSQL does not have a portable declarative append-only constraint
 roles should receive INSERT/SELECT but not UPDATE/DELETE privileges on those tables; Alembic/migration
 roles retain ownership for operations and rollback.
 
+## Admin content concurrency and publication
+
+`content_versions.row_version` protects draft edits and workflow transitions. The admin application
+locks the version and also applies a compare-and-swap update, so concurrent writers cannot silently
+overwrite one another. Immutable content blocks are deduplicated by canonical JSON payload hash; draft
+updates replace only the draft's ordered block links and never update existing block records.
+
+Practice resources are stable item-level links rather than versioned document data. Their active set is
+replaced atomically using `content_items.practice_resources_revision`. Existing resources omitted from
+the submitted set receive `archived_at`; they are not deleted. The revision starts at one and increments
+once per successful replacement. The API permits 255-character provider keys and 300-character titles,
+matching the widened PostgreSQL columns in revision `20260717_0011`.
+
+Publication requires an in-review version, a non-empty title, at least one block, and exactly one primary
+topic when topics are assigned. The transaction sets direct reviewer/publisher attribution, advances the
+current-published-version pointer, appends workflow history, and refreshes the PostgreSQL search vector.
+
 ## Category dashboard semantics
 
 The dashboard returns direct category assignments only; parent categories do not recursively absorb

@@ -17,3 +17,11 @@ versions. The identity downgrade is last and removes `profiles`; it never modifi
 
 Seed operations are idempotent updates/inserts and have no automatic destructive rollback. Remove seed
 rows only after proving no dependent content or role grants reference them.
+
+Revision `20260717_0011` adds a non-null resource-set revision with a default of one and widens two
+practice-resource text columns. Its upgrade is backward-compatible. Before downgrading, verify that no
+`practice_resources.external_key` exceeds 160 characters and no title exceeds 240 characters; PostgreSQL
+will reject the narrowing downgrade if longer values exist. Export or shorten those values deliberately
+before running `uv run alembic downgrade 20260711_0010`. The downgrade then removes
+`content_items.practice_resources_revision`, so clients holding a resource revision must perform a full
+resource-set refresh after any later re-upgrade.

@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 import httpx
 from fastapi import FastAPI
 
+from recallstack.composition.admin_content_uow import SqlAlchemyAdminContentUnitOfWork
 from recallstack.composition.category_content_list_uow import (
     SqlAlchemyCategoryContentReadUnitOfWork,
 )
@@ -15,6 +16,8 @@ from recallstack.composition.recall_uow import SqlAlchemyRecallUnitOfWork
 from recallstack.composition.search_uow import SqlAlchemySearchUnitOfWork
 from recallstack.health import ReadinessProbe
 from recallstack.health import router as health_router
+from recallstack.modules.admin.application.content_management import AdminContentService
+from recallstack.modules.admin.presentation.routes import router as admin_content_router
 from recallstack.modules.catalog.application.category_dashboard import CategoryDashboardService
 from recallstack.modules.catalog.application.search import SearchService
 from recallstack.modules.catalog.presentation.routes import router as catalog_router
@@ -87,6 +90,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             lambda: SqlAlchemyLearningUnitOfWork(database.session_factory)
         )
         app.state.event_publisher = InProcessEventPublisher()
+        app.state.admin_content_service = AdminContentService(
+            lambda: SqlAlchemyAdminContentUnitOfWork(database.session_factory),
+            app.state.event_publisher,
+        )
         app.state.practice_attempt_service = PracticeAttemptService(
             lambda: SqlAlchemyPracticeAttemptUnitOfWork(database.session_factory),
             DeterministicInitialReviewScheduler(),
@@ -140,6 +147,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(practice_router, prefix="/api/v1")
     app.include_router(recall_router, prefix="/api/v1")
     app.include_router(search_router, prefix="/api/v1")
+    app.include_router(admin_content_router, prefix="/api/v1")
     return app
 
 
