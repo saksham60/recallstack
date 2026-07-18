@@ -81,6 +81,11 @@ async def seed() -> None:
             for slug, name, base_url in (
                 ("leetcode", "LeetCode", "https://leetcode.com"),
                 ("geeksforgeeks", "GeeksForGeeks", "https://www.geeksforgeeks.org"),
+                ("interviewbit", "InterviewBit", "https://www.interviewbit.com"),
+                ("spoj", "SPOJ", "https://www.spoj.com"),
+                ("hackerrank", "HackerRank", "https://www.hackerrank.com"),
+                ("hackerearth", "HackerEarth", "https://www.hackerearth.com"),
+                ("cp-algorithms", "CP Algorithms", "https://cp-algorithms.com"),
             ):
                 provider = await session.scalar(
                     select(PracticeProviderModel).where(PracticeProviderModel.slug == slug)

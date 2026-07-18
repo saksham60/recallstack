@@ -169,6 +169,26 @@ uv run python -m recallstack.commands.grant_role PROFILE_UUID admin
 
 The command writes `profile_role_grants`; no email address is hard-coded.
 
+## Ultimate DSA workbook import
+
+The source workbook remains under the Git-ignored `data/` directory. Seed catalog references first,
+then run the importer without `--apply`; dry-run is the default and performs no writes:
+
+```powershell
+uv run python -m recallstack.commands.seed
+uv run python -m recallstack.commands.import_dsa_workbook "..\data\DS Algo\Ultimate DSA.xlsx" --report .\dsa-import-report.json
+```
+
+Review the counts, repeated titles/URLs, and errors. To publish through the normal audited admin
+workflow, pass an existing active admin profile explicitly:
+
+```powershell
+uv run python -m recallstack.commands.import_dsa_workbook "..\data\DS Algo\Ultimate DSA.xlsx" --apply --actor-profile-id PROFILE_UUID --report .\dsa-import-applied.json
+```
+
+The importer uses stable source-index slugs and fingerprints, so retries do not duplicate already
+published rows. See `docs/dsa-workbook-import.md` for the approved mapping and rollback procedure.
+
 ## Verification
 
 ```bash
