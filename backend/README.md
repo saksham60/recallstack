@@ -68,6 +68,12 @@ Never commit `.env`. `SUPABASE_KEY` is not required by the backend and is not co
 - `POST /api/v1/admin/content-versions/{versionId}/return-draft`
 - `POST /api/v1/admin/content-versions/{versionId}/publish`
 - `POST /api/v1/admin/content/{contentId}/archive`
+- `GET /api/v1/admin/users` / `GET /api/v1/admin/users/{userId}`
+- `GET /api/v1/admin/users/{userId}/progress`
+- `GET /api/v1/admin/users/{userId}/practice-attempts`
+- `GET /api/v1/admin/users/{userId}/reviews`
+- `GET|POST /api/v1/admin/users/{userId}/roles`
+- `POST /api/v1/admin/users/{userId}/roles/{roleId}/revoke`
 
 Authenticated calls use `Authorization: Bearer <Supabase access token>`. User identity is always the
 verified JWT subject and is never accepted from request JSON or query parameters.
@@ -118,6 +124,15 @@ transitions require `expected_row_version`; stale or concurrent writes return `4
 sets `reviewed_by`, `published_by`, and `published_at`, changes the stable content item's current
 published-version pointer, refreshes its PostgreSQL search document, writes status history, and emits a
 catalog-change event after the single database commit.
+
+Admin user inspection is administrator-only and every collection is paginated with a maximum page size
+of 100. User-list filters support progress state and inclusive activity date bounds. Progress,
+practice-attempt, and review history endpoints support inclusive activity date bounds as well. Responses
+contain application profile IDs and operational learning data only; they never query or return
+`auth.*` credentials, auth subjects, email addresses, access tokens, or refresh tokens. Role grants are
+an audited history: granting and revoking lock the target profile, record the acting administrator and
+timestamp, and never delete a prior grant row. Repeated grant/revoke requests are idempotent and return
+`changed: false` when the requested state already exists.
 
 ## Initial administrator
 

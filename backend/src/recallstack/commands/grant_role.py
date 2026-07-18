@@ -18,7 +18,9 @@ async def grant_role(profile_id: UUID, role_code: str) -> None:
     database = Database(get_settings())
     try:
         async with database.session_factory.create_session() as session, session.begin():
-            profile = await session.get(ProfileModel, profile_id)
+            profile = await session.scalar(
+                select(ProfileModel).where(ProfileModel.id == profile_id).with_for_update()
+            )
             if profile is None:
                 raise ValueError("Profile does not exist; the user must authenticate once first")
             role = await session.scalar(select(RoleModel).where(RoleModel.code == role_code))
