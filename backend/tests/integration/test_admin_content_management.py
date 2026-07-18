@@ -25,6 +25,7 @@ from recallstack.modules.content.infrastructure.sqlalchemy_models import (
     ContentVersionStatusHistoryModel,
 )
 from recallstack.modules.practice.infrastructure.sqlalchemy_models import PracticeProviderModel
+from recallstack.modules.sync.infrastructure.sqlalchemy_models import CatalogSyncChangeLogModel
 from recallstack.shared.config import Settings
 from recallstack.shared.database import Database
 from recallstack.shared.errors import AppError
@@ -280,6 +281,12 @@ async def test_admin_content_workflow_is_atomic_audited_and_concurrency_safe(
                 text("SELECT search_document FROM content_versions WHERE id = :id"),
                 {"id": created.draft_version_id},
             )
+            catalog_change = await session.scalar(
+                select(CatalogSyncChangeLogModel).where(
+                    CatalogSyncChangeLogModel.domain_id == domain_id,
+                    CatalogSyncChangeLogModel.entity_id == created.content_item_id,
+                )
+            )
         assert item is not None
         assert version is not None
         assert item.current_published_version_id == created.draft_version_id
@@ -290,6 +297,8 @@ async def test_admin_content_workflow_is_atomic_audited_and_concurrency_safe(
             "published",
         ]
         assert search_document is not None
+        assert catalog_change is not None
+        assert catalog_change.operation.value == "upsert"
 
         with pytest.raises(AppError) as immutable:
             await service.update_document(

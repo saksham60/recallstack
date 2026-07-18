@@ -220,12 +220,14 @@ class SqlAlchemyLearningStateRepository:
         self,
         *,
         profile_id: UUID,
+        note_id: UUID | None,
         content_item_id: UUID,
         kind: str,
         title: str | None,
         body: str,
     ) -> UserNote:
         model = UserNoteModel(
+            id=note_id,
             user_id=profile_id,
             content_item_id=content_item_id,
             kind=NoteKind(kind),

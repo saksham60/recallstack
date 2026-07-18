@@ -37,6 +37,7 @@ Configuration:
 - `SUPABASE_JWT_AUDIENCE`
 - `SUPABASE_JWKS_URL`
 - `LOG_LEVEL`
+- `SYNC_RETENTION_DAYS`
 
 Never commit `.env`. `SUPABASE_KEY` is not required by the backend and is not consumed.
 
@@ -74,6 +75,11 @@ Never commit `.env`. `SUPABASE_KEY` is not required by the backend and is not co
 - `GET /api/v1/admin/users/{userId}/reviews`
 - `GET|POST /api/v1/admin/users/{userId}/roles`
 - `POST /api/v1/admin/users/{userId}/roles/{roleId}/revoke`
+- `POST /api/v1/devices/register` / `GET /api/v1/me/devices`
+- `POST /api/v1/devices/{deviceId}/revoke`
+- `POST /api/v1/sync/mutations` / `POST /api/v1/sync/mutations/batch`
+- `GET /api/v1/sync/user?device_id={deviceId}&after={cursor}`
+- `GET /api/v1/sync/catalog/{domainId}?device_id={deviceId}&after={cursor}`
 
 Authenticated calls use `Authorization: Bearer <Supabase access token>`. User identity is always the
 verified JWT subject and is never accepted from request JSON or query parameters.
@@ -133,6 +139,24 @@ contain application profile IDs and operational learning data only; they never q
 an audited history: granting and revoking lock the target profile, record the acting administrator and
 timestamp, and never delete a prior grant row. Repeated grant/revoke requests are idempotent and return
 `changed: false` when the requested state already exists.
+
+Offline sync supports progress, bookmarks, private notes, practice attempts, and review submissions.
+Every mutation is associated with an active device owned by the authenticated profile; user identity is
+never accepted in the mutation body. `mutation_id` and a server-calculated canonical request hash make
+retries safe and reject reuse with changed content. The sync adapter invokes the same Learning,
+Practice, and Recall application services as the online routes inside one outer transaction, then
+allocates a strictly ordered per-user cursor and commits once. Catalog data remains server authoritative.
+
+Batch sync uses one transaction per mutation. Business-rule conflicts are returned as rejected batch
+items while valid siblings remain committed; invalid device ownership rejects the request. Pull feeds
+are bounded to 500 entries and require `device_id` because retention state is device-specific. The
+default `SYNC_RETENTION_DAYS=30` bounds both the mutation ledger and change logs. Run the following as a
+scheduled Cloud Run Job; devices that fall behind deleted changes receive
+`full_resync_required: true`:
+
+```bash
+uv run python -m recallstack.commands.compact_sync
+```
 
 ## Initial administrator
 

@@ -115,6 +115,7 @@ class LearningStateRepository(Protocol):
         self,
         *,
         profile_id: UUID,
+        note_id: UUID | None,
         content_item_id: UUID,
         kind: str,
         title: str | None,
@@ -274,6 +275,7 @@ class LearningService:
         self,
         *,
         profile_id: UUID,
+        note_id: UUID | None = None,
         content_item_id: UUID,
         kind: str,
         title: str | None,
@@ -284,6 +286,7 @@ class LearningService:
                 self._content_not_found(content_item_id)
             note = await uow.repository.create_note(
                 profile_id=profile_id,
+                note_id=note_id,
                 content_item_id=content_item_id,
                 kind=kind,
                 title=title,

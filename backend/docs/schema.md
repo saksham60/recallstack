@@ -57,3 +57,17 @@ The dashboard returns direct category assignments only; parent categories do not
 descendant content. Categories are an administrator-curated, domain-bounded taxonomy, so the dashboard
 is deliberately unpaginated. Missing progress and explicit `new` progress are “not started.” Progress
 percentage is the percentage of published, non-archived items whose status moved beyond `new`.
+
+## Offline synchronization semantics
+
+`sync_mutations.mutation_id` is the global retry key. Runtime code calculates a SHA-256 hash over the
+canonical device, entity, operation, base version, and payload fields; reusing an ID with a different
+hash is a conflict. Each accepted mutation invokes the same Learning, Practice, or Recall application
+service used online through an ambient non-committing unit of work. The mutation ledger, authoritative
+state change, activity records, per-user cursor, and change-log row then commit together once.
+
+User and catalog cursors are independently monotonic and allocated while their counter row is locked.
+Catalog publish and archive transactions append catalog changes; clients cannot push catalog changes.
+Mutation and change-log retention is bounded by `SYNC_RETENTION_DAYS`. Compaction marks device state as
+requiring a full resync before deleting any change that the device has not pulled. Pull also detects a
+gap against the earliest retained cursor, covering devices registered after an older change was removed.

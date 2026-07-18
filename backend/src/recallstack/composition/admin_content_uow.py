@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from types import TracebackType
 from typing import Self
 from uuid import UUID
@@ -51,12 +51,18 @@ from recallstack.modules.practice.infrastructure.sqlalchemy_models import (
     PracticeProviderModel,
     PracticeResourceModel,
 )
+from recallstack.modules.sync.infrastructure.sqlalchemy_models import (
+    CatalogSyncChangeLogModel,
+    CatalogSyncCounterModel,
+    ChangeOperation,
+)
 from recallstack.shared.database import DatabaseSessionFactory
 
 
 class SqlAlchemyAdminContentRepository(AdminContentRepository):
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, *, sync_retention_days: int = 30) -> None:
         self._session = session
+        self._sync_retention_days = sync_retention_days
 
     async def active_domain_exists(self, domain_id: UUID) -> bool:
         return bool(
@@ -496,6 +502,12 @@ class SqlAlchemyAdminContentRepository(AdminContentRepository):
         )
         if version_number is None:
             raise RuntimeError("Published version disappeared during transaction")
+        await self._record_catalog_change(
+            domain_id=version.domain_id,
+            entity_id=version.content_item_id,
+            operation=ChangeOperation.UPSERT,
+            entity_version=version_number,
+        )
         return PublishedVersion(
             version.content_item_id,
             version.id,
@@ -673,7 +685,48 @@ class SqlAlchemyAdminContentRepository(AdminContentRepository):
             .where(ContentItemModel.id == item.id)
             .values(archived_at=now, updated_at=now)
         )
+        await self._record_catalog_change(
+            domain_id=item.domain_id,
+            entity_id=item.id,
+            operation=ChangeOperation.DELETE,
+            entity_version=None,
+        )
         return ArchivedContent(item.id, now)
+
+    async def _record_catalog_change(
+        self,
+        *,
+        domain_id: UUID,
+        entity_id: UUID,
+        operation: ChangeOperation,
+        entity_version: int | None,
+    ) -> None:
+        await self._session.execute(
+            pg_insert(CatalogSyncCounterModel)
+            .values(domain_id=domain_id, last_cursor=0)
+            .on_conflict_do_nothing(index_elements=[CatalogSyncCounterModel.domain_id])
+        )
+        counter = await self._session.scalar(
+            select(CatalogSyncCounterModel)
+            .where(CatalogSyncCounterModel.domain_id == domain_id)
+            .with_for_update()
+        )
+        if counter is None:
+            raise RuntimeError("Catalog sync counter could not be created")
+        counter.last_cursor += 1
+        now = datetime.now(UTC)
+        counter.updated_at = now
+        self._session.add(
+            CatalogSyncChangeLogModel(
+                domain_id=domain_id,
+                cursor=counter.last_cursor,
+                entity_type="content_item",
+                entity_id=entity_id,
+                operation=operation,
+                entity_version=entity_version,
+                retain_until=now + timedelta(days=self._sync_retention_days),
+            )
+        )
 
     async def _version_summary(self, version_id: UUID) -> VersionSummary:
         version = await self._session.get(ContentVersionModel, version_id)
@@ -734,14 +787,22 @@ class SqlAlchemyAdminContentRepository(AdminContentRepository):
 
 
 class SqlAlchemyAdminContentUnitOfWork(AdminContentUnitOfWork):
-    def __init__(self, session_factory: DatabaseSessionFactory[AsyncSession]) -> None:
+    def __init__(
+        self,
+        session_factory: DatabaseSessionFactory[AsyncSession],
+        *,
+        sync_retention_days: int = 30,
+    ) -> None:
         self._session_factory = session_factory
+        self._sync_retention_days = sync_retention_days
         self._session: AsyncSession | None = None
         self.repository: AdminContentRepository
 
     async def __aenter__(self) -> Self:
         self._session = self._session_factory.create_session()
-        self.repository = SqlAlchemyAdminContentRepository(self._session)
+        self.repository = SqlAlchemyAdminContentRepository(
+            self._session, sync_retention_days=self._sync_retention_days
+        )
         return self
 
     async def __aexit__(

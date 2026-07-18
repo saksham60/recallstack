@@ -15,6 +15,7 @@ from recallstack.composition.practice_attempt_uow import SqlAlchemyPracticeAttem
 from recallstack.composition.published_study_note_uow import SqlAlchemyPublishedStudyNoteUnitOfWork
 from recallstack.composition.recall_uow import SqlAlchemyRecallUnitOfWork
 from recallstack.composition.search_uow import SqlAlchemySearchUnitOfWork
+from recallstack.composition.sync_uow import SqlAlchemySyncUnitOfWork
 from recallstack.health import ReadinessProbe
 from recallstack.health import router as health_router
 from recallstack.modules.admin.application.content_management import AdminContentService
@@ -51,6 +52,8 @@ from recallstack.modules.recall.application.review_submission import (
     RecallService,
 )
 from recallstack.modules.recall.presentation.routes import router as recall_router
+from recallstack.modules.sync.application.sync_service import SyncService
+from recallstack.modules.sync.presentation.routes import router as sync_router
 from recallstack.shared.auth.jwt_verifier import SupabaseJwtVerifier
 from recallstack.shared.config import Settings, get_settings
 from recallstack.shared.database import Database
@@ -94,7 +97,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         app.state.event_publisher = InProcessEventPublisher()
         app.state.admin_content_service = AdminContentService(
-            lambda: SqlAlchemyAdminContentUnitOfWork(database.session_factory),
+            lambda: SqlAlchemyAdminContentUnitOfWork(
+                database.session_factory, sync_retention_days=resolved.sync_retention_days
+            ),
             app.state.event_publisher,
         )
         app.state.admin_user_service = AdminUserService(
@@ -112,6 +117,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         app.state.search_service = SearchService(
             lambda: SqlAlchemySearchUnitOfWork(database.session_factory)
+        )
+        app.state.sync_service = SyncService(
+            lambda: SqlAlchemySyncUnitOfWork(database.session_factory),
+            retention_days=resolved.sync_retention_days,
         )
         app.state.published_study_note_service = PublishedStudyNoteService(
             lambda: SqlAlchemyPublishedStudyNoteUnitOfWork(database.session_factory),
@@ -155,6 +164,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(search_router, prefix="/api/v1")
     app.include_router(admin_content_router, prefix="/api/v1")
     app.include_router(admin_user_router, prefix="/api/v1")
+    app.include_router(sync_router, prefix="/api/v1")
     return app
 
 

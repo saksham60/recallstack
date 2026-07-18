@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     jwks_cache_seconds: int = Field(default=600, ge=60, le=86400)
     request_body_max_bytes: int = Field(default=1_048_576, ge=1024, le=10_485_760)
     readiness_cache_seconds: float = Field(default=5.0, ge=1.0, le=60.0)
+    sync_retention_days: int = Field(default=30, ge=1, le=365)
     otel_enabled: bool = False
 
     @field_validator("database_url", mode="before")
