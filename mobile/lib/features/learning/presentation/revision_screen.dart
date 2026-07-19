@@ -5,10 +5,15 @@ import 'package:app/features/learning/presentation/blocks/block_renderer_registr
 import 'package:app/features/learning/presentation/study_note_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:drift/drift.dart' hide Column;
 
 final pendingReviewsProvider = StreamProvider.autoDispose<List<ReviewCard>>((ref) {
   final db = ref.watch(appDatabaseProvider);
-  return (db.select(db.reviewCards)..where((t) => t.state.isNotValue('pending_sync'))).watch();
+  return (db.select(db.reviewCards)
+        ..where((t) =>
+            t.state.isNotValue('pending_sync') &
+            (t.nextReviewAt.isNull() | t.nextReviewAt.isSmallerOrEqualValue(DateTime.now()))))
+      .watch();
 });
 
 class RevisionScreen extends ConsumerStatefulWidget {
@@ -20,6 +25,7 @@ class RevisionScreen extends ConsumerStatefulWidget {
 
 class _RevisionScreenState extends ConsumerState<RevisionScreen> {
   bool _showAnswer = false;
+  bool _isMutating = false;
 
   @override
   Widget build(BuildContext context) {
@@ -57,7 +63,7 @@ class _RevisionScreenState extends ConsumerState<RevisionScreen> {
   }
 
   Widget _buildCardContent(BuildContext context, ReviewCard card) {
-    final docAsync = ref.watch(studyNoteFutureProvider(card.contentId));
+    final docAsync = ref.watch(studyNoteByIdFutureProvider(card.contentId));
     final theme = Theme.of(context);
 
     return docAsync.when(
@@ -113,13 +119,13 @@ class _RevisionScreenState extends ConsumerState<RevisionScreen> {
                 child: _showAnswer
                     ? Row(
                         children: [
-                          _ReviewButton(label: 'Again', color: Colors.red, onPressed: () => _submit(card.id, 'again')),
+                          _ReviewButton(label: 'Again', color: Colors.red, onPressed: _isMutating ? null : () => _submit(card.id, 'again')),
                           const SizedBox(width: 8),
-                          _ReviewButton(label: 'Hard', color: Colors.orange, onPressed: () => _submit(card.id, 'hard')),
+                          _ReviewButton(label: 'Hard', color: Colors.orange, onPressed: _isMutating ? null : () => _submit(card.id, 'hard')),
                           const SizedBox(width: 8),
-                          _ReviewButton(label: 'Good', color: Colors.green, onPressed: () => _submit(card.id, 'good')),
+                          _ReviewButton(label: 'Good', color: Colors.green, onPressed: _isMutating ? null : () => _submit(card.id, 'good')),
                           const SizedBox(width: 8),
-                          _ReviewButton(label: 'Easy', color: Colors.blue, onPressed: () => _submit(card.id, 'easy')),
+                          _ReviewButton(label: 'Easy', color: Colors.blue, onPressed: _isMutating ? null : () => _submit(card.id, 'easy')),
                         ],
                       )
                     : SizedBox(
@@ -142,20 +148,34 @@ class _RevisionScreenState extends ConsumerState<RevisionScreen> {
     );
   }
 
-  void _submit(String cardId, String rating) {
-    ref.read(mutationRepositoryProvider).submitReview(cardId, rating);
-    setState(() {
-      _showAnswer = false;
-    });
+  Future<void> _submit(String cardId, String rating) async {
+    if (_isMutating) return;
+    setState(() => _isMutating = true);
+    try {
+      await ref.read(mutationRepositoryProvider).submitReview(cardId, rating);
+      if (mounted) {
+        setState(() {
+          _showAnswer = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isMutating = false);
+      }
+    }
   }
 }
 
 class _ReviewButton extends StatelessWidget {
   final String label;
   final Color color;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
-  const _ReviewButton({required this.label, required this.color, required this.onPressed});
+  const _ReviewButton({required this.label, required this.color, this.onPressed});
 
   @override
   Widget build(BuildContext context) {

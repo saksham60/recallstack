@@ -3,6 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+final problemListProvider = StreamProvider.family<List<ContentItemWithProgress>, String>((ref, categoryId) {
+  return ref.watch(catalogRepositoryProvider).watchContentItems(categoryId);
+});
+
 class ProblemListScreen extends ConsumerWidget {
   final String categoryId;
 
@@ -10,23 +14,16 @@ class ProblemListScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final itemsAsync = ref.watch(catalogRepositoryProvider).watchContentItems(categoryId);
+    final itemsAsync = ref.watch(problemListProvider(categoryId));
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Problems'),
       ),
-      body: StreamBuilder<List<ContentItemWithProgress>>(
-        stream: itemsAsync,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-
-          final items = snapshot.data ?? [];
+      body: itemsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, stack) => Center(child: Text('Error: $err')),
+        data: (items) {
           if (items.isEmpty) {
             return _buildEmptyState(context);
           }

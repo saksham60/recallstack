@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:drift/drift.dart' hide Column;
 import 'package:go_router/go_router.dart';
 import 'package:app/shared/theme/app_colors.dart';
 import 'package:app/core/database/database.dart';
@@ -7,7 +8,12 @@ import 'package:app/shared/widgets/sync_status_badge.dart';
 
 final dueReviewsCountProvider = StreamProvider.autoDispose<int>((ref) {
   final db = ref.watch(appDatabaseProvider);
-  return db.select(db.reviewCards).watch().map((cards) => cards.length);
+  return (db.select(db.reviewCards)
+        ..where((t) =>
+            t.state.isNotValue('pending_sync') &
+            (t.nextReviewAt.isNull() | t.nextReviewAt.isSmallerOrEqualValue(DateTime.now()))))
+      .watch()
+      .map((cards) => cards.length);
 });
 
 class HomeScreen extends ConsumerWidget {

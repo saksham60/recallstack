@@ -2,16 +2,25 @@ import 'dart:convert';
 import 'package:app/features/catalog/data/catalog_repository.dart';
 import 'package:app/features/learning/presentation/blocks/block_renderer_registry.dart';
 import 'package:app/core/sync/mutation_repository.dart';
+import 'package:app/core/database/database.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:drift/drift.dart' hide Column;
 import 'package:url_launcher/url_launcher.dart';
 
 final studyNoteFutureProvider = FutureProvider.family<Map<String, dynamic>?, String>((ref, slug) async {
   final repo = ref.watch(catalogRepositoryProvider);
   final contentItem = await repo.getContentItemBySlug(slug);
   if (contentItem == null) return null;
+  return ref.watch(studyNoteByIdFutureProvider(contentItem.item.id).future);
+});
 
-  final doc = await repo.getContentDocument(contentItem.item.id);
+final studyNoteByIdFutureProvider = FutureProvider.family<Map<String, dynamic>?, String>((ref, contentId) async {
+  final repo = ref.watch(catalogRepositoryProvider);
+  final contentItem = await repo.getContentItem(contentId);
+  if (contentItem == null) return null;
+
+  final doc = await repo.getContentDocument(contentId);
   if (doc == null) return {'item': contentItem, 'blocks': []};
 
   List<dynamic> blocks = [];
@@ -27,28 +36,69 @@ final studyNoteFutureProvider = FutureProvider.family<Map<String, dynamic>?, Str
   };
 });
 
-class StudyNoteScreen extends ConsumerWidget {
+final isBookmarkedProvider = StreamProvider.family<bool, String>((ref, contentId) {
+  final db = ref.watch(appDatabaseProvider);
+  return (db.select(db.bookmarks)..where((t) => t.contentId.equals(contentId))).watch().map((list) => list.isNotEmpty);
+});
+
+class StudyNoteScreen extends ConsumerStatefulWidget {
   final String slug;
 
   const StudyNoteScreen({super.key, required this.slug});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final dataAsync = ref.watch(studyNoteFutureProvider(slug));
+  ConsumerState<StudyNoteScreen> createState() => _StudyNoteScreenState();
+}
+
+class _StudyNoteScreenState extends ConsumerState<StudyNoteScreen> {
+  bool _isMutating = false;
+
+  Future<void> _runMutation(Future<void> Function() action, String successMessage) async {
+    if (_isMutating) return;
+    setState(() => _isMutating = true);
+    try {
+      await action();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(successMessage)));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isMutating = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dataAsync = ref.watch(studyNoteFutureProvider(widget.slug));
     final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Study Note'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.bookmark_border),
-            onPressed: () {
-              ref.read(mutationRepositoryProvider).toggleBookmark(slug, true);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Bookmarked offline. Will sync shortly.')),
+          dataAsync.when(
+            data: (data) {
+              if (data == null) return const SizedBox.shrink();
+              final contentId = (data['item'] as ContentItemWithProgress).item.id;
+              final isBookmarkedAsync = ref.watch(isBookmarkedProvider(contentId));
+              final isBookmarked = isBookmarkedAsync.value ?? false;
+              return IconButton(
+                icon: Icon(isBookmarked ? Icons.bookmark : Icons.bookmark_border),
+                onPressed: _isMutating ? null : () {
+                  _runMutation(
+                    () => ref.read(mutationRepositoryProvider).toggleBookmark(contentId, !isBookmarked),
+                    isBookmarked ? 'Bookmark removed.' : 'Bookmarked offline. Will sync shortly.',
+                  );
+                },
               );
             },
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
           ),
         ],
       ),
@@ -105,7 +155,7 @@ class StudyNoteScreen extends ConsumerWidget {
                 
                 // Practice / Notes placeholders
                 ElevatedButton.icon(
-                  onPressed: () async {
+                  onPressed: _isMutating ? null : () async {
                     final url = Uri.parse('https://leetcode.com/problemset/all/');
                     if (await canLaunchUrl(url)) {
                       await launchUrl(url);
@@ -122,7 +172,7 @@ class StudyNoteScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
                 OutlinedButton.icon(
-                  onPressed: () {
+                  onPressed: _isMutating ? null : () {
                     _showAddNoteDialog(context, ref, contentWithProg.item.id);
                   },
                   icon: const Icon(Icons.note_add),
@@ -148,15 +198,21 @@ class StudyNoteScreen extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () {
-              ref.read(mutationRepositoryProvider).savePracticeAttempt(contentId, 'struggled');
               Navigator.pop(context);
+              _runMutation(
+                () => ref.read(mutationRepositoryProvider).savePracticeAttempt(contentId, 'struggled'),
+                'Practice attempt saved.',
+              );
             },
             child: const Text('Struggled'),
           ),
           TextButton(
             onPressed: () {
-              ref.read(mutationRepositoryProvider).savePracticeAttempt(contentId, 'solved');
               Navigator.pop(context);
+              _runMutation(
+                () => ref.read(mutationRepositoryProvider).savePracticeAttempt(contentId, 'solved'),
+                'Practice attempt saved.',
+              );
             },
             child: const Text('Solved'),
           ),
@@ -186,10 +242,14 @@ class StudyNoteScreen extends ConsumerWidget {
           ),
           FilledButton(
             onPressed: () {
-              if (controller.text.trim().isNotEmpty) {
-                ref.read(mutationRepositoryProvider).saveUserNote(contentId, controller.text.trim());
-              }
+              final text = controller.text.trim();
               Navigator.pop(context);
+              if (text.isNotEmpty) {
+                _runMutation(
+                  () => ref.read(mutationRepositoryProvider).saveUserNote(contentId, text),
+                  'Note saved.',
+                );
+              }
             },
             child: const Text('Save'),
           ),

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -10,7 +11,17 @@ class ApiClient {
   final SupabaseAuthRepository _authRepository;
 
   ApiClient(this._authRepository) : _dio = Dio() {
-    final baseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:8080/api/v1';
+    const dartDefineUrl = String.fromEnvironment('API_BASE_URL');
+    final dotenvUrl = dotenv.env['API_BASE_URL'];
+    
+    String? baseUrl = dartDefineUrl.isNotEmpty ? dartDefineUrl : dotenvUrl;
+    
+    if (baseUrl == null || baseUrl.isEmpty) {
+      if (kReleaseMode) {
+        throw UnsupportedError('API_BASE_URL must be provided in release mode');
+      }
+      baseUrl = 'http://10.0.2.2:8080/api/v1';
+    }
     
     _dio.options = BaseOptions(
       baseUrl: baseUrl,

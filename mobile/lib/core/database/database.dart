@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart';
 import 'package:sqlite3_flutter_libs/sqlite3_flutter_libs.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:app/core/auth/supabase_auth_repository.dart';
 
 import 'tables.dart';
 
@@ -24,7 +25,7 @@ part 'database.g.dart';
   DeviceState,
 ])
 class AppDatabase extends _$AppDatabase {
-  AppDatabase() : super(_openConnection());
+  AppDatabase(String? userId) : super(_openConnection(userId));
 
   @override
   int get schemaVersion => 1;
@@ -42,10 +43,11 @@ class AppDatabase extends _$AppDatabase {
   }
 }
 
-LazyDatabase _openConnection() {
+LazyDatabase _openConnection(String? userId) {
   return LazyDatabase(() async {
     final dbFolder = await getApplicationDocumentsDirectory();
-    final file = File(p.join(dbFolder.path, 'recallstack.sqlite'));
+    final fileName = userId != null ? 'recallstack_$userId.sqlite' : 'recallstack_anon.sqlite';
+    final file = File(p.join(dbFolder.path, fileName));
 
     if (Platform.isAndroid) {
       await applyWorkaroundToOpenSqlite3OnOldAndroidVersions();
@@ -60,5 +62,8 @@ LazyDatabase _openConnection() {
 
 @riverpod
 AppDatabase appDatabase(Ref ref) {
-  return AppDatabase();
+  // Watch auth state to recreate database connection when user changes
+  final authRepo = ref.watch(authRepositoryProvider);
+  final userId = authRepo.currentUser?.id;
+  return AppDatabase(userId);
 }

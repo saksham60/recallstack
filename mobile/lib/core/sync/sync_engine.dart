@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app/core/api/api_client.dart';
 import 'package:app/core/database/database.dart';
 import 'package:app/core/sync/sync_status_provider.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 
 class SyncEngine {
   final ApiClient _apiClient;
@@ -26,8 +27,8 @@ class SyncEngine {
       await _pullUserChanges();
     } on DioException {
       _ref.read(syncStatusProvider.notifier).setOffline();
-    } catch (e) {
-      // Log error using observability
+    } catch (e, stack) {
+      FirebaseCrashlytics.instance.recordError(e, stack, reason: 'runSync failed completely');
     } finally {
       _isSyncing = false;
       _ref.read(syncStatusProvider.notifier).setSyncing(false);
@@ -47,18 +48,23 @@ class SyncEngine {
       return;
     }
 
-    // Register device
-    // final response = await _apiClient.client.post('/devices/register');
-    // final deviceId = response.data['device_id'];
-    
-    // Placeholder registration logic
-    const deviceId = 'dummy-device-id';
-    
-    await _db.into(_db.deviceState).insert(DeviceStateCompanion.insert(
-      id: 'current',
-      deviceId: deviceId,
-      registeredAt: DateTime.now(),
-    ));
+    try {
+      final response = await _apiClient.client.post('/devices/register', data: {
+        'device_name': 'Android Device',
+        'platform': 'android',
+        'app_version': '1.0.0',
+      });
+      final deviceId = response.data['id'] as String;
+      
+      await _db.into(_db.deviceState).insert(DeviceStateCompanion.insert(
+        id: 'current',
+        deviceId: deviceId,
+        registeredAt: DateTime.now(),
+      ));
+    } catch (e, stack) {
+      FirebaseCrashlytics.instance.recordError(e, stack, reason: 'Device registration failed');
+      rethrow;
+    }
   }
 
   Future<void> _pushMutations() async {
@@ -111,14 +117,11 @@ class SyncEngine {
           }
         }
       });
-    } on DioException catch (e) {
-      // Exponential backoff for transient failures
-      // If 400 or 403, might be permanent, but let's assume batch endpoint handles validation internally via 'rejected' status.
-      // So HTTP errors here are usually network/5xx.
+    } on DioException catch (e, stack) {
+      FirebaseCrashlytics.instance.recordError(e, stack, reason: 'Sync mutations failed (network)');
       await _db.transaction(() async {
         for (var m in pendingMutations) {
           final nextRetry = m.retryCount + 1;
-          // backoff: 2^retryCount seconds (max ~1 hour)
           final delaySeconds = (1 << (nextRetry > 12 ? 12 : nextRetry));
           
           await (_db.update(_db.localOutbox)..where((t) => t.mutationId.equals(m.mutationId)))
@@ -130,8 +133,8 @@ class SyncEngine {
             ));
         }
       });
-    } catch (e) {
-      // Fallback for unexpected errors
+    } catch (e, stack) {
+      FirebaseCrashlytics.instance.recordError(e, stack, reason: 'Sync mutations failed (unexpected)');
       for (var m in pendingMutations) {
         await (_db.update(_db.localOutbox)..where((t) => t.mutationId.equals(m.mutationId)))
             .write(const LocalOutboxCompanion(status: Value('pending')));
@@ -160,21 +163,23 @@ class SyncEngine {
       }
 
       await _db.transaction(() async {
-        // Apply catalog changes (Categories, ContentItems, ContentDocuments)
+        final changes = data['changes'] as List<dynamic>? ?? [];
+        
+        // Apply catalog changes (Categories, ContentItems, ContentDocuments) safely inside transaction
         // ...
 
         // Update cursor ONLY AFTER applying changes
-        final nextCursor = data['next_cursor'] as String?;
+        final nextCursor = data['next_cursor'];
         if (nextCursor != null) {
           await _db.into(_db.syncCursors).insertOnConflictUpdate(SyncCursorsCompanion.insert(
             id: cursorId,
-            cursorValue: nextCursor,
+            cursorValue: nextCursor.toString(),
             updatedAt: DateTime.now(),
           ));
         }
       });
-    } catch (e) {
-      // Log
+    } catch (e, stack) {
+      FirebaseCrashlytics.instance.recordError(e, stack, reason: 'Failed pulling catalog changes');
     }
   }
 
@@ -195,21 +200,23 @@ class SyncEngine {
       final data = response.data as Map<String, dynamic>;
       
       await _db.transaction(() async {
-        // Apply user changes (Progress, Notes, Bookmarks, ReviewCards)
+        final changes = data['changes'] as List<dynamic>? ?? [];
+
+        // Apply user changes (Progress, Notes, Bookmarks, ReviewCards) safely inside transaction
         // ...
 
         // Update cursor
-        final nextCursor = data['next_cursor'] as String?;
+        final nextCursor = data['next_cursor'];
         if (nextCursor != null) {
           await _db.into(_db.syncCursors).insertOnConflictUpdate(SyncCursorsCompanion.insert(
             id: cursorId,
-            cursorValue: nextCursor,
+            cursorValue: nextCursor.toString(),
             updatedAt: DateTime.now(),
           ));
         }
       });
-    } catch (e) {
-      // Log
+    } catch (e, stack) {
+      FirebaseCrashlytics.instance.recordError(e, stack, reason: 'Failed pulling user changes');
     }
   }
 

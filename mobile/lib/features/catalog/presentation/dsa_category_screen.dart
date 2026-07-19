@@ -3,29 +3,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+final dsaCategoriesProvider = StreamProvider.family<List<CategoryWithStats>, String>((ref, domainId) {
+  return ref.watch(catalogRepositoryProvider).watchCategories(domainId);
+});
+
 class DSACategoryScreen extends ConsumerWidget {
   const DSACategoryScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // Assuming 'dsa' is the domain ID
-    final categoriesAsync = ref.watch(catalogRepositoryProvider).watchCategories('dsa');
+    final categoriesAsync = ref.watch(dsaCategoriesProvider('dsa'));
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('DSA Topics'),
       ),
-      body: StreamBuilder<List<CategoryWithStats>>(
-        stream: categoriesAsync,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-
-          final categories = snapshot.data ?? [];
+      body: categoriesAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, stack) => Center(child: Text('Error: $err')),
+        data: (categories) {
           if (categories.isEmpty) {
             return _buildEmptyState(context);
           }
