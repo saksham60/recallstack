@@ -1,0 +1,25 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+  errors:
+    missing_required_param: error
+    missing_return: error
+    parameter_assignments: warning
+    invalid_annotation_target: ignore
+
+linter:
+  rules:
+    - avoid_dynamic_calls
+    - avoid_empty_else
+    - avoid_print
+    - prefer_single_quotes
+    - always_declare_return_types
+    - cancel_subscriptions
+    - close_sinks
+    - prefer_const_constructors
+    - prefer_const_declarations
+    - prefer_is_empty
+    - prefer_is_not_empty
