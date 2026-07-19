@@ -1,56 +1,38 @@
-import { createClient as createBrowserClient } from "@/lib/supabase/client";
+import createClient, { type Middleware } from "openapi-fetch";
+import type { paths } from "./types";
+import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import { createApiError } from "./errors";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080/api/v1";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
 
-interface ApiOptions extends RequestInit {
-  timeoutMs?: number;
-}
-
-export async function apiClient<T = any>(endpoint: string, options: ApiOptions = {}): Promise<T> {
-  const supabase = createBrowserClient();
-  const { data: { session } } = await supabase.auth.getSession();
-
-  const headers = new Headers(options.headers);
-  headers.set("Content-Type", "application/json");
-  if (session?.access_token) {
-    headers.set("Authorization", `Bearer ${session.access_token}`);
-  }
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), options.timeoutMs || 15000);
-
-  const fetchOptions: RequestInit = {
-    ...options,
-    headers,
-    signal: options.signal || controller.signal,
-  };
-
-  try {
-    const url = `${API_BASE_URL}${endpoint}`;
-    const response = await fetch(url, fetchOptions);
-
+const authMiddleware: Middleware = {
+  async onRequest({ request }) {
+    // Note: this middleware runs on the client. 
+    // Server components shouldn't use this fetcher if they need auth, unless we pass headers explicitly.
+    if (typeof window !== "undefined") {
+      const supabase = createSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.access_token) {
+        request.headers.set("Authorization", `Bearer ${session.access_token}`);
+      }
+    }
+    return request;
+  },
+  async onResponse({ response }) {
     if (!response.ok) {
       let errorData;
       try {
-        errorData = await response.json();
+        errorData = await response.clone().json();
       } catch {
         errorData = { detail: response.statusText };
       }
       throw createApiError(response.status, errorData);
     }
-
-    if (response.status === 204) {
-      return {} as T;
-    }
-
-    return await response.json();
-  } catch (error: any) {
-    if (error.name === "AbortError") {
-      throw new Error("Request timed out");
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
+    return response;
   }
-}
+};
+
+export const apiClient = createClient<paths>({ baseUrl: API_BASE_URL });
+apiClient.use(authMiddleware);
+

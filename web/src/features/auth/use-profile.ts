@@ -13,7 +13,11 @@ export const profileKeys = {
 export function useProfile() {
   return useQuery({
     queryKey: profileKeys.profile(),
-    queryFn: () => apiClient<ProfileResponse>("/me"),
+    queryFn: async () => {
+      const { data, error } = await apiClient.GET("/api/v1/me");
+      if (error) throw error;
+      return data;
+    },
   });
 }
 
@@ -21,11 +25,13 @@ export function useUpdateProfile() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: ProfilePatchRequest) =>
-      apiClient<ProfileResponse>("/me", {
-        method: "PATCH",
-        body: JSON.stringify(data),
-      }),
+    mutationFn: async (body: ProfilePatchRequest) => {
+      const { data, error } = await apiClient.PATCH("/api/v1/me", {
+        body,
+      });
+      if (error) throw error;
+      return data;
+    },
     onSuccess: (updatedProfile) => {
       queryClient.setQueryData(profileKeys.profile(), updatedProfile);
     },

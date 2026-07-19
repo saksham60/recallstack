@@ -13,7 +13,13 @@ export const searchKeys = {
 export function useSearch(query: string) {
   return useQuery({
     queryKey: searchKeys.query(query),
-    queryFn: () => apiClient<SearchResponse>(`/search?q=${encodeURIComponent(query)}`),
+    queryFn: async () => {
+      const { data, error } = await apiClient.GET("/api/v1/search", {
+        params: { query: { q: query } },
+      });
+      if (error) throw error;
+      return data;
+    },
     enabled: query.length > 2,
     staleTime: 5 * 60 * 1000,
   });

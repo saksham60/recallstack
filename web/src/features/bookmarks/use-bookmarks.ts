@@ -12,8 +12,13 @@ export const bookmarkKeys = {
 export function useBookmarks(page: number = 1, pageSize: number = 25) {
   return useQuery({
     queryKey: bookmarkKeys.list(page),
-    queryFn: () => 
-      apiClient<BookmarkListResponse>(`/bookmarks?page=${page}&page_size=${pageSize}`),
+    queryFn: async () => {
+      const { data, error } = await apiClient.GET("/api/v1/me/bookmarks", {
+        params: { query: { page, page_size: pageSize } },
+      });
+      if (error) throw error;
+      return data;
+    },
   });
 }
 
@@ -23,9 +28,17 @@ export function useToggleBookmark() {
   return useMutation({
     mutationFn: async ({ contentId, isBookmarked }: { contentId: string; isBookmarked: boolean }) => {
       if (isBookmarked) {
-        return apiClient(`/content/${contentId}/bookmarks`, { method: "DELETE" });
+        const { data, error } = await apiClient.DELETE("/api/v1/me/bookmarks/{contentId}", {
+          params: { path: { contentId } },
+        });
+        if (error) throw error;
+        return data;
       } else {
-        return apiClient(`/content/${contentId}/bookmarks`, { method: "POST" });
+        const { data, error } = await apiClient.PUT("/api/v1/me/bookmarks/{contentId}", {
+          params: { path: { contentId } },
+        });
+        if (error) throw error;
+        return data;
       }
     },
     // Optimistic Update

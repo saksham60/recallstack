@@ -9,7 +9,8 @@ interface NotesPanelProps {
 }
 
 export function NotesPanel({ contentId }: NotesPanelProps) {
-  const { data: notes, isLoading } = useNotes(contentId);
+  const { data: notesData, isLoading } = useNotes(contentId);
+  const notes = notesData?.items;
   const { mutate: createNote, isPending: isCreating } = useCreateNote();
   const { mutate: deleteNote } = useDeleteNote();
   
@@ -33,7 +34,7 @@ export function NotesPanel({ contentId }: NotesPanelProps) {
 
   const handleDelete = (note: NoteResponse) => {
     if (confirm("Are you sure you want to delete this note?")) {
-      deleteNote({ noteId: note.id, rowVersion: note.row_version });
+      deleteNote({ noteId: note.id, row_version: note.row_version });
     }
   };
 

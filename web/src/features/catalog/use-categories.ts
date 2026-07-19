@@ -12,6 +12,12 @@ export const categoryKeys = {
 export function useCategories(domainSlug: string = "dsa") {
   return useQuery({
     queryKey: categoryKeys.domain(domainSlug),
-    queryFn: () => apiClient<CategoryDashboardResponse[]>(`/domains/${domainSlug}/categories`),
+    queryFn: async () => {
+      const { data, error } = await apiClient.GET("/api/v1/domains/{domainSlug}/categories", {
+        params: { path: { domainSlug } },
+      });
+      if (error) throw error;
+      return data;
+    },
   });
 }

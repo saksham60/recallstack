@@ -9,7 +9,7 @@ export default function RevisePage() {
   const { mutate: submitReview, isPending: isSubmitting } = useSubmitReview();
   
   // Track which reviews have been submitted locally for optimistic UI
-  const [submittedIds, setSubmittedIds] = useState<Set<number>>(new Set());
+  const [submittedIds, setSubmittedIds] = useState<Set<string>>(new Set());
 
   if (isLoading) {
     return (
@@ -33,18 +33,18 @@ export default function RevisePage() {
     );
   }
 
-  const pendingReviews = dueData.items.filter(item => !submittedIds.has(item.id));
+  const pendingReviews = dueData.items.filter(item => !submittedIds.has(item.card_id));
 
   const handleRating = (item: any, rating: "again" | "hard" | "good" | "easy") => {
     // Generate UUID for event
     const eventId = crypto.randomUUID();
     
     // Optimistically hide from UI
-    setSubmittedIds(prev => new Set(prev).add(item.id));
+    setSubmittedIds(prev => new Set(prev).add(item.card_id));
     
     submitReview({
-      cardId: item.review_card_id,
-      data: {
+      cardId: item.card_id,
+      body: {
         review_event_id: eventId,
         rating,
         reviewed_at: new Date().toISOString(),
@@ -55,7 +55,7 @@ export default function RevisePage() {
         // Revert on error
         setSubmittedIds(prev => {
           const next = new Set(prev);
-          next.delete(item.id);
+          next.delete(item.card_id);
           return next;
         });
         alert("Failed to submit review.");
@@ -88,18 +88,18 @@ export default function RevisePage() {
         <div className="space-y-4">
           {pendingReviews.map((item) => (
             <div 
-              key={item.id}
+              key={item.card_id}
               className="flex flex-col rounded-xl border border-border bg-surface p-5 shadow-sm"
             >
               <div className="flex justify-between items-start gap-4 mb-4">
                 <div>
                   <h3 className="font-semibold tracking-tight text-foreground text-lg">{item.title || "Unknown Content"}</h3>
                   <div className="text-sm text-muted mt-1">
-                    Due: {new Date(item.next_due_at || Date.now()).toLocaleString()}
+                    Due: {new Date(item.due_at || Date.now()).toLocaleString()}
                   </div>
                 </div>
                 <Link 
-                  href={`/content/${item.content_slug}`}
+                  href={`/content/${item.slug}`}
                   className="text-sm font-medium text-accent hover:underline"
                   target="_blank"
                 >

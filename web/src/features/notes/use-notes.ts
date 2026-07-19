@@ -3,6 +3,7 @@ import { apiClient } from "@/lib/api/client";
 import type { components } from "@/lib/api/types";
 
 export type NoteResponse = components["schemas"]["NoteResponse"];
+export type NoteListResponse = components["schemas"]["NoteListResponse"];
 export type NoteCreateRequest = components["schemas"]["NoteCreateRequest"];
 export type NotePatchRequest = components["schemas"]["NotePatchRequest"];
 
@@ -14,7 +15,13 @@ export const noteKeys = {
 export function useNotes(contentId: string) {
   return useQuery({
     queryKey: noteKeys.content(contentId),
-    queryFn: () => apiClient<NoteResponse[]>(`/me/content/${contentId}/notes`),
+    queryFn: async () => {
+      const { data, error } = await apiClient.GET("/api/v1/me/content/{contentId}/notes", {
+        params: { path: { contentId } },
+      });
+      if (error) throw error;
+      return data;
+    },
     enabled: !!contentId,
   });
 }
@@ -23,11 +30,13 @@ export function useCreateNote() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: NoteCreateRequest) =>
-      apiClient<NoteResponse>("/me/notes", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
+    mutationFn: async (body: NoteCreateRequest) => {
+      const { data, error } = await apiClient.POST("/api/v1/me/notes", {
+        body,
+      });
+      if (error) throw error;
+      return data;
+    },
     onSuccess: (newNote) => {
       queryClient.invalidateQueries({ queryKey: noteKeys.content(newNote.content_item_id) });
     },
@@ -38,11 +47,14 @@ export function useUpdateNote() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ noteId, data }: { noteId: string; data: NotePatchRequest }) =>
-      apiClient<NoteResponse>(`/me/notes/${noteId}`, {
-        method: "PATCH",
-        body: JSON.stringify(data),
-      }),
+    mutationFn: async ({ noteId, body }: { noteId: string; body: NotePatchRequest }) => {
+      const { data, error } = await apiClient.PATCH("/api/v1/me/notes/{noteId}", {
+        params: { path: { noteId } },
+        body,
+      });
+      if (error) throw error;
+      return data;
+    },
     onSuccess: (updatedNote) => {
       queryClient.invalidateQueries({ queryKey: noteKeys.content(updatedNote.content_item_id) });
     },
@@ -53,13 +65,15 @@ export function useDeleteNote() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ noteId, rowVersion }: { noteId: string; rowVersion: number }) =>
-      apiClient(`/me/notes/${noteId}?row_version=${rowVersion}`, {
-        method: "DELETE",
-      }),
+    mutationFn: async ({ noteId, row_version }: { noteId: string; row_version: number }) => {
+      const { data, error } = await apiClient.DELETE("/api/v1/me/notes/{noteId}", {
+        params: { path: { noteId } },
+        body: { row_version },
+      });
+      if (error) throw error;
+      return data;
+    },
     onSuccess: (_, variables) => {
-      // Ideally we should know content_item_id to invalidate perfectly, 
-      // but invalidating all notes works for now.
       queryClient.invalidateQueries({ queryKey: noteKeys.all });
     },
   });

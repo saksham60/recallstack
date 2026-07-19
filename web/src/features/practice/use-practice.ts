@@ -8,11 +8,13 @@ export function useSubmitPractice() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: PracticeAttemptRequest) =>
-      apiClient("/practice/attempts", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
+    mutationFn: async (body: PracticeAttemptRequest) => {
+      const { data, error } = await apiClient.POST("/api/v1/practice/attempts", {
+        body,
+      });
+      if (error) throw error;
+      return data;
+    },
     onSuccess: (_, variables) => {
       // Invalidate both study note and problem list queries
       queryClient.invalidateQueries({ queryKey: ["content"] });

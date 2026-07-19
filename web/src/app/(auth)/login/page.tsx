@@ -1,10 +1,18 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { useAuth } from "@/features/auth/AuthProvider";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const { signInWithGoogle, isLoading, user } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (user) {
+      router.replace("/dsa");
+    }
+  }, [user, router]);
 
   if (isLoading) {
     return (

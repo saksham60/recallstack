@@ -9,11 +9,14 @@ export function useUpdateProgress() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ contentId, data }: { contentId: string; data: ProgressPutRequest }) =>
-      apiClient(`/me/progress/${contentId}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
+    mutationFn: async ({ contentId, data }: { contentId: string; data: ProgressPutRequest }) => {
+      const { data: responseData, error } = await apiClient.PUT("/api/v1/me/progress/{contentId}", {
+        params: { path: { contentId } },
+        body: data,
+      });
+      if (error) throw error;
+      return responseData;
+    },
     onSuccess: () => {
       // Invalidate both study note and problem list queries
       queryClient.invalidateQueries({ queryKey: ["content"] });

@@ -1,10 +1,15 @@
 import React from "react";
+import DOMPurify from "isomorphic-dompurify";
 import type { StudyNoteBlockResponse } from "../use-study-note";
 
 // Basic block renderers
-const TextBlock = ({ payload }: { payload: any }) => (
-  <div className="prose prose-invert max-w-none text-muted" dangerouslySetInnerHTML={{ __html: payload.content || payload.text || "" }} />
-);
+const TextBlock = ({ payload }: { payload: any }) => {
+  const dirty = payload.content || payload.text || "";
+  const clean = DOMPurify.sanitize(dirty);
+  return (
+    <div className="prose prose-invert max-w-none text-muted" dangerouslySetInnerHTML={{ __html: clean }} />
+  );
+};
 
 const CodeBlock = ({ payload }: { payload: any }) => (
   <div className="rounded-lg bg-black p-4 overflow-x-auto text-sm my-4 border border-border">

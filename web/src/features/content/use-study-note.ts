@@ -13,7 +13,13 @@ export const studyNoteKeys = {
 export function useStudyNote(slug: string) {
   return useQuery({
     queryKey: studyNoteKeys.slug(slug),
-    queryFn: () => apiClient<PublishedStudyNoteResponse>(`/content/${slug}`),
+    queryFn: async () => {
+      const { data, error } = await apiClient.GET("/api/v1/content/{slug}", {
+        params: { path: { slug } },
+      });
+      if (error) throw error;
+      return data;
+    },
     enabled: !!slug,
   });
 }
