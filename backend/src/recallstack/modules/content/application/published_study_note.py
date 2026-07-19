@@ -115,7 +115,8 @@ class PublishedStudyNoteReadRepository(Protocol):
 
 
 class PublishedStudyNoteUnitOfWork(Protocol):
-    repository: PublishedStudyNoteReadRepository
+    @property
+    def repository(self) -> PublishedStudyNoteReadRepository: ...
 
     async def __aenter__(self) -> Self: ...
 

@@ -49,6 +49,8 @@ class MutationRecord:
     entity_id: UUID
     operation: str
     resulting_row_version: int | None
+    result_cursor: int | None
+    result_payload: dict[str, object] | None
     error_code: str | None
 
 
@@ -133,7 +135,12 @@ class SyncRepository(Protocol):
     ) -> int: ...
 
     async def mark_mutation_applied(
-        self, *, mutation_id: UUID, resulting_row_version: int | None
+        self,
+        *,
+        mutation_id: UUID,
+        resulting_row_version: int | None,
+        cursor: int,
+        result: dict[str, object],
     ) -> None: ...
 
     async def mark_mutation_rejected(self, *, mutation_id: UUID, error_code: str) -> None: ...
@@ -256,6 +263,8 @@ class SyncService:
                     await uow.repository.mark_mutation_applied(
                         mutation_id=command.mutation_id,
                         resulting_row_version=applied.resulting_row_version,
+                        cursor=cursor,
+                        result=applied.result,
                     )
                     await uow.repository.mark_device_pushed(command.device_id)
                     result = MutationResult(
@@ -353,13 +362,13 @@ class SyncService:
             record.mutation_id,
             record.status,
             True,
-            None,
+            record.result_cursor,
             record.entity_type,
             record.entity_id,
             record.operation,
             record.resulting_row_version,
             record.error_code,
-            None,
+            record.result_payload,
         )
 
     @staticmethod

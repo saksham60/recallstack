@@ -3,7 +3,7 @@
 from typing import cast
 from uuid import UUID
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, case, func, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from recallstack.modules.catalog.application.search import SearchFilters, SearchPort, SearchResult
@@ -13,10 +13,10 @@ from recallstack.modules.catalog.infrastructure.sqlalchemy_models import (
     TopicModel,
 )
 from recallstack.modules.content.infrastructure.sqlalchemy_models import (
-    ContentItemCategoryModel,
     ContentItemModel,
-    ContentItemTopicModel,
+    ContentVersionCategoryModel,
     ContentVersionModel,
+    ContentVersionTopicModel,
     PublicationStatus,
 )
 from recallstack.modules.learning.domain.enums import LearningStatus
@@ -30,33 +30,48 @@ class SqlAlchemySearchRepository(SearchPort):
     async def search(
         self, *, profile_id: UUID, filters: SearchFilters
     ) -> tuple[int, tuple[SearchResult, ...]]:
-        rank = func.ts_rank_cd(
-            ContentVersionModel.search_document, func.websearch_to_tsquery("english", filters.q)
+        query_text = filters.q.strip()
+        query = func.websearch_to_tsquery("english", query_text)
+        fts_rank = func.ts_rank_cd(ContentVersionModel.search_document, query)
+        title_similarity = func.similarity(ContentVersionModel.title, query_text)
+        rank = (
+            fts_rank
+            + title_similarity * 0.4
+            + case((func.lower(ContentVersionModel.title) == query_text.lower(), 2.0), else_=0.0)
+            + case((ContentVersionModel.title.ilike(f"{query_text}%"), 0.5), else_=0.0)
+            if query_text
+            else literal(0.0)
         )
         topic_match = (
             select(TopicModel.name)
             .join(
-                ContentItemTopicModel,
+                ContentVersionTopicModel,
                 and_(
-                    ContentItemTopicModel.topic_id == TopicModel.id,
-                    ContentItemTopicModel.domain_id == TopicModel.domain_id,
+                    ContentVersionTopicModel.topic_id == TopicModel.id,
+                    ContentVersionTopicModel.domain_id == TopicModel.domain_id,
                 ),
             )
-            .where(ContentItemTopicModel.content_item_id == ContentItemModel.id)
-            .order_by(ContentItemTopicModel.is_primary.desc(), TopicModel.name)
+            .where(
+                ContentVersionTopicModel.content_version_id == ContentVersionModel.id,
+                ContentVersionTopicModel.content_item_id == ContentItemModel.id,
+            )
+            .order_by(ContentVersionTopicModel.is_primary.desc(), TopicModel.name)
             .limit(1)
             .scalar_subquery()
         )
         category_match = (
             select(CategoryModel.name)
             .join(
-                ContentItemCategoryModel,
+                ContentVersionCategoryModel,
                 and_(
-                    ContentItemCategoryModel.category_id == CategoryModel.id,
-                    ContentItemCategoryModel.domain_id == CategoryModel.domain_id,
+                    ContentVersionCategoryModel.category_id == CategoryModel.id,
+                    ContentVersionCategoryModel.domain_id == CategoryModel.domain_id,
                 ),
             )
-            .where(ContentItemCategoryModel.content_item_id == ContentItemModel.id)
+            .where(
+                ContentVersionCategoryModel.content_version_id == ContentVersionModel.id,
+                ContentVersionCategoryModel.content_item_id == ContentItemModel.id,
+            )
             .order_by(CategoryModel.name)
             .limit(1)
             .scalar_subquery()
@@ -66,7 +81,13 @@ class SqlAlchemySearchRepository(SearchPort):
                 ContentItemModel.id,
                 ContentItemModel.slug,
                 ContentVersionModel.title,
-                ContentVersionModel.summary,
+                case(
+                    (
+                        func.length(ContentVersionModel.summary) > 240,
+                        func.concat(func.left(ContentVersionModel.summary, 237), "..."),
+                    ),
+                    else_=ContentVersionModel.summary,
+                ).label("summary_excerpt"),
                 ContentItemModel.type,
                 ContentItemModel.difficulty,
                 topic_match.label("matched_topic"),
@@ -96,9 +117,8 @@ class SqlAlchemySearchRepository(SearchPort):
                 ContentVersionModel.published_at.is_not(None),
             )
         )
-        if filters.q.strip():
-            query = func.websearch_to_tsquery("english", filters.q.strip())
-            title_trigram = ContentVersionModel.title.op("%")(filters.q.strip())
+        if query_text:
+            title_trigram = ContentVersionModel.title.op("%")(query_text)
             statement = statement.where(
                 or_(ContentVersionModel.search_document.op("@@")(query), title_trigram)
             )
@@ -106,32 +126,34 @@ class SqlAlchemySearchRepository(SearchPort):
             statement = statement.where(DomainModel.slug == filters.domain)
         if filters.category:
             statement = statement.where(
-                select(ContentItemCategoryModel.content_item_id)
+                select(ContentVersionCategoryModel.content_item_id)
                 .join(
                     CategoryModel,
                     and_(
-                        CategoryModel.id == ContentItemCategoryModel.category_id,
-                        CategoryModel.domain_id == ContentItemCategoryModel.domain_id,
+                        CategoryModel.id == ContentVersionCategoryModel.category_id,
+                        CategoryModel.domain_id == ContentVersionCategoryModel.domain_id,
                     ),
                 )
                 .where(
-                    ContentItemCategoryModel.content_item_id == ContentItemModel.id,
+                    ContentVersionCategoryModel.content_version_id == ContentVersionModel.id,
+                    ContentVersionCategoryModel.content_item_id == ContentItemModel.id,
                     CategoryModel.slug == filters.category,
                 )
                 .exists()
             )
         if filters.topic:
             statement = statement.where(
-                select(ContentItemTopicModel.content_item_id)
+                select(ContentVersionTopicModel.content_item_id)
                 .join(
                     TopicModel,
                     and_(
-                        TopicModel.id == ContentItemTopicModel.topic_id,
-                        TopicModel.domain_id == ContentItemTopicModel.domain_id,
+                        TopicModel.id == ContentVersionTopicModel.topic_id,
+                        TopicModel.domain_id == ContentVersionTopicModel.domain_id,
                     ),
                 )
                 .where(
-                    ContentItemTopicModel.content_item_id == ContentItemModel.id,
+                    ContentVersionTopicModel.content_version_id == ContentVersionModel.id,
+                    ContentVersionTopicModel.content_item_id == ContentItemModel.id,
                     TopicModel.slug == filters.topic,
                 )
                 .exists()
@@ -148,7 +170,7 @@ class SqlAlchemySearchRepository(SearchPort):
             )
             or 0
         )
-        if not filters.q.strip():
+        if not query_text:
             statement = statement.order_by(ContentVersionModel.title, ContentItemModel.id)
         else:
             statement = statement.order_by(

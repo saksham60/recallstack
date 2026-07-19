@@ -5,7 +5,10 @@
 `data/DS Algo/Ultimate DSA.xlsx` is input data and remains ignored by Git. The command is dry-run by
 default. Apply mode requires `--apply` and an active admin `--actor-profile-id`; identity is never read
 from workbook cells. Import writes use the same admin content application service as online authoring.
-Each content workflow operation is transactional and the batch is resumable after a row-level failure.
+Each problem row is one outer PostgreSQL transaction that reuses the normal admin services through an
+ambient unit of work. Document, versioned taxonomy, practice resource, review, publication, audit,
+search, and catalog-change writes therefore commit together or roll back together. The batch remains
+resumable after a row-level failure.
 
 ## Approved mapping
 
@@ -38,8 +41,9 @@ uv run python -m recallstack.commands.import_dsa_workbook "..\data\DS Algo\Ultim
 
 Dry-run still reads the configured database to classify rows and verify seeded references, but does not
 write. Apply reports failures per source index and returns a nonzero exit code if any row fails. Fix the
-reported cause and rerun; published fingerprints and stable slugs prevent duplicates, while incomplete
-draft/in-review rows are resumed.
+reported cause and rerun; published fingerprints and stable slugs prevent duplicates. A failed row
+cannot leave a half-imported draft or expose partial public state. Draft/in-review rows created by a
+separate editorial workflow are still resumed deliberately.
 
 ## Rollback
 

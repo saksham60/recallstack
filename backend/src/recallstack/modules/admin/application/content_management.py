@@ -271,6 +271,7 @@ class AdminContentRepository(Protocol):
         self,
         *,
         item: ContentItemState,
+        actor_id: UUID,
         resources: tuple[StoredPracticeResourceInput, ...],
     ) -> PracticeResourceSet: ...
 
@@ -280,7 +281,8 @@ class AdminContentRepository(Protocol):
 
 
 class AdminContentUnitOfWork(Protocol):
-    repository: AdminContentRepository
+    @property
+    def repository(self) -> AdminContentRepository: ...
 
     async def __aenter__(self) -> Self: ...
 
@@ -471,9 +473,6 @@ class AdminContentService:
         expected_revision: int,
         resources: tuple[PracticeResourceInput, ...],
     ) -> PracticeResourceSet:
-        del (
-            actor_id
-        )  # identity is authorized at the boundary; the approved table has no actor column.
         self._validate_resource_set(resources)
         stored = tuple(self._materialize_resource(resource) for resource in resources)
         if len({(r.provider_id, r.url_hash) for r in stored}) != len(stored):
@@ -488,7 +487,7 @@ class AdminContentService:
                 if item.practice_resources_revision != expected_revision:
                     raise self._conflict("Practice resource revision is stale")
                 result = await uow.repository.replace_practice_resources(
-                    item=item, resources=stored
+                    item=item, actor_id=actor_id, resources=stored
                 )
                 await uow.commit()
         except InvalidAdminReference as exc:

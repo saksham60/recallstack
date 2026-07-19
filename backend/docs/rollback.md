@@ -25,3 +25,15 @@ will reject the narrowing downgrade if longer values exist. Export or shorten th
 before running `uv run alembic downgrade 20260711_0010`. The downgrade then removes
 `content_items.practice_resources_revision`, so clients holding a resource revision must perform a full
 resource-set refresh after any later re-upgrade.
+
+Revision `20260719_0012` adds version-owned taxonomy and backfills every existing version from the
+legacy item mappings. Its downgrade first restores the legacy search function, then removes the new
+tables. Before downgrading, verify that the legacy item projection matches the current published
+version for every item; taxonomy that exists only on a non-current historical version cannot be retained
+in the item-level schema.
+
+Revision `20260719_0013` adds immutable practice-result snapshots and sync retry result fields. The
+upgrade best-effort backfills historical practice attempts only when matching progress and review-card
+aggregates exist. New application writes always populate a complete snapshot. Downgrading discards these
+snapshots and makes exact retries after later aggregate changes impossible, so wait at least the sync and
+client retry retention window before rollback and drain old clients first.

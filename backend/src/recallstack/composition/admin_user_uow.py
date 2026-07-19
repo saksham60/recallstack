@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 from types import TracebackType
-from typing import Self
+from typing import Self, cast
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, Select, and_, exists, func, or_, select
@@ -408,6 +408,33 @@ class SqlAlchemyAdminUserRepository(AdminUserRepository):
         return (
             await self._session.scalar(select(RoleModel.id).where(RoleModel.id == role_id))
         ) is not None
+
+    async def role_code(self, role_id: int) -> str | None:
+        return cast(
+            str | None,
+            await self._session.scalar(select(RoleModel.code).where(RoleModel.id == role_id)),
+        )
+
+    async def lock_admin_role_changes(self) -> None:
+        # Transaction-scoped lock serializes admin grants/revocations, including changes
+        # targeting different profiles, so two concurrent revocations cannot remove both.
+        await self._session.execute(select(func.pg_advisory_xact_lock(7_341_998_031)))
+
+    async def active_admin_count(self) -> int:
+        return int(
+            (
+                await self._session.scalar(
+                    select(func.count())
+                    .select_from(ProfileRoleGrantModel)
+                    .join(RoleModel, RoleModel.id == ProfileRoleGrantModel.role_id)
+                    .where(
+                        RoleModel.code == "admin",
+                        ProfileRoleGrantModel.revoked_at.is_(None),
+                    )
+                )
+            )
+            or 0
+        )
 
     async def active_role_grant(self, user_id: UUID, role_id: int) -> RoleGrantSummary | None:
         row = (

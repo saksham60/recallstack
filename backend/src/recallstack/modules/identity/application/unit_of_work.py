@@ -5,8 +5,11 @@ from recallstack.modules.identity.domain.repository_ports import ProfileReposito
 
 
 class IdentityUnitOfWork(Protocol):
-    profiles: ProfileRepository
-    roles: RoleRepository
+    @property
+    def profiles(self) -> ProfileRepository: ...
+
+    @property
+    def roles(self) -> RoleRepository: ...
 
     async def __aenter__(self) -> Self: ...
 

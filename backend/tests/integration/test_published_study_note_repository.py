@@ -73,6 +73,19 @@ def add_content(
         ),
         {"domain_id": domain_id, "item_id": item_id, "category_id": category_id},
     )
+    connection.execute(
+        text(
+            "INSERT INTO content_version_categories "
+            "(content_version_id, content_item_id, domain_id, category_id, sort_order) "
+            "VALUES (:version_id, :item_id, :domain_id, :category_id, 0)"
+        ),
+        {
+            "version_id": version_id,
+            "domain_id": domain_id,
+            "item_id": item_id,
+            "category_id": category_id,
+        },
+    )
     return item_id, version_id
 
 
@@ -152,6 +165,22 @@ async def test_published_study_note_loads_published_sections_and_records_opened_
                 "(:domain, :item, :primary, true, 1), (:domain, :item, :secondary, false, 0)"
             ),
             {
+                "domain": domain_id,
+                "item": main_id,
+                "primary": primary_topic_id,
+                "secondary": secondary_topic_id,
+            },
+        )
+        connection.execute(
+            text(
+                "INSERT INTO content_version_topics "
+                "(content_version_id, content_item_id, domain_id, topic_id, is_primary, "
+                "sort_order) VALUES "
+                "(:version, :item, :domain, :primary, true, 1), "
+                "(:version, :item, :domain, :secondary, false, 0)"
+            ),
+            {
+                "version": main_version,
                 "domain": domain_id,
                 "item": main_id,
                 "primary": primary_topic_id,
@@ -272,7 +301,7 @@ async def test_published_study_note_loads_published_sections_and_records_opened_
         len(
             [call for call in log_info.call_args_list if call.args[0] == "database_query_completed"]
         )
-        == 8
+        == 9
     )
 
     engine = create_engine(migrated_database_url)
@@ -286,7 +315,7 @@ async def test_published_study_note_loads_published_sections_and_records_opened_
             {"item": main_id},
         ).all()
     engine.dispose()
-    assert events == [("content_opened", user_a, main_id, "2")]
+    assert [tuple(event) for event in events] == [("content_opened", user_a, main_id, "2")]
 
     for unpublished_slug in ("draft-note", "archived-note"):
         with pytest.raises(AppError) as error:

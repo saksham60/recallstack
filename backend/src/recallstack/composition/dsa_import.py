@@ -1,10 +1,20 @@
+from types import TracebackType
+from typing import Self
 from uuid import UUID
 
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from recallstack.composition.admin_content_uow import SqlAlchemyAdminContentRepository
+from recallstack.modules.admin.application.content_management import (
+    AdminContentRepository,
+    AdminContentService,
+)
 from recallstack.modules.admin.application.dsa_import import (
     DsaImportStateReader,
+    DsaProblem,
+    DsaProblemWriter,
+    DsaWorkbookImporter,
     ImportContentState,
     ImportReferences,
 )
@@ -130,3 +140,65 @@ class SqlAlchemyDsaImportStateReader(DsaImportStateReader):
             return None
         fingerprint = payload.get("import_fingerprint")
         return fingerprint if isinstance(fingerprint, str) else None
+
+
+class _AmbientAdminContentUnitOfWork:
+    def __init__(self, session: AsyncSession, *, sync_retention_days: int) -> None:
+        self._session = session
+        self.repository: AdminContentRepository = SqlAlchemyAdminContentRepository(
+            session, sync_retention_days=sync_retention_days
+        )
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        return None
+
+    async def commit(self) -> None:
+        # The importer owns the outer transaction. Flush here preserves the normal service
+        # validation points without making partially imported state externally visible.
+        await self._session.flush()
+
+
+class SqlAlchemyDsaProblemWriter(DsaProblemWriter):
+    """Applies one workbook row as one PostgreSQL transaction."""
+
+    def __init__(
+        self,
+        session_factory: DatabaseSessionFactory[AsyncSession],
+        *,
+        sync_retention_days: int = 30,
+    ) -> None:
+        self._session_factory = session_factory
+        self._sync_retention_days = sync_retention_days
+
+    def _content_service(self, session: AsyncSession) -> AdminContentService:
+        return AdminContentService(
+            lambda: _AmbientAdminContentUnitOfWork(
+                session, sync_retention_days=self._sync_retention_days
+            ),
+            None,
+        )
+
+    async def apply_problem(
+        self,
+        *,
+        problem: DsaProblem,
+        references: ImportReferences,
+        state: ImportContentState | None,
+        actor_id: UUID,
+    ) -> None:
+        async with self._session_factory.create_session() as session, session.begin():
+            await DsaWorkbookImporter.apply_problem_with_service(
+                content_service=self._content_service(session),
+                problem=problem,
+                references=references,
+                state=state,
+                actor_id=actor_id,
+            )

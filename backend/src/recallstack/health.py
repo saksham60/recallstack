@@ -29,11 +29,13 @@ class ReadinessProbe:
         return self._last_result
 
 
+@router.get("/health", include_in_schema=False)
 @router.get("/health/live", operation_id="liveness")
 async def liveness() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@router.get("/ready", include_in_schema=False)
 @router.get("/health/ready", operation_id="readiness")
 async def readiness(request: Request) -> JSONResponse:
     ready: bool = await request.app.state.readiness_probe.check()

@@ -4,15 +4,15 @@ import json
 from pathlib import Path
 from uuid import UUID
 
-from recallstack.composition.admin_content_uow import SqlAlchemyAdminContentUnitOfWork
-from recallstack.composition.dsa_import import SqlAlchemyDsaImportStateReader
-from recallstack.modules.admin.application.content_management import AdminContentService
+from recallstack.composition.dsa_import import (
+    SqlAlchemyDsaImportStateReader,
+    SqlAlchemyDsaProblemWriter,
+)
 from recallstack.modules.admin.application.dsa_import import DsaWorkbookImporter
 from recallstack.modules.admin.infrastructure.dsa_workbook import XlsxDsaWorkbookReader
 from recallstack.shared.config import get_settings
 from recallstack.shared.database import Database
 from recallstack.shared.database.event_loop import configure_psycopg_event_loop
-from recallstack.shared.events import InProcessEventPublisher
 
 
 def _arguments() -> argparse.Namespace:
@@ -43,12 +43,9 @@ async def _run(arguments: argparse.Namespace) -> int:
         importer = DsaWorkbookImporter(
             workbook_reader=XlsxDsaWorkbookReader(),
             state_reader=SqlAlchemyDsaImportStateReader(database.session_factory),
-            content_service=AdminContentService(
-                lambda: SqlAlchemyAdminContentUnitOfWork(
-                    database.session_factory,
-                    sync_retention_days=settings.sync_retention_days,
-                ),
-                InProcessEventPublisher(),
+            problem_writer=SqlAlchemyDsaProblemWriter(
+                database.session_factory,
+                sync_retention_days=settings.sync_retention_days,
             ),
         )
         report = await importer.run(

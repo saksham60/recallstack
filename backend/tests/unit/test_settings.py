@@ -52,3 +52,22 @@ def test_database_url_accepts_matching_environment_quotes(
     assert settings.database_url == (
         "postgresql+psycopg://user:password@db.example.com:5432/postgres?sslmode=require"
     )
+
+
+def test_cors_origins_support_wildcard_and_comma_separated_values() -> None:
+    wildcard = Settings(
+        supabase_project_url="https://example.supabase.co",
+        app_env="test",
+        cors_allowed_origins="*",
+    )
+    restricted = Settings(
+        supabase_project_url="https://example.supabase.co",
+        app_env="test",
+        cors_allowed_origins="http://localhost:5173, https://app.example.com",
+    )
+
+    assert wildcard.cors_origins == ["*"]
+    assert restricted.cors_origins == [
+        "http://localhost:5173",
+        "https://app.example.com",
+    ]

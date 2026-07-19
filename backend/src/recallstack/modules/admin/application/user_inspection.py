@@ -150,6 +150,9 @@ class AdminUserRepository(Protocol):
 
     async def lock_profile(self, user_id: UUID) -> bool: ...
     async def role_exists(self, role_id: int) -> bool: ...
+    async def role_code(self, role_id: int) -> str | None: ...
+    async def lock_admin_role_changes(self) -> None: ...
+    async def active_admin_count(self) -> int: ...
     async def active_role_grant(self, user_id: UUID, role_id: int) -> RoleGrantSummary | None: ...
     async def latest_role_grant(self, user_id: UUID, role_id: int) -> RoleGrantSummary | None: ...
     async def grant_role(self, user_id: UUID, role_id: int, actor_id: UUID) -> RoleGrantSummary: ...
@@ -292,6 +295,8 @@ class AdminUserService:
                     status=422,
                     detail="The requested role does not exist",
                 )
+            if await uow.repository.role_code(role_id) == "admin":
+                await uow.repository.lock_admin_role_changes()
             existing = await uow.repository.active_role_grant(user_id, role_id)
             if existing is not None:
                 return RoleMutationResult(existing, False)
@@ -312,6 +317,9 @@ class AdminUserService:
                     status=422,
                     detail="The requested role does not exist",
                 )
+            is_admin = await uow.repository.role_code(role_id) == "admin"
+            if is_admin:
+                await uow.repository.lock_admin_role_changes()
             active = await uow.repository.active_role_grant(user_id, role_id)
             if active is None:
                 latest = await uow.repository.latest_role_grant(user_id, role_id)
@@ -323,6 +331,13 @@ class AdminUserService:
                         detail="The user has never held this role",
                     )
                 return RoleMutationResult(latest, False)
+            if is_admin and await uow.repository.active_admin_count() <= 1:
+                raise AppError(
+                    error_type="last-admin-revocation",
+                    title="Cannot revoke the final administrator",
+                    status=409,
+                    detail="Grant the admin role to another active profile before revoking it",
+                )
             revoked = await uow.repository.revoke_role(active.grant_id, actor_id)
             await uow.commit()
         return RoleMutationResult(revoked, True)

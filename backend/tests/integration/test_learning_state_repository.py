@@ -44,6 +44,14 @@ async def test_learning_state_is_private_idempotent_and_concurrency_safe(
             slug=f"learning-content-{uuid4().hex[:8]}",
             title="Learning Content",
         )
+        draft_content_id, _ = add_content(
+            connection,
+            domain_id=domain_id,
+            category_id=category_id,
+            slug=f"draft-learning-{uuid4().hex[:8]}",
+            title="Draft Learning Content",
+            status="draft",
+        )
     engine.dispose()
 
     database = Database(
@@ -54,6 +62,26 @@ async def test_learning_state_is_private_idempotent_and_concurrency_safe(
         )
     )
     service = LearningService(lambda: SqlAlchemyLearningUnitOfWork(database.session_factory))
+
+    with pytest.raises(AppError) as unpublished_progress:
+        await service.save_progress(
+            profile_id=user_a,
+            content_item_id=draft_content_id,
+            status=LearningStatus.LEARNING,
+            confidence=10,
+            expected_row_version=0,
+        )
+    assert unpublished_progress.value.status == 404
+    with pytest.raises(AppError):
+        await service.add_bookmark(profile_id=user_a, content_item_id=draft_content_id)
+    with pytest.raises(AppError):
+        await service.create_note(
+            profile_id=user_a,
+            content_item_id=draft_content_id,
+            kind="note",
+            title=None,
+            body="Must not attach to a draft",
+        )
 
     empty_progress = await service.get_progress(profile_id=user_a, content_item_id=content_id)
     assert empty_progress.status is LearningStatus.NEW
@@ -196,4 +224,33 @@ async def test_learning_state_is_private_idempotent_and_concurrency_safe(
         "note_deleted",
     }
     assert expected_event_types <= set(event_types)
+
+    engine = create_engine(migrated_database_url)
+    with engine.begin() as connection:
+        connection.execute(
+            text("UPDATE content_items SET archived_at = now() WHERE id = :id"),
+            {"id": content_id},
+        )
+    engine.dispose()
+    historical = await service.get_progress(profile_id=user_a, content_item_id=content_id)
+    assert historical.status is LearningStatus.LEARNING
+    with pytest.raises(AppError) as archived_progress:
+        await service.save_progress(
+            profile_id=user_a,
+            content_item_id=content_id,
+            status=LearningStatus.ATTEMPTED,
+            confidence=50,
+            expected_row_version=historical.row_version,
+        )
+    assert archived_progress.value.status == 404
+    with pytest.raises(AppError):
+        await service.add_bookmark(profile_id=user_a, content_item_id=content_id)
+    with pytest.raises(AppError):
+        await service.create_note(
+            profile_id=user_a,
+            content_item_id=content_id,
+            kind="note",
+            title=None,
+            body="No new notes on archived content",
+        )
     await database.close()

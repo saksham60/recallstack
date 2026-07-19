@@ -1,13 +1,14 @@
 from typing import cast
 from uuid import UUID
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import and_, delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from recallstack.modules.content.infrastructure.sqlalchemy_models import (
     ContentItemModel,
     ContentVersionModel,
+    PublicationStatus,
 )
 from recallstack.modules.learning.application.learning_state import (
     Bookmark,
@@ -30,6 +31,25 @@ class SqlAlchemyLearningStateRepository:
 
     async def content_exists(self, content_item_id: UUID) -> bool:
         statement = select(ContentItemModel.id).where(ContentItemModel.id == content_item_id)
+        return (await self._session.scalar(statement)) is not None
+
+    async def content_is_user_accessible(self, content_item_id: UUID) -> bool:
+        statement = (
+            select(ContentItemModel.id)
+            .join(
+                ContentVersionModel,
+                and_(
+                    ContentVersionModel.id == ContentItemModel.current_published_version_id,
+                    ContentVersionModel.content_item_id == ContentItemModel.id,
+                ),
+            )
+            .where(
+                ContentItemModel.id == content_item_id,
+                ContentItemModel.archived_at.is_(None),
+                ContentVersionModel.status == PublicationStatus.PUBLISHED,
+                ContentVersionModel.published_at.is_not(None),
+            )
+        )
         return (await self._session.scalar(statement)) is not None
 
     async def get_progress(
@@ -75,7 +95,6 @@ class SqlAlchemyLearningStateRepository:
                     content_item_id=content_item_id,
                     status=status,
                     confidence=confidence,
-                    last_opened_at=func.now(),
                     row_version=1,
                 )
                 .on_conflict_do_nothing(index_elements=["user_id", "content_item_id"])
@@ -103,7 +122,6 @@ class SqlAlchemyLearningStateRepository:
             .values(
                 status=status,
                 confidence=confidence,
-                last_opened_at=func.now(),
                 row_version=UserProgressModel.row_version + 1,
                 updated_at=func.now(),
             )

@@ -43,9 +43,15 @@ class Settings(BaseSettings):
     supabase_jwks_url: str = ""
     jwks_cache_seconds: int = Field(default=600, ge=60, le=86400)
     request_body_max_bytes: int = Field(default=1_048_576, ge=1024, le=10_485_760)
+    cors_allowed_origins: str = "*"
     readiness_cache_seconds: float = Field(default=5.0, ge=1.0, le=60.0)
     sync_retention_days: int = Field(default=30, ge=1, le=365)
     otel_enabled: bool = False
+
+    @property
+    def cors_origins(self) -> list[str]:
+        origins = [origin.strip() for origin in self.cors_allowed_origins.split(",")]
+        return [origin for origin in origins if origin]
 
     @field_validator("database_url", mode="before")
     @classmethod

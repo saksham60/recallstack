@@ -1,3 +1,4 @@
+import logging
 from typing import cast
 
 from fastapi import FastAPI, Request
@@ -6,11 +7,15 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 
 from recallstack.shared.errors.exceptions import AppError
+from recallstack.shared.observability.context import profile_id_context
+
+logger = logging.getLogger(__name__)
 
 
 def _problem(
     request: Request, *, error_type: str, title: str, status: int, detail: str
 ) -> JSONResponse:
+    request.state.error_type = error_type
     request_id = cast(str, getattr(request.state, "request_id", "unknown"))
     response = JSONResponse(
         status_code=status,
@@ -68,4 +73,25 @@ def install_error_handlers(app: FastAPI) -> None:
             title=title,
             status=exc.status_code,
             detail=str(exc.detail),
+        )
+
+    @app.exception_handler(Exception)
+    async def unexpected_error_handler(request: Request, exc: Exception) -> JSONResponse:
+        request.state.error_type = type(exc).__name__
+        logger.exception(
+            "unhandled_request_error",
+            extra={
+                "request_id": getattr(request.state, "request_id", "unknown"),
+                "profile_id": profile_id_context.get(),
+                "method": request.method,
+                "route": request.url.path,
+                "error_type": type(exc).__name__,
+            },
+        )
+        return _problem(
+            request,
+            error_type="internal-server-error",
+            title="Internal server error",
+            status=500,
+            detail="An unexpected error occurred",
         )

@@ -1,7 +1,7 @@
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -47,31 +47,20 @@ class SqlAlchemyPracticeAttemptRepository:
         self._session = session
 
     async def find_by_event_id(self, attempt_event_id: UUID) -> PersistedAttempt | None:
-        statement = (
-            select(PracticeAttemptModel, UserProgressModel, ReviewCardModel)
-            .outerjoin(
-                UserProgressModel,
-                and_(
-                    UserProgressModel.user_id == PracticeAttemptModel.user_id,
-                    UserProgressModel.content_item_id == PracticeAttemptModel.content_item_id,
-                ),
+        attempt = await self._session.scalar(
+            select(PracticeAttemptModel).where(
+                PracticeAttemptModel.attempt_event_id == attempt_event_id
             )
-            .outerjoin(
-                ReviewCardModel,
-                and_(
-                    ReviewCardModel.user_id == PracticeAttemptModel.user_id,
-                    ReviewCardModel.content_item_id == PracticeAttemptModel.content_item_id,
-                    ReviewCardModel.suspended_at.is_(None),
-                ),
-            )
-            .where(PracticeAttemptModel.attempt_event_id == attempt_event_id)
         )
-        row = (await self._session.execute(statement)).one_or_none()
-        if row is None:
+        if attempt is None:
             return None
-        attempt, progress, card = row
-        if progress is None or card is None:
-            raise RuntimeError("Practice attempt aggregate is incomplete")
+        if (
+            attempt.result_progress is None
+            or attempt.result_confidence is None
+            or attempt.result_review_card_id is None
+            or attempt.result_next_review_at is None
+        ):
+            raise RuntimeError("Practice attempt result snapshot is incomplete")
         return PersistedAttempt(
             id=attempt.id,
             user_id=attempt.user_id,
@@ -86,10 +75,10 @@ class SqlAlchemyPracticeAttemptRepository:
                 confidence_after=attempt.confidence_after,
                 attempted_at=attempt.attempted_at,
             ),
-            progress=progress.status,
-            confidence=progress.confidence,
-            review_card_id=card.id,
-            next_review_at=card.due_at,
+            progress=LearningStatus(attempt.result_progress),
+            confidence=attempt.result_confidence,
+            review_card_id=attempt.result_review_card_id,
+            next_review_at=attempt.result_next_review_at,
         )
 
     async def ensure_published_content(self, content_item_id: UUID) -> None:
@@ -116,6 +105,23 @@ class SqlAlchemyPracticeAttemptRepository:
                 status=404,
                 detail=f"No published content exists with id '{content_item_id}'",
             )
+
+    async def current_progress(
+        self, *, profile_id: UUID, content_item_id: UUID
+    ) -> tuple[LearningStatus, int] | None:
+        row = (
+            await self._session.execute(
+                select(UserProgressModel.status, UserProgressModel.confidence)
+                .where(
+                    UserProgressModel.user_id == profile_id,
+                    UserProgressModel.content_item_id == content_item_id,
+                )
+                .with_for_update()
+            )
+        ).one_or_none()
+        if row is None:
+            return None
+        return row.status, row.confidence
 
     async def resolve_provider(
         self, *, content_item_id: UUID, practice_resource_id: UUID | None
@@ -149,6 +155,7 @@ class SqlAlchemyPracticeAttemptRepository:
         command: SubmitPracticeAttempt,
         provider_id: int,
         progress: LearningStatus,
+        confidence: int,
         schedule: ReviewSchedule,
     ) -> AttemptResult:
         attempt = PracticeAttemptModel(
@@ -169,29 +176,42 @@ class SqlAlchemyPracticeAttemptRepository:
             await self._session.flush()
         except IntegrityError as exc:
             raise AttemptEventRace() from exc
-        confidence = command.confidence_after if command.confidence_after is not None else 0
-        progress_statement = (
-            insert(UserProgressModel)
-            .values(
-                user_id=profile_id,
-                content_item_id=command.content_item_id,
-                status=progress,
-                confidence=confidence,
-                last_opened_at=command.attempted_at,
-                row_version=1,
-            )
-            .on_conflict_do_update(
-                index_elements=["user_id", "content_item_id"],
-                set_={
-                    "status": progress,
-                    "confidence": confidence,
-                    "last_opened_at": command.attempted_at,
-                    "row_version": UserProgressModel.row_version + 1,
-                    "updated_at": func.now(),
-                },
-            )
-            .returning(UserProgressModel)
+        progress_insert = insert(UserProgressModel).values(
+            user_id=profile_id,
+            content_item_id=command.content_item_id,
+            status=progress,
+            confidence=confidence,
+            row_version=1,
         )
+        current_rank = case(
+            (UserProgressModel.status == LearningStatus.NEW, 0),
+            (UserProgressModel.status == LearningStatus.LEARNING, 1),
+            (UserProgressModel.status == LearningStatus.ATTEMPTED, 2),
+            (UserProgressModel.status == LearningStatus.CONFIDENT, 3),
+            else_=4,
+        )
+        proposed_rank = case(
+            (progress_insert.excluded.status == LearningStatus.NEW, 0),
+            (progress_insert.excluded.status == LearningStatus.LEARNING, 1),
+            (progress_insert.excluded.status == LearningStatus.ATTEMPTED, 2),
+            (progress_insert.excluded.status == LearningStatus.CONFIDENT, 3),
+            else_=4,
+        )
+        progress_statement = progress_insert.on_conflict_do_update(
+            index_elements=["user_id", "content_item_id"],
+            set_={
+                "status": case(
+                    (current_rank > proposed_rank, UserProgressModel.status),
+                    else_=progress_insert.excluded.status,
+                ),
+                "confidence": case(
+                    (current_rank > proposed_rank, UserProgressModel.confidence),
+                    else_=progress_insert.excluded.confidence,
+                ),
+                "row_version": UserProgressModel.row_version + 1,
+                "updated_at": func.now(),
+            },
+        ).returning(UserProgressModel)
         progress_model = await self._session.scalar(progress_statement)
         card = await self._session.scalar(
             select(ReviewCardModel).where(
@@ -229,6 +249,11 @@ class SqlAlchemyPracticeAttemptRepository:
         )
         if progress_model is None:
             raise RuntimeError("Practice attempt did not update progress")
+        attempt.result_progress = progress_model.status.value
+        attempt.result_confidence = progress_model.confidence
+        attempt.result_review_card_id = card.id
+        attempt.result_next_review_at = card.due_at
+        await self._session.flush()
         return AttemptResult(
             attempt_id=attempt.id,
             updated_progress=progress_model.status,

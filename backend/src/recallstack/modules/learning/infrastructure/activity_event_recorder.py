@@ -2,9 +2,13 @@ import logging
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
+from sqlalchemy import func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from recallstack.modules.learning.infrastructure.sqlalchemy_models import ActivityEventModel
+from recallstack.modules.learning.infrastructure.sqlalchemy_models import (
+    ActivityEventModel,
+    UserProgressModel,
+)
 from recallstack.shared.database import DatabaseSessionFactory
 from recallstack.shared.events import DomainEvent, EventPublisher
 
@@ -40,6 +44,14 @@ class SqlAlchemyActivityEventRecorder:
                     metadata_={"published_version_number": published_version_number},
                     occurred_at=occurred_at,
                 )
+            )
+            await session.execute(
+                update(UserProgressModel)
+                .where(
+                    UserProgressModel.user_id == profile_id,
+                    UserProgressModel.content_item_id == content_item_id,
+                )
+                .values(last_opened_at=occurred_at, updated_at=func.now())
             )
         if self._publisher is None:
             return

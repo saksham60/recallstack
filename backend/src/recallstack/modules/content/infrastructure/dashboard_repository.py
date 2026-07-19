@@ -4,8 +4,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from recallstack.modules.content.infrastructure.sqlalchemy_models import (
-    ContentItemCategoryModel,
     ContentItemModel,
+    ContentVersionCategoryModel,
     ContentVersionModel,
     PublicationStatus,
 )
@@ -21,19 +21,21 @@ class SqlAlchemyPublishedCategoryContentRepository:
             return {key: frozenset(value) for key, value in result.items()}
         statement = (
             select(
-                ContentItemCategoryModel.category_id,
-                ContentItemCategoryModel.content_item_id,
+                ContentVersionCategoryModel.category_id,
+                ContentVersionCategoryModel.content_item_id,
             )
             .join(
                 ContentItemModel,
-                ContentItemModel.id == ContentItemCategoryModel.content_item_id,
+                ContentItemModel.id == ContentVersionCategoryModel.content_item_id,
             )
             .join(
                 ContentVersionModel,
                 ContentVersionModel.id == ContentItemModel.current_published_version_id,
             )
             .where(
-                ContentItemCategoryModel.category_id.in_(category_ids),
+                ContentVersionCategoryModel.content_version_id
+                == ContentItemModel.current_published_version_id,
+                ContentVersionCategoryModel.category_id.in_(category_ids),
                 ContentItemModel.archived_at.is_(None),
                 ContentVersionModel.status == PublicationStatus.PUBLISHED,
                 ContentVersionModel.published_at.is_not(None),

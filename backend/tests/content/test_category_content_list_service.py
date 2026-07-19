@@ -19,7 +19,7 @@ class FakeRepository:
     def __init__(self, exists: bool, items: tuple[CategoryContentListItem, ...] = ()) -> None:
         self.exists = exists
         self.items = items
-        self.profile_id = None
+        self.profile_id: object | None = None
 
     async def category_exists(self, category_id: object) -> bool:
         return self.exists

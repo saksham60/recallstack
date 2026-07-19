@@ -1,6 +1,7 @@
 from uuid import uuid4
 
 import httpx
+from fastapi import FastAPI
 
 from recallstack.main import create_app
 from recallstack.modules.identity.application.services import IdentityService
@@ -16,7 +17,7 @@ from tests.fakes import FakeProfileRepository, FakeUowFactory
 def _app_with_user(
     current_user: CurrentUser,
     service: IdentityService,
-):
+) -> FastAPI:
     app = create_app(Settings(supabase_project_url="https://example.supabase.co", app_env="test"))
     app.dependency_overrides[get_current_user] = lambda: current_user
     app.dependency_overrides[get_identity_service] = lambda: service

@@ -128,3 +128,37 @@ async def test_rejects_invalid_signature() -> None:
         )
         with pytest.raises(AuthenticationError):
             await verifier.verify(_token(untrusted_key, str(uuid4())))
+
+
+async def test_rejects_unsupported_signing_algorithm_before_jwks_lookup() -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(500)
+
+    now = datetime.now(UTC)
+    token = jwt.encode(
+        {
+            "sub": str(uuid4()),
+            "iss": ISSUER,
+            "aud": AUDIENCE,
+            "iat": now,
+            "exp": now + timedelta(minutes=5),
+        },
+        "not-a-trusted-asymmetric-key-32bytes",
+        algorithm="HS256",
+        headers={"kid": KID},
+    )
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        verifier = SupabaseJwtVerifier(
+            issuer=ISSUER,
+            audience=AUDIENCE,
+            jwks_url=f"{ISSUER}/.well-known/jwks.json",
+            cache_seconds=600,
+            client=client,
+        )
+        with pytest.raises(AuthenticationError, match="unsupported signing algorithm"):
+            await verifier.verify(token)
+    assert calls == 0

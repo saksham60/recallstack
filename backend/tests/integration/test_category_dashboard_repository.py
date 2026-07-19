@@ -64,6 +64,19 @@ def add_content(
         ),
         {"domain_id": domain_id, "item_id": item_id, "category_id": category_id},
     )
+    connection.execute(
+        text(
+            "INSERT INTO content_version_categories "
+            "(content_version_id, content_item_id, domain_id, category_id) "
+            "VALUES (:version_id, :item_id, :domain_id, :category_id)"
+        ),
+        {
+            "version_id": version_id,
+            "domain_id": domain_id,
+            "item_id": item_id,
+            "category_id": category_id,
+        },
+    )
     return item_id
 
 

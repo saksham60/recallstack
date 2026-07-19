@@ -266,6 +266,33 @@ Table content_item_topics {
 
 }
 
+// Legacy item-level taxonomy is retained as a publication-time compatibility projection.
+// Draft and historical taxonomy is owned by the version tables below.
+Table content_version_categories {
+  content_version_id uuid [not null]
+  content_item_id uuid [not null]
+  domain_id uuid [not null]
+  category_id uuid [not null]
+  sort_order int [not null, default: 0]
+
+  indexes {
+    (content_version_id, category_id) [pk]
+  }
+}
+
+Table content_version_topics {
+  content_version_id uuid [not null]
+  content_item_id uuid [not null]
+  domain_id uuid [not null]
+  topic_id uuid [not null]
+  is_primary boolean [not null, default: false]
+  sort_order int [not null, default: 0]
+
+  indexes {
+    (content_version_id, topic_id) [pk]
+  }
+}
+
 Table content_versions {
   id uuid [pk, default: `gen_random_uuid()`]
   content_item_id uuid [not null]
@@ -464,6 +491,7 @@ Table bookmarks {
 
 Table practice_attempts {
   id uuid [pk, default: `gen_random_uuid()`]
+  attempt_event_id uuid [not null, unique]
   user_id uuid [not null]
   content_item_id uuid [not null]
   practice_resource_id uuid
@@ -473,6 +501,10 @@ Table practice_attempts {
   hint_used boolean [not null, default: false]
   confidence_before smallint
   confidence_after smallint
+  result_progress learning_status
+  result_confidence smallint
+  result_review_card_id uuid
+  result_next_review_at timestamptz
   attempted_at timestamptz [not null]
   created_at timestamptz [not null, default: `now()`]
 
@@ -481,6 +513,7 @@ Table practice_attempts {
     `duration_seconds IS NULL OR duration_seconds >= 0` [name: 'chk_practice_attempt_duration']
     `confidence_before IS NULL OR confidence_before BETWEEN 0 AND 100` [name: 'chk_practice_attempt_conf_before']
     `confidence_after IS NULL OR confidence_after BETWEEN 0 AND 100` [name: 'chk_practice_attempt_conf_after']
+    `(result_progress IS NULL AND result_confidence IS NULL AND result_review_card_id IS NULL AND result_next_review_at IS NULL) OR (result_progress IS NOT NULL AND result_confidence BETWEEN 0 AND 100 AND result_review_card_id IS NOT NULL AND result_next_review_at IS NOT NULL)` [name: 'chk_practice_attempt_result_snapshot']
   }
 
 }
@@ -640,6 +673,8 @@ Table sync_mutations {
   status mutation_status [not null, default: 'received']
   base_row_version bigint
   resulting_row_version bigint
+  result_cursor bigint
+  result_payload jsonb
   error_code varchar(80)
   received_at timestamptz [not null, default: `now()`]
   processed_at timestamptz
@@ -652,6 +687,7 @@ Table sync_mutations {
     `(status = 'received' AND processed_at IS NULL) OR (status = 'applied' AND processed_at IS NOT NULL) OR (status = 'rejected' AND processed_at IS NOT NULL AND error_code IS NOT NULL)` [name: 'chk_sync_mutation_status_consistency']
     `base_row_version IS NULL OR base_row_version > 0` [name: 'chk_sync_mutation_base_version']
     `resulting_row_version IS NULL OR resulting_row_version > 0` [name: 'chk_sync_mutation_result_version']
+    `result_cursor IS NULL OR result_cursor > 0` [name: 'chk_sync_mutation_result_cursor']
     `char_length(request_hash) = 64 AND request_hash ~ '^[0-9a-f]{64}$'` [name: 'chk_sync_mutation_request_hash']
   }
 
@@ -751,6 +787,14 @@ Ref: content_item_categories.(domain_id, category_id) > categories.(domain_id, i
 Ref: content_item_topics.(domain_id, content_item_id) > content_items.(domain_id, id) [delete: cascade]
 Ref: content_item_topics.(domain_id, topic_id) > topics.(domain_id, id) [delete: cascade]
 
+Ref: content_version_categories.(content_item_id, content_version_id) > content_versions.(content_item_id, id) [delete: cascade]
+Ref: content_version_categories.(domain_id, content_item_id) > content_items.(domain_id, id) [delete: cascade]
+Ref: content_version_categories.(domain_id, category_id) > categories.(domain_id, id) [delete: cascade]
+
+Ref: content_version_topics.(content_item_id, content_version_id) > content_versions.(content_item_id, id) [delete: cascade]
+Ref: content_version_topics.(domain_id, content_item_id) > content_items.(domain_id, id) [delete: cascade]
+Ref: content_version_topics.(domain_id, topic_id) > topics.(domain_id, id) [delete: cascade]
+
 Ref: content_versions.authored_by > profiles.id [delete: set null]
 Ref: content_versions.reviewed_by > profiles.id [delete: set null]
 Ref: content_version_status_history.content_version_id > content_versions.id [delete: cascade]
@@ -784,6 +828,7 @@ Ref: practice_attempts.provider_id > practice_providers.id [delete: restrict]
 Ref: practice_attempts.practice_resource_id > practice_resources.id [delete: restrict]
 Ref: practice_attempts.(practice_resource_id, content_item_id) > practice_resources.(id, content_item_id) [delete: restrict]
 Ref: practice_attempts.(practice_resource_id, provider_id) > practice_resources.(id, provider_id) [delete: restrict]
+Ref: practice_attempts.result_review_card_id > review_cards.id [delete: restrict]
 
 Ref: user_notes.user_id > profiles.id [delete: cascade]
 Ref: user_notes.content_item_id > content_items.id [delete: restrict]

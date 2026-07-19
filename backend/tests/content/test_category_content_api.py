@@ -4,6 +4,7 @@ from typing import Self
 from uuid import UUID, uuid4
 
 import httpx
+from fastapi import FastAPI
 
 from recallstack.main import create_app
 from recallstack.modules.content.application.category_content_list import (
@@ -63,7 +64,7 @@ class FakeUnitOfWork:
         return None
 
 
-def make_app():
+def make_app() -> FastAPI:
     app = create_app(Settings(supabase_project_url="https://example.supabase.co", app_env="test"))
     subject = uuid4()
     app.dependency_overrides[get_current_user] = lambda: CurrentUser(

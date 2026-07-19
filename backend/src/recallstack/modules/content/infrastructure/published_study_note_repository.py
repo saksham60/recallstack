@@ -26,13 +26,13 @@ from recallstack.modules.content.application.published_study_note import (
 )
 from recallstack.modules.content.infrastructure.sqlalchemy_models import (
     ContentBlockModel,
-    ContentItemCategoryModel,
     ContentItemModel,
-    ContentItemTopicModel,
     ContentRelationModel,
     ContentRelationType,
     ContentVersionBlockModel,
+    ContentVersionCategoryModel,
     ContentVersionModel,
+    ContentVersionTopicModel,
     PublicationStatus,
 )
 from recallstack.modules.learning.domain.enums import LearningStatus
@@ -78,8 +78,8 @@ class SqlAlchemyPublishedStudyNoteReadRepository:
         document = document_rows[0]
         content_item_id = cast(UUID, document["content_item_id"])
         version_id = cast(UUID, document["version_id"])
-        categories = await self._categories(content_item_id)
-        topics = await self._topics(content_item_id)
+        categories = await self._categories(version_id)
+        topics = await self._topics(version_id)
         blocks = await self._blocks(version_id)
         related_content = await self._related_content(content_item_id)
         prerequisites = await self._prerequisites(content_item_id)
@@ -158,52 +158,52 @@ class SqlAlchemyPublishedStudyNoteReadRepository:
             )
         )
 
-    async def _categories(self, content_item_id: UUID) -> tuple[StudyNoteCategory, ...]:
+    async def _categories(self, version_id: UUID) -> tuple[StudyNoteCategory, ...]:
         statement = (
             select(
                 CategoryModel.id,
                 CategoryModel.slug,
                 CategoryModel.name,
-                ContentItemCategoryModel.sort_order,
+                ContentVersionCategoryModel.sort_order,
             )
-            .select_from(ContentItemCategoryModel)
+            .select_from(ContentVersionCategoryModel)
             .join(
                 CategoryModel,
                 and_(
-                    CategoryModel.id == ContentItemCategoryModel.category_id,
-                    CategoryModel.domain_id == ContentItemCategoryModel.domain_id,
+                    CategoryModel.id == ContentVersionCategoryModel.category_id,
+                    CategoryModel.domain_id == ContentVersionCategoryModel.domain_id,
                 ),
             )
-            .where(ContentItemCategoryModel.content_item_id == content_item_id)
-            .order_by(ContentItemCategoryModel.sort_order, CategoryModel.name, CategoryModel.id)
+            .where(ContentVersionCategoryModel.content_version_id == version_id)
+            .order_by(ContentVersionCategoryModel.sort_order, CategoryModel.name, CategoryModel.id)
         )
         return tuple(
             StudyNoteCategory(id=category_id, slug=slug, name=name, sort_order=sort_order)
             for category_id, slug, name, sort_order in await self._session.execute(statement)
         )
 
-    async def _topics(self, content_item_id: UUID) -> tuple[StudyNoteTopic, ...]:
+    async def _topics(self, version_id: UUID) -> tuple[StudyNoteTopic, ...]:
         statement = (
             select(
                 TopicModel.id,
                 TopicModel.slug,
                 TopicModel.name,
                 TopicModel.kind,
-                ContentItemTopicModel.is_primary,
-                ContentItemTopicModel.sort_order,
+                ContentVersionTopicModel.is_primary,
+                ContentVersionTopicModel.sort_order,
             )
-            .select_from(ContentItemTopicModel)
+            .select_from(ContentVersionTopicModel)
             .join(
                 TopicModel,
                 and_(
-                    TopicModel.id == ContentItemTopicModel.topic_id,
-                    TopicModel.domain_id == ContentItemTopicModel.domain_id,
+                    TopicModel.id == ContentVersionTopicModel.topic_id,
+                    TopicModel.domain_id == ContentVersionTopicModel.domain_id,
                 ),
             )
-            .where(ContentItemTopicModel.content_item_id == content_item_id)
+            .where(ContentVersionTopicModel.content_version_id == version_id)
             .order_by(
-                ContentItemTopicModel.is_primary.desc(),
-                ContentItemTopicModel.sort_order,
+                ContentVersionTopicModel.is_primary.desc(),
+                ContentVersionTopicModel.sort_order,
                 TopicModel.name,
                 TopicModel.id,
             )

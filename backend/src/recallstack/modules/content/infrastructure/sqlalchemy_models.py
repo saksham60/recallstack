@@ -231,6 +231,97 @@ class ContentVersionBlockModel(Base):
     heading: Mapped[str | None] = mapped_column(String(240))
 
 
+class ContentVersionCategoryModel(Base):
+    __tablename__ = "content_version_categories"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["content_item_id", "content_version_id"],
+            ["content_versions.content_item_id", "content_versions.id"],
+            ondelete="CASCADE",
+            name="fk_content_version_categories_version_owner",
+        ),
+        ForeignKeyConstraint(
+            ["domain_id", "content_item_id"],
+            ["content_items.domain_id", "content_items.id"],
+            ondelete="CASCADE",
+            name="fk_content_version_categories_domain_item",
+        ),
+        ForeignKeyConstraint(
+            ["domain_id", "category_id"],
+            ["categories.domain_id", "categories.id"],
+            ondelete="CASCADE",
+            name="fk_content_version_categories_domain_category",
+        ),
+        CheckConstraint("sort_order >= 0", name="chk_content_version_categories_sort_order"),
+        Index(
+            "ix_content_version_categories_domain_category",
+            "domain_id",
+            "category_id",
+            "content_version_id",
+        ),
+        Index(
+            "ix_content_version_categories_item_version",
+            "content_item_id",
+            "content_version_id",
+        ),
+        Index("ix_content_version_categories_domain_item", "domain_id", "content_item_id"),
+    )
+    content_version_id: Mapped[UUID] = mapped_column(primary_key=True)
+    content_item_id: Mapped[UUID]
+    domain_id: Mapped[UUID]
+    category_id: Mapped[UUID] = mapped_column(primary_key=True)
+    sort_order: Mapped[int] = mapped_column(default=0, server_default="0")
+
+
+class ContentVersionTopicModel(Base):
+    __tablename__ = "content_version_topics"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["content_item_id", "content_version_id"],
+            ["content_versions.content_item_id", "content_versions.id"],
+            ondelete="CASCADE",
+            name="fk_content_version_topics_version_owner",
+        ),
+        ForeignKeyConstraint(
+            ["domain_id", "content_item_id"],
+            ["content_items.domain_id", "content_items.id"],
+            ondelete="CASCADE",
+            name="fk_content_version_topics_domain_item",
+        ),
+        ForeignKeyConstraint(
+            ["domain_id", "topic_id"],
+            ["topics.domain_id", "topics.id"],
+            ondelete="CASCADE",
+            name="fk_content_version_topics_domain_topic",
+        ),
+        CheckConstraint("sort_order >= 0", name="chk_content_version_topics_sort_order"),
+        Index(
+            "ix_content_version_topics_domain_topic",
+            "domain_id",
+            "topic_id",
+            "content_version_id",
+        ),
+        Index(
+            "ix_content_version_topics_item_version",
+            "content_item_id",
+            "content_version_id",
+        ),
+        Index("ix_content_version_topics_domain_item", "domain_id", "content_item_id"),
+        Index(
+            "uq_content_version_topics_one_primary",
+            "content_version_id",
+            unique=True,
+            postgresql_where=text("is_primary"),
+        ),
+    )
+    content_version_id: Mapped[UUID] = mapped_column(primary_key=True)
+    content_item_id: Mapped[UUID]
+    domain_id: Mapped[UUID]
+    topic_id: Mapped[UUID] = mapped_column(primary_key=True)
+    is_primary: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    sort_order: Mapped[int] = mapped_column(default=0, server_default="0")
+
+
 class ContentItemCategoryModel(Base):
     __tablename__ = "content_item_categories"
     __table_args__ = (

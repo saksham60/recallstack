@@ -1,12 +1,13 @@
 from datetime import UTC, datetime
 from types import TracebackType
-from typing import Self
+from typing import Self, cast
 from uuid import UUID, uuid4
 
 import pytest
 
 from recallstack.modules.admin.application.content_management import (
     AdminContentService,
+    AdminContentUnitOfWork,
     PublishedVersion,
     VersionState,
 )
@@ -90,7 +91,7 @@ async def test_publish_commits_once_and_emits_catalog_event() -> None:
     repository = PublishRepository(_publishable_version())
     uow = FakeUow(repository)
     publisher = FakePublisher()
-    service = AdminContentService(lambda: uow, publisher)
+    service = AdminContentService(lambda: cast(AdminContentUnitOfWork, uow), publisher)
 
     result = await service.publish(
         version_id=repository.version.id,
@@ -108,7 +109,9 @@ async def test_publish_commits_once_and_emits_catalog_event() -> None:
 async def test_published_version_is_immutable_and_stale_write_conflicts() -> None:
     actor_id = uuid4()
     published_repository = PublishRepository(_publishable_version(status="published"))
-    service = AdminContentService(lambda: FakeUow(published_repository), None)
+    service = AdminContentService(
+        lambda: cast(AdminContentUnitOfWork, FakeUow(published_repository)), None
+    )
     with pytest.raises(AppError) as published_error:
         await service.publish(
             version_id=published_repository.version.id,
@@ -120,7 +123,9 @@ async def test_published_version_is_immutable_and_stale_write_conflicts() -> Non
     assert "immutable" in published_error.value.detail
 
     stale_repository = PublishRepository(_publishable_version(row_version=4))
-    service = AdminContentService(lambda: FakeUow(stale_repository), None)
+    service = AdminContentService(
+        lambda: cast(AdminContentUnitOfWork, FakeUow(stale_repository)), None
+    )
     with pytest.raises(AppError) as stale_error:
         await service.publish(
             version_id=stale_repository.version.id,
@@ -138,7 +143,7 @@ async def test_mandatory_publish_failure_rolls_back_and_emits_nothing() -> None:
     repository.fail_publish = True
     uow = FakeUow(repository)
     publisher = FakePublisher()
-    service = AdminContentService(lambda: uow, publisher)
+    service = AdminContentService(lambda: cast(AdminContentUnitOfWork, uow), publisher)
 
     with pytest.raises(RuntimeError, match="mandatory database failure"):
         await service.publish(

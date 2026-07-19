@@ -63,6 +63,7 @@ class RequestContextMiddleware:
                     "method": scope.get("method"),
                     "route": route_name,
                     "status": status,
+                    "error_type": state.get("error_type"),
                     "latency_ms": round((time.perf_counter() - started) * 1000, 2),
                 },
             )

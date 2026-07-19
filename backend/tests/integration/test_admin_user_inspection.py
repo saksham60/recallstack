@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
@@ -32,6 +33,7 @@ from recallstack.modules.recall.infrastructure.sqlalchemy_models import (
 )
 from recallstack.shared.config import Settings
 from recallstack.shared.database import Database
+from recallstack.shared.errors import AppError
 from tests.conftest import TEST_PUBLISHER_PROFILE_ID
 
 
@@ -142,6 +144,91 @@ async def test_role_grant_and_revoke_preserve_audited_history(
         assert historical.revoked_by == TEST_PUBLISHER_PROFILE_ID
         assert historical.revoked_at is not None
     finally:
+        await database.close()
+
+
+@pytest.mark.integration
+async def test_concurrent_revocations_cannot_remove_the_final_admin(
+    migrated_database_url: str,
+) -> None:
+    database = Database(
+        Settings(
+            supabase_project_url="https://example.supabase.co",
+            app_env="test",
+            database_url=migrated_database_url,
+        )
+    )
+    service = AdminUserService(lambda: SqlAlchemyAdminUserUnitOfWork(database.session_factory))
+    admin_a, admin_b = uuid4(), uuid4()
+    try:
+        async with database.session_factory.create_session() as session, session.begin():
+            for profile_id in (admin_a, admin_b):
+                await session.execute(
+                    text("INSERT INTO auth.users (id) VALUES (:id)"), {"id": profile_id}
+                )
+                session.add(ProfileModel(id=profile_id, display_name="Lockout test admin"))
+            await session.flush()
+            role_id = await session.scalar(select(RoleModel.id).where(RoleModel.code == "admin"))
+            assert role_id is not None
+            await session.execute(
+                text(
+                    "UPDATE profile_role_grants SET revoked_at = now(), revoked_by = :actor "
+                    "WHERE role_id = :role_id AND revoked_at IS NULL"
+                ),
+                {"actor": TEST_PUBLISHER_PROFILE_ID, "role_id": role_id},
+            )
+            await session.execute(
+                text(
+                    "INSERT INTO profile_role_grants "
+                    "(profile_id, role_id, granted_by) VALUES "
+                    "(:a, :role_id, :actor), (:b, :role_id, :actor)"
+                ),
+                {
+                    "a": admin_a,
+                    "b": admin_b,
+                    "role_id": role_id,
+                    "actor": TEST_PUBLISHER_PROFILE_ID,
+                },
+            )
+
+        outcomes = await asyncio.gather(
+            service.revoke_role(
+                user_id=admin_a, role_id=role_id, actor_id=TEST_PUBLISHER_PROFILE_ID
+            ),
+            service.revoke_role(
+                user_id=admin_b, role_id=role_id, actor_id=TEST_PUBLISHER_PROFILE_ID
+            ),
+            return_exceptions=True,
+        )
+        assert sum(not isinstance(outcome, Exception) for outcome in outcomes) == 1
+        failures = [outcome for outcome in outcomes if isinstance(outcome, AppError)]
+        assert len(failures) == 1
+        assert failures[0].error_type == "last-admin-revocation"
+        async with database.session_factory.create_session() as session:
+            active_count = await session.scalar(
+                text(
+                    "SELECT count(*) FROM profile_role_grants "
+                    "WHERE role_id = :role_id AND revoked_at IS NULL"
+                ),
+                {"role_id": role_id},
+            )
+        assert active_count == 1
+    finally:
+        async with database.session_factory.create_session() as session, session.begin():
+            role_id = await session.scalar(select(RoleModel.id).where(RoleModel.code == "admin"))
+            if role_id is not None:
+                await session.execute(
+                    text(
+                        "INSERT INTO profile_role_grants (profile_id, role_id, granted_by) "
+                        "SELECT :profile, :role, :profile WHERE NOT EXISTS ("
+                        "SELECT 1 FROM profile_role_grants WHERE profile_id = :profile "
+                        "AND role_id = :role AND revoked_at IS NULL)"
+                    ),
+                    {
+                        "profile": TEST_PUBLISHER_PROFILE_ID,
+                        "role": role_id,
+                    },
+                )
         await database.close()
 
 

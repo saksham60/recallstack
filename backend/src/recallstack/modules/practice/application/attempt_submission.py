@@ -84,6 +84,10 @@ class PracticeAttemptRepository(Protocol):
 
     async def ensure_published_content(self, content_item_id: UUID) -> None: ...
 
+    async def current_progress(
+        self, *, profile_id: UUID, content_item_id: UUID
+    ) -> tuple[LearningStatus, int] | None: ...
+
     async def resolve_provider(
         self, *, content_item_id: UUID, practice_resource_id: UUID | None
     ) -> int: ...
@@ -95,6 +99,7 @@ class PracticeAttemptRepository(Protocol):
         command: SubmitPracticeAttempt,
         provider_id: int,
         progress: LearningStatus,
+        confidence: int,
         schedule: ReviewSchedule,
     ) -> AttemptResult: ...
 
@@ -140,7 +145,16 @@ class PracticeAttemptService:
                     content_item_id=command.content_item_id,
                     practice_resource_id=command.practice_resource_id,
                 )
-                progress = self._progress_for(command.outcome)
+                current = await uow.repository.current_progress(
+                    profile_id=profile_id, content_item_id=command.content_item_id
+                )
+                proposed_progress = self._progress_for(command.outcome, current=None)
+                progress = self._progress_for(
+                    command.outcome, current=current[0] if current is not None else None
+                )
+                confidence = command.confidence_after if command.confidence_after is not None else 0
+                if current is not None and progress != proposed_progress:
+                    confidence = current[1]
                 schedule = self._scheduler.schedule(
                     outcome=command.outcome, attempted_at=command.attempted_at
                 )
@@ -149,6 +163,7 @@ class PracticeAttemptService:
                     command=command,
                     provider_id=provider_id,
                     progress=progress,
+                    confidence=confidence,
                     schedule=schedule,
                 )
                 await uow.commit()
@@ -162,14 +177,24 @@ class PracticeAttemptService:
         return result
 
     @staticmethod
-    def _progress_for(outcome: str) -> LearningStatus:
-        return {
+    def _progress_for(outcome: str, *, current: LearningStatus | None) -> LearningStatus:
+        proposed = {
             AttemptOutcome.SOLVED_INDEPENDENTLY: LearningStatus.CONFIDENT,
             AttemptOutcome.SOLVED_WITH_HINT: LearningStatus.ATTEMPTED,
             AttemptOutcome.UNDERSTOOD_BUT_COULD_NOT_CODE: LearningStatus.LEARNING,
             AttemptOutcome.PATTERN_NOT_IDENTIFIED: LearningStatus.LEARNING,
             AttemptOutcome.SKIPPED: LearningStatus.NEW,
         }[outcome]
+        # Practice outcomes may advance learning state but never downgrade it. Deliberate
+        # downgrades remain an explicit Learning command guarded by its transition policy.
+        rank = {
+            LearningStatus.NEW: 0,
+            LearningStatus.LEARNING: 1,
+            LearningStatus.ATTEMPTED: 2,
+            LearningStatus.CONFIDENT: 3,
+            LearningStatus.MASTERED: 4,
+        }
+        return current if current is not None and rank[current] > rank[proposed] else proposed
 
     @staticmethod
     def _deduplicated(

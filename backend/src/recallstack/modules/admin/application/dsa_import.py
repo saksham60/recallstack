@@ -86,6 +86,17 @@ class DsaImportStateReader(Protocol):
     async def content_state(self, *, domain_id: UUID, slug: str) -> ImportContentState | None: ...
 
 
+class DsaProblemWriter(Protocol):
+    async def apply_problem(
+        self,
+        *,
+        problem: DsaProblem,
+        references: ImportReferences,
+        state: ImportContentState | None,
+        actor_id: UUID,
+    ) -> None: ...
+
+
 @dataclass(frozen=True, slots=True)
 class DsaImportReport:
     source_path: str
@@ -122,11 +133,15 @@ class DsaWorkbookImporter:
         *,
         workbook_reader: DsaWorkbookReader,
         state_reader: DsaImportStateReader,
-        content_service: AdminContentService,
+        content_service: AdminContentService | None = None,
+        problem_writer: DsaProblemWriter | None = None,
     ) -> None:
+        if content_service is None and problem_writer is None:
+            raise ValueError("A content service or transactional problem writer is required")
         self._workbook_reader = workbook_reader
         self._state_reader = state_reader
         self._content_service = content_service
+        self._problem_writer = problem_writer
 
     async def run(
         self, *, source_path: Path, apply: bool, actor_id: UUID | None
@@ -165,12 +180,22 @@ class DsaWorkbookImporter:
                 continue
             assert actor_id is not None
             try:
-                await self._apply_problem(
-                    problem=problem,
-                    references=references,
-                    state=state,
-                    actor_id=actor_id,
-                )
+                if self._problem_writer is not None:
+                    await self._problem_writer.apply_problem(
+                        problem=problem,
+                        references=references,
+                        state=state,
+                        actor_id=actor_id,
+                    )
+                else:
+                    assert self._content_service is not None
+                    await self.apply_problem_with_service(
+                        content_service=self._content_service,
+                        problem=problem,
+                        references=references,
+                        state=state,
+                        actor_id=actor_id,
+                    )
                 applied += 1
             except Exception as exc:  # command reports per-row failures and remains resumable
                 failed += 1
@@ -195,16 +220,17 @@ class DsaWorkbookImporter:
             errors=tuple(errors),
         )
 
-    async def _apply_problem(
-        self,
+    @staticmethod
+    async def apply_problem_with_service(
         *,
+        content_service: AdminContentService,
         problem: DsaProblem,
         references: ImportReferences,
         state: ImportContentState | None,
         actor_id: UUID,
     ) -> None:
         if state is None:
-            created = await self._content_service.create_content(
+            created = await content_service.create_content(
                 actor_id=actor_id,
                 command=CreateContent(
                     domain_id=references.domain_id,
@@ -221,7 +247,7 @@ class DsaWorkbookImporter:
             content_item_id = state.content_item_id
             resource_revision = state.practice_resources_revision
             if state.editable_version_id is None:
-                draft = await self._content_service.create_draft(
+                draft = await content_service.create_draft(
                     content_item_id=content_item_id, actor_id=actor_id
                 )
                 version_id = draft.draft_version_id
@@ -230,7 +256,7 @@ class DsaWorkbookImporter:
                 version_id = state.editable_version_id
                 row_version = state.editable_row_version or 1
                 if state.editable_status == "in_review":
-                    returned_draft = await self._content_service.return_to_draft(
+                    returned_draft = await content_service.return_to_draft(
                         version_id=version_id,
                         actor_id=actor_id,
                         expected_row_version=row_version,
@@ -255,7 +281,7 @@ class DsaWorkbookImporter:
             source["companies"] = problem.companies
         if problem.remarks:
             source["remarks"] = problem.remarks
-        updated = await self._content_service.update_document(
+        updated = await content_service.update_document(
             version_id=version_id,
             actor_id=actor_id,
             command=UpdateDocument(
@@ -267,7 +293,7 @@ class DsaWorkbookImporter:
                 topics=(),
             ),
         )
-        await self._content_service.replace_practice_resources(
+        await content_service.replace_practice_resources(
             content_item_id=content_item_id,
             actor_id=actor_id,
             expected_revision=resource_revision,
@@ -283,13 +309,13 @@ class DsaWorkbookImporter:
                 ),
             ),
         )
-        reviewed = await self._content_service.submit_review(
+        reviewed = await content_service.submit_review(
             version_id=version_id,
             actor_id=actor_id,
             expected_row_version=updated.row_version,
             reason="Imported from Ultimate DSA workbook",
         )
-        await self._content_service.publish(
+        await content_service.publish(
             version_id=version_id,
             actor_id=actor_id,
             expected_row_version=reviewed.row_version,

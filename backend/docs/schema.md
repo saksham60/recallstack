@@ -1,6 +1,6 @@
 # RecallStack schema implementation
 
-The seven Alembic revisions implement all 34 approved public tables from
+The Alembic chain through `20260719_0013` implements 36 application-owned public tables from
 `recallstack_final_supabase.dbml` in dependency order: identity, catalog/taxonomy, content, learning,
 practice, recall, and sync. Every timestamp is timezone-aware and every application identifier is UUID
 unless the approved schema specifies a compact integer identity.
@@ -21,7 +21,7 @@ repositories still never query it.
 
 The requested integrity additions beyond the literal DBML are:
 
-- `uq_content_item_topics_one_primary`: at most one primary topic per content item.
+- `uq_content_version_topics_one_primary`: at most one primary topic per content version.
 - `uq_practice_resources_one_primary`: at most one active primary practice resource per content item.
 - filtered due-card, active-note, deleted-note, and public-content indexes.
 - indexes supporting every foreign-key lookup, including composite same-domain keys.
@@ -40,6 +40,12 @@ roles retain ownership for operations and rollback.
 locks the version and also applies a compare-and-swap update, so concurrent writers cannot silently
 overwrite one another. Immutable content blocks are deduplicated by canonical JSON payload hash; draft
 updates replace only the draft's ordered block links and never update existing block records.
+
+Category and topic assignments belong to `content_versions`. Creating a draft copies the currently
+published version's taxonomy, draft edits mutate only the draft mappings, and publication switches the
+document and taxonomy together. Public dashboard, browse, reader, and search queries always join the
+current published version's mappings. The older item-level mappings remain temporarily as a deprecated
+publication-time compatibility projection; draft edits never write them.
 
 Practice resources are stable item-level links rather than versioned document data. Their active set is
 replaced atomically using `content_items.practice_resources_revision`. Existing resources omitted from
@@ -63,7 +69,9 @@ percentage is the percentage of published, non-archived items whose status moved
 `sync_mutations.mutation_id` is the global retry key. Runtime code calculates a SHA-256 hash over the
 canonical device, entity, operation, base version, and payload fields; reusing an ID with a different
 hash is a conflict. Each accepted mutation invokes the same Learning, Practice, or Recall application
-service used online through an ambient non-committing unit of work. The mutation ledger, authoritative
+service used online through an ambient non-committing unit of work. The mutation ledger stores the
+original result cursor, row version, and result payload so equal retries return an equivalent response.
+The mutation ledger, authoritative
 state change, activity records, per-user cursor, and change-log row then commit together once.
 
 User and catalog cursors are independently monotonic and allocated while their counter row is locked.
@@ -71,3 +79,18 @@ Catalog publish and archive transactions append catalog changes; clients cannot 
 Mutation and change-log retention is bounded by `SYNC_RETENTION_DAYS`. Compaction marks device state as
 requiring a full resync before deleting any change that the device has not pulled. Pull also detects a
 gap against the earliest retained cursor, covering devices registered after an older change was removed.
+
+## Exact command idempotency
+
+New practice attempts persist the resulting progress, confidence, review-card identity, and due time on
+the immutable attempt row. Retries never reconstruct an old result from mutable current aggregates.
+Review-event lookup is scoped to the authenticated profile before deduplication. Practice outcomes use a
+documented monotonic policy: they may advance learning state but cannot implicitly downgrade a more
+advanced state such as `mastered`.
+
+## DSA import transaction boundary
+
+The production workbook command uses `SqlAlchemyDsaProblemWriter`. Each workbook row runs the existing
+admin services through one ambient unit of work and one outer PostgreSQL transaction. A row therefore
+publishes completely or rolls back document, taxonomy, practice-resource, workflow, audit, search, and
+catalog-change writes together. Dry-run mode remains read-only, and per-row failures remain resumable.

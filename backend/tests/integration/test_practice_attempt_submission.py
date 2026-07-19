@@ -136,11 +136,11 @@ async def test_practice_attempt_is_idempotent_atomic_and_user_scoped(
     )
 
     expected_progress = {
-        AttemptOutcome.SOLVED_INDEPENDENTLY: "confident",
-        AttemptOutcome.SOLVED_WITH_HINT: "attempted",
-        AttemptOutcome.UNDERSTOOD_BUT_COULD_NOT_CODE: "learning",
-        AttemptOutcome.PATTERN_NOT_IDENTIFIED: "learning",
         AttemptOutcome.SKIPPED: "new",
+        AttemptOutcome.PATTERN_NOT_IDENTIFIED: "learning",
+        AttemptOutcome.UNDERSTOOD_BUT_COULD_NOT_CODE: "learning",
+        AttemptOutcome.SOLVED_WITH_HINT: "attempted",
+        AttemptOutcome.SOLVED_INDEPENDENTLY: "confident",
     }
     for outcome, status in expected_progress.items():
         result = await service.submit(
@@ -161,6 +161,25 @@ async def test_practice_attempt_is_idempotent_atomic_and_user_scoped(
     retry = await service.submit(profile_id=user_a, command=retry_command)
     assert first.attempt_id == retry.attempt_id
     assert retry.newly_applied is False
+    later = await service.submit(
+        profile_id=user_a,
+        command=command(
+            event_id=uuid4(),
+            content_id=content_id,
+            resource_id=resource_id,
+            outcome=AttemptOutcome.PATTERN_NOT_IDENTIFIED,
+        ),
+    )
+    assert later.next_review_at != first.next_review_at
+    retry_after_later_change = await service.submit(profile_id=user_a, command=retry_command)
+    assert retry_after_later_change.attempt_id == first.attempt_id
+    assert retry_after_later_change.updated_progress == first.updated_progress
+    assert retry_after_later_change.updated_confidence == first.updated_confidence
+    assert retry_after_later_change.review_card_id == first.review_card_id
+    assert retry_after_later_change.next_review_at == first.next_review_at
+    with pytest.raises(AppError) as cross_user_retry:
+        await service.submit(profile_id=user_b, command=retry_command)
+    assert cross_user_retry.value.status == 409
     with pytest.raises(AppError) as changed_retry:
         await service.submit(
             profile_id=user_a,
@@ -174,6 +193,28 @@ async def test_practice_attempt_is_idempotent_atomic_and_user_scoped(
             command=command(event_id=uuid4(), content_id=content_id, resource_id=other_resource_id),
         )
     assert invalid_resource.value.status == 422
+
+    engine = create_engine(migrated_database_url)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "UPDATE user_progress SET status = 'mastered', confidence = 99 "
+                "WHERE user_id = :user_id AND content_item_id = :content_id"
+            ),
+            {"user_id": user_a, "content_id": content_id},
+        )
+    engine.dispose()
+    mastered_result = await service.submit(
+        profile_id=user_a,
+        command=command(
+            event_id=uuid4(),
+            content_id=content_id,
+            resource_id=resource_id,
+            outcome=AttemptOutcome.SKIPPED,
+        ),
+    )
+    assert mastered_result.updated_progress == "mastered"
+    assert mastered_result.updated_confidence == 99
 
     failing_service = PracticeAttemptService(
         lambda: FailingAfterApplyUnitOfWork(database.session_factory),
@@ -205,6 +246,28 @@ async def test_practice_attempt_is_idempotent_atomic_and_user_scoped(
     assert {result.newly_applied for result in concurrent_results} == {False, True}
     assert len({result.attempt_id for result in concurrent_results}) == 1
 
+    different_outcome_results = await asyncio.gather(
+        service.submit(
+            profile_id=user_b,
+            command=command(
+                event_id=uuid4(),
+                content_id=other_content_id,
+                resource_id=other_resource_id,
+                outcome=AttemptOutcome.SOLVED_INDEPENDENTLY,
+            ),
+        ),
+        service.submit(
+            profile_id=user_b,
+            command=command(
+                event_id=uuid4(),
+                content_id=other_content_id,
+                resource_id=other_resource_id,
+                outcome=AttemptOutcome.SKIPPED,
+            ),
+        ),
+    )
+    assert len(different_outcome_results) == 2
+
     engine = create_engine(migrated_database_url)
     with engine.connect() as connection:
         rollback_count = connection.execute(
@@ -222,8 +285,16 @@ async def test_practice_attempt_is_idempotent_atomic_and_user_scoped(
             text("SELECT count(*) FROM practice_attempts WHERE attempt_event_id = :event_id"),
             {"event_id": concurrent_command.attempt_event_id},
         ).scalar_one()
+        concurrent_progress = connection.execute(
+            text(
+                "SELECT status FROM user_progress "
+                "WHERE user_id = :user_id AND content_item_id = :content_id"
+            ),
+            {"user_id": user_b, "content_id": other_content_id},
+        ).scalar_one()
     engine.dispose()
     assert rollback_count == 0
     assert concurrent_count == 1
+    assert concurrent_progress == "confident"
     assert {row.user_id for row in progress_rows} == {user_a, user_b}
     await database.close()

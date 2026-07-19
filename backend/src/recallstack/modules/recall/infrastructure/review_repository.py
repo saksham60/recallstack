@@ -131,7 +131,9 @@ class SqlAlchemyRecallRepository(RecallRepository):
             for history, content_id in await self._session.execute(statement)
         )
 
-    async def find_history_event(self, review_event_id: UUID) -> ReviewHistoryEntry | None:
+    async def find_history_event(
+        self, *, profile_id: UUID, review_event_id: UUID
+    ) -> ReviewHistoryEntry | None:
         statement = (
             select(ReviewHistoryModel, ReviewCardModel.content_item_id)
             .join(
@@ -141,7 +143,10 @@ class SqlAlchemyRecallRepository(RecallRepository):
                     ReviewCardModel.user_id == ReviewHistoryModel.user_id,
                 ),
             )
-            .where(ReviewHistoryModel.review_event_id == review_event_id)
+            .where(
+                ReviewHistoryModel.review_event_id == review_event_id,
+                ReviewHistoryModel.user_id == profile_id,
+            )
         )
         row = (await self._session.execute(statement)).one_or_none()
         return self._history(*row) if row is not None else None
@@ -230,7 +235,6 @@ class SqlAlchemyRecallRepository(RecallRepository):
                 content_item_id=card.content_item_id,
                 status=progress,
                 confidence=confidence,
-                last_opened_at=command.reviewed_at,
                 row_version=1,
             )
             .on_conflict_do_update(
@@ -238,7 +242,6 @@ class SqlAlchemyRecallRepository(RecallRepository):
                 set_={
                     "status": progress,
                     "confidence": confidence,
-                    "last_opened_at": command.reviewed_at,
                     "row_version": UserProgressModel.row_version + 1,
                     "updated_at": func.now(),
                 },

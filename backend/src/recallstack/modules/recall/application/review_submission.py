@@ -130,7 +130,9 @@ class RecallRepository(Protocol):
         self, *, profile_id: UUID, page: int, page_size: int
     ) -> tuple[int, tuple[ReviewHistoryEntry, ...]]: ...
 
-    async def find_history_event(self, review_event_id: UUID) -> ReviewHistoryEntry | None: ...
+    async def find_history_event(
+        self, *, profile_id: UUID, review_event_id: UUID
+    ) -> ReviewHistoryEntry | None: ...
 
     async def load_card(self, *, profile_id: UUID, card_id: UUID) -> ReviewCardState | None: ...
 
@@ -193,9 +195,11 @@ class RecallService:
     ) -> ReviewSubmissionResult:
         try:
             async with self._unit_of_work() as uow:
-                existing = await uow.repository.find_history_event(command.review_event_id)
+                existing = await uow.repository.find_history_event(
+                    profile_id=profile_id, review_event_id=command.review_event_id
+                )
                 if existing is not None:
-                    return self._deduplicate(existing, profile_id, card_id, command)
+                    return self._deduplicate(existing, card_id, command)
                 card = await uow.repository.load_card(profile_id=profile_id, card_id=card_id)
                 if card is None:
                     raise AppError(
@@ -220,9 +224,11 @@ class RecallService:
                 await uow.commit()
         except (ReviewEventRace, StaleReviewCard):
             async with self._unit_of_work() as uow:
-                existing = await uow.repository.find_history_event(command.review_event_id)
+                existing = await uow.repository.find_history_event(
+                    profile_id=profile_id, review_event_id=command.review_event_id
+                )
             if existing is not None:
-                return self._deduplicate(existing, profile_id, card_id, command)
+                return self._deduplicate(existing, card_id, command)
             self._stale()
         await self._publish(profile_id, card_id, command, result)
         return result
@@ -242,7 +248,7 @@ class RecallService:
 
     @staticmethod
     def _deduplicate(
-        existing: ReviewHistoryEntry, profile_id: UUID, card_id: UUID, command: SubmitReview
+        existing: ReviewHistoryEntry, card_id: UUID, command: SubmitReview
     ) -> ReviewSubmissionResult:
         if (
             existing.card_id != card_id

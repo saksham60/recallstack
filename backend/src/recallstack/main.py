@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 import httpx
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from recallstack.composition.admin_content_uow import SqlAlchemyAdminContentUnitOfWork
 from recallstack.composition.admin_user_uow import SqlAlchemyAdminUserUnitOfWork
@@ -149,6 +150,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
         docs_url="/docs" if resolved.app_env != "production" else None,
         redoc_url=None,
+    )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=resolved.cors_origins,
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
     app.add_middleware(BodySizeLimitMiddleware, max_bytes=resolved.request_body_max_bytes)
     app.add_middleware(RequestContextMiddleware)

@@ -1,5 +1,6 @@
+import asyncio
 from datetime import UTC, datetime
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import create_engine, text
@@ -39,7 +40,7 @@ async def test_recall_review_submission_is_safe_and_deterministic(
     engine = create_engine(migrated_database_url)
     domain_id, category_id, user_a, user_b = uuid4(), uuid4(), uuid4(), uuid4()
     ratings = ("again", "hard", "good", "easy")
-    cards: list[tuple[object, object]] = []
+    cards: list[tuple[UUID, UUID]] = []
     with engine.begin() as connection:
         connection.execute(
             text("INSERT INTO auth.users (id) VALUES (:a), (:b)"), {"a": user_a, "b": user_b}
@@ -122,6 +123,10 @@ async def test_recall_review_submission_is_safe_and_deterministic(
     retry = await service.submit(profile_id=user_a, card_id=retry_card, command=retry_command)
     assert first.review_history_id == retry.review_history_id
     assert retry.newly_applied is False
+    with pytest.raises(AppError) as cross_user_event:
+        await service.submit(profile_id=user_b, card_id=other_card, command=retry_command)
+    assert cross_user_event.value.status == 409
+    assert cross_user_event.value.error_type == "stale-review-card-version"
     with pytest.raises(AppError) as stale:
         await service.submit(
             profile_id=user_a,
@@ -143,6 +148,25 @@ async def test_recall_review_submission_is_safe_and_deterministic(
             command=SubmitReview(uuid4(), "good", None, datetime.now(UTC), 4),
         )
     assert suspended.value.status == 404
+
+    concurrent_card = cards[3][0]
+    concurrent_results = await asyncio.gather(
+        service.submit(
+            profile_id=user_a,
+            card_id=concurrent_card,
+            command=SubmitReview(uuid4(), "good", 100, datetime.now(UTC), 5),
+        ),
+        service.submit(
+            profile_id=user_a,
+            card_id=concurrent_card,
+            command=SubmitReview(uuid4(), "hard", 200, datetime.now(UTC), 5),
+        ),
+        return_exceptions=True,
+    )
+    assert sum(not isinstance(result, Exception) for result in concurrent_results) == 1
+    concurrent_failures = [result for result in concurrent_results if isinstance(result, AppError)]
+    assert len(concurrent_failures) == 1
+    assert concurrent_failures[0].status == 409
 
     rollback_event = uuid4()
     failing_service = RecallService(

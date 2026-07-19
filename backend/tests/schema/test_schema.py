@@ -1,7 +1,7 @@
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import String, create_engine, inspect, text
 from sqlalchemy.exc import IntegrityError
 
 from recallstack.commands.seed import DSA_CATEGORIES, seed
@@ -21,6 +21,8 @@ EXPECTED_TABLES = {
     "content_version_status_history",
     "content_blocks",
     "content_version_blocks",
+    "content_version_categories",
+    "content_version_topics",
     "content_item_categories",
     "content_item_topics",
     "content_relations",
@@ -75,15 +77,20 @@ def test_critical_constraints_and_indexes_exist(migrated_database_url: str) -> N
         "fk_content_items_current_published_version",
         "fk_content_item_categories_domain_category",
         "fk_content_item_topics_domain_topic",
+        "fk_content_version_categories_domain_category",
+        "fk_content_version_topics_domain_topic",
         "fk_practice_attempts_resource_item",
         "fk_review_history_card_user",
         "chk_user_progress_confidence",
         "chk_practice_attempt_duration",
         "chk_review_card_row_version",
         "chk_content_items_practice_resources_revision",
+        "chk_practice_attempt_result_snapshot",
+        "chk_sync_mutation_result_cursor",
     } <= constraints
     assert {
         "uq_content_item_topics_one_primary",
+        "uq_content_version_topics_one_primary",
         "uq_practice_resources_one_primary",
         "ix_review_cards_due_active",
         "ix_user_notes_active_user_content",
@@ -106,8 +113,12 @@ def test_admin_practice_resource_revision_schema(migrated_database_url: str) -> 
         "1",
         "'1'::bigint",
     }
-    assert resource_columns["external_key"]["type"].length == 255
-    assert resource_columns["title"]["type"].length == 300
+    external_key_type = resource_columns["external_key"]["type"]
+    title_type = resource_columns["title"]["type"]
+    assert isinstance(external_key_type, String)
+    assert isinstance(title_type, String)
+    assert external_key_type.length == 255
+    assert title_type.length == 300
     engine.dispose()
 
 

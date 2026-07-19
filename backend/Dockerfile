@@ -22,4 +22,4 @@ COPY --chown=recallstack:recallstack alembic ./alembic
 COPY --chown=recallstack:recallstack alembic.ini ./alembic.ini
 USER recallstack
 EXPOSE 8080
-CMD ["sh", "-c", "exec uvicorn recallstack.main:app --host 0.0.0.0 --port ${PORT:-8080} --proxy-headers --forwarded-allow-ips='*'"]
+CMD ["sh", "-c", "exec uvicorn recallstack.main:app --host 0.0.0.0 --port ${PORT:-8080} --no-proxy-headers"]

@@ -40,9 +40,14 @@ class LearningProgressReadRepository(Protocol):
 
 
 class CategoryDashboardUnitOfWork(Protocol):
-    categories: CatalogCategoryRepository
-    published_content: PublishedCategoryContentRepository
-    progress: LearningProgressReadRepository
+    @property
+    def categories(self) -> CatalogCategoryRepository: ...
+
+    @property
+    def published_content(self) -> PublishedCategoryContentRepository: ...
+
+    @property
+    def progress(self) -> LearningProgressReadRepository: ...
 
     async def __aenter__(self) -> Self: ...
 

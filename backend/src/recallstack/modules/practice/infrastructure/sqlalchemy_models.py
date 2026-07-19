@@ -109,12 +109,24 @@ class PracticeAttemptModel(Base):
             "confidence_after IS NULL OR confidence_after BETWEEN 0 AND 100",
             name="chk_practice_attempt_conf_after",
         ),
+        CheckConstraint(
+            "(result_progress IS NULL AND result_confidence IS NULL "
+            "AND result_review_card_id IS NULL AND result_next_review_at IS NULL) OR "
+            "(result_progress IS NOT NULL AND result_confidence BETWEEN 0 AND 100 "
+            "AND result_review_card_id IS NOT NULL AND result_next_review_at IS NOT NULL)",
+            name="chk_practice_attempt_result_snapshot",
+        ),
         Index("ix_practice_attempts_user_attempted", "user_id", text("attempted_at DESC")),
         Index("ix_practice_attempts_content_item_id", "content_item_id"),
         Index("ix_practice_attempts_provider_id", "provider_id"),
         Index("ix_practice_attempts_resource_id", "practice_resource_id"),
         Index("ix_practice_attempts_resource_item", "practice_resource_id", "content_item_id"),
         Index("ix_practice_attempts_resource_provider", "practice_resource_id", "provider_id"),
+        Index(
+            "ix_practice_attempts_result_review_card",
+            "result_review_card_id",
+            postgresql_where=text("result_review_card_id IS NOT NULL"),
+        ),
     )
     id: Mapped[UUID] = mapped_column(primary_key=True, server_default=func.gen_random_uuid())
     attempt_event_id: Mapped[UUID] = mapped_column(unique=True)
@@ -137,5 +149,20 @@ class PracticeAttemptModel(Base):
     hint_used: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     confidence_before: Mapped[int | None] = mapped_column(SmallInteger)
     confidence_after: Mapped[int | None] = mapped_column(SmallInteger)
+    result_progress: Mapped[str | None] = mapped_column(
+        Enum(
+            "new",
+            "learning",
+            "attempted",
+            "confident",
+            "mastered",
+            name="learning_status",
+        )
+    )
+    result_confidence: Mapped[int | None] = mapped_column(SmallInteger)
+    result_review_card_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("review_cards.id", ondelete="RESTRICT")
+    )
+    result_next_review_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     attempted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

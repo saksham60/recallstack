@@ -404,7 +404,12 @@ class SqlAlchemySyncRepository(SyncRepository):
         return counter.last_cursor
 
     async def mark_mutation_applied(
-        self, *, mutation_id: UUID, resulting_row_version: int | None
+        self,
+        *,
+        mutation_id: UUID,
+        resulting_row_version: int | None,
+        cursor: int,
+        result: dict[str, object],
     ) -> None:
         await self._session.execute(
             update(SyncMutationModel)
@@ -412,6 +417,8 @@ class SqlAlchemySyncRepository(SyncRepository):
             .values(
                 status=MutationStatus.APPLIED,
                 resulting_row_version=resulting_row_version,
+                result_cursor=cursor,
+                result_payload=result,
                 processed_at=datetime.now(UTC),
             )
         )
@@ -651,6 +658,8 @@ class SqlAlchemySyncRepository(SyncRepository):
             model.entity_id,
             model.operation.value,
             model.resulting_row_version,
+            model.result_cursor,
+            model.result_payload,
             model.error_code,
         )
 

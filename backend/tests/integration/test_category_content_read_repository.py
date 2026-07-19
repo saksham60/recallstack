@@ -85,6 +85,20 @@ def add_content(
             "sort_order": category_sort_order,
         },
     )
+    connection.execute(
+        text(
+            "INSERT INTO content_version_categories "
+            "(content_version_id, content_item_id, domain_id, category_id, sort_order) "
+            "VALUES (:version_id, :item_id, :domain_id, :category_id, :sort_order)"
+        ),
+        {
+            "version_id": version_id,
+            "domain_id": domain_id,
+            "item_id": item_id,
+            "category_id": category_id,
+            "sort_order": category_sort_order,
+        },
+    )
     return item_id
 
 
@@ -189,6 +203,15 @@ async def test_category_content_read_model_filters_and_scopes_user_state(
                 "VALUES (:domain_id, :item_id, :topic_id, true)"
             ),
             {"domain_id": domain_id, "item_id": alpha, "topic_id": topic_id},
+        )
+        connection.execute(
+            text(
+                "INSERT INTO content_version_topics "
+                "(content_version_id, content_item_id, domain_id, topic_id, is_primary) "
+                "SELECT current_published_version_id, id, domain_id, :topic_id, true "
+                "FROM content_items WHERE id = :item_id"
+            ),
+            {"item_id": alpha, "topic_id": topic_id},
         )
         provider_id = connection.execute(
             text(

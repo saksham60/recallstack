@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import httpx
+from fastapi import FastAPI
 
 from recallstack.main import create_app
 from recallstack.modules.admin.application.content_management import (
@@ -49,7 +50,7 @@ class StubAdminContentService:
         )
 
 
-def _app(user: CurrentUser):
+def _app(user: CurrentUser) -> FastAPI:
     app = create_app(Settings(supabase_project_url="https://example.supabase.co", app_env="test"))
     app.dependency_overrides[get_current_user] = lambda: user
     app.dependency_overrides[get_admin_content_service] = lambda: StubAdminContentService()

@@ -5,6 +5,9 @@ import pytest
 from sqlalchemy import select, text
 
 from recallstack.composition.admin_content_uow import SqlAlchemyAdminContentUnitOfWork
+from recallstack.composition.category_dashboard_uow import SqlAlchemyCategoryDashboardUnitOfWork
+from recallstack.composition.published_study_note_uow import SqlAlchemyPublishedStudyNoteUnitOfWork
+from recallstack.composition.search_uow import SqlAlchemySearchUnitOfWork
 from recallstack.modules.admin.application.content_management import (
     AdminContentService,
     CreateContent,
@@ -13,17 +16,24 @@ from recallstack.modules.admin.application.content_management import (
     TopicAssignment,
     UpdateDocument,
 )
+from recallstack.modules.catalog.application.category_dashboard import CategoryDashboardService
+from recallstack.modules.catalog.application.search import SearchFilters, SearchService
 from recallstack.modules.catalog.infrastructure.sqlalchemy_models import (
     CategoryModel,
     DomainModel,
     TopicKind,
     TopicModel,
 )
+from recallstack.modules.content.application.published_study_note import PublishedStudyNoteService
 from recallstack.modules.content.infrastructure.sqlalchemy_models import (
     ContentItemModel,
     ContentVersionModel,
     ContentVersionStatusHistoryModel,
 )
+from recallstack.modules.learning.infrastructure.activity_event_recorder import (
+    SqlAlchemyActivityEventRecorder,
+)
+from recallstack.modules.learning.infrastructure.sqlalchemy_models import ActivityEventModel
 from recallstack.modules.practice.infrastructure.sqlalchemy_models import PracticeProviderModel
 from recallstack.modules.sync.infrastructure.sqlalchemy_models import CatalogSyncChangeLogModel
 from recallstack.shared.config import Settings
@@ -365,5 +375,191 @@ async def test_admin_content_workflow_is_atomic_audited_and_concurrency_safe(
             reason="Retired from catalog",
         )
         assert archived.content_item_id == created.content_item_id
+        async with database.session_factory.create_session() as session:
+            audit_events = tuple(
+                (
+                    await session.scalars(
+                        select(ActivityEventModel)
+                        .where(ActivityEventModel.content_item_id == created.content_item_id)
+                        .order_by(ActivityEventModel.id)
+                    )
+                ).all()
+            )
+        resource_audits = [
+            event
+            for event in audit_events
+            if event.event_type == "admin_practice_resources_replaced"
+        ]
+        resource_revisions: list[object] = []
+        for event in resource_audits:
+            assert event.metadata_ is not None
+            resource_revisions.append(event.metadata_["revision"])
+        assert resource_revisions == [2, 3, 4]
+        archive_audit = next(
+            event for event in audit_events if event.event_type == "admin_content_archived"
+        )
+        assert archive_audit.user_id == actor_id
+        assert archive_audit.metadata_ is not None
+        assert archive_audit.metadata_["reason"] == "Retired from catalog"
+    finally:
+        await database.close()
+
+
+@pytest.mark.integration
+async def test_draft_taxonomy_is_invisible_until_atomic_publication(
+    migrated_database_url: str,
+) -> None:
+    database = Database(
+        Settings(
+            supabase_project_url="https://example.supabase.co",
+            app_env="test",
+            database_url=migrated_database_url,
+        )
+    )
+    actor_id = TEST_PUBLISHER_PROFILE_ID
+    domain_id, category_a, category_b, topic_a, topic_b = (uuid4() for _ in range(5))
+    domain_slug = f"taxonomy-{domain_id.hex[:10]}"
+    async with database.session_factory.create_session() as session, session.begin():
+        session.add(DomainModel(id=domain_id, slug=domain_slug, name="Taxonomy", is_active=True))
+        await session.flush()
+        session.add_all(
+            [
+                CategoryModel(
+                    id=category_a,
+                    domain_id=domain_id,
+                    slug="category-a",
+                    name="Category A",
+                    is_active=True,
+                ),
+                CategoryModel(
+                    id=category_b,
+                    domain_id=domain_id,
+                    slug="category-b",
+                    name="Category B",
+                    is_active=True,
+                ),
+                TopicModel(
+                    id=topic_a,
+                    domain_id=domain_id,
+                    kind=TopicKind.TOPIC,
+                    slug="topic-a",
+                    name="Topic A",
+                ),
+                TopicModel(
+                    id=topic_b,
+                    domain_id=domain_id,
+                    kind=TopicKind.TOPIC,
+                    slug="topic-b",
+                    name="Topic B",
+                ),
+            ]
+        )
+
+    admin = AdminContentService(
+        lambda: SqlAlchemyAdminContentUnitOfWork(database.session_factory), None
+    )
+    dashboard = CategoryDashboardService(
+        lambda: SqlAlchemyCategoryDashboardUnitOfWork(database.session_factory)
+    )
+    reader = PublishedStudyNoteService(
+        lambda: SqlAlchemyPublishedStudyNoteUnitOfWork(database.session_factory),
+        SqlAlchemyActivityEventRecorder(database.session_factory),
+    )
+    search = SearchService(lambda: SqlAlchemySearchUnitOfWork(database.session_factory))
+
+    def document(version: int, category: UUID, topic: UUID, title: str) -> UpdateDocument:
+        return UpdateDocument(
+            expected_row_version=version,
+            title=title,
+            summary=f"{title} summary",
+            blocks=(DocumentBlock("recognize", None, {"text": title}),),
+            category_ids=(category,),
+            topics=(TopicAssignment(topic, True, 0),),
+        )
+
+    try:
+        created = await admin.create_content(
+            actor_id=actor_id,
+            command=CreateContent(domain_id, "taxonomy-isolation", "problem", "medium"),
+        )
+        await admin.update_document(
+            version_id=created.draft_version_id,
+            actor_id=actor_id,
+            command=document(1, category_a, topic_a, "Published v1"),
+        )
+        await admin.submit_review(
+            version_id=created.draft_version_id,
+            actor_id=actor_id,
+            expected_row_version=2,
+            reason="v1 review",
+        )
+        await admin.publish(
+            version_id=created.draft_version_id,
+            actor_id=actor_id,
+            expected_row_version=3,
+            reason="v1 publish",
+        )
+        draft = await admin.create_draft(content_item_id=created.content_item_id, actor_id=actor_id)
+        await admin.update_document(
+            version_id=draft.draft_version_id,
+            actor_id=actor_id,
+            command=document(1, category_b, topic_b, "Draft v2"),
+        )
+
+        before_dashboard = await dashboard.query(domain_slug=domain_slug, profile_id=actor_id)
+        before_counts = {item.slug: item.total_content_items for item in before_dashboard}
+        assert before_counts == {"category-a": 1, "category-b": 0}
+        before_note = await reader.query(slug="taxonomy-isolation", profile_id=actor_id)
+        assert before_note.title == "Published v1"
+        assert [category.id for category in before_note.categories] == [category_a]
+        assert [topic.id for topic in before_note.topics] == [topic_a]
+        search_a = await search.query(
+            profile_id=actor_id,
+            filters=SearchFilters("", domain_slug, "category-a", "topic-a", None, None, 1, 25),
+        )
+        search_b = await search.query(
+            profile_id=actor_id,
+            filters=SearchFilters("", domain_slug, "category-b", "topic-b", None, None, 1, 25),
+        )
+        assert [item.content_item_id for item in search_a.items] == [created.content_item_id]
+        assert search_b.items == ()
+
+        await admin.submit_review(
+            version_id=draft.draft_version_id,
+            actor_id=actor_id,
+            expected_row_version=2,
+            reason="v2 review",
+        )
+        await admin.publish(
+            version_id=draft.draft_version_id,
+            actor_id=actor_id,
+            expected_row_version=3,
+            reason="v2 publish",
+        )
+
+        after_dashboard = await dashboard.query(domain_slug=domain_slug, profile_id=actor_id)
+        after_counts = {item.slug: item.total_content_items for item in after_dashboard}
+        assert after_counts == {"category-a": 0, "category-b": 1}
+        after_note = await reader.query(slug="taxonomy-isolation", profile_id=actor_id)
+        assert after_note.title == "Draft v2"
+        assert [category.id for category in after_note.categories] == [category_b]
+        assert [topic.id for topic in after_note.topics] == [topic_b]
+        assert (
+            await search.query(
+                profile_id=actor_id,
+                filters=SearchFilters("", domain_slug, "category-a", "topic-a", None, None, 1, 25),
+            )
+        ).items == ()
+        assert [
+            item.content_item_id
+            for item in (
+                await search.query(
+                    profile_id=actor_id,
+                    filters=SearchFilters(
+                        "", domain_slug, "category-b", "topic-b", None, None, 1, 25
+                    ),
+                )
+            ).items
+        ] == [created.content_item_id]
     finally:
         await database.close()

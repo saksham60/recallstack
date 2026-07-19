@@ -133,6 +133,10 @@ class SyncMutationModel(Base):
             name="chk_sync_mutation_result_version",
         ),
         CheckConstraint(
+            "result_cursor IS NULL OR result_cursor > 0",
+            name="chk_sync_mutation_result_cursor",
+        ),
+        CheckConstraint(
             "char_length(request_hash) = 64 AND request_hash ~ '^[0-9a-f]{64}$'",
             name="chk_sync_mutation_request_hash",
         ),
@@ -157,6 +161,8 @@ class SyncMutationModel(Base):
     )
     base_row_version: Mapped[int | None] = mapped_column(BigInteger)
     resulting_row_version: Mapped[int | None] = mapped_column(BigInteger)
+    result_cursor: Mapped[int | None] = mapped_column(BigInteger)
+    result_payload: Mapped[dict[str, object] | None] = mapped_column(JSONB)
     error_code: Mapped[str | None] = mapped_column(String(80))
     received_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

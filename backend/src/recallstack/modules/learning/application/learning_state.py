@@ -76,6 +76,8 @@ class Page[T]:
 class LearningStateRepository(Protocol):
     async def content_exists(self, content_item_id: UUID) -> bool: ...
 
+    async def content_is_user_accessible(self, content_item_id: UUID) -> bool: ...
+
     async def get_progress(
         self, *, profile_id: UUID, content_item_id: UUID
     ) -> ProgressState | None: ...
@@ -195,7 +197,7 @@ class LearningService:
         expected_row_version: int,
     ) -> ProgressState:
         async with self._unit_of_work() as uow:
-            if not await uow.repository.content_exists(content_item_id):
+            if not await uow.repository.content_is_user_accessible(content_item_id):
                 self._content_not_found(content_item_id)
             current = await uow.repository.get_progress(
                 profile_id=profile_id, content_item_id=content_item_id
@@ -236,7 +238,7 @@ class LearningService:
 
     async def add_bookmark(self, *, profile_id: UUID, content_item_id: UUID) -> None:
         async with self._unit_of_work() as uow:
-            if not await uow.repository.content_exists(content_item_id):
+            if not await uow.repository.content_is_user_accessible(content_item_id):
                 self._content_not_found(content_item_id)
             await uow.repository.add_bookmark(
                 profile_id=profile_id, content_item_id=content_item_id
@@ -282,7 +284,7 @@ class LearningService:
         body: str,
     ) -> UserNote:
         async with self._unit_of_work() as uow:
-            if not await uow.repository.content_exists(content_item_id):
+            if not await uow.repository.content_is_user_accessible(content_item_id):
                 self._content_not_found(content_item_id)
             note = await uow.repository.create_note(
                 profile_id=profile_id,

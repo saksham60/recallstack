@@ -15,11 +15,11 @@ from recallstack.modules.content.application.category_content_list import (
     PrimaryTopic,
 )
 from recallstack.modules.content.infrastructure.sqlalchemy_models import (
-    ContentItemCategoryModel,
     ContentItemModel,
-    ContentItemTopicModel,
     ContentType,
+    ContentVersionCategoryModel,
     ContentVersionModel,
+    ContentVersionTopicModel,
     DifficultyLevel,
     PublicationStatus,
 )
@@ -80,7 +80,7 @@ class SqlAlchemyCategoryContentReadRepository:
                 ContentItemModel.type,
                 ContentItemModel.difficulty,
                 ContentItemModel.updated_at,
-                ContentItemCategoryModel.sort_order.label("category_sort_order"),
+                ContentVersionCategoryModel.sort_order.label("category_sort_order"),
                 ContentVersionModel.title,
                 ContentVersionModel.summary,
                 TopicModel.slug.label("topic_slug"),
@@ -96,19 +96,19 @@ class SqlAlchemyCategoryContentReadRepository:
                 BookmarkModel.content_item_id.label("bookmark_content_item_id"),
                 ReviewCardModel.due_at.label("next_review_at"),
             )
-            .select_from(ContentItemCategoryModel)
+            .select_from(ContentVersionCategoryModel)
             .join(
                 CategoryModel,
                 and_(
-                    CategoryModel.id == ContentItemCategoryModel.category_id,
-                    CategoryModel.domain_id == ContentItemCategoryModel.domain_id,
+                    CategoryModel.id == ContentVersionCategoryModel.category_id,
+                    CategoryModel.domain_id == ContentVersionCategoryModel.domain_id,
                 ),
             )
             .join(
                 ContentItemModel,
                 and_(
-                    ContentItemModel.id == ContentItemCategoryModel.content_item_id,
-                    ContentItemModel.domain_id == ContentItemCategoryModel.domain_id,
+                    ContentItemModel.id == ContentVersionCategoryModel.content_item_id,
+                    ContentItemModel.domain_id == ContentVersionCategoryModel.domain_id,
                 ),
             )
             .join(
@@ -116,21 +116,23 @@ class SqlAlchemyCategoryContentReadRepository:
                 and_(
                     ContentVersionModel.id == ContentItemModel.current_published_version_id,
                     ContentVersionModel.content_item_id == ContentItemModel.id,
+                    ContentVersionCategoryModel.content_version_id == ContentVersionModel.id,
                 ),
             )
             .outerjoin(
-                ContentItemTopicModel,
+                ContentVersionTopicModel,
                 and_(
-                    ContentItemTopicModel.content_item_id == ContentItemModel.id,
-                    ContentItemTopicModel.domain_id == ContentItemModel.domain_id,
-                    ContentItemTopicModel.is_primary.is_(True),
+                    ContentVersionTopicModel.content_version_id == ContentVersionModel.id,
+                    ContentVersionTopicModel.content_item_id == ContentItemModel.id,
+                    ContentVersionTopicModel.domain_id == ContentItemModel.domain_id,
+                    ContentVersionTopicModel.is_primary.is_(True),
                 ),
             )
             .outerjoin(
                 TopicModel,
                 and_(
-                    TopicModel.id == ContentItemTopicModel.topic_id,
-                    TopicModel.domain_id == ContentItemTopicModel.domain_id,
+                    TopicModel.id == ContentVersionTopicModel.topic_id,
+                    TopicModel.domain_id == ContentVersionTopicModel.domain_id,
                 ),
             )
             .outerjoin(
@@ -168,7 +170,7 @@ class SqlAlchemyCategoryContentReadRepository:
                 ),
             )
             .where(
-                ContentItemCategoryModel.category_id == category_id,
+                ContentVersionCategoryModel.category_id == category_id,
                 CategoryModel.is_active.is_(True),
                 ContentItemModel.archived_at.is_(None),
                 ContentVersionModel.status == PublicationStatus.PUBLISHED,
@@ -193,16 +195,17 @@ class SqlAlchemyCategoryContentReadRepository:
                 statement = statement.where(UserProgressModel.status == filters.status)
         if filters.topic_slug is not None:
             statement = statement.where(
-                select(ContentItemTopicModel.content_item_id)
+                select(ContentVersionTopicModel.content_item_id)
                 .join(
                     TopicModel,
                     and_(
-                        TopicModel.id == ContentItemTopicModel.topic_id,
-                        TopicModel.domain_id == ContentItemTopicModel.domain_id,
+                        TopicModel.id == ContentVersionTopicModel.topic_id,
+                        TopicModel.domain_id == ContentVersionTopicModel.domain_id,
                     ),
                 )
                 .where(
-                    ContentItemTopicModel.content_item_id == ContentItemModel.id,
+                    ContentVersionTopicModel.content_version_id == ContentVersionModel.id,
+                    ContentVersionTopicModel.content_item_id == ContentItemModel.id,
                     TopicModel.slug == filters.topic_slug,
                 )
                 .exists()
@@ -227,7 +230,7 @@ class SqlAlchemyCategoryContentReadRepository:
         if filters.sort == "updated_at":
             return statement.order_by(ContentItemModel.updated_at.desc(), ContentItemModel.id.asc())
         return statement.order_by(
-            ContentItemCategoryModel.sort_order.asc(),
+            ContentVersionCategoryModel.sort_order.asc(),
             ContentVersionModel.title.asc(),
             ContentItemModel.id.asc(),
         )

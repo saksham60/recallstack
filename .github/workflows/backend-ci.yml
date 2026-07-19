@@ -1,0 +1,109 @@
+name: Backend CI
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:17.6-bookworm
+        env:
+          POSTGRES_USER: recallstack
+          POSTGRES_PASSWORD: recallstack
+          POSTGRES_DB: recallstack_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U recallstack -d recallstack_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_ENV: test
+      SUPABASE_PROJECT_URL: https://example.supabase.co
+      DATABASE_URL: postgresql+psycopg://recallstack:recallstack@localhost:5432/recallstack_test
+      TEST_DATABASE_URL: postgresql+psycopg://recallstack:recallstack@localhost:5432/recallstack_test
+      RUN_INTEGRATION_TESTS: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.7.13"
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install locked dependencies
+        run: uv sync --frozen
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Formatting
+        run: uv run ruff format --check .
+
+      - name: Strict type checking
+        run: uv run mypy src/recallstack
+
+      - name: Unit tests
+        run: uv run pytest -m "not integration"
+
+      - name: Prepare external auth dependency
+        run: >-
+          uv run python -c "from sqlalchemy import create_engine,text;
+          e=create_engine('${{ env.DATABASE_URL }}');
+          c=e.connect();c.execute(text('CREATE SCHEMA IF NOT EXISTS auth'));
+          c.execute(text('CREATE TABLE IF NOT EXISTS auth.users (id uuid PRIMARY KEY)'));
+          c.commit();c.close();e.dispose()"
+
+      - name: Verify single migration head
+        run: test "$(uv run alembic heads | grep -c '(head)')" -eq 1
+
+      - name: Migrate clean PostgreSQL database
+        run: uv run alembic upgrade head
+
+      - name: Verify database at migration head
+        run: uv run alembic current --check-heads
+
+      - name: PostgreSQL integration tests
+        run: uv run pytest -m integration
+
+      - name: Dependency vulnerability audit
+        run: uv run pip-audit
+
+      - name: Application startup and OpenAPI smoke test
+        run: >-
+          uv run python -c "from fastapi.testclient import TestClient;
+          from recallstack.main import create_app;
+          app=create_app();assert app.openapi()['info']['title'];
+          c=TestClient(app);c.__enter__();
+          assert c.get('/health/live').status_code == 200;c.__exit__(None,None,None)"
+
+      - name: Build production image
+        run: docker build -t recallstack-backend:ci .

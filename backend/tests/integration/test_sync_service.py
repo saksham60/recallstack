@@ -150,6 +150,9 @@ async def test_sync_mutations_are_retry_safe_ordered_scoped_and_use_online_servi
         assert applied.resulting_row_version == 1
         assert duplicate.deduplicated is True
         assert duplicate.status == "applied"
+        assert duplicate.cursor == applied.cursor
+        assert duplicate.resulting_row_version == applied.resulting_row_version
+        assert duplicate.result == applied.result
 
         changed = _progress(
             mutation_id=command.mutation_id,
@@ -185,6 +188,11 @@ async def test_sync_mutations_are_retry_safe_ordered_scoped_and_use_online_servi
         note_result = await service.process_mutation(profile_id=profile_id, command=note)
         assert note_result.cursor == 2
         assert note_result.resulting_row_version == 1
+        duplicate_after_change = await service.process_mutation(
+            profile_id=profile_id, command=command
+        )
+        assert duplicate_after_change.cursor == applied.cursor
+        assert duplicate_after_change.result == applied.result
 
         attempt_event_id = uuid4()
         attempt = MutationCommand(
@@ -242,6 +250,11 @@ async def test_sync_mutations_are_retry_safe_ordered_scoped_and_use_online_servi
         batch = await service.process_batch(profile_id=profile_id, commands=(stale, valid_bookmark))
         assert [item.status for item in batch] == ["rejected", "applied"]
         assert batch[1].cursor == 5
+        rejected_retry = (await service.process_batch(profile_id=profile_id, commands=(stale,)))[0]
+        assert rejected_retry.deduplicated is True
+        assert rejected_retry.status == "rejected"
+        assert rejected_retry.error_code == batch[0].error_code
+        assert rejected_retry.cursor is None
 
         feed = await service.user_changes(
             profile_id=profile_id, device_id=device.id, after=0, limit=100
@@ -330,6 +343,31 @@ async def test_concurrent_duplicate_and_compaction_require_full_resync(
                 )
             ).all()
         assert len(changes) == 1
+
+        note_commands = tuple(
+            MutationCommand(
+                uuid4(),
+                writing.id,
+                "note",
+                uuid4(),
+                "insert",
+                None,
+                {
+                    "content_item_id": str(content_id),
+                    "kind": "note",
+                    "title": f"Concurrent {index}",
+                    "body": "Concurrent cursor allocation",
+                },
+            )
+            for index in range(2)
+        )
+        concurrent_changes = await asyncio.gather(
+            *(
+                service.process_mutation(profile_id=profile_id, command=mutation)
+                for mutation in note_commands
+            )
+        )
+        assert {result.cursor for result in concurrent_changes} == {2, 3}
 
         compacted = await service.compact(now=datetime.now(UTC) + timedelta(days=2))
         assert compacted.mutations_deleted >= 1

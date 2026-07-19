@@ -50,7 +50,7 @@ def main() -> int:
             parsed.port or 5432,
             type=socket.SOCK_STREAM,
         )
-        unique_addresses = sorted({address[4][0] for address in addresses})
+        unique_addresses = sorted({str(address[4][0]) for address in addresses})
         print(f"DNS: OK ({', '.join(unique_addresses)})")
     except OSError as exc:
         print(f"FAIL: DNS resolution failed: {exc}")
@@ -60,19 +60,24 @@ def main() -> int:
         with psycopg.connect(database_url, connect_timeout=10) as connection:
             with connection.cursor() as cursor:
                 cursor.execute("SELECT current_database(), current_user, version()")
-                database, user, version = cursor.fetchone()
+                server_row = cursor.fetchone()
+                if server_row is None:
+                    raise RuntimeError("PostgreSQL returned no server identity row")
+                database, user, version = server_row
                 cursor.execute("SELECT to_regclass('public.alembic_version')")
-                migration_table = cursor.fetchone()[0]
+                migration_table_row = cursor.fetchone()
+                migration_table = migration_table_row[0] if migration_table_row else None
                 if migration_table:
                     cursor.execute("SELECT version_num FROM alembic_version")
-                    migration = cursor.fetchone()[0]
+                    migration_row = cursor.fetchone()
+                    migration = migration_row[0] if migration_row else "missing"
                 else:
                     migration = "missing"
         print("PostgreSQL: OK")
         print(f"Database user: {user}")
         print(f"Database name: {database}")
         print(f"Alembic revision: {migration}")
-        print(f"Server: {version.splitlines()[0]}")
+        print(f"Server: {str(version).splitlines()[0]}")
         return 0
     except Exception as exc:  # connection diagnostics should report the driver error
         print(f"FAIL: PostgreSQL connection failed: {type(exc).__name__}: {exc}")

@@ -32,12 +32,25 @@ Configuration:
 - `DATABASE_URL`
 - `DATABASE_POOL_SIZE`
 - `DATABASE_MAX_OVERFLOW`
+- `DATABASE_POOL_TIMEOUT`
+- `DATABASE_POOL_RECYCLE`
+- `DATABASE_POOL_PRE_PING`
 - `SUPABASE_PROJECT_URL`
 - `SUPABASE_JWT_ISSUER`
 - `SUPABASE_JWT_AUDIENCE`
 - `SUPABASE_JWKS_URL`
 - `LOG_LEVEL`
+- `JWKS_CACHE_SECONDS`
+- `REQUEST_BODY_MAX_BYTES`
+- `READINESS_CACHE_SECONDS`
 - `SYNC_RETENTION_DAYS`
+- `CORS_ALLOWED_ORIGINS` (comma-separated origins; currently `*` with cookie credentials disabled)
+
+For Cloud Run with the Supabase session pooler, start conservatively with pool size `2`, overflow `3`,
+timeout `30`, recycle `1800`, and pre-ping enabled. Total possible PostgreSQL connections are
+`(pool size + overflow) × maximum Cloud Run instances`; keep that bound below the provider limit.
+Wildcard CORS is currently an explicit pre-UI-development choice. Replace it with the exact staging and
+production UI origins before accepting browser traffic from an untrusted public client.
 
 Never commit `.env`. `SUPABASE_KEY` is not required by the backend and is not consumed.
 
@@ -99,16 +112,25 @@ The published study-note endpoint resolves only the current published version an
 server-generated `content_opened` activity event. Its response includes a weak ETag based on the stable
 content ID and published version number; it is marked `private, no-cache` because the response also
 contains the authenticated user's progress, bookmark, and review-card state.
+`If-None-Match` deliberately does not produce `304` yet: an ETag containing only the published version
+cannot represent mutable private learner state. The endpoint favors correctness until content and
+private state are split into separate cacheable representations.
 
 Learning writes derive the profile from the verified bearer token. Progress creation uses `row_version: 0`;
 every subsequent progress write and every note update/delete must provide the latest `row_version`.
 Stale writes return `409 Conflict`, notes are soft-deleted, and bookmark PUT/DELETE operations are
 idempotent.
+New learner writes require an active item with a valid current published version. Existing user history
+is preserved after archival, but archived or unpublished content rejects new progress, bookmark-add,
+and note-create commands.
 
 Practice attempts are submitted as one transaction using a client-generated `attempt_event_id` for safe
 retry deduplication. The v1 deterministic initial-review scheduler is behind an application interface so
 FSRS can replace it later. The API spelling `understood_but_could_not_code` maps to the approved database
 enum value `understood_not_coded`; application code remains independent of that persistence detail.
+The immutable attempt row stores its original result snapshot, so later aggregate changes cannot alter
+an old retry response. Practice uses a monotonic learning-state policy and cannot implicitly downgrade
+`mastered`.
 
 Recall submissions use a client-generated `review_event_id` and an `expected_row_version`. A normal
 review updates the card only through the submit command, appends immutable history, and records the
@@ -119,6 +141,9 @@ may create content, edit drafts, manage taxonomy mappings and practice resources
 Only administrators may publish, return an in-review version to draft, or archive a content item.
 Published versions and their block composition are immutable; a subsequent edit starts a new draft
 version cloned from the current published version.
+Categories and topics are version-owned: draft taxonomy remains invisible until publication atomically
+switches the public document and its taxonomy. Legacy item mappings are maintained only as a temporary
+publish-time compatibility projection.
 
 Practice-resource replacement is an atomic set operation. Clients send `expected_revision`, keep IDs
 for resources they intend to update, omit active resources they intend to archive, and receive the new
@@ -139,6 +164,7 @@ contain application profile IDs and operational learning data only; they never q
 an audited history: granting and revoking lock the target profile, record the acting administrator and
 timestamp, and never delete a prior grant row. Repeated grant/revoke requests are idempotent and return
 `changed: false` when the requested state already exists.
+Admin-role changes are serialized in PostgreSQL; revoking the final active administrator returns `409`.
 
 Offline sync supports progress, bookmarks, private notes, practice attempts, and review submissions.
 Every mutation is associated with an active device owned by the authenticated profile; user identity is
@@ -146,6 +172,8 @@ never accepted in the mutation body. `mutation_id` and a server-calculated canon
 retries safe and reject reuse with changed content. The sync adapter invokes the same Learning,
 Practice, and Recall application services as the online routes inside one outer transaction, then
 allocates a strictly ordered per-user cursor and commits once. Catalog data remains server authoritative.
+The ledger persists the original cursor and result payload, so applied and rejected retries remain
+stable throughout the retention window.
 
 Batch sync uses one transaction per mutation. Business-rule conflicts are returned as rejected batch
 items while valid siblings remain committed; invalid device ownership rejects the request. Pull feeds
@@ -187,7 +215,9 @@ uv run python -m recallstack.commands.import_dsa_workbook "..\data\DS Algo\Ultim
 ```
 
 The importer uses stable source-index slugs and fingerprints, so retries do not duplicate already
-published rows. See `docs/dsa-workbook-import.md` for the approved mapping and rollback procedure.
+published rows. Every problem uses one outer PostgreSQL transaction through the same admin services; a
+failure leaves the prior published state unchanged. See `docs/dsa-workbook-import.md` for the approved
+mapping and rollback procedure.
 
 ## Verification
 
@@ -220,4 +250,11 @@ SIGTERM. Run `alembic upgrade head` as a separate release job with migration cre
 migrations concurrently in every web instance. Keep the runtime role least-privileged and separate from
 the schema owner.
 
+The container disables Uvicorn proxy-header trust. Cloud Run routing does not require trusting arbitrary
+client-supplied forwarded headers for RecallStack's authorization or URL generation.
+
 OpenTelemetry remains behind `OTEL_ENABLED` until an exporter/collector is selected.
+
+Redis / Memorystore caching is intentionally deferred. PostgreSQL remains the source of truth and no
+cache infrastructure is required at current scale; add caching only after measured PostgreSQL load and
+latency justify the operational cost.

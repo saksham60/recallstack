@@ -81,7 +81,8 @@ class CategoryContentReadRepository(Protocol):
 
 
 class CategoryContentReadUnitOfWork(Protocol):
-    repository: CategoryContentReadRepository
+    @property
+    def repository(self) -> CategoryContentReadRepository: ...
 
     async def __aenter__(self) -> Self: ...
 

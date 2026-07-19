@@ -10,7 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from recallstack.modules.admin.application.content_management import (
     AdminContentRepository,
-    AdminContentUnitOfWork,
     AdminWriteConflict,
     ArchivedContent,
     ContentItemState,
@@ -42,11 +41,14 @@ from recallstack.modules.content.infrastructure.sqlalchemy_models import (
     ContentItemTopicModel,
     ContentType,
     ContentVersionBlockModel,
+    ContentVersionCategoryModel,
     ContentVersionModel,
     ContentVersionStatusHistoryModel,
+    ContentVersionTopicModel,
     DifficultyLevel,
     PublicationStatus,
 )
+from recallstack.modules.learning.infrastructure.sqlalchemy_models import ActivityEventModel
 from recallstack.modules.practice.infrastructure.sqlalchemy_models import (
     PracticeProviderModel,
     PracticeResourceModel,
@@ -214,6 +216,44 @@ class SqlAlchemyAdminContentRepository(AdminContentRepository):
                     ).where(ContentVersionBlockModel.content_version_id == source.id),
                 )
             )
+            await self._session.execute(
+                insert(ContentVersionCategoryModel).from_select(
+                    [
+                        "content_version_id",
+                        "content_item_id",
+                        "domain_id",
+                        "category_id",
+                        "sort_order",
+                    ],
+                    select(
+                        literal(draft.id),
+                        ContentVersionCategoryModel.content_item_id,
+                        ContentVersionCategoryModel.domain_id,
+                        ContentVersionCategoryModel.category_id,
+                        ContentVersionCategoryModel.sort_order,
+                    ).where(ContentVersionCategoryModel.content_version_id == source.id),
+                )
+            )
+            await self._session.execute(
+                insert(ContentVersionTopicModel).from_select(
+                    [
+                        "content_version_id",
+                        "content_item_id",
+                        "domain_id",
+                        "topic_id",
+                        "is_primary",
+                        "sort_order",
+                    ],
+                    select(
+                        literal(draft.id),
+                        ContentVersionTopicModel.content_item_id,
+                        ContentVersionTopicModel.domain_id,
+                        ContentVersionTopicModel.topic_id,
+                        ContentVersionTopicModel.is_primary,
+                        ContentVersionTopicModel.sort_order,
+                    ).where(ContentVersionTopicModel.content_version_id == source.id),
+                )
+            )
         self._session.add(
             ContentVersionStatusHistoryModel(
                 content_version_id=draft.id,
@@ -251,26 +291,26 @@ class SqlAlchemyAdminContentRepository(AdminContentRepository):
         category_count = int(
             await self._session.scalar(
                 select(func.count())
-                .select_from(ContentItemCategoryModel)
-                .where(ContentItemCategoryModel.content_item_id == item.id)
+                .select_from(ContentVersionCategoryModel)
+                .where(ContentVersionCategoryModel.content_version_id == version_id)
             )
             or 0
         )
         topic_count = int(
             await self._session.scalar(
                 select(func.count())
-                .select_from(ContentItemTopicModel)
-                .where(ContentItemTopicModel.content_item_id == item.id)
+                .select_from(ContentVersionTopicModel)
+                .where(ContentVersionTopicModel.content_version_id == version_id)
             )
             or 0
         )
         primary_topic_count = int(
             await self._session.scalar(
                 select(func.count())
-                .select_from(ContentItemTopicModel)
+                .select_from(ContentVersionTopicModel)
                 .where(
-                    ContentItemTopicModel.content_item_id == item.id,
-                    ContentItemTopicModel.is_primary.is_(True),
+                    ContentVersionTopicModel.content_version_id == version_id,
+                    ContentVersionTopicModel.is_primary.is_(True),
                 )
             )
             or 0
@@ -370,12 +410,13 @@ class SqlAlchemyAdminContentRepository(AdminContentRepository):
                 )
             )
         await self._session.execute(
-            delete(ContentItemCategoryModel).where(
-                ContentItemCategoryModel.content_item_id == version.content_item_id
+            delete(ContentVersionCategoryModel).where(
+                ContentVersionCategoryModel.content_version_id == version.id
             )
         )
         self._session.add_all(
-            ContentItemCategoryModel(
+            ContentVersionCategoryModel(
+                content_version_id=version.id,
                 domain_id=version.domain_id,
                 content_item_id=version.content_item_id,
                 category_id=category_id,
@@ -384,12 +425,13 @@ class SqlAlchemyAdminContentRepository(AdminContentRepository):
             for sort_order, category_id in enumerate(category_ids)
         )
         await self._session.execute(
-            delete(ContentItemTopicModel).where(
-                ContentItemTopicModel.content_item_id == version.content_item_id
+            delete(ContentVersionTopicModel).where(
+                ContentVersionTopicModel.content_version_id == version.id
             )
         )
         self._session.add_all(
-            ContentItemTopicModel(
+            ContentVersionTopicModel(
+                content_version_id=version.id,
                 domain_id=version.domain_id,
                 content_item_id=version.content_item_id,
                 topic_id=topic.topic_id,
@@ -478,6 +520,47 @@ class SqlAlchemyAdminContentRepository(AdminContentRepository):
         )
         if updated_id is None:
             raise AdminWriteConflict("Content version changed concurrently")
+        # Keep the legacy item-level mappings synchronized only at publication. They are
+        # deprecated public-read compatibility state and are never changed by draft edits.
+        await self._session.execute(
+            delete(ContentItemCategoryModel).where(
+                ContentItemCategoryModel.content_item_id == version.content_item_id
+            )
+        )
+        await self._session.execute(
+            insert(ContentItemCategoryModel).from_select(
+                ["domain_id", "content_item_id", "category_id", "sort_order"],
+                select(
+                    ContentVersionCategoryModel.domain_id,
+                    ContentVersionCategoryModel.content_item_id,
+                    ContentVersionCategoryModel.category_id,
+                    ContentVersionCategoryModel.sort_order,
+                ).where(ContentVersionCategoryModel.content_version_id == version.id),
+            )
+        )
+        await self._session.execute(
+            delete(ContentItemTopicModel).where(
+                ContentItemTopicModel.content_item_id == version.content_item_id
+            )
+        )
+        await self._session.execute(
+            insert(ContentItemTopicModel).from_select(
+                [
+                    "domain_id",
+                    "content_item_id",
+                    "topic_id",
+                    "is_primary",
+                    "sort_order",
+                ],
+                select(
+                    ContentVersionTopicModel.domain_id,
+                    ContentVersionTopicModel.content_item_id,
+                    ContentVersionTopicModel.topic_id,
+                    ContentVersionTopicModel.is_primary,
+                    ContentVersionTopicModel.sort_order,
+                ).where(ContentVersionTopicModel.content_version_id == version.id),
+            )
+        )
         await self._session.execute(
             update(ContentItemModel)
             .where(ContentItemModel.id == version.content_item_id)
@@ -536,6 +619,7 @@ class SqlAlchemyAdminContentRepository(AdminContentRepository):
         self,
         *,
         item: ContentItemState,
+        actor_id: UUID,
         resources: tuple[StoredPracticeResourceInput, ...],
     ) -> PracticeResourceSet:
         provider_ids = tuple({resource.provider_id for resource in resources})
@@ -641,6 +725,19 @@ class SqlAlchemyAdminContentRepository(AdminContentRepository):
         )
         if revision is None:
             raise AdminWriteConflict("Practice resource revision changed concurrently")
+        self._session.add(
+            ActivityEventModel(
+                user_id=actor_id,
+                content_item_id=item.id,
+                event_type="admin_practice_resources_replaced",
+                source_entity_type="content_item",
+                source_entity_id=item.id,
+                metadata_={
+                    "revision": revision,
+                    "active_resource_count": len(resources),
+                },
+            )
+        )
         active = tuple(
             (
                 await self._session.scalars(
@@ -676,7 +773,6 @@ class SqlAlchemyAdminContentRepository(AdminContentRepository):
     async def archive_content(
         self, *, item: ContentItemState, actor_id: UUID, reason: str
     ) -> ArchivedContent:
-        del actor_id, reason
         if item.archived_at is not None:
             return ArchivedContent(item.id, item.archived_at)
         now = datetime.now(UTC)
@@ -690,6 +786,17 @@ class SqlAlchemyAdminContentRepository(AdminContentRepository):
             entity_id=item.id,
             operation=ChangeOperation.DELETE,
             entity_version=None,
+        )
+        self._session.add(
+            ActivityEventModel(
+                user_id=actor_id,
+                content_item_id=item.id,
+                event_type="admin_content_archived",
+                source_entity_type="content_item",
+                source_entity_id=item.id,
+                metadata_={"reason": reason},
+                occurred_at=now,
+            )
         )
         return ArchivedContent(item.id, now)
 
@@ -786,7 +893,7 @@ class SqlAlchemyAdminContentRepository(AdminContentRepository):
         )
 
 
-class SqlAlchemyAdminContentUnitOfWork(AdminContentUnitOfWork):
+class SqlAlchemyAdminContentUnitOfWork:
     def __init__(
         self,
         session_factory: DatabaseSessionFactory[AsyncSession],
