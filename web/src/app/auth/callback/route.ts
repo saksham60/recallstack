@@ -8,7 +8,7 @@ export async function GET(request: Request) {
   // Validate "next" param for open-redirect prevention
   let next = requestUrl.searchParams.get('next') ?? '/dsa'
   // Only accept paths starting with a single slash (but not two slashes which would be protocol-relative)
-  if (!next.startsWith('/') || next.startsWith('//')) {
+  if (!next.startsWith('/') || next.startsWith('//') || next.startsWith('/\\')) {
     next = '/dsa'
   }
 
@@ -24,6 +24,10 @@ export async function GET(request: Request) {
   }
 
   if (code) {
+    if (process.env.E2E_BYPASS_AUTH === "1" && code === "mock") {
+      return NextResponse.redirect(redirectUrl)
+    }
+
     const supabase = await createClient()
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {

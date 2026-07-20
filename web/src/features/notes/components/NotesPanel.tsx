@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { useNotes, useCreateNote, useUpdateNote, useDeleteNote, NoteResponse } from "../use-notes";
+import { useNotes, useCreateNote, useDeleteNote, NoteResponse } from "../use-notes";
 import { Badge } from "@/components/ui/Badge";
 
 interface NotesPanelProps {

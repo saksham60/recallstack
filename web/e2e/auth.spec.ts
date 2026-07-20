@@ -1,22 +1,64 @@
 import { test, expect } from '@playwright/test';
+import { setupAuth } from './helpers/auth';
 
 test.describe('Authentication and Route Protection', () => {
-  test('redirects unauthenticated user to login', async ({ page }) => {
-    await page.goto('/dsa');
-    await expect(page).toHaveURL(/.*\/login/);
-    await expect(page.getByRole('heading', { name: 'RecallStack' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Continue with Google' })).toBeVisible();
+  test.describe('Unauthenticated User', () => {
+    const protectedRoutes = ['/dsa', '/bookmarks', '/revise', '/profile', '/content/test'];
+
+    for (const route of protectedRoutes) {
+      test(`redirects ${route} to login`, async ({ page }) => {
+        await page.goto(route);
+        await expect(page).toHaveURL(/.*\/login/);
+      });
+    }
   });
 
-  test('OAuth open-redirect protections', async ({ page }) => {
-    // Attempt an open redirect via the callback route
-    // The route handler should sanitize this and redirect to /dsa
-    await page.goto('/auth/callback?code=mock_code&next=https://evil.com');
-    // Since code exchange fails (mock_code is invalid), we expect a redirect to /login?error=auth-callback-failed
-    // Wait, the test might fail if the mock is not intercepted. We just check the URL ends up safe.
-    await expect(page).not.toHaveURL(/.*evil\.com.*/);
-    await expect(page).toHaveURL(/.*\/login\?error=auth-callback-failed/);
+  test.describe('Authenticated User', () => {
+    test('redirects from login to /dsa', async ({ page }) => {
+      await setupAuth(page);
+      await page.goto('/login');
+      // Should redirect to /dsa since user is authenticated
+      await expect(page).toHaveURL(/.*\/dsa/);
+    });
   });
 
-  // Usually we'd test successful login here as well, by mocking the Supabase auth endpoints.
+  test.describe('OAuth Callback', () => {
+    test.beforeEach(async ({ page }) => {
+      await setupAuth(page);
+    });
+
+    test('handles failed code exchange and redirects to login with error', async ({ page }) => {
+      // Missing auth mock means exchange fails
+      await page.goto('/auth/callback?code=invalid_code');
+      await expect(page).toHaveURL(/.*\/login\?error=auth-callback-failed/);
+    });
+
+    test('validates next parameter to prevent open redirect', async ({ page }) => {
+      // Mock the exchange endpoint so the login succeeds
+      await page.route('**/auth/v1/token?grant_type=pkce', async route => {
+        await route.fulfill({
+          json: {
+            access_token: 'mock',
+            refresh_token: 'mock',
+            expires_in: 3600,
+            user: { id: 'test' }
+          }
+        });
+      });
+
+      // Test valid relative redirect
+      await page.goto('/auth/callback?code=mock&next=/profile');
+      await expect(page).toHaveURL(/.*\/profile/);
+
+      // Test invalid external redirects
+      await page.goto('/auth/callback?code=mock&next=https://evil.com');
+      await expect(page).toHaveURL(/.*\/dsa/);
+
+      await page.goto('/auth/callback?code=mock&next=//evil.com');
+      await expect(page).toHaveURL(/.*\/dsa/);
+
+      await page.goto('/auth/callback?code=mock&next=/\\evil.com');
+      await expect(page).toHaveURL(/.*\/dsa/);
+    });
+  });
 });

@@ -15,7 +15,7 @@ export function useSubmitPractice() {
       if (error) throw error;
       return data;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: () => {
       // Invalidate both study note and problem list queries
       queryClient.invalidateQueries({ queryKey: ["content"] });
       queryClient.invalidateQueries({ queryKey: ["category-content"] });

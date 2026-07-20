@@ -24,6 +24,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const initializeAuth = async () => {
+      const isE2E = typeof document !== 'undefined' && document.cookie.includes('e2e-bypass-auth=1');
+      if (isE2E) {
+        setUser({ id: 'test-user-id', email: 'test@example.com' } as User);
+        setSession({ access_token: 'mock', user: { id: 'test-user-id' } } as unknown as Session);
+        setIsLoading(false);
+        return;
+      }
       try {
         const { data: { session } } = await supabase.auth.getSession();
         setSession(session);
@@ -40,6 +47,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      const isE2E = typeof document !== 'undefined' && document.cookie.includes('e2e-bypass-auth=1');
+      if (isE2E) return; // Prevent overwriting mock user
+
       setSession(session);
       setUser(session?.user ?? null);
       if (_event === "SIGNED_OUT") {

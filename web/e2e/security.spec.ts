@@ -1,14 +1,11 @@
 import { test, expect } from '@playwright/test';
+import { setupAuth } from './helpers/auth';
 
 test.describe('Security Hardening', () => {
   // Test XSS via intercepting network requests to provide malicious payload
   test('sanitizes XSS payloads in StudyNoteRenderer', async ({ page }) => {
-    // Add bypass cookie
-    await page.context().addCookies([{ name: 'e2e-bypass-auth', value: '1', domain: 'localhost', path: '/' }]);
-    // Mock Supabase auth to prevent redirect
-    await page.route('**/auth/v1/**', async route => {
-      await route.fulfill({ json: { user: { id: 'test-user', email: 'test@example.com' } } });
-    });
+    // Add bypass cookie and auth mock
+    await setupAuth(page);
 
     // Mock API response with malicious payload
     await page.route('**/api/v1/content/*', async route => {

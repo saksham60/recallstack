@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { useCategories, CategoryDashboardResponse } from "@/features/catalog/use-categories";
+import { useCategories } from "@/features/catalog/use-categories";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 
 export default function DSAPage() {

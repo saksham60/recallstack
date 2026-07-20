@@ -42,7 +42,7 @@ export function useToggleBookmark() {
       }
     },
     // Optimistic Update
-    onMutate: async ({ contentId, isBookmarked }) => {
+    onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: bookmarkKeys.all });
       
       // Update any query containing this contentId to toggle `is_bookmarked`

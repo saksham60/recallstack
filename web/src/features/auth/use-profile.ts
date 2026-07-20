@@ -2,8 +2,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import type { components } from "@/lib/api/types";
 
-type ProfileResponse = components["schemas"]["ProfileResponse"];
-type ProfilePatchRequest = components["schemas"]["ProfilePatchRequest"];
+export type ProfileResponse = components["schemas"]["ProfileResponse"];
+export type ProfilePatchRequest = components["schemas"]["ProfilePatchRequest"];
 
 export const profileKeys = {
   all: ["me"] as const,
