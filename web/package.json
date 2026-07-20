@@ -6,13 +6,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.110.7",
     "@tanstack/react-query": "^5.101.2",
-    "@tanstack/react-query-devtools": "^5.101.2",
     "isomorphic-dompurify": "^3.19.0",
     "next": "16.2.10",
     "openapi-fetch": "^0.17.0",
@@ -21,6 +22,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
+    "@tanstack/react-query-devtools": "^5.101.2",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

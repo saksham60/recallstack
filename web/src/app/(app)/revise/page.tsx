@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { useDueReviews, useSubmitReview } from "@/features/learning/use-revisions";
+import { useDueReviews, useSubmitReview, type DueItem } from "@/features/learning/use-revisions";
 
 export default function RevisePage() {
   const { data: dueData, isLoading, error } = useDueReviews(1, 50);
@@ -35,7 +35,12 @@ export default function RevisePage() {
 
   const pendingReviews = dueData.items.filter(item => !submittedIds.has(item.card_id));
 
-  const handleRating = (item: any, rating: "again" | "hard" | "good" | "easy") => {
+  const handleRating = (item: DueItem, rating: "again" | "hard" | "good" | "easy") => {
+    if (typeof item.row_version !== "number") {
+      alert("Error: missing row version. Please refresh the page.");
+      return;
+    }
+
     // Generate UUID for event
     const eventId = crypto.randomUUID();
     
@@ -48,7 +53,7 @@ export default function RevisePage() {
         review_event_id: eventId,
         rating,
         reviewed_at: new Date().toISOString(),
-        expected_row_version: item.row_version || 0,
+        expected_row_version: item.row_version,
       }
     }, {
       onError: () => {
@@ -78,7 +83,7 @@ export default function RevisePage() {
       {pendingReviews.length === 0 ? (
         <div className="text-center py-16 border border-dashed border-border rounded-xl bg-surface/50">
           <div className="text-4xl mb-4">🎉</div>
-          <h3 className="text-lg font-medium text-foreground mb-1">You're all caught up!</h3>
+          <h3 className="text-lg font-medium text-foreground mb-1">You&apos;re all caught up!</h3>
           <p className="text-muted">No reviews due right now. Great job staying on track.</p>
           <Link href="/dsa" className="text-accent hover:underline mt-4 inline-block">
             Learn something new
@@ -95,7 +100,7 @@ export default function RevisePage() {
                 <div>
                   <h3 className="font-semibold tracking-tight text-foreground text-lg">{item.title || "Unknown Content"}</h3>
                   <div className="text-sm text-muted mt-1">
-                    Due: {new Date(item.due_at || Date.now()).toLocaleString()}
+                    Due: {new Date(item.due_at || new Date().toISOString()).toLocaleString()}
                   </div>
                 </div>
                 <Link 
@@ -112,29 +117,29 @@ export default function RevisePage() {
                 <div className="grid grid-cols-4 gap-2">
                   <button 
                     onClick={() => handleRating(item, "again")}
-                    disabled={isSubmitting}
-                    className="py-2 text-sm font-medium rounded-md bg-danger/10 text-danger hover:bg-danger/20 border border-danger/20 transition-colors"
+                    disabled={isSubmitting && submittedIds.has(item.card_id)}
+                    className="py-2 text-sm font-medium rounded-md bg-danger/10 text-danger hover:bg-danger/20 border border-danger/20 transition-colors disabled:opacity-50"
                   >
                     Again (1m)
                   </button>
                   <button 
                     onClick={() => handleRating(item, "hard")}
-                    disabled={isSubmitting}
-                    className="py-2 text-sm font-medium rounded-md bg-warning/10 text-warning hover:bg-warning/20 border border-warning/20 transition-colors"
+                    disabled={isSubmitting && submittedIds.has(item.card_id)}
+                    className="py-2 text-sm font-medium rounded-md bg-warning/10 text-warning hover:bg-warning/20 border border-warning/20 transition-colors disabled:opacity-50"
                   >
                     Hard
                   </button>
                   <button 
                     onClick={() => handleRating(item, "good")}
-                    disabled={isSubmitting}
-                    className="py-2 text-sm font-medium rounded-md bg-success/10 text-success hover:bg-success/20 border border-success/20 transition-colors"
+                    disabled={isSubmitting && submittedIds.has(item.card_id)}
+                    className="py-2 text-sm font-medium rounded-md bg-success/10 text-success hover:bg-success/20 border border-success/20 transition-colors disabled:opacity-50"
                   >
                     Good
                   </button>
                   <button 
                     onClick={() => handleRating(item, "easy")}
-                    disabled={isSubmitting}
-                    className="py-2 text-sm font-medium rounded-md bg-accent/10 text-accent hover:bg-accent/20 border border-accent/20 transition-colors"
+                    disabled={isSubmitting && submittedIds.has(item.card_id)}
+                    className="py-2 text-sm font-medium rounded-md bg-accent/10 text-accent hover:bg-accent/20 border border-accent/20 transition-colors disabled:opacity-50"
                   >
                     Easy
                   </button>

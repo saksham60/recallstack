@@ -64,7 +64,7 @@ export function GlobalSearch() {
           )}
           
           {!isLoading && data?.items.length === 0 && (
-            <div className="p-4 text-center text-sm text-muted">No results found for "{query}"</div>
+            <div className="p-4 text-center text-sm text-muted">No results found for &quot;{query}&quot;</div>
           )}
 
           {!isLoading && data && data.items.length > 0 && (

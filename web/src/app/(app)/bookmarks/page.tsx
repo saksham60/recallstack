@@ -44,7 +44,7 @@ export default function BookmarksPage() {
 
       {data.items.length === 0 ? (
         <div className="text-center py-12 border border-dashed border-border rounded-xl bg-surface/50">
-          <p className="text-muted">You haven't bookmarked any content yet.</p>
+          <p className="text-muted">You haven&apos;t bookmarked any content yet.</p>
           <Link href="/dsa" className="text-accent hover:underline mt-2 inline-block">
             Browse content
           </Link>

@@ -18,7 +18,7 @@ interface UseCategoryContentOptions {
 
 export const categoryContentKeys = {
   all: ["category-content"] as const,
-  list: (categoryId: string, filters: Record<string, any>) => [...categoryContentKeys.all, categoryId, filters] as const,
+  list: (categoryId: string, filters: Record<string, unknown>) => [...categoryContentKeys.all, categoryId, filters] as const,
 };
 
 export function useCategoryContent({ categoryId, page = 1, pageSize = 25, ...filters }: UseCategoryContentOptions) {
@@ -31,8 +31,8 @@ export function useCategoryContent({ categoryId, page = 1, pageSize = 25, ...fil
           query: {
             page,
             page_size: pageSize,
-            difficulty: filters.difficulty as any,
-            status: filters.status as any,
+            difficulty: filters.difficulty as "easy" | "medium" | "hard" | undefined,
+            status: filters.status as "new" | "learning" | "attempted" | "confident" | "mastered" | undefined,
             topic: filters.topic,
             search: filters.search,
           }

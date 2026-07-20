@@ -14,7 +14,9 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (profile) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDisplayName(profile.display_name || "");
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTimezone(profile.timezone || "");
     }
   }, [profile]);

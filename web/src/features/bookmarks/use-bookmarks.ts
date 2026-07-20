@@ -6,12 +6,12 @@ export type BookmarkListResponse = components["schemas"]["BookmarkListResponse"]
 
 export const bookmarkKeys = {
   all: ["bookmarks"] as const,
-  list: (page: number) => [...bookmarkKeys.all, "list", page] as const,
+  list: (page: number, pageSize: number) => [...bookmarkKeys.all, "list", page, pageSize] as const,
 };
 
 export function useBookmarks(page: number = 1, pageSize: number = 25) {
   return useQuery({
-    queryKey: bookmarkKeys.list(page),
+    queryKey: bookmarkKeys.list(page, pageSize),
     queryFn: async () => {
       const { data, error } = await apiClient.GET("/api/v1/me/bookmarks", {
         params: { query: { page, page_size: pageSize } },

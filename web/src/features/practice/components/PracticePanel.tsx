@@ -67,7 +67,7 @@ export function PracticePanel({ contentId }: PracticePanelProps) {
           <label className="block text-xs text-muted mb-1">Outcome</label>
           <select 
             value={outcome}
-            onChange={(e) => setOutcome(e.target.value as any)}
+            onChange={(e) => setOutcome(e.target.value as "solved_independently" | "solved_with_hint" | "understood_but_could_not_code" | "pattern_not_identified" | "skipped")}
             className="w-full bg-surface border border-border rounded-md text-sm p-2 text-foreground focus:outline-none focus:border-accent"
           >
             <option value="solved_independently">Solved Independently</option>

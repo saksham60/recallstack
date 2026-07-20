@@ -1,8 +1,8 @@
 export class ApiError extends Error {
   public status: number;
-  public data: any;
+  public data: unknown;
 
-  constructor(status: number, message: string, data?: any) {
+  constructor(status: number, message: string, data?: unknown) {
     super(message);
     this.name = "ApiError";
     this.status = status;
@@ -39,7 +39,7 @@ export class ConflictError extends ApiError {
 }
 
 export class ValidationError extends ApiError {
-  constructor(message = "Validation Error", data?: any) {
+  constructor(message = "Validation Error", data?: unknown) {
     super(422, message, data);
     this.name = "ValidationError";
   }
@@ -59,8 +59,9 @@ export class ServerError extends ApiError {
   }
 }
 
-export function createApiError(status: number, data: any): ApiError {
-  const message = data?.detail || data?.message || `API Error ${status}`;
+export function createApiError(status: number, data: unknown): ApiError {
+  const errData = data as Record<string, unknown>;
+  const message = (errData?.detail as string) || (errData?.message as string) || `API Error ${status}`;
   
   switch (status) {
     case 401: return new UnauthorizedError(message);

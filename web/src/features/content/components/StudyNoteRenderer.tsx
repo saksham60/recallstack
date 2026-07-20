@@ -2,8 +2,15 @@ import React from "react";
 import DOMPurify from "isomorphic-dompurify";
 import type { StudyNoteBlockResponse } from "../use-study-note";
 
+type BlockPayload = {
+  content?: string;
+  text?: string;
+  code?: string;
+  [key: string]: unknown;
+};
+
 // Basic block renderers
-const TextBlock = ({ payload }: { payload: any }) => {
+const TextBlock = ({ payload }: { payload: BlockPayload }) => {
   const dirty = payload.content || payload.text || "";
   const clean = DOMPurify.sanitize(dirty);
   return (
@@ -11,20 +18,20 @@ const TextBlock = ({ payload }: { payload: any }) => {
   );
 };
 
-const CodeBlock = ({ payload }: { payload: any }) => (
+const CodeBlock = ({ payload }: { payload: BlockPayload }) => (
   <div className="rounded-lg bg-black p-4 overflow-x-auto text-sm my-4 border border-border">
     <pre><code className="text-foreground">{payload.code}</code></pre>
   </div>
 );
 
-const ApproachBlock = ({ payload, heading }: { payload: any, heading?: string | null }) => (
+const ApproachBlock = ({ payload, heading }: { payload: BlockPayload, heading?: string | null }) => (
   <div className="border border-accent/20 bg-accent/5 rounded-lg p-5 my-6">
     {heading && <h3 className="text-accent font-semibold mb-2">{heading}</h3>}
     <div className="text-foreground/90">{payload.text || payload.content}</div>
   </div>
 );
 
-const WarningBlock = ({ payload, heading }: { payload: any, heading?: string | null }) => (
+const WarningBlock = ({ payload, heading }: { payload: BlockPayload, heading?: string | null }) => (
   <div className="border border-warning/30 bg-warning/10 rounded-lg p-4 my-4 flex gap-3">
     <div className="text-warning text-xl">⚠️</div>
     <div>
@@ -34,7 +41,7 @@ const WarningBlock = ({ payload, heading }: { payload: any, heading?: string | n
   </div>
 );
 
-const MistakeBlock = ({ payload }: { payload: any }) => (
+const MistakeBlock = ({ payload }: { payload: BlockPayload }) => (
   <div className="border border-danger/30 bg-danger/10 rounded-lg p-4 my-4">
     <h4 className="font-medium text-danger mb-2">Common Mistake</h4>
     <div className="text-sm text-foreground/80">{payload.text || payload.content}</div>
@@ -57,16 +64,16 @@ export function BlockRenderer({ block }: { block: StudyNoteBlockResponse }) {
       case "markdown":
       case "recognize":
       case "remember":
-        return <TextBlock payload={payload} />;
+        return <TextBlock payload={payload as BlockPayload} />;
       case "code":
-        return <CodeBlock payload={payload} />;
+        return <CodeBlock payload={payload as BlockPayload} />;
       case "approach":
-        return <ApproachBlock payload={payload} heading={heading} />;
+        return <ApproachBlock payload={payload as BlockPayload} heading={heading} />;
       case "warning":
       case "invariant":
-        return <WarningBlock payload={payload} heading={heading} />;
+        return <WarningBlock payload={payload as BlockPayload} heading={heading} />;
       case "mistake":
-        return <MistakeBlock payload={payload} />;
+        return <MistakeBlock payload={payload as BlockPayload} />;
       default:
         return <FallbackBlock block={block} />;
     }

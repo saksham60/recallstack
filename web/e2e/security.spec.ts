@@ -3,13 +3,22 @@ import { test, expect } from '@playwright/test';
 test.describe('Security Hardening', () => {
   // Test XSS via intercepting network requests to provide malicious payload
   test('sanitizes XSS payloads in StudyNoteRenderer', async ({ page }) => {
-    // We would normally log in here or intercept the route to mock
-    // For this test, we intercept the API request to return an XSS payload
-    
+    // Add bypass cookie
+    await page.context().addCookies([{ name: 'e2e-bypass-auth', value: '1', domain: 'localhost', path: '/' }]);
+    // Mock Supabase auth to prevent redirect
+    await page.route('**/auth/v1/**', async route => {
+      await route.fulfill({ json: { user: { id: 'test-user', email: 'test@example.com' } } });
+    });
+
+    // Mock API response with malicious payload
     await page.route('**/api/v1/content/*', async route => {
       const json = {
         title: "XSS Test",
         slug: "xss-test",
+        content_item_id: "x1",
+        domain: { slug: "dsa", name: "DSA" },
+        categories: [{ id: "c1", name: "Arrays" }],
+        topics: [{ id: "t1", name: "Two Pointers" }],
         published_at: new Date().toISOString(),
         blocks: [
           {
@@ -17,7 +26,7 @@ test.describe('Security Hardening', () => {
             type: "text",
             position: 0,
             payload: {
-              content: "<p>Safe content</p><script>alert('xss')</script><img src='x' onerror='alert(\"xss\")'>"
+              content: "<p>Safe content</p><script>window.__xssExecuted = true;</script><img src='x' onerror='window.__xssExecuted = true;'><a href='javascript:window.__xssExecuted = true;'>click me</a>"
             }
           }
         ]
@@ -25,8 +34,21 @@ test.describe('Security Hardening', () => {
       await route.fulfill({ json });
     });
 
-    // Mock authentication if needed, or bypass it if we have a test route
-    // Assumes page load handles the mocked data correctly.
-    // If auth is required, we'd mock that too or just rely on the component test.
+    // Navigate to a content page (we will mock auth via cookie or assume public route)
+    // Here we assume the app allows viewing content or we mock it
+    await page.goto('/content/xss-test');
+
+    // Wait for the content to render
+    await page.waitForSelector('.study-note-content');
+
+    // Check if the script tag was stripped
+    const html = await page.innerHTML('.study-note-content');
+    expect(html).toContain('Safe content');
+    expect(html).not.toContain('<script>');
+    expect(html).not.toContain('onerror');
+    
+    // Evaluate if the XSS flag was set on the window object
+    const xssExecuted = await page.evaluate(() => (window as unknown as { __xssExecuted?: boolean }).__xssExecuted);
+    expect(xssExecuted).toBeFalsy();
   });
 });
