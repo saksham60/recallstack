@@ -45,6 +45,9 @@ class AppDatabase extends _$AppDatabase {
 
 LazyDatabase _openConnection(String? userId) {
   return LazyDatabase(() async {
+    if (Platform.environment.containsKey('FLUTTER_TEST')) {
+      return NativeDatabase.memory();
+    }
     final dbFolder = await getApplicationDocumentsDirectory();
     final fileName = userId != null ? 'recallstack_$userId.sqlite' : 'recallstack_anon.sqlite';
     final file = File(p.join(dbFolder.path, fileName));
@@ -63,7 +66,11 @@ LazyDatabase _openConnection(String? userId) {
 @riverpod
 AppDatabase appDatabase(Ref ref) {
   // Watch auth state to recreate database connection when user changes
-  final authRepo = ref.watch(authRepositoryProvider);
-  final userId = authRepo.currentUser?.id;
-  return AppDatabase(userId);
+  final user = ref.watch(currentUserProvider);
+  final userId = user?.id;
+  final db = AppDatabase(userId);
+  ref.onDispose(() {
+    db.close();
+  });
+  return db;
 }

@@ -63,5 +63,6 @@ Stream<AuthState> authStateChanges(Ref ref) {
 
 @riverpod
 User? currentUser(Ref ref) {
-  return ref.watch(authRepositoryProvider).currentUser;
+  final authState = ref.watch(authStateChangesProvider);
+  return authState.value?.session?.user ?? ref.read(authRepositoryProvider).currentUser;
 }

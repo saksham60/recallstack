@@ -5,7 +5,6 @@ import 'package:app/core/sync/mutation_repository.dart';
 import 'package:app/core/database/database.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:drift/drift.dart' hide Column;
 import 'package:url_launcher/url_launcher.dart';
 
 final studyNoteFutureProvider = FutureProvider.family<Map<String, dynamic>?, String>((ref, slug) async {
