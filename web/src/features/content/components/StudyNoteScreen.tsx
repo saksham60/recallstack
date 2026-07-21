@@ -64,7 +64,10 @@ export function StudyNoteScreen({ slug }: { slug: string }) {
           <h3 className="font-semibold mb-4 border-b border-border pb-2">Status</h3>
           <div className="flex items-center justify-between mb-4"><span className="text-sm text-muted">Difficulty</span>{note.difficulty ? <DifficultyBadge difficulty={note.difficulty} /> : <span className="text-sm text-muted">—</span>}</div>
           <div className="flex items-center justify-between mb-6"><span className="text-sm text-muted">Topics</span><div className="flex flex-wrap justify-end gap-1">{note.topics.map((topic) => <Badge key={topic.id} variant="secondary">{topic.name}</Badge>)}</div></div>
-          <PracticePanel contentId={note.content_item_id} />
+          <PracticePanel
+            contentId={note.content_item_id}
+            practiceResources={note.practice_resources}
+          />
         </div>
         <NotesPanel contentId={note.content_item_id} />
       </div>

@@ -1,16 +1,22 @@
 "use client";
 
 import React, { useState } from "react";
+import type { components } from "@/lib/api/types";
 import { useSubmitPractice, type PracticeOutcome } from "../use-practice";
 import { getApiErrorMessage } from "@/lib/api/errors";
 
+type PracticeResource = components["schemas"]["StudyNotePracticeResourceResponse"];
+
 interface PracticePanelProps {
   contentId: string;
+  practiceResources: PracticeResource[];
 }
 
-export function PracticePanel({ contentId }: PracticePanelProps) {
+export function PracticePanel({ contentId, practiceResources }: PracticePanelProps) {
   const { mutate, isPending, error } = useSubmitPractice();
   const [isOpen, setIsOpen] = useState(false);
+  const primaryResource =
+    practiceResources.find((resource) => resource.is_primary) ?? practiceResources[0];
   
   const [outcome, setOutcome] = useState<PracticeOutcome>("solved_independently");
   const [hintUsed, setHintUsed] = useState(false);
@@ -34,14 +40,20 @@ export function PracticePanel({ contentId }: PracticePanelProps) {
   if (!isOpen) {
     return (
       <div className="flex flex-col gap-2">
-        <a 
-          href="https://leetcode.com/problemset/all/" 
-          target="_blank"
-          rel="noopener noreferrer"
-          className="w-full py-2 bg-accent text-accent-foreground rounded-md font-medium text-center hover:bg-accent/90 transition-colors block"
-        >
-          Start Practice
-        </a>
+        {primaryResource ? (
+          <a
+            href={primaryResource.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full py-2 bg-accent text-accent-foreground rounded-md font-medium text-center hover:bg-accent/90 transition-colors block"
+          >
+            Practice on {primaryResource.provider_name}
+          </a>
+        ) : (
+          <p className="w-full py-2 bg-surface-elevated text-muted border border-border rounded-md text-sm text-center">
+            No practice link available
+          </p>
+        )}
         <button 
           onClick={() => setIsOpen(true)}
           className="w-full py-2 bg-surface-elevated text-foreground border border-border rounded-md font-medium hover:border-accent transition-colors"
