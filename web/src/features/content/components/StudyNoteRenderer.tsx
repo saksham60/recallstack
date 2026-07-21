@@ -1,107 +1,128 @@
-import React from "react";
+import type { ComponentType } from "react";
 import DOMPurify from "isomorphic-dompurify";
 import type { StudyNoteBlockResponse } from "../use-study-note";
 
-type BlockPayload = {
-  content?: string;
-  text?: string;
-  code?: string;
-  [key: string]: unknown;
+type KnownBlockKind = "text" | "code" | "approach" | "warning" | "mistake";
+type RenderBlockKind = KnownBlockKind | "unsupported";
+
+interface NormalizedBlock {
+  id: string;
+  kind: RenderBlockKind;
+  originalType: string;
+  heading: string | null;
+  position: number;
+  content: string;
+}
+
+interface BlockRendererProps {
+  block: NormalizedBlock;
+}
+
+interface RendererConfig {
+  component: ComponentType<BlockRendererProps>;
+  handlesHeading: boolean;
+}
+
+const BLOCK_KIND_BY_TYPE: Readonly<Record<string, KnownBlockKind>> = {
+  text: "text",
+  markdown: "text",
+  recognize: "text",
+  remember: "text",
+  code: "code",
+  approach: "approach",
+  warning: "warning",
+  invariant: "warning",
+  mistake: "mistake",
 };
 
-// Basic block renderers
-const TextBlock = ({ payload }: { payload: BlockPayload }) => {
-  const dirty = payload.content || payload.text || "";
-  const clean = DOMPurify.sanitize(dirty);
-  return (
-    <div className="prose prose-invert max-w-none text-muted" dangerouslySetInnerHTML={{ __html: clean }} />
-  );
-};
+function readString(payload: Record<string, unknown>, key: string): string | undefined {
+  const value = payload[key];
+  return typeof value === "string" ? value : undefined;
+}
 
-const CodeBlock = ({ payload }: { payload: BlockPayload }) => (
-  <div className="rounded-lg bg-black p-4 overflow-x-auto text-sm my-4 border border-border">
-    <pre><code className="text-foreground">{payload.code}</code></pre>
-  </div>
-);
+export function normalizeStudyNoteBlock(block: StudyNoteBlockResponse): NormalizedBlock {
+  const kind = BLOCK_KIND_BY_TYPE[block.type] ?? "unsupported";
+  const content = kind === "code"
+    ? readString(block.payload, "code") ?? ""
+    : readString(block.payload, "content") ?? readString(block.payload, "text") ?? "";
 
-const ApproachBlock = ({ payload, heading }: { payload: BlockPayload, heading?: string | null }) => (
-  <div className="border border-accent/20 bg-accent/5 rounded-lg p-5 my-6">
-    {heading && <h3 className="text-accent font-semibold mb-2">{heading}</h3>}
-    <div className="text-foreground/90">{payload.text || payload.content}</div>
-  </div>
-);
-
-const WarningBlock = ({ payload, heading }: { payload: BlockPayload, heading?: string | null }) => (
-  <div className="border border-warning/30 bg-warning/10 rounded-lg p-4 my-4 flex gap-3">
-    <div className="text-warning text-xl">⚠️</div>
-    <div>
-      {heading && <h4 className="font-medium text-warning mb-1">{heading}</h4>}
-      <div className="text-sm text-foreground/80">{payload.text || payload.content}</div>
-    </div>
-  </div>
-);
-
-const MistakeBlock = ({ payload }: { payload: BlockPayload }) => (
-  <div className="border border-danger/30 bg-danger/10 rounded-lg p-4 my-4">
-    <h4 className="font-medium text-danger mb-2">Common Mistake</h4>
-    <div className="text-sm text-foreground/80">{payload.text || payload.content}</div>
-  </div>
-);
-
-const FallbackBlock = ({ block }: { block: StudyNoteBlockResponse }) => (
-  <div className="p-4 border border-dashed border-border rounded text-muted text-xs my-2">
-    [Unknown block type: {block.type}]
-  </div>
-);
-
-// Block Registry
-export function BlockRenderer({ block }: { block: StudyNoteBlockResponse }) {
-  const { type, payload, heading } = block;
-
-  const renderContent = () => {
-    switch (type) {
-      case "text":
-      case "markdown":
-      case "recognize":
-      case "remember":
-        return <TextBlock payload={payload as BlockPayload} />;
-      case "code":
-        return <CodeBlock payload={payload as BlockPayload} />;
-      case "approach":
-        return <ApproachBlock payload={payload as BlockPayload} heading={heading} />;
-      case "warning":
-      case "invariant":
-        return <WarningBlock payload={payload as BlockPayload} heading={heading} />;
-      case "mistake":
-        return <MistakeBlock payload={payload as BlockPayload} />;
-      default:
-        return <FallbackBlock block={block} />;
-    }
+  return {
+    id: block.id,
+    kind,
+    originalType: block.type,
+    heading: block.heading,
+    position: block.position,
+    content,
   };
+}
 
+function TextBlock({ block }: BlockRendererProps) {
+  const clean = DOMPurify.sanitize(block.content);
+  return <div className="prose prose-invert max-w-none text-muted" dangerouslySetInnerHTML={{ __html: clean }} />;
+}
+
+function CodeBlock({ block }: BlockRendererProps) {
+  return <div className="rounded-lg bg-black p-4 overflow-x-auto text-sm my-4 border border-border"><pre><code className="text-foreground">{block.content}</code></pre></div>;
+}
+
+function ApproachBlock({ block }: BlockRendererProps) {
+  return (
+    <div className="border border-accent/20 bg-accent/5 rounded-lg p-5 my-6">
+      {block.heading && <h3 className="text-accent font-semibold mb-2">{block.heading}</h3>}
+      <div className="text-foreground/90">{block.content}</div>
+    </div>
+  );
+}
+
+function WarningBlock({ block }: BlockRendererProps) {
+  return (
+    <div className="border border-warning/30 bg-warning/10 rounded-lg p-4 my-4 flex gap-3">
+      <div className="text-warning text-xl" aria-hidden="true">⚠️</div>
+      <div>
+        {block.heading && <h4 className="font-medium text-warning mb-1">{block.heading}</h4>}
+        <div className="text-sm text-foreground/80">{block.content}</div>
+      </div>
+    </div>
+  );
+}
+
+function MistakeBlock({ block }: BlockRendererProps) {
+  return <div className="border border-danger/30 bg-danger/10 rounded-lg p-4 my-4"><h4 className="font-medium text-danger mb-2">Common Mistake</h4><div className="text-sm text-foreground/80">{block.content}</div></div>;
+}
+
+const blockRenderers: Record<KnownBlockKind, RendererConfig> = {
+  text: { component: TextBlock, handlesHeading: false },
+  code: { component: CodeBlock, handlesHeading: false },
+  approach: { component: ApproachBlock, handlesHeading: true },
+  warning: { component: WarningBlock, handlesHeading: true },
+  mistake: { component: MistakeBlock, handlesHeading: false },
+};
+
+function FallbackBlock({ block }: BlockRendererProps) {
+  return <div className="p-4 border border-dashed border-border rounded text-muted text-xs my-2">[Unknown block type: {block.originalType}]</div>;
+}
+
+export function BlockRenderer({ block: transportBlock }: { block: StudyNoteBlockResponse }) {
+  const block = normalizeStudyNoteBlock(transportBlock);
+
+  if (block.kind === "unsupported") {
+    return <div className="mb-8"><FallbackBlock block={block} /></div>;
+  }
+
+  const { component: Renderer, handlesHeading } = blockRenderers[block.kind];
   return (
     <div className="mb-8">
-      {heading && type !== "approach" && type !== "warning" && (
-        <h3 className="text-xl font-semibold mb-4 text-foreground">{heading}</h3>
-      )}
-      {renderContent()}
+      {block.heading && !handlesHeading && <h3 className="text-xl font-semibold mb-4 text-foreground">{block.heading}</h3>}
+      <Renderer block={block} />
     </div>
   );
 }
 
 export function StudyNoteRenderer({ blocks }: { blocks: StudyNoteBlockResponse[] }) {
-  if (!blocks || blocks.length === 0) {
+  if (blocks.length === 0) {
     return <div className="text-muted italic">No content blocks available.</div>;
   }
 
-  // Sort blocks by position just in case
-  const sortedBlocks = [...blocks].sort((a, b) => a.position - b.position);
-
-  return (
-    <div className="study-note-content">
-      {sortedBlocks.map((block) => (
-        <BlockRenderer key={block.id} block={block} />
-      ))}
-    </div>
-  );
+  const sortedBlocks = [...blocks].sort((left, right) => left.position - right.position);
+  return <div className="study-note-content">{sortedBlocks.map((block) => <BlockRenderer key={block.id} block={block} />)}</div>;
 }

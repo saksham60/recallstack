@@ -1,8 +1,8 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { User, Session } from "@supabase/supabase-js";
-import { createClient } from "@/lib/supabase/client";
+import type { User, Session } from "@supabase/supabase-js";
+import { getBrowserClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
 interface AuthContextType {
@@ -20,19 +20,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
-  const [supabase] = useState(() => createClient());
+  const [supabase] = useState(() => getBrowserClient());
 
   useEffect(() => {
     const initializeAuth = async () => {
-      const isE2E = typeof document !== 'undefined' && document.cookie.includes('e2e-bypass-auth=1');
-      if (isE2E) {
-        setUser({ id: 'test-user-id', email: 'test@example.com' } as User);
-        setSession({ access_token: 'mock', user: { id: 'test-user-id' } } as unknown as Session);
-        setIsLoading(false);
-        return;
-      }
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
+        if (error) {
+          console.error("Failed to initialize authentication", error);
+        }
         setSession(session);
         setUser(session?.user ?? null);
       } catch (error) {
@@ -47,9 +46,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      const isE2E = typeof document !== 'undefined' && document.cookie.includes('e2e-bypass-auth=1');
-      if (isE2E) return; // Prevent overwriting mock user
-
       setSession(session);
       setUser(session?.user ?? null);
       if (_event === "SIGNED_OUT") {
@@ -61,16 +57,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [supabase, router]);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
   };
 
   const signInWithGoogle = async () => {
-    await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
       },
     });
+    if (error) throw error;
   };
 
   return (

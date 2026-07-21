@@ -1,42 +1,21 @@
 import createClient, { type Middleware } from "openapi-fetch";
+import "client-only";
+
 import type { paths } from "./types";
-import { createClient as createSupabaseClient } from "@/lib/supabase/client";
+import { publicConfig } from "@/lib/config/public";
+import { getBrowserClient } from "@/lib/supabase/client";
 import { createApiError } from "./errors";
-
-// Validate environment in production
-if (process.env.NODE_ENV === "production") {
-  if (!process.env.NEXT_PUBLIC_API_BASE_URL) {
-    throw new Error("Missing NEXT_PUBLIC_API_BASE_URL environment variable.");
-  }
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    throw new Error("Missing Supabase environment variables.");
-  }
-}
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
-
-// Maintain a single Supabase browser client
-let browserSupabaseClient: ReturnType<typeof createSupabaseClient> | null = null;
-function getBrowserSupabaseClient() {
-  if (typeof window === "undefined") return null;
-  if (!browserSupabaseClient) {
-    browserSupabaseClient = createSupabaseClient();
-  }
-  return browserSupabaseClient;
-}
 
 const authMiddleware: Middleware = {
   async onRequest({ request }) {
-    // Note: this middleware runs on the client. 
-    // Server components shouldn't use this fetcher if they need auth, unless we pass headers explicitly.
     if (typeof window !== "undefined") {
-      const supabase = getBrowserSupabaseClient();
-      if (supabase) {
-        const { data: { session } } = await supabase.auth.getSession();
-      
+      const supabase = getBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
       if (session?.access_token) {
         request.headers.set("Authorization", `Bearer ${session.access_token}`);
-      }
       }
     }
     return request;
@@ -99,8 +78,7 @@ const fetchWithTimeout: typeof fetch = async (input, init) => {
 };
 
 export const apiClient = createClient<paths>({ 
-  baseUrl: API_BASE_URL,
+  baseUrl: publicConfig.apiBaseUrl,
   fetch: fetchWithTimeout,
 });
 apiClient.use(authMiddleware);
-

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { isE2EAuthBypassEnabled } from '@/lib/config/server'
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
@@ -24,7 +25,7 @@ export async function GET(request: Request) {
   }
 
   if (code) {
-    if (process.env.E2E_BYPASS_AUTH === "1" && code === "mock") {
+    if (isE2EAuthBypassEnabled() && code === "mock") {
       return NextResponse.redirect(redirectUrl)
     }
 

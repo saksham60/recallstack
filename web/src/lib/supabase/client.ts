@@ -1,8 +1,28 @@
-import { createBrowserClient } from '@supabase/ssr'
+import "client-only";
 
+import { createBrowserClient } from "@supabase/ssr";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { publicConfig } from "@/lib/config/public";
+
+let browserClient: SupabaseClient | undefined;
+
+export function getBrowserClient(): SupabaseClient {
+  if (browserClient) {
+    return browserClient;
+  }
+
+  browserClient = createBrowserClient(
+    publicConfig.supabaseUrl,
+    publicConfig.supabaseAnonKey,
+    {
+      isSingleton: true,
+    },
+  );
+
+  return browserClient;
+}
+
+/** @deprecated Use getBrowserClient to make singleton ownership explicit. */
 export function createClient() {
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+  return getBrowserClient();
 }

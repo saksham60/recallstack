@@ -1,9 +1,7 @@
-import { test, expect } from '@playwright/test';
-import { setupAuth } from './helpers/auth';
+import { test, expect } from './fixtures/authenticated-test';
 
 test.describe('Bookmarks Flow', () => {
-  test.beforeEach(async ({ page }) => {
-    await setupAuth(page);
+  test.beforeEach(async ({ authenticatedPage: page }) => {
     await page.route('**/api/v1/categories/mock-category', async route => {
       await route.fulfill({
         json: {
@@ -19,7 +17,7 @@ test.describe('Bookmarks Flow', () => {
     });
   });
 
-  test('lists bookmarks and handles empty state', async ({ page }) => {
+  test('lists bookmarks and handles empty state', async ({ authenticatedPage: page }) => {
     await page.route('**/api/v1/me/bookmarks*', async route => {
       await route.fulfill({ json: { items: [], pagination: { total_items: 0, total_pages: 0, page: 1, page_size: 25 } } });
     });
@@ -28,7 +26,7 @@ test.describe('Bookmarks Flow', () => {
     await expect(page.locator('text=You haven\'t bookmarked any content yet.')).toBeVisible();
   });
 
-  test('toggles bookmark state (PUT and DELETE)', async ({ page }) => {
+  test('toggles bookmark state (PUT and DELETE)', async ({ authenticatedPage: page }) => {
     let isBookmarked = false;
     // Mock category content to show a bookmarkable item
     await page.route('**/api/v1/categories/*/content*', async route => {
@@ -38,10 +36,15 @@ test.describe('Bookmarks Flow', () => {
             content_item_id: 'c1',
             title: 'Mock Problem',
             slug: 'mock-problem',
+            type: 'problem',
+            summary: null,
             difficulty: 'easy',
+            primary_topic: null,
+            primary_practice_resource: null,
+            user_progress: { status: 'new', confidence: 0, last_opened_at: null },
             is_bookmarked: isBookmarked,
-            version_number: 1,
-            version_status: 'published'
+            last_opened_at: null,
+            next_review_at: null
           }],
           pagination: { total_items: 1, page: 1, page_size: 25, total_pages: 1 }
         }
@@ -67,14 +70,10 @@ test.describe('Bookmarks Flow', () => {
     const bookmarkButton = page.getByRole('button', { name: /Bookmark/i }).first();
     await expect(bookmarkButton).toBeVisible();
 
-    // Verify UI state changes correctly (optimistic update)
     await bookmarkButton.click();
     expect(putCaptured).toBe(true);
+    await expect(bookmarkButton).toHaveAttribute('aria-label', 'Remove Bookmark');
 
-    // It should now be toggled (or have active state). 
-    // Wait for the button to have a different aria-label or just wait for the request to settle.
-    // In our UI, we typically use text "Remove Bookmark" or change the icon.
-    // We'll just verify the DELETE can be triggered.
     const requestPromise = page.waitForRequest(req => req.url().includes('/api/v1/me/bookmarks/c1') && req.method() === 'DELETE');
     await bookmarkButton.click();
     const deleteReq = await requestPromise;

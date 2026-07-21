@@ -1,33 +1,27 @@
-import { test, expect } from '@playwright/test';
-import { setupAuth } from './helpers/auth';
+import { test, expect } from './fixtures/authenticated-test';
+import { createStudyNoteResponse } from './helpers/factories';
 
 test.describe('Security Hardening', () => {
   // Test XSS via intercepting network requests to provide malicious payload
-  test('sanitizes XSS payloads in StudyNoteRenderer', async ({ page }) => {
-    // Add bypass cookie and auth mock
-    await setupAuth(page);
-
+  test('sanitizes XSS payloads in StudyNoteRenderer', async ({ authenticatedPage: page }) => {
     // Mock API response with malicious payload
     await page.route('**/api/v1/content/*', async route => {
-      const json = {
+      const json = createStudyNoteResponse({
         title: "XSS Test",
         slug: "xss-test",
         content_item_id: "x1",
-        domain: { slug: "dsa", name: "DSA" },
-        categories: [{ id: "c1", name: "Arrays" }],
-        topics: [{ id: "t1", name: "Two Pointers" }],
-        published_at: new Date().toISOString(),
         blocks: [
           {
             id: "1",
             type: "text",
+            heading: null,
             position: 0,
             payload: {
               content: "<p>Safe content</p><script>window.__xssExecuted = true;</script><img src='x' onerror='window.__xssExecuted = true;'><a href='javascript:window.__xssExecuted = true;'>click me</a>"
             }
           }
         ]
-      };
+      });
       await route.fulfill({ json });
     });
 
@@ -43,8 +37,30 @@ test.describe('Security Hardening', () => {
     expect(html).toContain('Safe content');
     expect(html).not.toContain('<script>');
     expect(html).not.toContain('onerror');
+    expect(html).not.toContain('javascript:');
     
     // Evaluate if the XSS flag was set on the window object
+    const xssExecuted = await page.evaluate(() => (window as unknown as { __xssExecuted?: boolean }).__xssExecuted);
+    expect(xssExecuted).toBeFalsy();
+  });
+
+  test('renders unsupported content blocks safely', async ({ authenticatedPage: page }) => {
+    await page.route('**/api/v1/content/*', async route => {
+      await route.fulfill({
+        json: createStudyNoteResponse({
+          blocks: [{
+            id: 'unknown-1',
+            type: 'future-block',
+            heading: null,
+            position: 0,
+            payload: { content: '<script>window.__xssExecuted = true</script>' },
+          }],
+        }),
+      });
+    });
+
+    await page.goto('/content/future-block');
+    await expect(page.getByText('[Unknown block type: future-block]')).toBeVisible();
     const xssExecuted = await page.evaluate(() => (window as unknown as { __xssExecuted?: boolean }).__xssExecuted);
     expect(xssExecuted).toBeFalsy();
   });

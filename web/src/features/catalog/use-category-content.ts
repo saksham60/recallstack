@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import type { components } from "@/lib/api/types";
+import { categoryContentKeys } from "./keys";
 
 export type CategoryContentListResponse = components["schemas"]["CategoryContentListResponse"];
 export type CategoryContentItemResponse = components["schemas"]["CategoryContentItemResponse"];
@@ -10,16 +11,11 @@ interface UseCategoryContentOptions {
   categoryId: string;
   page?: number;
   pageSize?: number;
-  difficulty?: string;
-  status?: string;
+  difficulty?: "easy" | "medium" | "hard";
+  status?: "new" | "learning" | "attempted" | "confident" | "mastered";
   topic?: string;
   search?: string;
 }
-
-export const categoryContentKeys = {
-  all: ["category-content"] as const,
-  list: (categoryId: string, filters: Record<string, unknown>) => [...categoryContentKeys.all, categoryId, filters] as const,
-};
 
 export function useCategoryContent({ categoryId, page = 1, pageSize = 25, ...filters }: UseCategoryContentOptions) {
   return useQuery({
@@ -31,8 +27,8 @@ export function useCategoryContent({ categoryId, page = 1, pageSize = 25, ...fil
           query: {
             page,
             page_size: pageSize,
-            difficulty: filters.difficulty as "easy" | "medium" | "hard" | undefined,
-            status: filters.status as "new" | "learning" | "attempted" | "confident" | "mastered" | undefined,
+            difficulty: filters.difficulty,
+            status: filters.status,
             topic: filters.topic,
             search: filters.search,
           }

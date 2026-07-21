@@ -23,10 +23,6 @@ test.describe('Authentication and Route Protection', () => {
   });
 
   test.describe('OAuth Callback', () => {
-    test.beforeEach(async ({ page }) => {
-      await setupAuth(page);
-    });
-
     test('handles failed code exchange and redirects to login with error', async ({ page }) => {
       // Missing auth mock means exchange fails
       await page.goto('/auth/callback?code=invalid_code');
@@ -34,21 +30,14 @@ test.describe('Authentication and Route Protection', () => {
     });
 
     test('validates next parameter to prevent open redirect', async ({ page }) => {
-      // Mock the exchange endpoint so the login succeeds
-      await page.route('**/auth/v1/token?grant_type=pkce', async route => {
-        await route.fulfill({
-          json: {
-            access_token: 'mock',
-            refresh_token: 'mock',
-            expires_in: 3600,
-            user: { id: 'test' }
-          }
-        });
-      });
+      await setupAuth(page);
 
       // Test valid relative redirect
       await page.goto('/auth/callback?code=mock&next=/profile');
       await expect(page).toHaveURL(/.*\/profile/);
+
+      await page.goto('/auth/callback?code=mock&next=/dsa');
+      await expect(page).toHaveURL(/.*\/dsa/);
 
       // Test invalid external redirects
       await page.goto('/auth/callback?code=mock&next=https://evil.com');
@@ -58,6 +47,9 @@ test.describe('Authentication and Route Protection', () => {
       await expect(page).toHaveURL(/.*\/dsa/);
 
       await page.goto('/auth/callback?code=mock&next=/\\evil.com');
+      await expect(page).toHaveURL(/.*\/dsa/);
+
+      await page.goto('/auth/callback?code=mock&next=@evil.com');
       await expect(page).toHaveURL(/.*\/dsa/);
     });
   });

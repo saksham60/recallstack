@@ -1,70 +1,64 @@
-import { test, expect } from '@playwright/test';
-import { setupAuth } from './helpers/auth';
+import { test, expect } from './fixtures/authenticated-test';
+import { createPagination, createStudyNoteResponse } from './helpers/factories';
 
 interface NotePayload {
-  content_id?: string;
+  content_item_id?: string;
   body?: string;
   kind?: string;
 }
 
 test.describe('Notes Flow', () => {
-  test.beforeEach(async ({ page }) => {
-    await setupAuth(page);
+  let inMemoryNotes: Record<string, unknown>[] = [];
+
+  test.beforeEach(async ({ authenticatedPage: page }) => {
+    inMemoryNotes = []; // Reset state
+
+    // Mock Study Note content
     await page.route('**/api/v1/content/*', async route => {
       await route.fulfill({
+        json: createStudyNoteResponse({ content_item_id: 'c1' }),
+      });
+    });
+
+    // Mock GET notes
+    await page.route('**/api/v1/me/content/*/notes', async route => {
+      await route.fulfill({
         json: {
-          content_item_id: 'c1',
-          title: 'Mock Problem',
-          slug: 'mock-slug',
-          difficulty: 'easy',
-          is_bookmarked: false,
-          version_number: 1,
-          version_status: 'published',
-          domain: { id: 'd1', name: 'DSA', slug: 'dsa' },
-          categories: [{ id: 'cat1', name: 'Category' }],
-          topics: [{ id: 't1', name: 'Topic' }],
-          blocks: []
+          items: inMemoryNotes,
+          pagination: createPagination(inMemoryNotes.length)
         }
       });
     });
   });
 
-  test('creates and edits a note', async ({ page }) => {
-    // Mock the content page notes endpoint
-    await page.route('**/api/v1/me/content/*/notes', async route => {
-      await route.fulfill({
-        json: {
-          items: [],
-          pagination: { total_items: 0, total_pages: 0, page: 1, page_size: 25 }
-        }
-      });
-    });
-
+  test('creates a note', async ({ authenticatedPage: page }) => {
     let postCaptured = false;
     let postBody: NotePayload = {} as NotePayload;
+
+    // Mock POST notes
     await page.route('**/api/v1/me/notes', async route => {
       if (route.request().method() === 'POST') {
         postCaptured = true;
         postBody = JSON.parse(route.request().postData() || '{}') as NotePayload;
-        await route.fulfill({
-          json: {
-            id: 'n1',
-            content_item_id: postBody.content_id,
-            body: postBody.body,
-            kind: postBody.kind,
-            row_version: 1,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }
-        });
+
+        const newNote = {
+          id: 'n1',
+          content_item_id: postBody.content_item_id,
+          body: postBody.body,
+          kind: postBody.kind,
+          row_version: 1,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        inMemoryNotes.push(newNote);
+
+        await route.fulfill({ json: newNote });
       } else {
         await route.continue();
       }
     });
 
     await page.goto('/content/mock-slug');
-    
-    // Notes are now in the sidebar, no need to switch tabs
     
     // Click Add Note
     await page.locator('text=Add Note').click();
@@ -78,31 +72,36 @@ test.describe('Notes Flow', () => {
     expect(postCaptured).toBe(true);
     expect(postBody?.body).toBe('This is a test note.');
     expect(postBody?.kind).toBe('note'); // Default kind
+    expect(postBody?.content_item_id).toBe('c1');
 
-    // Note should now appear in UI
+    // Note should now appear in UI after React Query refetches
     await expect(page.locator('text=This is a test note.')).toBeVisible();
   });
 
-  test('deletes a note', async ({ page }) => {
-    await page.route('**/api/v1/me/content/*/notes', async route => {
-      await route.fulfill({
-        json: {
-          items: [{
-            id: 'n1',
-            content_item_id: 'c1',
-            body: 'Existing Note',
-            kind: 'study',
-            row_version: 2
-          }],
-          pagination: { total_items: 1, total_pages: 1, page: 1, page_size: 25 }
-        }
-      });
+  test('deletes a note', async ({ authenticatedPage: page }) => {
+    // Add an initial note to the state
+    inMemoryNotes.push({
+      id: 'n1',
+      content_item_id: 'c1',
+      body: 'Existing Note',
+      kind: 'note',
+      row_version: 2,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     });
 
     let deleteCaptured = false;
+    let deletedRowVersion: number | undefined;
+
+    // Mock DELETE notes
     await page.route('**/api/v1/me/notes/n1', async route => {
       if (route.request().method() === 'DELETE') {
         deleteCaptured = true;
+        const deleteBody = JSON.parse(route.request().postData() || '{}') as { row_version?: number };
+        deletedRowVersion = deleteBody.row_version;
+
+        inMemoryNotes = inMemoryNotes.filter(n => n.id !== 'n1');
+
         await route.fulfill({ status: 204 });
       } else {
         await route.continue();
@@ -110,63 +109,22 @@ test.describe('Notes Flow', () => {
     });
 
     await page.goto('/content/mock-slug');
-    
-    // Notes are now in the sidebar, no need to switch tabs
+
+    // Note should initially be visible
+    await expect(page.locator('text=Existing Note')).toBeVisible();
 
     // Handle potential confirmation dialog natively
     page.on('dialog', dialog => dialog.accept());
+
+    // Click delete
     const deleteBtn = page.locator('button[title="Delete Note"]').first();
     await deleteBtn.click();
 
-    // Verify DELETE request occurred
-    expect(deleteCaptured).toBe(true);
-    
-    // Verify it disappeared
+    // Wait for the note to disappear after TanStack Query refetches
     await expect(page.locator('text=Existing Note')).not.toBeVisible();
-  });
 
-  test('handles note conflicts gracefully', async ({ page }) => {
-    await page.route('**/api/v1/me/content/*/notes', async route => {
-      await route.fulfill({
-        json: {
-          items: [{
-            id: 'n1',
-            content_item_id: 'c1',
-            body: 'Old Note',
-            kind: 'study',
-            row_version: 1
-          }],
-          pagination: { total_items: 1, total_pages: 1, page: 1, page_size: 25 }
-        }
-      });
-    });
-
-    // Mock a 409 conflict during patch
-    await page.route('**/api/v1/me/notes/n1', async route => {
-      if (route.request().method() === 'PATCH') {
-        await route.fulfill({
-          status: 409,
-          json: { detail: 'Conflict: The note has been modified by another client.' }
-        });
-      } else {
-        await route.continue();
-      }
-    });
-
-    await page.goto('/content/mock-slug');
-    
-    // Notes are now in the sidebar, no need to switch tabs
-
-    // Assume there is an edit button
-    const editBtn = page.getByRole('button', { name: /Edit/i }).first();
-    if (await editBtn.isVisible()) {
-      await editBtn.click();
-      const textarea = page.getByPlaceholder(/Write your note/i);
-      await textarea.fill('Conflicting Note');
-      await page.getByRole('button', { name: /Save/i }).click();
-
-      // UI should show error
-      await expect(page.locator('text=Conflict: The note has been modified by another client.')).toBeVisible();
-    }
+    // Verify DELETE request occurred and included row_version
+    expect(deleteCaptured).toBe(true);
+    expect(deletedRowVersion).toBe(2);
   });
 });

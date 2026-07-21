@@ -1,13 +1,18 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import type { components } from "@/lib/api/types";
 
 export type ProfileResponse = components["schemas"]["ProfileResponse"];
-export type ProfilePatchRequest = components["schemas"]["ProfilePatchRequest"];
+type ProfilePatchRequest = components["schemas"]["ProfilePatchRequest"];
+
+interface UpdateProfileInput {
+  displayName: string;
+  timezone: string;
+}
 
 export const profileKeys = {
   all: ["me"] as const,
-  profile: () => [...profileKeys.all] as const,
+  profile: () => [...profileKeys.all, "profile"] as const,
 };
 
 export function useProfile() {
@@ -25,10 +30,12 @@ export function useUpdateProfile() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (body: ProfilePatchRequest) => {
-      const { data, error } = await apiClient.PATCH("/api/v1/me", {
-        body,
-      });
+    mutationFn: async ({ displayName, timezone }: UpdateProfileInput) => {
+      const body: ProfilePatchRequest = {
+        display_name: displayName,
+        timezone,
+      };
+      const { data, error } = await apiClient.PATCH("/api/v1/me", { body });
       if (error) throw error;
       return data;
     },

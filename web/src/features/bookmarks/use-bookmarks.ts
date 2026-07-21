@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import type { components } from "@/lib/api/types";
+import { categoryContentKeys } from "@/features/catalog/keys";
+import { studyNoteKeys } from "@/features/content/keys";
 
 export type BookmarkListResponse = components["schemas"]["BookmarkListResponse"];
 
@@ -41,18 +43,11 @@ export function useToggleBookmark() {
         return data;
       }
     },
-    // Optimistic Update
-    onMutate: async () => {
-      await queryClient.cancelQueries({ queryKey: bookmarkKeys.all });
-      
-      // Update any query containing this contentId to toggle `is_bookmarked`
-      // For simplicity, we just invalidate here, but an ideal implementation would optimistically update 
-      // the list and detail queries.
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: bookmarkKeys.all });
-      queryClient.invalidateQueries({ queryKey: ["category-content"] }); // Invalidates the problem list
-      queryClient.invalidateQueries({ queryKey: ["content"] }); // Invalidates the study note page
-    },
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: bookmarkKeys.all }),
+        queryClient.invalidateQueries({ queryKey: categoryContentKeys.all }),
+        queryClient.invalidateQueries({ queryKey: studyNoteKeys.all }),
+      ]),
   });
 }

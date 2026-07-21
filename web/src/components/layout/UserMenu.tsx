@@ -1,13 +1,23 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
-import { useProfile } from "@/features/auth/use-profile";
-import { useAuth } from "@/features/auth/AuthProvider";
+import { useAuth } from "@/features/auth";
+import { useProfile } from "@/features/profile";
 
 export function UserMenu() {
   const { data: profile, isLoading } = useProfile();
   const { signOut } = useAuth();
+  const [signOutError, setSignOutError] = useState(false);
+
+  const handleSignOut = async () => {
+    setSignOutError(false);
+    try {
+      await signOut();
+    } catch {
+      setSignOutError(true);
+    }
+  };
 
   const getInitial = () => {
     if (profile?.display_name) {
@@ -29,11 +39,12 @@ export function UserMenu() {
             Profile Settings
           </Link>
           <button 
-            onClick={signOut}
+            onClick={handleSignOut}
             className="block w-full text-left px-4 py-2 text-sm text-danger hover:bg-surface"
           >
             Sign Out
           </button>
+          {signOutError && <p className="px-4 py-2 text-xs text-danger" role="alert">Sign out failed. Please try again.</p>}
         </div>
       </div>
     </div>

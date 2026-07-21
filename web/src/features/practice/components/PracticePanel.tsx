@@ -1,35 +1,29 @@
 "use client";
 
 import React, { useState } from "react";
-import { useSubmitPractice } from "../use-practice";
+import { useSubmitPractice, type PracticeOutcome } from "../use-practice";
+import { getApiErrorMessage } from "@/lib/api/errors";
 
 interface PracticePanelProps {
   contentId: string;
 }
 
 export function PracticePanel({ contentId }: PracticePanelProps) {
-  const { mutate, isPending } = useSubmitPractice();
+  const { mutate, isPending, error } = useSubmitPractice();
   const [isOpen, setIsOpen] = useState(false);
   
-  const [outcome, setOutcome] = useState<
-    "solved_independently" | "solved_with_hint" | "understood_but_could_not_code" | "pattern_not_identified" | "skipped"
-  >("solved_independently");
+  const [outcome, setOutcome] = useState<PracticeOutcome>("solved_independently");
   const [hintUsed, setHintUsed] = useState(false);
   const [durationStr, setDurationStr] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Generate a random UUID for attempt_event_id 
-    const attemptEventId = crypto.randomUUID();
-    
     mutate({
-      attempt_event_id: attemptEventId,
-      content_item_id: contentId,
+      contentId,
       outcome,
-      hint_used: hintUsed,
-      duration_seconds: durationStr ? parseInt(durationStr, 10) : undefined,
-      attempted_at: new Date().toISOString(),
+      hintUsed,
+      durationSeconds: durationStr ? Number.parseInt(durationStr, 10) : undefined,
     }, {
       onSuccess: () => {
         setIsOpen(false);
@@ -67,7 +61,7 @@ export function PracticePanel({ contentId }: PracticePanelProps) {
           <label className="block text-xs text-muted mb-1">Outcome</label>
           <select 
             value={outcome}
-            onChange={(e) => setOutcome(e.target.value as "solved_independently" | "solved_with_hint" | "understood_but_could_not_code" | "pattern_not_identified" | "skipped")}
+            onChange={(e) => setOutcome(e.target.value as PracticeOutcome)}
             className="w-full bg-surface border border-border rounded-md text-sm p-2 text-foreground focus:outline-none focus:border-accent"
           >
             <option value="solved_independently">Solved Independently</option>
@@ -93,12 +87,19 @@ export function PracticePanel({ contentId }: PracticePanelProps) {
           <label className="block text-xs text-muted mb-1">Time taken (seconds)</label>
           <input 
             type="number"
+            min="0"
             value={durationStr}
             onChange={(e) => setDurationStr(e.target.value)}
             placeholder="e.g. 1200 for 20m"
             className="w-full bg-surface border border-border rounded-md text-sm p-2 text-foreground focus:outline-none focus:border-accent"
           />
         </div>
+
+        {error && (
+          <p className="text-sm text-danger" role="alert">
+            {getApiErrorMessage(error, "Failed to save the practice attempt.")}
+          </p>
+        )}
 
         <div className="flex gap-2 pt-2 border-t border-border">
           <button

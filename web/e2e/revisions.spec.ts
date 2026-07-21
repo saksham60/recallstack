@@ -1,5 +1,5 @@
-import { test, expect } from '@playwright/test';
-import { setupAuth } from './helpers/auth';
+import { test, expect } from './fixtures/authenticated-test';
+import { createPagination } from './helpers/factories';
 
 interface ReviewPayload {
   rating?: string;
@@ -9,8 +9,7 @@ interface ReviewPayload {
 }
 
 test.describe('Revisions Flow', () => {
-  test.beforeEach(async ({ page }) => {
-    await setupAuth(page);
+  test.beforeEach(async ({ authenticatedPage: page }) => {
     await page.route('**/api/v1/me/reviews/due*', async route => {
       await route.fulfill({
         json: {
@@ -21,7 +20,7 @@ test.describe('Revisions Flow', () => {
             due_at: new Date().toISOString(),
             row_version: 3
           }],
-          pagination: { total_items: 1, total_pages: 1, page: 1, page_size: 25 }
+          pagination: createPagination(1)
         }
       });
     });
@@ -30,7 +29,7 @@ test.describe('Revisions Flow', () => {
   const ratings = ['Again', 'Hard', 'Good', 'Easy'];
 
   for (const rating of ratings) {
-    test(`submits ${rating} rating correctly`, async ({ page }) => {
+    test(`submits ${rating} rating correctly`, async ({ authenticatedPage: page }) => {
       let postBody: ReviewPayload = {} as ReviewPayload;
       let requestedUrl = '';
 
@@ -69,7 +68,7 @@ test.describe('Revisions Flow', () => {
     });
   }
 
-  test('reverts optimistic UI on API failure', async ({ page }) => {
+  test('reverts optimistic UI on API failure', async ({ authenticatedPage: page }) => {
     await page.route('**/api/v1/me/reviews/*/submit', async route => {
       if (route.request().method() === 'POST') {
         await route.fulfill({ status: 500, json: { detail: 'Internal Server Error' } });
@@ -88,5 +87,6 @@ test.describe('Revisions Flow', () => {
 
     // The card should reappear
     await expect(page.locator('text=Mock Card')).toBeVisible();
+    await expect(page.getByText('Failed to submit review.')).toBeVisible();
   });
 });

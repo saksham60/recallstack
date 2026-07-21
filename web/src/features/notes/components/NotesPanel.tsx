@@ -3,16 +3,18 @@
 import React, { useState } from "react";
 import { useNotes, useCreateNote, useDeleteNote, NoteResponse } from "../use-notes";
 import { Badge } from "@/components/ui/Badge";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { getApiErrorMessage } from "@/lib/api/errors";
 
 interface NotesPanelProps {
   contentId: string;
 }
 
 export function NotesPanel({ contentId }: NotesPanelProps) {
-  const { data: notesData, isLoading } = useNotes(contentId);
+  const { data: notesData, isLoading, error: notesError } = useNotes(contentId);
   const notes = notesData?.items;
-  const { mutate: createNote, isPending: isCreating } = useCreateNote();
-  const { mutate: deleteNote } = useDeleteNote();
+  const { mutate: createNote, isPending: isCreating, error: createError } = useCreateNote();
+  const { mutate: deleteNote, error: deleteError } = useDeleteNote();
   
   const [isAdding, setIsAdding] = useState(false);
   const [newNoteBody, setNewNoteBody] = useState("");
@@ -21,7 +23,7 @@ export function NotesPanel({ contentId }: NotesPanelProps) {
   const handleAdd = () => {
     if (!newNoteBody.trim()) return;
     createNote({
-      content_item_id: contentId,
+      contentId,
       kind: newNoteKind,
       body: newNoteBody,
     }, {
@@ -34,7 +36,7 @@ export function NotesPanel({ contentId }: NotesPanelProps) {
 
   const handleDelete = (note: NoteResponse) => {
     if (confirm("Are you sure you want to delete this note?")) {
-      deleteNote({ noteId: note.id, row_version: note.row_version });
+      deleteNote({ noteId: note.id, contentId, rowVersion: note.row_version });
     }
   };
 
@@ -87,10 +89,21 @@ export function NotesPanel({ contentId }: NotesPanelProps) {
               {isCreating ? "Saving..." : "Save"}
             </button>
           </div>
+          {createError && (
+            <p className="mt-2 text-xs text-danger" role="alert">
+              {getApiErrorMessage(createError, "Failed to create note.")}
+            </p>
+          )}
         </div>
       )}
 
-      {isLoading ? (
+      {notesError ? (
+        <ErrorState
+          title="Failed to load notes"
+          description={getApiErrorMessage(notesError, "Please try again later.")}
+          className="p-4"
+        />
+      ) : isLoading ? (
         <div className="space-y-3">
           <div className="h-20 bg-surface-elevated animate-pulse rounded-lg" />
           <div className="h-20 bg-surface-elevated animate-pulse rounded-lg" />
@@ -120,6 +133,11 @@ export function NotesPanel({ contentId }: NotesPanelProps) {
         </div>
       ) : (
         !isAdding && <p className="text-sm text-muted italic text-center py-4">No notes yet. Add one to remember key insights.</p>
+      )}
+      {deleteError && (
+        <p className="mt-3 text-xs text-danger" role="alert">
+          {getApiErrorMessage(deleteError, "Failed to delete note.")}
+        </p>
       )}
     </div>
   );

@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { useSearch } from "@/features/search/use-search";
-import { Badge } from "@/components/ui/Badge";
+import { useSearch } from "@/features/search";
+import { DifficultyBadge } from "@/features/catalog";
 
 export function GlobalSearch() {
   const [query, setQuery] = useState("");
@@ -17,7 +17,7 @@ export function GlobalSearch() {
     return () => clearTimeout(timer);
   }, [query]);
 
-  const { data, isLoading } = useSearch(debouncedQuery);
+  const { data, isLoading, error } = useSearch(debouncedQuery);
 
   // Close on outside click
   useEffect(() => {
@@ -62,12 +62,16 @@ export function GlobalSearch() {
           {isLoading && (
             <div className="p-4 text-center text-sm text-muted">Searching...</div>
           )}
+
+          {error && !isLoading && (
+            <div className="p-4 text-center text-sm text-danger" role="alert">Search is temporarily unavailable.</div>
+          )}
           
-          {!isLoading && data?.items.length === 0 && (
+          {!isLoading && !error && data?.items.length === 0 && (
             <div className="p-4 text-center text-sm text-muted">No results found for &quot;{query}&quot;</div>
           )}
 
-          {!isLoading && data && data.items.length > 0 && (
+          {!isLoading && !error && data && data.items.length > 0 && (
             <div className="overflow-y-auto py-2">
               {data.items.map((item) => (
                 <Link
@@ -79,9 +83,7 @@ export function GlobalSearch() {
                   <div className="flex justify-between items-start gap-2 mb-1">
                     <h4 className="text-sm font-semibold text-foreground line-clamp-1">{item.title}</h4>
                     {item.difficulty && (
-                      <Badge variant={item.difficulty === "hard" ? "danger" : item.difficulty === "medium" ? "warning" : "success"} className="shrink-0 text-[10px] px-1.5 py-0">
-                        {item.difficulty}
-                      </Badge>
+                      <span className="shrink-0 text-[10px] [&>span]:px-1.5 [&>span]:py-0"><DifficultyBadge difficulty={item.difficulty} /></span>
                     )}
                   </div>
                   {item.summary_excerpt && (

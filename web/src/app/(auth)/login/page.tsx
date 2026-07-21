@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useAuth } from "@/features/auth/AuthProvider";
+import { useAuth } from "@/features/auth";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
@@ -11,6 +11,7 @@ function LoginContent() {
   const searchParams = useSearchParams();
   const error = searchParams.get("error");
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const [signInError, setSignInError] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -19,8 +20,14 @@ function LoginContent() {
   }, [user, router]);
 
   const handleSignIn = async () => {
+    setSignInError(false);
     setIsRedirecting(true);
-    await signInWithGoogle();
+    try {
+      await signInWithGoogle();
+    } catch {
+      setSignInError(true);
+      setIsRedirecting(false);
+    }
   };
 
   const isWorking = isLoading || isRedirecting || !!user;
@@ -44,6 +51,12 @@ function LoginContent() {
         {error === 'auth-callback-failed' && (
           <div className="mt-4 p-3 text-sm text-danger-foreground bg-danger/10 border border-danger/20 rounded-md text-center">
             Authentication failed. Please try again.
+          </div>
+        )}
+
+        {signInError && (
+          <div role="alert" className="mt-4 p-3 text-sm text-danger bg-danger/10 border border-danger/20 rounded-md text-center">
+            Could not start sign-in. Please try again.
           </div>
         )}
 
