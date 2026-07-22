@@ -1,13 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' hide Column;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app/core/api/api_client.dart';
+import 'package:app/core/api/api_error_handler.dart';
 import 'package:app/core/database/database.dart';
 import 'package:app/core/sync/sync_status_provider.dart';
 import 'package:app/core/auth/supabase_auth_repository.dart';
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:app/core/telemetry/app_logger.dart';
 
 enum SyncResult { success, offline, authRequired, serverFailure, partialFailure }
 
@@ -33,16 +33,18 @@ class SyncEngine {
     try {
       await _recoverProcessingMutations();
       await _ensureDeviceRegistered();
-    } on DioException catch (e) {
-      if (e.response?.statusCode == 401 || e.response?.statusCode == 403) {
+    } catch (e, stack) {
+      final type = ApiErrorHandler.classify(e);
+      if (type == SyncErrorType.authRequired) {
         _endSync();
         return SyncResult.authRequired;
       }
-      _ref.read(syncStatusProvider.notifier).setOffline();
-      _endSync();
-      return SyncResult.offline;
-    } catch (e, stack) {
-      FirebaseCrashlytics.instance.recordError(e, stack, reason: 'Registration/Recovery failed');
+      if (type == SyncErrorType.offline) {
+        _ref.read(syncStatusProvider.notifier).setOffline();
+        _endSync();
+        return SyncResult.offline;
+      }
+      AppLogger.recordError(e, stack, reason: 'Registration/Recovery failed');
       _endSync();
       return SyncResult.serverFailure;
     }
@@ -50,21 +52,21 @@ class SyncEngine {
     try {
       await _pushMutations();
     } catch (e, stack) {
-      FirebaseCrashlytics.instance.recordError(e, stack, reason: 'Push mutations failed');
+      AppLogger.recordError(e, stack, reason: 'Push mutations failed');
       hasPartialFailure = true;
     }
 
     try {
       await _pullCatalogChanges('dsa'); // Assuming 'dsa' is the initial domain
     } catch (e, stack) {
-      FirebaseCrashlytics.instance.recordError(e, stack, reason: 'Pull catalog changes failed');
+      AppLogger.recordError(e, stack, reason: 'Pull catalog changes failed');
       hasPartialFailure = true;
     }
 
     try {
       await _pullUserChanges();
     } catch (e, stack) {
-      FirebaseCrashlytics.instance.recordError(e, stack, reason: 'Pull user changes failed');
+      AppLogger.recordError(e, stack, reason: 'Pull user changes failed');
       hasPartialFailure = true;
     }
 
@@ -170,7 +172,25 @@ class SyncEngine {
           }
         }
       });
-    } on DioException catch (e) {
+    } catch (e) {
+      final type = ApiErrorHandler.classify(e);
+      if (type == SyncErrorType.authRequired) {
+        rethrow;
+      }
+
+      if (type == SyncErrorType.permanentFailure || type == SyncErrorType.conflict) {
+        await _db.transaction(() async {
+          for (var m in pendingMutations) {
+            await (_db.update(_db.localOutbox)..where((t) => t.mutationId.equals(m.mutationId)))
+              .write(LocalOutboxCompanion(
+                status: const Value('failed'),
+                lastError: Value(e.toString()),
+              ));
+          }
+        });
+        return; // Processed as failed, continue sync
+      }
+
       await _db.transaction(() async {
         for (var m in pendingMutations) {
           final nextRetry = m.retryCount + 1;
@@ -181,16 +201,10 @@ class SyncEngine {
               status: const Value('retryable'),
               retryCount: Value(nextRetry),
               nextRetryAt: Value(DateTime.now().add(Duration(seconds: delaySeconds))),
-              lastError: Value(e.message),
+              lastError: Value(e.toString()),
             ));
         }
       });
-      rethrow; // Pass up to partial failure handler
-    } catch (e) {
-      for (var m in pendingMutations) {
-        await (_db.update(_db.localOutbox)..where((t) => t.mutationId.equals(m.mutationId)))
-            .write(const LocalOutboxCompanion(status: Value('pending')));
-      }
       rethrow;
     }
   }
@@ -328,10 +342,17 @@ class SyncEngine {
             publishedAt: DateTime.parse(doc['published_at']).toLocal(),
           ));
         }
-      });
-    }
 
-    if (cursor.isNotEmpty) {
+        if (cursor.isNotEmpty) {
+          await _db.into(_db.syncCursors).insertOnConflictUpdate(SyncCursorsCompanion.insert(
+            id: cursorId,
+            cursorValue: cursor,
+            updatedAt: DateTime.now(),
+          ));
+        }
+      });
+    } else if (cursor.isNotEmpty) {
+      // If no upserts and no deletions, just save cursor
       await _db.into(_db.syncCursors).insertOnConflictUpdate(SyncCursorsCompanion.insert(
         id: cursorId,
         cursorValue: cursor,
@@ -494,10 +515,17 @@ class SyncEngine {
             rowVersion: r['row_version'] ?? 1,
           ));
         }
-      });
-    }
 
-    if (cursor.isNotEmpty) {
+        if (cursor.isNotEmpty) {
+          await _db.into(_db.syncCursors).insertOnConflictUpdate(SyncCursorsCompanion.insert(
+            id: cursorId,
+            cursorValue: cursor,
+            updatedAt: DateTime.now(),
+          ));
+        }
+      });
+    } else if (cursor.isNotEmpty) {
+      // If no upserts and no deletions, just save cursor
       await _db.into(_db.syncCursors).insertOnConflictUpdate(SyncCursorsCompanion.insert(
         id: cursorId,
         cursorValue: cursor,

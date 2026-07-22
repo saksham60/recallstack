@@ -56,7 +56,7 @@ void main() {
   });
 
   test('runSync completes successfully if authenticated', () async {
-    final user = const supabase.User(
+    const user = supabase.User(
       id: 'test_user',
       appMetadata: {},
       userMetadata: {},
@@ -107,5 +107,64 @@ void main() {
     
     final result = await syncEngine.runSync();
     expect(result, equals(SyncResult.success));
+  });
+
+  test('runSync returns authRequired on 401 DioException', () async {
+    final user = const supabase.User(
+      id: 'test_user',
+      appMetadata: {},
+      userMetadata: {},
+      aud: 'authenticated',
+      createdAt: '',
+    );
+    
+    final container = ProviderContainer(
+      overrides: [
+        currentUserProvider.overrideWithValue(user),
+        syncStatusProvider.overrideWith(() => mockSyncStatusNotifier),
+      ],
+    );
+
+    // Mock an auth failure during device registration (first step)
+    when(() => mockDio.post('/devices/register', data: any(named: 'data')))
+        .thenThrow(DioException(
+          requestOptions: RequestOptions(path: '/devices/register'),
+          response: Response(requestOptions: RequestOptions(path: ''), statusCode: 401),
+        ));
+
+    final syncEngine = SyncEngine(mockApiClient, db, container.read(Provider((ref) => ref)));
+    
+    final result = await syncEngine.runSync();
+    expect(result, equals(SyncResult.authRequired));
+    expect(mockSyncStatusNotifier.isSyncing, false);
+  });
+
+  test('runSync returns offline on other DioException', () async {
+    final user = const supabase.User(
+      id: 'test_user',
+      appMetadata: {},
+      userMetadata: {},
+      aud: 'authenticated',
+      createdAt: '',
+    );
+    
+    final container = ProviderContainer(
+      overrides: [
+        currentUserProvider.overrideWithValue(user),
+        syncStatusProvider.overrideWith(() => mockSyncStatusNotifier),
+      ],
+    );
+
+    // Mock an offline failure (e.g. SocketException wrapped in DioException)
+    when(() => mockDio.post('/devices/register', data: any(named: 'data')))
+        .thenThrow(DioException(
+          requestOptions: RequestOptions(path: '/devices/register'),
+          type: DioExceptionType.connectionError,
+        ));
+
+    final syncEngine = SyncEngine(mockApiClient, db, container.read(Provider((ref) => ref)));
+    
+    final result = await syncEngine.runSync();
+    expect(result, equals(SyncResult.offline));
   });
 }

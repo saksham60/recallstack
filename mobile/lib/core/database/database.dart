@@ -26,9 +26,10 @@ part 'database.g.dart';
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase(String? userId) : super(_openConnection(userId));
+  AppDatabase.forTesting(super.connection);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration {
@@ -37,7 +38,9 @@ class AppDatabase extends _$AppDatabase {
         await m.createAll();
       },
       onUpgrade: (Migrator m, int from, int to) async {
-        // Implement migrations here
+        if (from < 2) {
+          await m.addColumn(contentItems, contentItems.primaryPracticeUrl);
+        }
       },
     );
   }
