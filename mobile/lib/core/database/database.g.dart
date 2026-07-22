@@ -506,6 +506,17 @@ class $ContentItemsTable extends ContentItems
         type: DriftSqlType.string,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _primaryPracticeUrlMeta =
+      const VerificationMeta('primaryPracticeUrl');
+  @override
+  late final GeneratedColumn<String> primaryPracticeUrl =
+      GeneratedColumn<String>(
+        'primary_practice_url',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _updatedAtMeta = const VerificationMeta(
     'updatedAt',
   );
@@ -527,6 +538,7 @@ class $ContentItemsTable extends ContentItems
     difficulty,
     sortOrder,
     currentPublishedVersionId,
+    primaryPracticeUrl,
     updatedAt,
   ];
   @override
@@ -601,6 +613,15 @@ class $ContentItemsTable extends ContentItems
         ),
       );
     }
+    if (data.containsKey('primary_practice_url')) {
+      context.handle(
+        _primaryPracticeUrlMeta,
+        primaryPracticeUrl.isAcceptableOrUnknown(
+          data['primary_practice_url']!,
+          _primaryPracticeUrlMeta,
+        ),
+      );
+    }
     if (data.containsKey('updated_at')) {
       context.handle(
         _updatedAtMeta,
@@ -650,6 +671,10 @@ class $ContentItemsTable extends ContentItems
         DriftSqlType.string,
         data['${effectivePrefix}current_published_version_id'],
       ),
+      primaryPracticeUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}primary_practice_url'],
+      ),
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
@@ -672,6 +697,7 @@ class ContentItem extends DataClass implements Insertable<ContentItem> {
   final String? difficulty;
   final int sortOrder;
   final String? currentPublishedVersionId;
+  final String? primaryPracticeUrl;
   final DateTime updatedAt;
   const ContentItem({
     required this.id,
@@ -682,6 +708,7 @@ class ContentItem extends DataClass implements Insertable<ContentItem> {
     this.difficulty,
     required this.sortOrder,
     this.currentPublishedVersionId,
+    this.primaryPracticeUrl,
     required this.updatedAt,
   });
   @override
@@ -700,6 +727,9 @@ class ContentItem extends DataClass implements Insertable<ContentItem> {
       map['current_published_version_id'] = Variable<String>(
         currentPublishedVersionId,
       );
+    }
+    if (!nullToAbsent || primaryPracticeUrl != null) {
+      map['primary_practice_url'] = Variable<String>(primaryPracticeUrl);
     }
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
@@ -720,6 +750,9 @@ class ContentItem extends DataClass implements Insertable<ContentItem> {
           currentPublishedVersionId == null && nullToAbsent
           ? const Value.absent()
           : Value(currentPublishedVersionId),
+      primaryPracticeUrl: primaryPracticeUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(primaryPracticeUrl),
       updatedAt: Value(updatedAt),
     );
   }
@@ -740,6 +773,9 @@ class ContentItem extends DataClass implements Insertable<ContentItem> {
       currentPublishedVersionId: serializer.fromJson<String?>(
         json['currentPublishedVersionId'],
       ),
+      primaryPracticeUrl: serializer.fromJson<String?>(
+        json['primaryPracticeUrl'],
+      ),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
   }
@@ -757,6 +793,7 @@ class ContentItem extends DataClass implements Insertable<ContentItem> {
       'currentPublishedVersionId': serializer.toJson<String?>(
         currentPublishedVersionId,
       ),
+      'primaryPracticeUrl': serializer.toJson<String?>(primaryPracticeUrl),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
   }
@@ -770,6 +807,7 @@ class ContentItem extends DataClass implements Insertable<ContentItem> {
     Value<String?> difficulty = const Value.absent(),
     int? sortOrder,
     Value<String?> currentPublishedVersionId = const Value.absent(),
+    Value<String?> primaryPracticeUrl = const Value.absent(),
     DateTime? updatedAt,
   }) => ContentItem(
     id: id ?? this.id,
@@ -782,6 +820,9 @@ class ContentItem extends DataClass implements Insertable<ContentItem> {
     currentPublishedVersionId: currentPublishedVersionId.present
         ? currentPublishedVersionId.value
         : this.currentPublishedVersionId,
+    primaryPracticeUrl: primaryPracticeUrl.present
+        ? primaryPracticeUrl.value
+        : this.primaryPracticeUrl,
     updatedAt: updatedAt ?? this.updatedAt,
   );
   ContentItem copyWithCompanion(ContentItemsCompanion data) {
@@ -800,6 +841,9 @@ class ContentItem extends DataClass implements Insertable<ContentItem> {
       currentPublishedVersionId: data.currentPublishedVersionId.present
           ? data.currentPublishedVersionId.value
           : this.currentPublishedVersionId,
+      primaryPracticeUrl: data.primaryPracticeUrl.present
+          ? data.primaryPracticeUrl.value
+          : this.primaryPracticeUrl,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
@@ -815,6 +859,7 @@ class ContentItem extends DataClass implements Insertable<ContentItem> {
           ..write('difficulty: $difficulty, ')
           ..write('sortOrder: $sortOrder, ')
           ..write('currentPublishedVersionId: $currentPublishedVersionId, ')
+          ..write('primaryPracticeUrl: $primaryPracticeUrl, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -830,6 +875,7 @@ class ContentItem extends DataClass implements Insertable<ContentItem> {
     difficulty,
     sortOrder,
     currentPublishedVersionId,
+    primaryPracticeUrl,
     updatedAt,
   );
   @override
@@ -844,6 +890,7 @@ class ContentItem extends DataClass implements Insertable<ContentItem> {
           other.difficulty == this.difficulty &&
           other.sortOrder == this.sortOrder &&
           other.currentPublishedVersionId == this.currentPublishedVersionId &&
+          other.primaryPracticeUrl == this.primaryPracticeUrl &&
           other.updatedAt == this.updatedAt);
 }
 
@@ -856,6 +903,7 @@ class ContentItemsCompanion extends UpdateCompanion<ContentItem> {
   final Value<String?> difficulty;
   final Value<int> sortOrder;
   final Value<String?> currentPublishedVersionId;
+  final Value<String?> primaryPracticeUrl;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
   const ContentItemsCompanion({
@@ -867,6 +915,7 @@ class ContentItemsCompanion extends UpdateCompanion<ContentItem> {
     this.difficulty = const Value.absent(),
     this.sortOrder = const Value.absent(),
     this.currentPublishedVersionId = const Value.absent(),
+    this.primaryPracticeUrl = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -879,6 +928,7 @@ class ContentItemsCompanion extends UpdateCompanion<ContentItem> {
     this.difficulty = const Value.absent(),
     required int sortOrder,
     this.currentPublishedVersionId = const Value.absent(),
+    this.primaryPracticeUrl = const Value.absent(),
     required DateTime updatedAt,
     this.rowid = const Value.absent(),
   }) : id = Value(id),
@@ -897,6 +947,7 @@ class ContentItemsCompanion extends UpdateCompanion<ContentItem> {
     Expression<String>? difficulty,
     Expression<int>? sortOrder,
     Expression<String>? currentPublishedVersionId,
+    Expression<String>? primaryPracticeUrl,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
   }) {
@@ -910,6 +961,8 @@ class ContentItemsCompanion extends UpdateCompanion<ContentItem> {
       if (sortOrder != null) 'sort_order': sortOrder,
       if (currentPublishedVersionId != null)
         'current_published_version_id': currentPublishedVersionId,
+      if (primaryPracticeUrl != null)
+        'primary_practice_url': primaryPracticeUrl,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
     });
@@ -924,6 +977,7 @@ class ContentItemsCompanion extends UpdateCompanion<ContentItem> {
     Value<String?>? difficulty,
     Value<int>? sortOrder,
     Value<String?>? currentPublishedVersionId,
+    Value<String?>? primaryPracticeUrl,
     Value<DateTime>? updatedAt,
     Value<int>? rowid,
   }) {
@@ -937,6 +991,7 @@ class ContentItemsCompanion extends UpdateCompanion<ContentItem> {
       sortOrder: sortOrder ?? this.sortOrder,
       currentPublishedVersionId:
           currentPublishedVersionId ?? this.currentPublishedVersionId,
+      primaryPracticeUrl: primaryPracticeUrl ?? this.primaryPracticeUrl,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
     );
@@ -971,6 +1026,9 @@ class ContentItemsCompanion extends UpdateCompanion<ContentItem> {
         currentPublishedVersionId.value,
       );
     }
+    if (primaryPracticeUrl.present) {
+      map['primary_practice_url'] = Variable<String>(primaryPracticeUrl.value);
+    }
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
@@ -991,6 +1049,7 @@ class ContentItemsCompanion extends UpdateCompanion<ContentItem> {
           ..write('difficulty: $difficulty, ')
           ..write('sortOrder: $sortOrder, ')
           ..write('currentPublishedVersionId: $currentPublishedVersionId, ')
+          ..write('primaryPracticeUrl: $primaryPracticeUrl, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -4232,6 +4291,7 @@ typedef $$ContentItemsTableCreateCompanionBuilder =
       Value<String?> difficulty,
       required int sortOrder,
       Value<String?> currentPublishedVersionId,
+      Value<String?> primaryPracticeUrl,
       required DateTime updatedAt,
       Value<int> rowid,
     });
@@ -4245,6 +4305,7 @@ typedef $$ContentItemsTableUpdateCompanionBuilder =
       Value<String?> difficulty,
       Value<int> sortOrder,
       Value<String?> currentPublishedVersionId,
+      Value<String?> primaryPracticeUrl,
       Value<DateTime> updatedAt,
       Value<int> rowid,
     });
@@ -4415,6 +4476,11 @@ class $$ContentItemsTableFilterComposer
 
   ColumnFilters<String> get currentPublishedVersionId => $composableBuilder(
     column: $table.currentPublishedVersionId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get primaryPracticeUrl => $composableBuilder(
+    column: $table.primaryPracticeUrl,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4616,6 +4682,11 @@ class $$ContentItemsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get primaryPracticeUrl => $composableBuilder(
+    column: $table.primaryPracticeUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
@@ -4676,6 +4747,11 @@ class $$ContentItemsTableAnnotationComposer
 
   GeneratedColumn<String> get currentPublishedVersionId => $composableBuilder(
     column: $table.currentPublishedVersionId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get primaryPracticeUrl => $composableBuilder(
+    column: $table.primaryPracticeUrl,
     builder: (column) => column,
   );
 
@@ -4874,6 +4950,7 @@ class $$ContentItemsTableTableManager
                 Value<String?> difficulty = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
                 Value<String?> currentPublishedVersionId = const Value.absent(),
+                Value<String?> primaryPracticeUrl = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ContentItemsCompanion(
@@ -4885,6 +4962,7 @@ class $$ContentItemsTableTableManager
                 difficulty: difficulty,
                 sortOrder: sortOrder,
                 currentPublishedVersionId: currentPublishedVersionId,
+                primaryPracticeUrl: primaryPracticeUrl,
                 updatedAt: updatedAt,
                 rowid: rowid,
               ),
@@ -4898,6 +4976,7 @@ class $$ContentItemsTableTableManager
                 Value<String?> difficulty = const Value.absent(),
                 required int sortOrder,
                 Value<String?> currentPublishedVersionId = const Value.absent(),
+                Value<String?> primaryPracticeUrl = const Value.absent(),
                 required DateTime updatedAt,
                 Value<int> rowid = const Value.absent(),
               }) => ContentItemsCompanion.insert(
@@ -4909,6 +4988,7 @@ class $$ContentItemsTableTableManager
                 difficulty: difficulty,
                 sortOrder: sortOrder,
                 currentPublishedVersionId: currentPublishedVersionId,
+                primaryPracticeUrl: primaryPracticeUrl,
                 updatedAt: updatedAt,
                 rowid: rowid,
               ),
@@ -7375,4 +7455,4 @@ final class AppDatabaseProvider
   }
 }
 
-String _$appDatabaseHash() => r'18ce5c8c4d8ddbfe5a7d819d8fb7d5aca76bf416';
+String _$appDatabaseHash() => r'c649a6d94aaf9e345fca6e28ed01c0be7ba80d38';

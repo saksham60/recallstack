@@ -10,6 +10,7 @@ import 'package:app/features/catalog/presentation/problem_list_screen.dart';
 import 'package:app/features/learning/presentation/study_note_screen.dart';
 import 'package:app/features/learning/presentation/revision_screen.dart';
 import 'package:app/features/sync/presentation/conflict_resolution_screen.dart';
+import 'package:app/features/profile/presentation/profile_screen.dart';
 
 part 'router.g.dart';
 
@@ -69,7 +70,7 @@ GoRouter router(Ref ref) {
       ),
       GoRoute(
         path: '/profile',
-        builder: (context, state) => const PlaceholderScreen(title: 'Profile'),
+        builder: (context, state) => const ProfileScreen(),
       ),
       GoRoute(
         path: '/conflicts',

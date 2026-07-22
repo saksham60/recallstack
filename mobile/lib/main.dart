@@ -10,8 +10,11 @@ import 'package:app/core/auth/supabase_auth_repository.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  await dotenv.load(fileName: '.env');
-  
+  try {
+    await dotenv.load(fileName: '.env');
+  } catch (e) {
+    debugPrint('.env file not found, falling back to --dart-define or environment variables.');
+  }
   await SupabaseAuthRepository.initialize();
 
   try {

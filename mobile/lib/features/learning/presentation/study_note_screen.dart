@@ -155,11 +155,16 @@ class _StudyNoteScreenState extends ConsumerState<StudyNoteScreen> {
                 // Practice / Notes placeholders
                 ElevatedButton.icon(
                   onPressed: _isMutating ? null : () async {
-                    final url = Uri.parse('https://leetcode.com/problemset/all/');
-                    if (await canLaunchUrl(url)) {
+                    final practiceUrl = contentWithProg.item.primaryPracticeUrl;
+                    final url = practiceUrl != null ? Uri.parse(practiceUrl) : null;
+                    if (url != null && await canLaunchUrl(url)) {
                       await launchUrl(url);
                       if (context.mounted) {
                         _showPracticeOutcomeDialog(context, ref, contentWithProg.item.id);
+                      }
+                    } else {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No practice link available for this item.')));
                       }
                     }
                   },
@@ -199,21 +204,51 @@ class _StudyNoteScreenState extends ConsumerState<StudyNoteScreen> {
             onPressed: () {
               Navigator.pop(context);
               _runMutation(
-                () => ref.read(mutationRepositoryProvider).savePracticeAttempt(contentId, 'struggled'),
+                () => ref.read(mutationRepositoryProvider).savePracticeAttempt(contentId, 'solved_independently'),
                 'Practice attempt saved.',
               );
             },
-            child: const Text('Struggled'),
+            child: const Text('Solved (Independently)', style: TextStyle(color: Colors.green)),
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
               _runMutation(
-                () => ref.read(mutationRepositoryProvider).savePracticeAttempt(contentId, 'solved'),
+                () => ref.read(mutationRepositoryProvider).savePracticeAttempt(contentId, 'solved_with_hint'),
                 'Practice attempt saved.',
               );
             },
-            child: const Text('Solved'),
+            child: const Text('Solved (With Hint)', style: TextStyle(color: Colors.lightGreen)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _runMutation(
+                () => ref.read(mutationRepositoryProvider).savePracticeAttempt(contentId, 'understood_but_could_not_code'),
+                'Practice attempt saved.',
+              );
+            },
+            child: const Text('Understood, but stuck', style: TextStyle(color: Colors.orange)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _runMutation(
+                () => ref.read(mutationRepositoryProvider).savePracticeAttempt(contentId, 'pattern_not_identified'),
+                'Practice attempt saved.',
+              );
+            },
+            child: const Text('Completely lost', style: TextStyle(color: Colors.red)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _runMutation(
+                () => ref.read(mutationRepositoryProvider).savePracticeAttempt(contentId, 'skipped'),
+                'Practice attempt saved.',
+              );
+            },
+            child: const Text('Skipped', style: TextStyle(color: Colors.grey)),
           ),
         ],
       ),

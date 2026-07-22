@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -17,10 +16,7 @@ class ApiClient {
     String? baseUrl = dartDefineUrl.isNotEmpty ? dartDefineUrl : dotenvUrl;
     
     if (baseUrl == null || baseUrl.isEmpty) {
-      if (kReleaseMode) {
-        throw UnsupportedError('API_BASE_URL must be provided in release mode');
-      }
-      baseUrl = 'http://10.0.2.2:8080/api/v1';
+      throw UnsupportedError('API_BASE_URL must be provided');
     }
     
     _dio.options = BaseOptions(
@@ -40,8 +36,9 @@ class ApiClient {
           return handler.next(options);
         },
         onError: (DioException e, handler) {
-          // Implement centralized error handling, mapping to Domain errors
-          // Do not log tokens in error traces
+          if (e.response?.statusCode == 401) {
+            _authRepository.signOut();
+          }
           return handler.next(e);
         },
       ),

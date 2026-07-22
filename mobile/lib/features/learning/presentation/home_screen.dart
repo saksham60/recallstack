@@ -61,6 +61,7 @@ class HomeScreen extends ConsumerWidget {
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: 0,
+        type: BottomNavigationBarType.fixed,
         onTap: (index) {
           switch (index) {
             case 0: context.go('/home'); break;

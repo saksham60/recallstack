@@ -46,8 +46,7 @@ class MutationRepository {
       }
 
       // 2. Enqueue mutation
-      await enqueueMutation('toggle_bookmark', 'bookmark', contentId, {
-        'content_id': contentId,
+      await enqueueMutation(isBookmarked ? 'insert_bookmark' : 'delete_bookmark', 'bookmark', contentId, {
         'is_bookmarked': isBookmarked,
       });
     });
@@ -71,8 +70,9 @@ class MutationRepository {
       );
 
       await enqueueMutation('save_note', 'note', noteId, {
-        'content_id': contentId,
-        'note': noteText,
+        'content_item_id': contentId,
+        'kind': 'note',
+        'body': noteText,
       });
     });
   }
@@ -80,13 +80,11 @@ class MutationRepository {
   /// Saves a practice attempt
   Future<void> savePracticeAttempt(String contentId, String outcome) async {
     await _db.transaction(() async {
-      final eventId = _uuid.v4();
-
-      await enqueueMutation('practice_attempt', 'progress', contentId, {
-        'attempt_event_id': eventId,
-        'content_id': contentId,
+      await enqueueMutation('practice_attempt', 'practice_attempt', contentId, {
+        'content_item_id': contentId,
         'outcome': outcome,
-        'timestamp': DateTime.now().toUtc().toIso8601String(),
+        'attempted_at': DateTime.now().toUtc().toIso8601String(),
+        'hint_used': false,
       });
     });
   }
@@ -104,10 +102,9 @@ class MutationRepository {
 
       await enqueueMutation('review_card', 'review', cardId, {
         'review_event_id': reviewEventId,
-        'card_id': cardId,
         'rating': rating,
         'expected_row_version': card.rowVersion,
-        'timestamp': DateTime.now().toUtc().toIso8601String(),
+        'reviewed_at': DateTime.now().toUtc().toIso8601String(),
       });
     });
   }

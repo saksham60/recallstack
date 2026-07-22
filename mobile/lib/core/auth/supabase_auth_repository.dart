@@ -10,11 +10,14 @@ class SupabaseAuthRepository {
   SupabaseAuthRepository(this._client);
 
   static Future<void> initialize() async {
-    final supabaseUrl = dotenv.env['SUPABASE_URL'];
-    final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
+    const dartDefineUrl = String.fromEnvironment('SUPABASE_URL');
+    const dartDefineKey = String.fromEnvironment('SUPABASE_ANON_KEY');
+
+    final supabaseUrl = dartDefineUrl.isNotEmpty ? dartDefineUrl : dotenv.env['SUPABASE_URL'];
+    final supabaseAnonKey = dartDefineKey.isNotEmpty ? dartDefineKey : dotenv.env['SUPABASE_ANON_KEY'];
 
     if (supabaseUrl == null || supabaseAnonKey == null) {
-      throw Exception('Missing Supabase configuration in .env');
+      throw Exception('Missing Supabase configuration (check .env or --dart-define)');
     }
 
     await Supabase.initialize(
@@ -28,9 +31,6 @@ class SupabaseAuthRepository {
   User? get currentUser => _client.auth.currentUser;
 
   Future<void> signInWithGoogle() async {
-    // Note: To implement actual Google OAuth, you need to configure the Web Client ID
-    // and use google_sign_in package or the native supabase method.
-    // This is a placeholder for the Google Auth flow.
     await _client.auth.signInWithOAuth(
       OAuthProvider.google,
       redirectTo: 'com.recallstack.app://login-callback',

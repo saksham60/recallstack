@@ -21,6 +21,7 @@ class ContentItems extends Table {
   TextColumn get difficulty => text().nullable()();
   IntColumn get sortOrder => integer()();
   TextColumn get currentPublishedVersionId => text().nullable()();
+  TextColumn get primaryPracticeUrl => text().nullable()();
   DateTimeColumn get updatedAt => dateTime()();
 
   @override
