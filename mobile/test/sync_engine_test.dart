@@ -8,14 +8,25 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app/core/auth/supabase_auth_repository.dart';
 import 'package:app/core/sync/sync_status_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
+import 'package:package_info_plus/package_info_plus.dart';
 
 class MockApiClient extends Mock implements ApiClient {}
 class MockDio extends Mock implements Dio {}
 class MockSyncStatusNotifier extends SyncStatusNotifier {
   bool isSyncing = false;
+  SyncStatus? lastResult;
+  
   @override
   void setSyncing(bool value) {
     isSyncing = value;
+    super.setSyncing(value);
+  }
+
+  @override
+  void setResult(SyncStatus resultStatus) {
+    lastResult = resultStatus;
+    isSyncing = false;
+    super.setResult(resultStatus);
   }
 }
 
@@ -27,6 +38,13 @@ void main() {
   late MockSyncStatusNotifier mockSyncStatusNotifier;
 
   setUp(() {
+    PackageInfo.setMockInitialValues(
+      appName: 'RecallStack Mobile',
+      packageName: 'com.example.app',
+      version: '1.0.0',
+      buildNumber: '1',
+      buildSignature: 'buildSignature',
+    );
     db = AppDatabase(null); // use a temporary anon db for tests
     mockApiClient = MockApiClient();
     mockDio = MockDio();
@@ -44,6 +62,7 @@ void main() {
       overrides: [
         currentUserProvider.overrideWithValue(null),
         syncStatusProvider.overrideWith(() => mockSyncStatusNotifier),
+        appDatabaseProvider.overrideWithValue(db),
       ],
     );
 
@@ -56,7 +75,7 @@ void main() {
   });
 
   test('runSync completes successfully if authenticated', () async {
-    const user = supabase.User(
+    final user = supabase.User(
       id: 'test_user',
       appMetadata: {},
       userMetadata: {},
@@ -68,6 +87,7 @@ void main() {
       overrides: [
         currentUserProvider.overrideWithValue(user),
         syncStatusProvider.overrideWith(() => mockSyncStatusNotifier),
+        appDatabaseProvider.overrideWithValue(db),
       ],
     );
 
@@ -110,7 +130,7 @@ void main() {
   });
 
   test('runSync returns authRequired on 401 DioException', () async {
-    final user = const supabase.User(
+    final user = supabase.User(
       id: 'test_user',
       appMetadata: {},
       userMetadata: {},
@@ -122,6 +142,7 @@ void main() {
       overrides: [
         currentUserProvider.overrideWithValue(user),
         syncStatusProvider.overrideWith(() => mockSyncStatusNotifier),
+        appDatabaseProvider.overrideWithValue(db),
       ],
     );
 
@@ -140,7 +161,7 @@ void main() {
   });
 
   test('runSync returns offline on other DioException', () async {
-    final user = const supabase.User(
+    final user = supabase.User(
       id: 'test_user',
       appMetadata: {},
       userMetadata: {},
@@ -152,6 +173,7 @@ void main() {
       overrides: [
         currentUserProvider.overrideWithValue(user),
         syncStatusProvider.overrideWith(() => mockSyncStatusNotifier),
+        appDatabaseProvider.overrideWithValue(db),
       ],
     );
 

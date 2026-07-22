@@ -54,6 +54,7 @@ dependencies:
   connectivity_plus: ^7.3.0
   firebase_core: ^4.12.1
   firebase_crashlytics: ^5.2.6
+  package_info_plus: ^8.1.0
 
 dev_dependencies:
   flutter_test:

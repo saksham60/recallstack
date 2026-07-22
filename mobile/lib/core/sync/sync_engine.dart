@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:dio/dio.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:drift/drift.dart' hide Column;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app/core/api/api_client.dart';
@@ -36,22 +38,30 @@ class SyncEngine {
     } catch (e, stack) {
       final type = ApiErrorHandler.classify(e);
       if (type == SyncErrorType.authRequired) {
-        _endSync();
+        _endSync(SyncResult.authRequired);
         return SyncResult.authRequired;
       }
       if (type == SyncErrorType.offline) {
-        _ref.read(syncStatusProvider.notifier).setOffline();
-        _endSync();
+        _endSync(SyncResult.offline);
         return SyncResult.offline;
       }
       AppLogger.recordError(e, stack, reason: 'Registration/Recovery failed');
-      _endSync();
+      _endSync(SyncResult.serverFailure);
       return SyncResult.serverFailure;
     }
 
     try {
       await _pushMutations();
     } catch (e, stack) {
+      final type = ApiErrorHandler.classify(e);
+      if (type == SyncErrorType.authRequired) {
+        _endSync(SyncResult.authRequired);
+        return SyncResult.authRequired;
+      }
+      if (type == SyncErrorType.offline) {
+        _endSync(SyncResult.offline);
+        return SyncResult.offline;
+      }
       AppLogger.recordError(e, stack, reason: 'Push mutations failed');
       hasPartialFailure = true;
     }
@@ -59,6 +69,15 @@ class SyncEngine {
     try {
       await _pullCatalogChanges('dsa'); // Assuming 'dsa' is the initial domain
     } catch (e, stack) {
+      final type = ApiErrorHandler.classify(e);
+      if (type == SyncErrorType.authRequired) {
+        _endSync(SyncResult.authRequired);
+        return SyncResult.authRequired;
+      }
+      if (type == SyncErrorType.offline) {
+        _endSync(SyncResult.offline);
+        return SyncResult.offline;
+      }
       AppLogger.recordError(e, stack, reason: 'Pull catalog changes failed');
       hasPartialFailure = true;
     }
@@ -66,17 +85,48 @@ class SyncEngine {
     try {
       await _pullUserChanges();
     } catch (e, stack) {
+      final type = ApiErrorHandler.classify(e);
+      if (type == SyncErrorType.authRequired) {
+        _endSync(SyncResult.authRequired);
+        return SyncResult.authRequired;
+      }
+      if (type == SyncErrorType.offline) {
+        _endSync(SyncResult.offline);
+        return SyncResult.offline;
+      }
       AppLogger.recordError(e, stack, reason: 'Pull user changes failed');
       hasPartialFailure = true;
     }
 
-    _endSync();
-    return hasPartialFailure ? SyncResult.partialFailure : SyncResult.success;
+    final finalResult = hasPartialFailure ? SyncResult.partialFailure : SyncResult.success;
+    _endSync(finalResult);
+    return finalResult;
   }
 
-  void _endSync() {
+  void _endSync(SyncResult result) {
     _isSyncing = false;
-    _ref.read(syncStatusProvider.notifier).setSyncing(false);
+    
+    // Map SyncResult to SyncStatus
+    SyncStatus status = SyncStatus.upToDate;
+    switch (result) {
+      case SyncResult.success:
+        status = SyncStatus.upToDate;
+        break;
+      case SyncResult.partialFailure:
+        status = SyncStatus.partialFailure;
+        break;
+      case SyncResult.serverFailure:
+        status = SyncStatus.serverFailure;
+        break;
+      case SyncResult.offline:
+        status = SyncStatus.offline;
+        break;
+      case SyncResult.authRequired:
+        status = SyncStatus.authenticationRequired;
+        break;
+    }
+    
+    _ref.read(syncStatusProvider.notifier).setResult(status);
   }
 
   Future<void> _recoverProcessingMutations() async {
@@ -89,10 +139,12 @@ class SyncEngine {
     if (state != null) return;
 
     final platformStr = Platform.isAndroid ? 'android' : Platform.isIOS ? 'ios' : 'web';
+    final packageInfo = await PackageInfo.fromPlatform();
+    
     final response = await _apiClient.client.post('/devices/register', data: {
       'device_name': 'RecallStack Mobile',
       'platform': platformStr,
-      'app_version': '1.0.0', // In production, read from package_info_plus
+      'app_version': packageInfo.version,
     });
     final responseData = response.data as Map<String, dynamic>;
     final deviceId = responseData['id'] as String;
@@ -119,32 +171,56 @@ class SyncEngine {
 
     final deviceState = await (_db.select(_db.deviceState)..where((t) => t.id.equals('current'))).getSingle();
     
-    final payload = pendingMutations.map((m) => {
-      'mutation_id': m.mutationId,
-      'entity_type': m.entityType,
-      'entity_id': m.entityId,
-      'operation': m.mutationType == 'delete_bookmark' ? 'delete' : (m.mutationType == 'insert_bookmark' ? 'insert' : (m.mutationType.contains('update') ? 'update' : 'insert')),
-      'payload': jsonDecode(m.payloadJson),
-    }).toList();
+    final validMutations = <LocalOutboxData>[];
+    final invalidMutationIds = <String>[];
+    final payload = <Map<String, dynamic>>[];
 
-    // Fix operation mapping because mutationType historically held arbitrary strings.
-    // We remap them cleanly based on entityType to adhere to backend.
-    for (var p in payload) {
-       final eType = p['entity_type'] as String;
-       if (eType == 'practice_attempt' || eType == 'review') {
-         p['operation'] = 'insert';
-       } else if (eType == 'bookmark') {
-         // Payload should dictate if it's insert or delete based on is_bookmarked
-         final innerPayload = p['payload'] as Map<String, dynamic>;
-         p['operation'] = innerPayload['is_bookmarked'] == true ? 'insert' : 'delete';
-         // Bookmark must not send payload
-         p['payload'] = {};
-       } else if (eType == 'progress') {
-         p['operation'] = 'update';
-       } else if (eType == 'note') {
-         p['operation'] = 'insert'; // Simplified for now
-       }
+    for (final m in pendingMutations) {
+      String operation;
+      Map<String, dynamic> mappedPayload = jsonDecode(m.payloadJson);
+
+      if (m.entityType == 'bookmark') {
+        final isBookmarked = mappedPayload['is_bookmarked'] == true;
+        operation = isBookmarked ? 'insert' : 'delete';
+        mappedPayload = {}; // Do not send payload for bookmarks
+      } else if (m.entityType == 'practice_attempt') {
+        operation = 'insert';
+      } else if (m.entityType == 'review') {
+        operation = 'insert';
+      } else if (m.entityType == 'note') {
+        operation = m.mutationType == 'save_note' ? 'insert' : (m.mutationType == 'update_note' ? 'update' : 'insert');
+      } else if (m.entityType == 'progress') {
+        operation = 'update';
+      } else {
+        invalidMutationIds.add(m.mutationId);
+        continue;
+      }
+
+      validMutations.add(m);
+      payload.add({
+        'mutation_id': m.mutationId,
+        'entity_type': m.entityType,
+        'entity_id': m.entityId,
+        'operation': operation,
+        'payload': mappedPayload,
+      });
     }
+
+    if (invalidMutationIds.isNotEmpty) {
+      await _db.transaction(() async {
+        for (final mId in invalidMutationIds) {
+          await (_db.update(_db.localOutbox)..where((t) => t.mutationId.equals(mId)))
+            .write(const LocalOutboxCompanion(
+              status: Value('rejected'),
+              lastError: Value('unknown_mutation_type'),
+            ));
+        }
+      });
+    }
+
+    if (payload.isEmpty) return;
+
+    final submittedMutationIds = validMutations.map((m) => m.mutationId).toSet();
 
     try {
       final response = await _apiClient.client.post('/sync/mutations/batch', data: {
@@ -155,9 +231,16 @@ class SyncEngine {
       final responseData = response.data as Map<String, dynamic>;
       final results = (responseData['results'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? <Map<String, dynamic>>[];
       
+      final validReturnedMutationIds = <String>{};
+
       await _db.transaction(() async {
         for (final result in results) {
           final mId = result['mutation_id'] as String;
+          if (!submittedMutationIds.contains(mId)) {
+            continue; // Ignore unknown IDs to prevent arbitrary outbox modification
+          }
+          validReturnedMutationIds.add(mId);
+
           final status = result['status'] as String; 
           final errorMessage = result['error_code'] as String?; // Backend sends error_code
 
@@ -166,10 +249,26 @@ class SyncEngine {
           } else {
             await (_db.update(_db.localOutbox)..where((t) => t.mutationId.equals(mId)))
               .write(LocalOutboxCompanion(
-                status: Value(status),
+                status: Value(status), // rejected or conflict
                 lastError: Value(errorMessage),
               ));
           }
+        }
+
+        // Handle missing mutations (submitted but not in response)
+        final missingMutationIds = submittedMutationIds.difference(validReturnedMutationIds);
+        for (final mId in missingMutationIds) {
+          final m = pendingMutations.firstWhere((p) => p.mutationId == mId);
+          final nextRetry = m.retryCount + 1;
+          final delaySeconds = (1 << (nextRetry > 12 ? 12 : nextRetry));
+          
+          await (_db.update(_db.localOutbox)..where((t) => t.mutationId.equals(mId)))
+            .write(LocalOutboxCompanion(
+              status: const Value('retryable'),
+              retryCount: Value(nextRetry),
+              nextRetryAt: Value(DateTime.now().add(Duration(seconds: delaySeconds))),
+              lastError: const Value('missing_batch_result'),
+            ));
         }
       });
     } catch (e) {
@@ -252,36 +351,15 @@ class SyncEngine {
       hasMoreChanges = data['has_more'] == true;
     }
 
-    // Process Deletions
-    await _db.transaction(() async {
-      for (final entry in deletionsByType.entries) {
-        final type = entry.key;
-        final ids = entry.value;
-        if (type == 'content_document') {
-          for (final id in ids) {
-             await (_db.delete(_db.contentDocuments)..where((t) => t.contentId.equals(id))).go();
-          }
-        } else if (type == 'content_item') {
-          for (final id in ids) {
-             await (_db.delete(_db.contentItems)..where((t) => t.id.equals(id))).go();
-          }
-        } else if (type == 'category') {
-          for (final id in ids) {
-             await (_db.delete(_db.categories)..where((t) => t.id.equals(id))).go();
-          }
-        }
-      }
-    });
+    // Fetch Upserts (Network Calls Outside DB Transaction)
+    List<Map<String, dynamic>> fetchedCategories = [];
+    List<Map<String, dynamic>> fetchedContentItems = [];
+    List<Map<String, dynamic>> fetchedDocuments = [];
 
-    // Process Upserts (Network Calls Outside DB Transaction)
     if (hasUpserts || deletionsByType.isEmpty && cursorRecord == null) {
       final catRes = await _apiClient.client.get('/domains/$domainId/categories');
       final categories = catRes.data as List<dynamic>;
       
-      List<Map<String, dynamic>> fetchedCategories = [];
-      List<Map<String, dynamic>> fetchedContentItems = [];
-      List<Map<String, dynamic>> fetchedDocuments = [];
-
       for (final catObj in categories) {
         final cat = catObj as Map<String, dynamic>;
         fetchedCategories.add(cat);
@@ -300,65 +378,89 @@ class SyncEngine {
             final docData = docRes.data as Map<String, dynamic>;
             fetchedDocuments.add({'id': docData['id'], 'content_item_id': docData['content_item_id'], 'blocks': docData['blocks'], 'published_at': docData['published_at']});
           } catch (e) {
-            // Ignore missing documents
+            final type = ApiErrorHandler.classify(e);
+            if (type == SyncErrorType.authRequired || type == SyncErrorType.offline || type == SyncErrorType.serverFailure) {
+              rethrow; // Abort sync, do not advance cursor
+            }
+            // If it's a 404 (permanentFailure conceptually here if we strictly check), we ignore it.
+            // A more strict check for 404 would be:
+            if (e is DioException && e.response?.statusCode == 404) {
+               continue; // verified 404
+            }
+            rethrow; // Do not swallow other malformed responses or 500s
+          }
+        }
+      }
+    }
+
+    // Process Deletions, Upserts, and Cursor update ATOMICALLY
+    await _db.transaction(() async {
+      // 1. Process Deletions
+      for (final entry in deletionsByType.entries) {
+        final type = entry.key;
+        final ids = entry.value;
+        if (type == 'content_document') {
+          for (final id in ids) {
+             await (_db.delete(_db.contentDocuments)..where((t) => t.contentId.equals(id))).go();
+          }
+        } else if (type == 'content_item') {
+          for (final id in ids) {
+             await (_db.delete(_db.contentItems)..where((t) => t.id.equals(id))).go();
+          }
+        } else if (type == 'category') {
+          for (final id in ids) {
+             await (_db.delete(_db.categories)..where((t) => t.id.equals(id))).go();
           }
         }
       }
 
-      await _db.transaction(() async {
-        for (final cat in fetchedCategories) {
-          await _db.into(_db.categories).insertOnConflictUpdate(CategoriesCompanion.insert(
-            id: cat['id'],
-            domainId: domainId,
-            title: cat['name'],
-            description: Value(cat['description']),
-            sortOrder: cat['sort_order'],
-            updatedAt: DateTime.now(),
-          ));
-        }
+      // 2. Process Upserts
+      for (final cat in fetchedCategories) {
+        await _db.into(_db.categories).insertOnConflictUpdate(CategoriesCompanion.insert(
+          id: cat['id'],
+          domainId: domainId,
+          title: cat['name'],
+          description: Value(cat['description']),
+          sortOrder: cat['sort_order'],
+          updatedAt: DateTime.now(),
+        ));
+      }
 
-        for (final map in fetchedContentItems) {
-          final item = map['item'] as Map<String, dynamic>;
-          final practiceResource = item['primary_practice_resource'] as Map<String, dynamic>?;
-          
-          await _db.into(_db.contentItems).insertOnConflictUpdate(ContentItemsCompanion.insert(
-            id: item['content_item_id'] ?? item['id'],
-            categoryId: map['categoryId'],
-            title: item['title'],
-            slug: item['slug'],
-            type: item['type'] ?? 'concept',
-            difficulty: Value(item['difficulty']),
-            sortOrder: item['sort_order'] ?? 0,
-            primaryPracticeUrl: Value(practiceResource != null ? practiceResource['practice_url'] : null),
-            updatedAt: DateTime.now(),
-          ));
-        }
+      for (final map in fetchedContentItems) {
+        final item = map['item'] as Map<String, dynamic>;
+        final practiceResource = item['primary_practice_resource'] as Map<String, dynamic>?;
+        
+        await _db.into(_db.contentItems).insertOnConflictUpdate(ContentItemsCompanion.insert(
+          id: item['content_item_id'] ?? item['id'],
+          categoryId: map['categoryId'],
+          title: item['title'],
+          slug: item['slug'],
+          type: item['type'] ?? 'concept',
+          difficulty: Value(item['difficulty']),
+          sortOrder: item['sort_order'] ?? 0,
+          primaryPracticeUrl: Value(practiceResource != null ? practiceResource['practice_url'] : null),
+          updatedAt: DateTime.now(),
+        ));
+      }
 
-        for (final doc in fetchedDocuments) {
-          await _db.into(_db.contentDocuments).insertOnConflictUpdate(ContentDocumentsCompanion.insert(
-            id: doc['id'],
-            contentId: doc['content_item_id'],
-            blocksJson: jsonEncode(doc['blocks']),
-            publishedAt: DateTime.parse(doc['published_at']).toLocal(),
-          ));
-        }
+      for (final doc in fetchedDocuments) {
+        await _db.into(_db.contentDocuments).insertOnConflictUpdate(ContentDocumentsCompanion.insert(
+          id: doc['id'],
+          contentId: doc['content_item_id'],
+          blocksJson: jsonEncode(doc['blocks']),
+          publishedAt: DateTime.parse(doc['published_at']).toLocal(),
+        ));
+      }
 
-        if (cursor.isNotEmpty) {
-          await _db.into(_db.syncCursors).insertOnConflictUpdate(SyncCursorsCompanion.insert(
-            id: cursorId,
-            cursorValue: cursor,
-            updatedAt: DateTime.now(),
-          ));
-        }
-      });
-    } else if (cursor.isNotEmpty) {
-      // If no upserts and no deletions, just save cursor
-      await _db.into(_db.syncCursors).insertOnConflictUpdate(SyncCursorsCompanion.insert(
-        id: cursorId,
-        cursorValue: cursor,
-        updatedAt: DateTime.now(),
-      ));
-    }
+      // 3. Save Cursor
+      if (cursor.isNotEmpty) {
+        await _db.into(_db.syncCursors).insertOnConflictUpdate(SyncCursorsCompanion.insert(
+          id: cursorId,
+          cursorValue: cursor,
+          updatedAt: DateTime.now(),
+        ));
+      }
+    });
   }
 
   Future<void> _pullUserChanges() async {
@@ -399,7 +501,66 @@ class SyncEngine {
       hasMoreChanges = data['has_more'] == true;
     }
 
+    // Fetch Upserts (Network Calls Outside DB Transaction)
+    List<Map<String, dynamic>> allProgress = [];
+    List<Map<String, dynamic>> allBookmarks = [];
+    List<Map<String, dynamic>> allNotes = [];
+    List<Map<String, dynamic>> allDueReviews = [];
+
+    if (hasUpserts || deletionsByType.isEmpty && cursorRecord == null) {
+      // 1. Fetch Progress
+      int page = 1;
+      bool morePages = true;
+      while (morePages) {
+        final res = await _apiClient.client.get('/me/progress', queryParameters: {'page': page, 'page_size': 100});
+        final data = res.data as Map<String, dynamic>;
+        final items = data['items'] as List<dynamic>? ?? [];
+        allProgress.addAll(items.cast<Map<String, dynamic>>());
+        final pagination = data['pagination'] as Map<String, dynamic>;
+        morePages = page < (pagination['total_pages'] as int);
+        page++;
+      }
+
+      // 2. Fetch Bookmarks
+      page = 1;
+      morePages = true;
+      while (morePages) {
+        final res = await _apiClient.client.get('/me/bookmarks', queryParameters: {'page': page, 'page_size': 100});
+        final data = res.data as Map<String, dynamic>;
+        final items = data['items'] as List<dynamic>? ?? [];
+        allBookmarks.addAll(items.cast<Map<String, dynamic>>());
+        final pagination = data['pagination'] as Map<String, dynamic>;
+        morePages = page < (pagination['total_pages'] as int);
+        page++;
+      }
+
+      // 3. Fetch Notes
+      page = 1;
+      morePages = true;
+      while (morePages) {
+        final res = await _apiClient.client.get('/me/notes', queryParameters: {'page': page, 'page_size': 100});
+        final data = res.data as Map<String, dynamic>;
+        final items = data['items'] as List<dynamic>? ?? [];
+        allNotes.addAll(items.cast<Map<String, dynamic>>());
+        final pagination = data['pagination'] as Map<String, dynamic>;
+        morePages = page < (pagination['total_pages'] as int);
+        page++;
+      }
+      
+      // 4. Fetch Due Reviews (Only Due)
+      try {
+        final res = await _apiClient.client.get('/me/reviews/due');
+        final data = res.data as Map<String, dynamic>;
+        final items = data['items'] as List<dynamic>? ?? [];
+        allDueReviews.addAll(items.cast<Map<String, dynamic>>());
+      } catch(e) {
+        // Ignore if endpoint is empty
+      }
+    }
+
+    // Process Deletions, Upserts, and Cursor ATOMICALLY
     await _db.transaction(() async {
+      // 1. Process Deletions
       for (final entry in deletionsByType.entries) {
         final type = entry.key;
         final ids = entry.value;
@@ -421,129 +582,140 @@ class SyncEngine {
           }
         }
       }
-    });
 
-    if (hasUpserts || deletionsByType.isEmpty && cursorRecord == null) {
-      // 1. Fetch Progress
-      List<Map<String, dynamic>> allProgress = [];
-      int page = 1;
-      bool morePages = true;
-      while (morePages) {
-        final res = await _apiClient.client.get('/me/progress', queryParameters: {'page': page, 'page_size': 100});
-        final data = res.data as Map<String, dynamic>;
-        final items = data['items'] as List<dynamic>? ?? [];
-        allProgress.addAll(items.cast<Map<String, dynamic>>());
-        final pagination = data['pagination'] as Map<String, dynamic>;
-        morePages = page < (pagination['total_pages'] as int);
-        page++;
+      // 2. Process Upserts
+      for (final p in allProgress) {
+        await _db.into(_db.userProgress).insertOnConflictUpdate(UserProgressCompanion.insert(
+          contentId: p['content_item_id'],
+          status: p['status'],
+          rowVersion: p['row_version'] ?? 0,
+          updatedAt: DateTime.now(),
+        ));
       }
 
-      // 2. Fetch Bookmarks
-      List<Map<String, dynamic>> allBookmarks = [];
-      page = 1;
-      morePages = true;
-      while (morePages) {
-        final res = await _apiClient.client.get('/me/bookmarks', queryParameters: {'page': page, 'page_size': 100});
-        final data = res.data as Map<String, dynamic>;
-        final items = data['items'] as List<dynamic>? ?? [];
-        allBookmarks.addAll(items.cast<Map<String, dynamic>>());
-        final pagination = data['pagination'] as Map<String, dynamic>;
-        morePages = page < (pagination['total_pages'] as int);
-        page++;
+      for (final b in allBookmarks) {
+        await _db.into(_db.bookmarks).insertOnConflictUpdate(BookmarksCompanion.insert(
+          contentId: b['content_item_id'],
+          createdAt: DateTime.now(),
+        ));
       }
 
-      // 3. Fetch Notes
-      List<Map<String, dynamic>> allNotes = [];
-      page = 1;
-      morePages = true;
-      while (morePages) {
-        final res = await _apiClient.client.get('/me/notes', queryParameters: {'page': page, 'page_size': 100});
-        final data = res.data as Map<String, dynamic>;
-        final items = data['items'] as List<dynamic>? ?? [];
-        allNotes.addAll(items.cast<Map<String, dynamic>>());
-        final pagination = data['pagination'] as Map<String, dynamic>;
-        morePages = page < (pagination['total_pages'] as int);
-        page++;
+      for (final n in allNotes) {
+        await _db.into(_db.userNotes).insertOnConflictUpdate(UserNotesCompanion.insert(
+          id: n['id'],
+          contentId: n['content_item_id'],
+          type: n['kind'] ?? 'note',
+          body: n['body'] ?? '',
+          rowVersion: n['row_version'] ?? 0,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ));
       }
       
-      // 4. Fetch Due Reviews (Only Due)
-      List<Map<String, dynamic>> allDueReviews = [];
-      try {
-        final res = await _apiClient.client.get('/me/reviews/due');
-        final data = res.data as Map<String, dynamic>;
-        final items = data['items'] as List<dynamic>? ?? [];
-        allDueReviews.addAll(items.cast<Map<String, dynamic>>());
-      } catch(e) {
-        // Ignore if endpoint is empty
+      for (final r in allDueReviews) {
+        await _db.into(_db.reviewCards).insertOnConflictUpdate(ReviewCardsCompanion.insert(
+          id: r['id'],
+          contentId: r['content_item_id'],
+          state: 'due',
+          nextReviewAt: Value(DateTime.parse(r['next_review_at']).toLocal()),
+          rowVersion: r['row_version'] ?? 1,
+        ));
       }
 
-      await _db.transaction(() async {
-        for (final p in allProgress) {
-          await _db.into(_db.userProgress).insertOnConflictUpdate(UserProgressCompanion.insert(
-            contentId: p['content_item_id'],
-            status: p['status'],
-            rowVersion: p['row_version'] ?? 0,
-            updatedAt: DateTime.now(),
-          ));
-        }
-
-        for (final b in allBookmarks) {
-          await _db.into(_db.bookmarks).insertOnConflictUpdate(BookmarksCompanion.insert(
-            contentId: b['content_item_id'],
-            createdAt: DateTime.now(),
-          ));
-        }
-
-        for (final n in allNotes) {
-          await _db.into(_db.userNotes).insertOnConflictUpdate(UserNotesCompanion.insert(
-            id: n['id'],
-            contentId: n['content_item_id'],
-            type: n['kind'] ?? 'note',
-            body: n['body'] ?? '',
-            rowVersion: n['row_version'] ?? 0,
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
-          ));
-        }
-        
-        for (final r in allDueReviews) {
-          await _db.into(_db.reviewCards).insertOnConflictUpdate(ReviewCardsCompanion.insert(
-            id: r['id'],
-            contentId: r['content_item_id'],
-            state: 'due',
-            nextReviewAt: Value(DateTime.parse(r['next_review_at']).toLocal()),
-            rowVersion: r['row_version'] ?? 1,
-          ));
-        }
-
-        if (cursor.isNotEmpty) {
-          await _db.into(_db.syncCursors).insertOnConflictUpdate(SyncCursorsCompanion.insert(
-            id: cursorId,
-            cursorValue: cursor,
-            updatedAt: DateTime.now(),
-          ));
-        }
-      });
-    } else if (cursor.isNotEmpty) {
-      // If no upserts and no deletions, just save cursor
-      await _db.into(_db.syncCursors).insertOnConflictUpdate(SyncCursorsCompanion.insert(
-        id: cursorId,
-        cursorValue: cursor,
-        updatedAt: DateTime.now(),
-      ));
-    }
+      // 3. Save Cursor
+      if (cursor.isNotEmpty) {
+        await _db.into(_db.syncCursors).insertOnConflictUpdate(SyncCursorsCompanion.insert(
+          id: cursorId,
+          cursorValue: cursor,
+          updatedAt: DateTime.now(),
+        ));
+      }
+    });
   }
 
   Future<void> _handleFullResync(String domainId) async {
+    // 1. Fetch entire catalog into memory FIRST
+    final catRes = await _apiClient.client.get('/domains/$domainId/categories');
+    final categories = catRes.data as List<dynamic>;
+    
+    List<Map<String, dynamic>> fetchedCategories = [];
+    List<Map<String, dynamic>> fetchedContentItems = [];
+    List<Map<String, dynamic>> fetchedDocuments = [];
+
+    for (final catObj in categories) {
+      final cat = catObj as Map<String, dynamic>;
+      fetchedCategories.add(cat);
+
+      final contentRes = await _apiClient.client.get('/categories/${cat['id']}/content');
+      final contentData = contentRes.data as Map<String, dynamic>;
+      final items = contentData['items'] as List<dynamic>? ?? [];
+      
+      for (final itemObj in items) {
+        final item = itemObj as Map<String, dynamic>;
+        fetchedContentItems.add({'item': item, 'categoryId': cat['id']});
+        
+        final itemId = item['content_item_id'] ?? item['id'];
+        try {
+          final docRes = await _apiClient.client.get('/content/$itemId');
+          final docData = docRes.data as Map<String, dynamic>;
+          fetchedDocuments.add({'id': docData['id'], 'content_item_id': docData['content_item_id'], 'blocks': docData['blocks'], 'published_at': docData['published_at']});
+        } catch (e) {
+          final type = ApiErrorHandler.classify(e);
+          if (type == SyncErrorType.authRequired || type == SyncErrorType.offline || type == SyncErrorType.serverFailure) {
+            rethrow; // Abort sync
+          }
+          if (e is DioException && e.response?.statusCode == 404) {
+             continue; // verified 404
+          }
+          rethrow;
+        }
+      }
+    }
+
+    // 2. Safely perform replacement inside one atomic transaction
     await _db.transaction(() async {
       await _db.delete(_db.contentDocuments).go();
       await _db.delete(_db.contentItems).go();
       await _db.delete(_db.categories).go();
-
       await (_db.delete(_db.syncCursors)..where((t) => t.id.equals('catalog_$domainId'))).go();
-    });
 
-    await _pullCatalogChanges(domainId);
+      for (final cat in fetchedCategories) {
+        await _db.into(_db.categories).insertOnConflictUpdate(CategoriesCompanion.insert(
+          id: cat['id'],
+          domainId: domainId,
+          title: cat['name'],
+          description: Value(cat['description']),
+          sortOrder: cat['sort_order'],
+          updatedAt: DateTime.now(),
+        ));
+      }
+
+      for (final map in fetchedContentItems) {
+        final item = map['item'] as Map<String, dynamic>;
+        final practiceResource = item['primary_practice_resource'] as Map<String, dynamic>?;
+        
+        await _db.into(_db.contentItems).insertOnConflictUpdate(ContentItemsCompanion.insert(
+          id: item['content_item_id'] ?? item['id'],
+          categoryId: map['categoryId'],
+          title: item['title'],
+          slug: item['slug'],
+          type: item['type'] ?? 'concept',
+          difficulty: Value(item['difficulty']),
+          sortOrder: item['sort_order'] ?? 0,
+          primaryPracticeUrl: Value(practiceResource != null ? practiceResource['practice_url'] : null),
+          updatedAt: DateTime.now(),
+        ));
+      }
+
+      for (final doc in fetchedDocuments) {
+        await _db.into(_db.contentDocuments).insertOnConflictUpdate(ContentDocumentsCompanion.insert(
+          id: doc['id'],
+          contentId: doc['content_item_id'],
+          blocksJson: jsonEncode(doc['blocks']),
+          publishedAt: DateTime.parse(doc['published_at']).toLocal(),
+        ));
+      }
+    });
   }
 }
 

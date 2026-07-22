@@ -16,10 +16,30 @@ class SyncStatusBadge extends ConsumerWidget {
     String label;
 
     switch (state.status) {
+      case SyncStatus.idle:
+        icon = Icons.cloud_outlined;
+        color = theme.colorScheme.onSurfaceVariant;
+        label = 'Idle';
+        break;
       case SyncStatus.offline:
         icon = Icons.cloud_off;
         color = theme.colorScheme.error;
         label = 'Offline';
+        break;
+      case SyncStatus.authenticationRequired:
+        icon = Icons.no_accounts;
+        color = theme.colorScheme.error;
+        label = 'Login required';
+        break;
+      case SyncStatus.serverFailure:
+        icon = Icons.cloud_off;
+        color = theme.colorScheme.error;
+        label = 'Server Error';
+        break;
+      case SyncStatus.partialFailure:
+        icon = Icons.warning_amber_rounded;
+        color = theme.colorScheme.error;
+        label = 'Partial Sync Error';
         break;
       case SyncStatus.syncing:
         icon = Icons.sync;
