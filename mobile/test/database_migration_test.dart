@@ -35,8 +35,65 @@ void main() {
       updatedAt: DateTime.now(),
     ));
 
+    await db1.into(db1.contentDocuments).insert(ContentDocumentsCompanion.insert(
+      id: 'doc-1',
+      contentId: 'item-1',
+      blocksJson: '[]',
+      publishedAt: DateTime.now(),
+    ));
+
+    await db1.into(db1.userProgress).insert(UserProgressCompanion.insert(
+      contentId: 'item-1',
+      status: 'learning',
+      rowVersion: 1,
+      updatedAt: DateTime.now(),
+    ));
+
+    await db1.into(db1.bookmarks).insert(BookmarksCompanion.insert(
+      contentId: 'item-1',
+      createdAt: DateTime.now(),
+    ));
+
+    await db1.into(db1.userNotes).insert(UserNotesCompanion.insert(
+      id: 'note-1',
+      contentId: 'item-1',
+      type: 'note',
+      body: 'Note body',
+      rowVersion: 1,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    ));
+
+    await db1.into(db1.reviewCards).insert(ReviewCardsCompanion.insert(
+      id: 'card-1',
+      contentId: 'item-1',
+      state: 'due',
+      rowVersion: 1,
+    ));
+
+    await db1.into(db1.localOutbox).insert(LocalOutboxCompanion.insert(
+      mutationId: 'mut-1',
+      mutationType: 'test',
+      entityType: 'test',
+      entityId: 'test',
+      payloadJson: '{}',
+      status: 'pending',
+      createdAt: DateTime.now(),
+    ));
+
+    await db1.into(db1.syncCursors).insert(SyncCursorsCompanion.insert(
+      id: 'user',
+      cursorValue: '123',
+      updatedAt: DateTime.now(),
+    ));
+
+    await db1.into(db1.deviceState).insert(DeviceStateCompanion.insert(
+      id: 'current',
+      deviceId: 'dev-1',
+      registeredAt: DateTime.now(),
+    ));
+
     // Note: primary_practice_url does not exist in v1, so we don't insert it.
-    await db1.close();
 
     // 2. Run the migration to version 2 and validate the schema
     final migratedDb = AppDatabase.forTesting(connection);
@@ -55,7 +112,5 @@ void main() {
     
     final updatedItem = await (migratedDb.select(migratedDb.contentItems)..where((t) => t.id.equals('item-1'))).getSingle();
     expect(updatedItem.primaryPracticeUrl, 'https://example.com/practice');
-
-    await migratedDb.close();
   });
 }

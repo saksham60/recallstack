@@ -62,6 +62,10 @@ class SyncEngine {
         _endSync(SyncResult.offline);
         return SyncResult.offline;
       }
+      if (type == SyncErrorType.serverFailure) {
+        _endSync(SyncResult.serverFailure);
+        return SyncResult.serverFailure;
+      }
       AppLogger.recordError(e, stack, reason: 'Push mutations failed');
       hasPartialFailure = true;
     }
@@ -78,6 +82,10 @@ class SyncEngine {
         _endSync(SyncResult.offline);
         return SyncResult.offline;
       }
+      if (type == SyncErrorType.serverFailure) {
+        _endSync(SyncResult.serverFailure);
+        return SyncResult.serverFailure;
+      }
       AppLogger.recordError(e, stack, reason: 'Pull catalog changes failed');
       hasPartialFailure = true;
     }
@@ -93,6 +101,10 @@ class SyncEngine {
       if (type == SyncErrorType.offline) {
         _endSync(SyncResult.offline);
         return SyncResult.offline;
+      }
+      if (type == SyncErrorType.serverFailure) {
+        _endSync(SyncResult.serverFailure);
+        return SyncResult.serverFailure;
       }
       AppLogger.recordError(e, stack, reason: 'Pull user changes failed');
       hasPartialFailure = true;
@@ -180,12 +192,24 @@ class SyncEngine {
     final deviceState = await (_db.select(_db.deviceState)..where((t) => t.id.equals('current'))).getSingle();
     
     final validMutations = <LocalOutboxData>[];
-    final invalidMutationIds = <String>[];
+    final invalidMutationReasons = <String, String>{}; // mId -> reason
     final payload = <Map<String, dynamic>>[];
 
     for (final m in pendingMutations) {
       String operation;
-      Map<String, dynamic> mappedPayload = jsonDecode(m.payloadJson);
+      Map<String, dynamic> mappedPayload;
+      
+      try {
+        final decoded = jsonDecode(m.payloadJson);
+        if (decoded is! Map<String, dynamic>) {
+          invalidMutationReasons[m.mutationId] = 'invalid_mutation_payload_shape';
+          continue;
+        }
+        mappedPayload = decoded;
+      } catch (e) {
+        invalidMutationReasons[m.mutationId] = 'malformed_mutation_payload';
+        continue;
+      }
 
       if (m.entityType == 'bookmark') {
         if (m.mutationType == 'insert_bookmark') {
@@ -193,7 +217,7 @@ class SyncEngine {
         } else if (m.mutationType == 'delete_bookmark') {
           operation = 'delete';
         } else {
-          invalidMutationIds.add(m.mutationId);
+          invalidMutationReasons[m.mutationId] = 'unknown_mutation_type';
           continue;
         }
         mappedPayload = {}; // Do not send payload for bookmarks
@@ -201,14 +225,14 @@ class SyncEngine {
         if (m.mutationType == 'practice_attempt') {
           operation = 'insert';
         } else {
-          invalidMutationIds.add(m.mutationId);
+          invalidMutationReasons[m.mutationId] = 'unknown_mutation_type';
           continue;
         }
       } else if (m.entityType == 'review') {
         if (m.mutationType == 'review_card') {
           operation = 'insert';
         } else {
-          invalidMutationIds.add(m.mutationId);
+          invalidMutationReasons[m.mutationId] = 'unknown_mutation_type';
           continue;
         }
       } else if (m.entityType == 'note') {
@@ -219,18 +243,18 @@ class SyncEngine {
         } else if (m.mutationType == 'delete_note') {
           operation = 'delete';
         } else {
-          invalidMutationIds.add(m.mutationId);
+          invalidMutationReasons[m.mutationId] = 'unknown_mutation_type';
           continue;
         }
       } else if (m.entityType == 'progress') {
         if (m.mutationType == 'update_progress') {
           operation = 'update';
         } else {
-          invalidMutationIds.add(m.mutationId);
+          invalidMutationReasons[m.mutationId] = 'unknown_mutation_type';
           continue;
         }
       } else {
-        invalidMutationIds.add(m.mutationId);
+        invalidMutationReasons[m.mutationId] = 'unknown_mutation_type';
         continue;
       }
 
@@ -244,13 +268,13 @@ class SyncEngine {
       });
     }
 
-    if (invalidMutationIds.isNotEmpty) {
+    if (invalidMutationReasons.isNotEmpty) {
       await _db.transaction(() async {
-        for (final mId in invalidMutationIds) {
-          await (_db.update(_db.localOutbox)..where((t) => t.mutationId.equals(mId)))
-            .write(const LocalOutboxCompanion(
-              status: Value('rejected'),
-              lastError: Value('unknown_mutation_type'),
+        for (final entry in invalidMutationReasons.entries) {
+          await (_db.update(_db.localOutbox)..where((t) => t.mutationId.equals(entry.key)))
+            .write(LocalOutboxCompanion(
+              status: const Value('rejected'),
+              lastError: Value(entry.value),
             ));
         }
       });
@@ -273,13 +297,23 @@ class SyncEngine {
 
       await _db.transaction(() async {
         for (final result in results) {
-          final mId = result['mutation_id'] as String;
+          if (result is! Map<String, dynamic>) continue;
+          
+          final mId = result['mutation_id'];
+          if (mId is! String) continue;
+
           if (!submittedMutationIds.contains(mId)) {
             continue; // Ignore unknown IDs to prevent arbitrary outbox modification
           }
-          validReturnedMutationIds.add(mId);
+          if (validReturnedMutationIds.contains(mId)) {
+            continue; // Duplicate returned ID, process only once
+          }
 
-          final status = result['status'] as String; 
+          final status = result['status']; 
+          if (status is! String) continue; // If status missing/wrong type, skip (becomes missing)
+
+          validReturnedMutationIds.add(mId); // Now it's safely valid
+
           final errorMessage = result['error_code'] as String?; // Backend sends error_code
 
           if (status == 'applied' || status == 'duplicate') {
@@ -740,11 +774,30 @@ class SyncEngine {
     // 1.5 Fetch the new cursor state to ensure we have a valid sync contract post-resync
     String? newCursor;
     try {
-      final cursorRes = await _apiClient.client.get('/sync/catalog/$domainId', queryParameters: {
-        'device_id': deviceState.deviceId,
-      });
-      final cursorData = cursorRes.data as Map<String, dynamic>;
-      newCursor = cursorData['next_cursor']?.toString();
+      bool hasMore = true;
+      String? currentCursor;
+
+      while (hasMore) {
+        final cursorRes = await _apiClient.client.get('/sync/catalog/$domainId', queryParameters: {
+          'device_id': deviceState.deviceId,
+          if (currentCursor != null) 'after': currentCursor,
+        });
+        
+        final cursorData = cursorRes.data as Map<String, dynamic>;
+        
+        if (cursorData['full_resync_required'] == true) {
+          throw Exception('FULL RESYNC TERMINAL CURSOR BLOCKED BY EXISTING BACKEND CONTRACT');
+        }
+
+        currentCursor = cursorData['next_cursor']?.toString() ?? currentCursor;
+        hasMore = cursorData['has_more'] == true;
+      }
+      
+      newCursor = currentCursor;
+      
+      if (newCursor == null || newCursor.isEmpty) {
+        throw Exception('Failed to obtain a valid terminal cursor from backend');
+      }
     } catch (e) {
       final type = ApiErrorHandler.classify(e);
       if (type == SyncErrorType.authRequired || type == SyncErrorType.offline || type == SyncErrorType.serverFailure) {
