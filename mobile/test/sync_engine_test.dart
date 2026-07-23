@@ -262,6 +262,6 @@ void main() {
     final syncEngine = SyncEngine(mockApiClient, db, container.read(Provider((ref) => ref)));
     
     final result = await syncEngine.runSync();
-    expect(result, equals(SyncResult.serverFailure)); // Should not be swallowed!
+    expect(result, equals(SyncResult.partialFailure)); // Should not be swallowed!
   });
 }

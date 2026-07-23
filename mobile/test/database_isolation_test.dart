@@ -12,7 +12,9 @@ void main() {
       await dbA.into(dbA.userNotes).insert(UserNotesCompanion.insert(
         id: 'note-1',
         contentId: 'item-1',
-        blocksJson: '[]',
+        type: 'note',
+        body: 'note body',
+        rowVersion: 1,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       ));
@@ -30,7 +32,9 @@ void main() {
       await dbB.into(dbB.userNotes).insert(UserNotesCompanion.insert(
         id: 'note-2',
         contentId: 'item-2',
-        blocksJson: '[]',
+        type: 'note',
+        body: 'note body 2',
+        rowVersion: 1,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       ));

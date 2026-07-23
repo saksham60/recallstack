@@ -36,26 +36,24 @@ void main() {
     ));
 
     // Note: primary_practice_url does not exist in v1, so we don't insert it.
-    await db1.close();
 
     // 2. Run the migration to version 2 and validate the schema
-    final migratedDb = AppDatabase.forTesting(connection);
-    await verifier.migrateAndValidate(migratedDb, 2);
+    await verifier.migrateAndValidate(db1, 2);
 
     // 3. Verify data is preserved and new column exists
-    final items = await migratedDb.select(migratedDb.contentItems).get();
+    final items = await db1.select(db1.contentItems).get();
     expect(items.length, 1);
     expect(items.first.id, 'item-1');
     expect(items.first.title, 'Test Item');
     
     // Verify we can write to the new column
-    await migratedDb.update(migratedDb.contentItems).replace(
+    await db1.update(db1.contentItems).replace(
       items.first.copyWith(primaryPracticeUrl: const drift.Value('https://example.com/practice')),
     );
     
-    final updatedItem = await (migratedDb.select(migratedDb.contentItems)..where((t) => t.id.equals('item-1'))).getSingle();
+    final updatedItem = await (db1.select(db1.contentItems)..where((t) => t.id.equals('item-1'))).getSingle();
     expect(updatedItem.primaryPracticeUrl, 'https://example.com/practice');
 
-    await migratedDb.close();
+    await db1.close();
   });
 }
