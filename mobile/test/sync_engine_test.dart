@@ -189,4 +189,79 @@ void main() {
     final result = await syncEngine.runSync();
     expect(result, equals(SyncResult.offline));
   });
+
+  test('runSync aborts and returns serverFailure if /me/reviews/due fails', () async {
+    final user = supabase.User(
+      id: 'test_user',
+      appMetadata: {},
+      userMetadata: {},
+      aud: 'authenticated',
+      createdAt: '',
+    );
+    
+    final container = ProviderContainer(
+      overrides: [
+        currentUserProvider.overrideWithValue(user),
+        syncStatusProvider.overrideWith(() => mockSyncStatusNotifier),
+        appDatabaseProvider.overrideWithValue(db),
+      ],
+    );
+
+    when(() => mockDio.post('/devices/register', data: any(named: 'data')))
+        .thenAnswer((_) async => Response(
+          requestOptions: RequestOptions(path: '/devices/register'),
+          data: {'id': 'test_device'},
+        ));
+
+    when(() => mockDio.post('/sync/mutations/batch', data: any(named: 'data')))
+        .thenAnswer((_) async => Response(
+          requestOptions: RequestOptions(path: ''),
+          data: {'results': []},
+        ));
+        
+    when(() => mockDio.get('/sync/catalog/dsa', queryParameters: any(named: 'queryParameters')))
+        .thenAnswer((_) async => Response(
+          requestOptions: RequestOptions(path: ''),
+          data: {'changes': [], 'next_cursor': 1},
+        ));
+        
+    when(() => mockDio.get('/sync/user', queryParameters: any(named: 'queryParameters')))
+        .thenAnswer((_) async => Response(
+          requestOptions: RequestOptions(path: ''),
+          data: {'changes': [], 'next_cursor': 1},
+        ));
+
+    // Mock progress, bookmarks, notes success
+    when(() => mockDio.get('/me/progress', queryParameters: any(named: 'queryParameters')))
+        .thenAnswer((_) async => Response(
+          requestOptions: RequestOptions(path: ''),
+          data: {'items': [], 'pagination': {'total_pages': 1}},
+        ));
+    when(() => mockDio.get('/me/bookmarks', queryParameters: any(named: 'queryParameters')))
+        .thenAnswer((_) async => Response(
+          requestOptions: RequestOptions(path: ''),
+          data: {'items': [], 'pagination': {'total_pages': 1}},
+        ));
+    when(() => mockDio.get('/me/notes', queryParameters: any(named: 'queryParameters')))
+        .thenAnswer((_) async => Response(
+          requestOptions: RequestOptions(path: ''),
+          data: {'items': [], 'pagination': {'total_pages': 1}},
+        ));
+
+    // Mock /me/reviews/due throwing 500
+    when(() => mockDio.get('/me/reviews/due', queryParameters: any(named: 'queryParameters')))
+        .thenThrow(DioException(
+          requestOptions: RequestOptions(path: '/me/reviews/due'),
+          response: Response(requestOptions: RequestOptions(path: ''), statusCode: 500),
+        ));
+
+    await db.into(db.syncCursors).insert(
+      SyncCursorsCompanion.insert(id: 'catalog_dsa', cursorValue: '1', updatedAt: DateTime.now()),
+    );
+
+    final syncEngine = SyncEngine(mockApiClient, db, container.read(Provider((ref) => ref)));
+    
+    final result = await syncEngine.runSync();
+    expect(result, equals(SyncResult.serverFailure)); // Should not be swallowed!
+  });
 }

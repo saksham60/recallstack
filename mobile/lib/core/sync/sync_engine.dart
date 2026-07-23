@@ -141,19 +141,27 @@ class SyncEngine {
     final platformStr = Platform.isAndroid ? 'android' : Platform.isIOS ? 'ios' : 'web';
     final packageInfo = await PackageInfo.fromPlatform();
     
-    final response = await _apiClient.client.post('/devices/register', data: {
-      'device_name': 'RecallStack Mobile',
-      'platform': platformStr,
-      'app_version': packageInfo.version,
-    });
-    final responseData = response.data as Map<String, dynamic>;
-    final deviceId = responseData['id'] as String;
-    
-    await _db.into(_db.deviceState).insert(DeviceStateCompanion.insert(
-      id: 'current',
-      deviceId: deviceId,
-      registeredAt: DateTime.now(),
-    ));
+    try {
+      final response = await _apiClient.client.post('/devices/register', data: {
+        'device_name': 'RecallStack Mobile',
+        'platform': platformStr,
+        'app_version': packageInfo.version,
+      });
+      final responseData = response.data as Map<String, dynamic>;
+      final deviceId = responseData['id'] as String;
+      
+      await _db.into(_db.deviceState).insert(DeviceStateCompanion.insert(
+        id: 'current',
+        deviceId: deviceId,
+        registeredAt: DateTime.now(),
+      ));
+    } catch (e) {
+      final type = ApiErrorHandler.classify(e);
+      if (type == SyncErrorType.authRequired || type == SyncErrorType.offline || type == SyncErrorType.serverFailure) {
+        rethrow;
+      }
+      rethrow;
+    }
   }
 
   Future<void> _pushMutations() async {
@@ -180,17 +188,47 @@ class SyncEngine {
       Map<String, dynamic> mappedPayload = jsonDecode(m.payloadJson);
 
       if (m.entityType == 'bookmark') {
-        final isBookmarked = mappedPayload['is_bookmarked'] == true;
-        operation = isBookmarked ? 'insert' : 'delete';
+        if (m.mutationType == 'insert_bookmark') {
+          operation = 'insert';
+        } else if (m.mutationType == 'delete_bookmark') {
+          operation = 'delete';
+        } else {
+          invalidMutationIds.add(m.mutationId);
+          continue;
+        }
         mappedPayload = {}; // Do not send payload for bookmarks
       } else if (m.entityType == 'practice_attempt') {
-        operation = 'insert';
+        if (m.mutationType == 'practice_attempt') {
+          operation = 'insert';
+        } else {
+          invalidMutationIds.add(m.mutationId);
+          continue;
+        }
       } else if (m.entityType == 'review') {
-        operation = 'insert';
+        if (m.mutationType == 'review_card') {
+          operation = 'insert';
+        } else {
+          invalidMutationIds.add(m.mutationId);
+          continue;
+        }
       } else if (m.entityType == 'note') {
-        operation = m.mutationType == 'save_note' ? 'insert' : (m.mutationType == 'update_note' ? 'update' : 'insert');
+        if (m.mutationType == 'save_note') {
+          operation = 'insert';
+        } else if (m.mutationType == 'update_note') {
+          operation = 'update';
+        } else if (m.mutationType == 'delete_note') {
+          operation = 'delete';
+        } else {
+          invalidMutationIds.add(m.mutationId);
+          continue;
+        }
       } else if (m.entityType == 'progress') {
-        operation = 'update';
+        if (m.mutationType == 'update_progress') {
+          operation = 'update';
+        } else {
+          invalidMutationIds.add(m.mutationId);
+          continue;
+        }
       } else {
         invalidMutationIds.add(m.mutationId);
         continue;
@@ -247,11 +285,20 @@ class SyncEngine {
           if (status == 'applied' || status == 'duplicate') {
             await (_db.delete(_db.localOutbox)..where((t) => t.mutationId.equals(mId))).go();
           } else {
-            await (_db.update(_db.localOutbox)..where((t) => t.mutationId.equals(mId)))
-              .write(LocalOutboxCompanion(
-                status: Value(status), // rejected or conflict
-                lastError: Value(errorMessage),
-              ));
+            if (status == 'rejected' || status == 'conflict') {
+              await (_db.update(_db.localOutbox)..where((t) => t.mutationId.equals(mId)))
+                .write(LocalOutboxCompanion(
+                  status: Value(status), // rejected or conflict
+                  lastError: Value(errorMessage),
+                ));
+            } else {
+              // If backend returned malformed/unknown status, treat it as rejected
+              await (_db.update(_db.localOutbox)..where((t) => t.mutationId.equals(mId)))
+                .write(const LocalOutboxCompanion(
+                  status: Value('rejected'),
+                  lastError: Value('invalid_status_from_server'),
+                ));
+            }
           }
         }
 
@@ -282,7 +329,7 @@ class SyncEngine {
           for (var m in pendingMutations) {
             await (_db.update(_db.localOutbox)..where((t) => t.mutationId.equals(m.mutationId)))
               .write(LocalOutboxCompanion(
-                status: const Value('failed'),
+                status: Value(type == SyncErrorType.conflict ? 'conflict' : 'rejected'),
                 lastError: Value(e.toString()),
               ));
           }
@@ -548,13 +595,28 @@ class SyncEngine {
       }
       
       // 4. Fetch Due Reviews (Only Due)
-      try {
-        final res = await _apiClient.client.get('/me/reviews/due');
-        final data = res.data as Map<String, dynamic>;
-        final items = data['items'] as List<dynamic>? ?? [];
-        allDueReviews.addAll(items.cast<Map<String, dynamic>>());
-      } catch(e) {
-        // Ignore if endpoint is empty
+      page = 1;
+      morePages = true;
+      while (morePages) {
+        try {
+          final res = await _apiClient.client.get('/me/reviews/due', queryParameters: {'page': page, 'page_size': 100});
+          final data = res.data as Map<String, dynamic>;
+          final items = data['items'] as List<dynamic>? ?? [];
+          allDueReviews.addAll(items.cast<Map<String, dynamic>>());
+          final pagination = data['pagination'] as Map<String, dynamic>;
+          morePages = page < (pagination['total_pages'] as int);
+          page++;
+        } catch(e) {
+          final type = ApiErrorHandler.classify(e);
+          if (type == SyncErrorType.authRequired || type == SyncErrorType.offline || type == SyncErrorType.serverFailure) {
+            rethrow; // Abort sync, do not advance cursor
+          }
+          if (e is DioException && e.response?.statusCode == 404) {
+             morePages = false; // verified 404
+          } else {
+            rethrow; // Do not swallow other malformed responses or 500s
+          }
+        }
       }
     }
 
@@ -634,6 +696,9 @@ class SyncEngine {
   }
 
   Future<void> _handleFullResync(String domainId) async {
+    final deviceState = await (_db.select(_db.deviceState)..where((t) => t.id.equals('current'))).getSingleOrNull();
+    if (deviceState == null) return;
+
     // 1. Fetch entire catalog into memory FIRST
     final catRes = await _apiClient.client.get('/domains/$domainId/categories');
     final categories = catRes.data as List<dynamic>;
@@ -670,6 +735,22 @@ class SyncEngine {
           rethrow;
         }
       }
+    }
+
+    // 1.5 Fetch the new cursor state to ensure we have a valid sync contract post-resync
+    String? newCursor;
+    try {
+      final cursorRes = await _apiClient.client.get('/sync/catalog/$domainId', queryParameters: {
+        'device_id': deviceState.deviceId,
+      });
+      final cursorData = cursorRes.data as Map<String, dynamic>;
+      newCursor = cursorData['next_cursor']?.toString();
+    } catch (e) {
+      final type = ApiErrorHandler.classify(e);
+      if (type == SyncErrorType.authRequired || type == SyncErrorType.offline || type == SyncErrorType.serverFailure) {
+        rethrow;
+      }
+      rethrow;
     }
 
     // 2. Safely perform replacement inside one atomic transaction
@@ -713,6 +794,14 @@ class SyncEngine {
           contentId: doc['content_item_id'],
           blocksJson: jsonEncode(doc['blocks']),
           publishedAt: DateTime.parse(doc['published_at']).toLocal(),
+        ));
+      }
+
+      if (newCursor != null && newCursor.isNotEmpty) {
+        await _db.into(_db.syncCursors).insertOnConflictUpdate(SyncCursorsCompanion.insert(
+          id: 'catalog_$domainId',
+          cursorValue: newCursor,
+          updatedAt: DateTime.now(),
         ));
       }
     });
