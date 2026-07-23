@@ -12,18 +12,20 @@ import 'tables.dart';
 
 part 'database.g.dart';
 
-@DriftDatabase(tables: [
-  Categories,
-  ContentItems,
-  ContentDocuments,
-  UserProgress,
-  Bookmarks,
-  UserNotes,
-  ReviewCards,
-  LocalOutbox,
-  SyncCursors,
-  DeviceState,
-])
+@DriftDatabase(
+  tables: [
+    Categories,
+    ContentItems,
+    ContentDocuments,
+    UserProgress,
+    Bookmarks,
+    UserNotes,
+    ReviewCards,
+    LocalOutbox,
+    SyncCursors,
+    DeviceState,
+  ],
+)
 class AppDatabase extends _$AppDatabase {
   AppDatabase(String? userId) : super(_openConnection(userId));
   AppDatabase.forTesting(super.connection);
@@ -52,7 +54,9 @@ LazyDatabase _openConnection(String? userId) {
       return NativeDatabase.memory();
     }
     final dbFolder = await getApplicationDocumentsDirectory();
-    final fileName = userId != null ? 'recallstack_$userId.sqlite' : 'recallstack_anon.sqlite';
+    final fileName = userId != null
+        ? 'recallstack_$userId.sqlite'
+        : 'recallstack_anon.sqlite';
     final file = File(p.join(dbFolder.path, fileName));
 
     if (Platform.isAndroid) {

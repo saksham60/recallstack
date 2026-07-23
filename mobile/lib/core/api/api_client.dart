@@ -12,13 +12,13 @@ class ApiClient {
   ApiClient(this._authRepository) : _dio = Dio() {
     const dartDefineUrl = String.fromEnvironment('API_BASE_URL');
     final dotenvUrl = dotenv.env['API_BASE_URL'];
-    
+
     String? baseUrl = dartDefineUrl.isNotEmpty ? dartDefineUrl : dotenvUrl;
-    
+
     if (baseUrl == null || baseUrl.isEmpty) {
       throw UnsupportedError('API_BASE_URL must be provided');
     }
-    
+
     _dio.options = BaseOptions(
       baseUrl: baseUrl,
       connectTimeout: const Duration(seconds: 15),

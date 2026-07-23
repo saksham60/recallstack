@@ -13,11 +13,17 @@ class SupabaseAuthRepository {
     const dartDefineUrl = String.fromEnvironment('SUPABASE_URL');
     const dartDefineKey = String.fromEnvironment('SUPABASE_ANON_KEY');
 
-    final supabaseUrl = dartDefineUrl.isNotEmpty ? dartDefineUrl : dotenv.env['SUPABASE_URL'];
-    final supabaseAnonKey = dartDefineKey.isNotEmpty ? dartDefineKey : dotenv.env['SUPABASE_ANON_KEY'];
+    final supabaseUrl = dartDefineUrl.isNotEmpty
+        ? dartDefineUrl
+        : dotenv.env['SUPABASE_URL'];
+    final supabaseAnonKey = dartDefineKey.isNotEmpty
+        ? dartDefineKey
+        : dotenv.env['SUPABASE_ANON_KEY'];
 
     if (supabaseUrl == null || supabaseAnonKey == null) {
-      throw Exception('Missing Supabase configuration (check .env or --dart-define)');
+      throw Exception(
+        'Missing Supabase configuration (check .env or --dart-define)',
+      );
     }
 
     await Supabase.initialize(
@@ -64,5 +70,6 @@ Stream<AuthState> authStateChanges(Ref ref) {
 @riverpod
 User? currentUser(Ref ref) {
   final authState = ref.watch(authStateChangesProvider);
-  return authState.value?.session?.user ?? ref.read(authRepositoryProvider).currentUser;
+  return authState.value?.session?.user ??
+      ref.read(authRepositoryProvider).currentUser;
 }

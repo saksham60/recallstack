@@ -2,7 +2,11 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 
 class AppLogger {
-  static Future<void> recordError(dynamic exception, StackTrace? stack, {String? reason}) async {
+  static Future<void> recordError(
+    dynamic exception,
+    StackTrace? stack, {
+    String? reason,
+  }) async {
     if (kDebugMode) {
       print('==================== APP ERROR ====================');
       if (reason != null) print('Reason: \$reason');
@@ -23,11 +27,14 @@ class AppLogger {
     }
   }
 
-  static Future<void> recordFlutterFatalError(FlutterErrorDetails errorDetails) async {
+  static Future<void> recordFlutterFatalError(
+    FlutterErrorDetails errorDetails,
+  ) async {
     if (kDebugMode) {
       print('==================== FLUTTER FATAL ERROR ====================');
       print('Exception: \${errorDetails.exception}');
-      if (errorDetails.stack != null) print('Stacktrace:\n\${errorDetails.stack}');
+      if (errorDetails.stack != null)
+        print('Stacktrace:\n\${errorDetails.stack}');
       print('=============================================================');
     }
 
@@ -42,7 +49,7 @@ class AppLogger {
     if (kDebugMode) {
       print('APP LOG: \$message');
     }
-    
+
     try {
       await FirebaseCrashlytics.instance.log(message);
     } catch (e) {

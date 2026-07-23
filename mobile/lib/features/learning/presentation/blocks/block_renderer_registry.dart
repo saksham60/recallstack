@@ -9,7 +9,7 @@ abstract class StudyBlockWidget extends StatelessWidget {
 class ContentBlockRendererRegistry {
   static Widget render(Map<String, dynamic> block) {
     final type = block['type'] as String?;
-    
+
     switch (type) {
       case 'recognize':
       case 'remember':
@@ -89,7 +89,9 @@ class _CodeBlockWidget extends StudyBlockWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
               color: theme.colorScheme.surfaceContainerHighest,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(8),
+              ),
             ),
             child: Text(
               language,
@@ -178,7 +180,11 @@ class _GenericPlaceholderBlockWidget extends StudyBlockWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.widgets_outlined, color: theme.colorScheme.primary, size: 20),
+              Icon(
+                Icons.widgets_outlined,
+                color: theme.colorScheme.primary,
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Text(
                 '${type.toUpperCase()} BLOCK',
@@ -216,11 +222,18 @@ class _SafeUnsupportedBlockWidget extends StudyBlockWidget {
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: theme.colorScheme.outlineVariant, style: BorderStyle.solid),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant,
+          style: BorderStyle.solid,
+        ),
       ),
       child: Row(
         children: [
-          Icon(Icons.extension, color: theme.colorScheme.onSurfaceVariant, size: 20),
+          Icon(
+            Icons.extension,
+            color: theme.colorScheme.onSurfaceVariant,
+            size: 20,
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(

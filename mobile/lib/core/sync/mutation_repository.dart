@@ -13,20 +13,29 @@ class MutationRepository {
   MutationRepository(this._db);
 
   /// Enqueues a mutation into the outbox.
-  Future<void> enqueueMutation(String type, String entityType, String entityId, Map<String, dynamic> payload) async {
+  Future<void> enqueueMutation(
+    String type,
+    String entityType,
+    String entityId,
+    Map<String, dynamic> payload,
+  ) async {
     final mutationId = _uuid.v4();
     final jsonPayload = jsonEncode(payload);
 
-    await _db.into(_db.localOutbox).insert(LocalOutboxCompanion.insert(
-      mutationId: mutationId,
-      mutationType: type,
-      entityType: entityType,
-      entityId: entityId,
-      payloadJson: jsonPayload,
-      status: 'pending',
-      createdAt: DateTime.now(),
-      retryCount: const Value(0),
-    ));
+    await _db
+        .into(_db.localOutbox)
+        .insert(
+          LocalOutboxCompanion.insert(
+            mutationId: mutationId,
+            mutationType: type,
+            entityType: entityType,
+            entityId: entityId,
+            payloadJson: jsonPayload,
+            status: 'pending',
+            createdAt: DateTime.now(),
+            retryCount: const Value(0),
+          ),
+        );
   }
 
   /// Toggles a bookmark locally and enqueues the mutation.
@@ -34,21 +43,28 @@ class MutationRepository {
     await _db.transaction(() async {
       // 1. Optimistic update
       if (isBookmarked) {
-        await _db.into(_db.bookmarks).insert(
-          BookmarksCompanion.insert(
-            contentId: contentId,
-            createdAt: DateTime.now(),
-          ),
-          mode: InsertMode.insertOrReplace,
-        );
+        await _db
+            .into(_db.bookmarks)
+            .insert(
+              BookmarksCompanion.insert(
+                contentId: contentId,
+                createdAt: DateTime.now(),
+              ),
+              mode: InsertMode.insertOrReplace,
+            );
       } else {
-        await (_db.delete(_db.bookmarks)..where((t) => t.contentId.equals(contentId))).go();
+        await (_db.delete(
+          _db.bookmarks,
+        )..where((t) => t.contentId.equals(contentId))).go();
       }
 
       // 2. Enqueue mutation
-      await enqueueMutation(isBookmarked ? 'insert_bookmark' : 'delete_bookmark', 'bookmark', contentId, {
-        'is_bookmarked': isBookmarked,
-      });
+      await enqueueMutation(
+        isBookmarked ? 'insert_bookmark' : 'delete_bookmark',
+        'bookmark',
+        contentId,
+        {'is_bookmarked': isBookmarked},
+      );
     });
   }
 
@@ -56,18 +72,20 @@ class MutationRepository {
   Future<void> saveUserNote(String contentId, String noteText) async {
     await _db.transaction(() async {
       final noteId = _uuid.v4();
-      await _db.into(_db.userNotes).insert(
-        UserNotesCompanion.insert(
-          id: noteId,
-          contentId: contentId,
-          type: 'note',
-          body: noteText,
-          rowVersion: 1,
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        ),
-        mode: InsertMode.insertOrReplace,
-      );
+      await _db
+          .into(_db.userNotes)
+          .insert(
+            UserNotesCompanion.insert(
+              id: noteId,
+              contentId: contentId,
+              type: 'note',
+              body: noteText,
+              rowVersion: 1,
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ),
+            mode: InsertMode.insertOrReplace,
+          );
 
       await enqueueMutation('save_note', 'note', noteId, {
         'content_item_id': contentId,
@@ -92,9 +110,11 @@ class MutationRepository {
   /// Submits a flashcard review
   Future<void> submitReview(String cardId, String rating) async {
     await _db.transaction(() async {
-      final card = await (_db.select(_db.reviewCards)..where((t) => t.id.equals(cardId))).getSingle();
+      final card = await (_db.select(
+        _db.reviewCards,
+      )..where((t) => t.id.equals(cardId))).getSingle();
       final reviewEventId = _uuid.v4();
-      
+
       // Do not locally compute the exact next_review_at here; we just optimistic update state to 'pending_sync'
       // letting the backend scheduler authoritative compute.
       await (_db.update(_db.reviewCards)..where((t) => t.id.equals(cardId)))

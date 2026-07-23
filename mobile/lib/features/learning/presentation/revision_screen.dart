@@ -7,12 +7,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart' hide Column;
 
-final pendingReviewsProvider = StreamProvider.autoDispose<List<ReviewCard>>((ref) {
+final pendingReviewsProvider = StreamProvider.autoDispose<List<ReviewCard>>((
+  ref,
+) {
   final db = ref.watch(appDatabaseProvider);
-  return (db.select(db.reviewCards)
-        ..where((t) =>
+  return (db.select(db.reviewCards)..where(
+        (t) =>
             t.state.isNotValue('pending_sync') &
-            (t.nextReviewAt.isNull() | t.nextReviewAt.isSmallerOrEqualValue(DateTime.now()))))
+            (t.nextReviewAt.isNull() |
+                t.nextReviewAt.isSmallerOrEqualValue(DateTime.now())),
+      ))
       .watch();
 });
 
@@ -33,9 +37,7 @@ class _RevisionScreenState extends ConsumerState<RevisionScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Revision Queue'),
-      ),
+      appBar: AppBar(title: const Text('Revision Queue')),
       body: reviewsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(child: Text('Error: $err')),
@@ -45,7 +47,11 @@ class _RevisionScreenState extends ConsumerState<RevisionScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.check_circle_outline, size: 64, color: theme.colorScheme.primary),
+                  Icon(
+                    Icons.check_circle_outline,
+                    size: 64,
+                    color: theme.colorScheme.primary,
+                  ),
                   const SizedBox(height: 16),
                   Text('All caught up!', style: theme.textTheme.headlineSmall),
                   const SizedBox(height: 8),
@@ -88,7 +94,9 @@ class _RevisionScreenState extends ConsumerState<RevisionScreen> {
                   children: [
                     Text(
                       contentItem.title,
-                      style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const Divider(),
                     if (_showAnswer) ...[
@@ -102,9 +110,11 @@ class _RevisionScreenState extends ConsumerState<RevisionScreen> {
                     ] else ...[
                       const SizedBox(height: 32),
                       const Center(
-                        child: Text('Try to recall this concept or problem from memory.'),
+                        child: Text(
+                          'Try to recall this concept or problem from memory.',
+                        ),
                       ),
-                    ]
+                    ],
                   ],
                 ),
               ),
@@ -113,19 +123,45 @@ class _RevisionScreenState extends ConsumerState<RevisionScreen> {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: theme.colorScheme.surfaceContainerHighest.withAlpha(50),
-                border: Border(top: BorderSide(color: theme.colorScheme.outlineVariant)),
+                border: Border(
+                  top: BorderSide(color: theme.colorScheme.outlineVariant),
+                ),
               ),
               child: SafeArea(
                 child: _showAnswer
                     ? Row(
                         children: [
-                          _ReviewButton(label: 'Again', color: Colors.red, onPressed: _isMutating ? null : () => _submit(card.id, 'again')),
+                          _ReviewButton(
+                            label: 'Again',
+                            color: Colors.red,
+                            onPressed: _isMutating
+                                ? null
+                                : () => _submit(card.id, 'again'),
+                          ),
                           const SizedBox(width: 8),
-                          _ReviewButton(label: 'Hard', color: Colors.orange, onPressed: _isMutating ? null : () => _submit(card.id, 'hard')),
+                          _ReviewButton(
+                            label: 'Hard',
+                            color: Colors.orange,
+                            onPressed: _isMutating
+                                ? null
+                                : () => _submit(card.id, 'hard'),
+                          ),
                           const SizedBox(width: 8),
-                          _ReviewButton(label: 'Good', color: Colors.green, onPressed: _isMutating ? null : () => _submit(card.id, 'good')),
+                          _ReviewButton(
+                            label: 'Good',
+                            color: Colors.green,
+                            onPressed: _isMutating
+                                ? null
+                                : () => _submit(card.id, 'good'),
+                          ),
                           const SizedBox(width: 8),
-                          _ReviewButton(label: 'Easy', color: Colors.blue, onPressed: _isMutating ? null : () => _submit(card.id, 'easy')),
+                          _ReviewButton(
+                            label: 'Easy',
+                            color: Colors.blue,
+                            onPressed: _isMutating
+                                ? null
+                                : () => _submit(card.id, 'easy'),
+                          ),
                         ],
                       )
                     : SizedBox(
@@ -137,11 +173,14 @@ class _RevisionScreenState extends ConsumerState<RevisionScreen> {
                               _showAnswer = true;
                             });
                           },
-                          child: const Text('Show Answer', style: TextStyle(fontSize: 18)),
+                          child: const Text(
+                            'Show Answer',
+                            style: TextStyle(fontSize: 18),
+                          ),
                         ),
                       ),
               ),
-            )
+            ),
           ],
         );
       },
@@ -160,7 +199,9 @@ class _RevisionScreenState extends ConsumerState<RevisionScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     } finally {
       if (mounted) {
@@ -175,7 +216,11 @@ class _ReviewButton extends StatelessWidget {
   final Color color;
   final VoidCallback? onPressed;
 
-  const _ReviewButton({required this.label, required this.color, this.onPressed});
+  const _ReviewButton({
+    required this.label,
+    required this.color,
+    this.onPressed,
+  });
 
   @override
   Widget build(BuildContext context) {

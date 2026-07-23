@@ -64,7 +64,9 @@ class SyncStatusBadge extends ConsumerWidget {
     }
 
     return InkWell(
-      onTap: state.status == SyncStatus.syncIssue ? () => context.push('/conflicts') : null,
+      onTap: state.status == SyncStatus.syncIssue
+          ? () => context.push('/conflicts')
+          : null,
       child: Tooltip(
         message: label,
         child: Padding(
@@ -76,7 +78,10 @@ class SyncStatusBadge extends ConsumerWidget {
                 SizedBox(
                   width: 14,
                   height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: color),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: color,
+                  ),
                 )
               else
                 Icon(icon, size: 16, color: color),

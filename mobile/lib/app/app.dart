@@ -20,10 +20,8 @@ class _RecallStackAppState extends ConsumerState<RecallStackApp> {
   @override
   void initState() {
     super.initState();
-    _lifecycleListener = AppLifecycleListener(
-      onResume: _triggerSync,
-    );
-    
+    _lifecycleListener = AppLifecycleListener(onResume: _triggerSync);
+
     // Initial sync on startup
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _triggerSync();

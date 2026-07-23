@@ -11,11 +11,13 @@ import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 import 'package:package_info_plus/package_info_plus.dart';
 
 class MockApiClient extends Mock implements ApiClient {}
+
 class MockDio extends Mock implements Dio {}
+
 class MockSyncStatusNotifier extends SyncStatusNotifier {
   bool isSyncing = false;
   SyncStatus? lastResult;
-  
+
   @override
   void setSyncing(bool value) {
     isSyncing = value;
@@ -49,7 +51,7 @@ void main() {
     mockApiClient = MockApiClient();
     mockDio = MockDio();
     mockSyncStatusNotifier = MockSyncStatusNotifier();
-    
+
     when(() => mockApiClient.client).thenReturn(mockDio);
   });
 
@@ -66,10 +68,14 @@ void main() {
       ],
     );
 
-    final syncEngine = SyncEngine(mockApiClient, db, container.read(Provider((ref) => ref)));
-    
+    final syncEngine = SyncEngine(
+      mockApiClient,
+      db,
+      container.read(Provider((ref) => ref)),
+    );
+
     final result = await syncEngine.runSync();
-    
+
     expect(result, equals(SyncResult.authRequired));
     expect(mockSyncStatusNotifier.isSyncing, false);
   });
@@ -82,7 +88,7 @@ void main() {
       aud: 'authenticated',
       createdAt: '',
     );
-    
+
     final container = ProviderContainer(
       overrides: [
         currentUserProvider.overrideWithValue(user),
@@ -91,40 +97,74 @@ void main() {
       ],
     );
 
-    when(() => mockDio.post('/devices/register', data: any(named: 'data')))
-        .thenAnswer((_) async => Response(
-          requestOptions: RequestOptions(path: '/devices/register'),
-          data: {'id': 'test_device'},
-        ));
+    when(
+      () => mockDio.post('/devices/register', data: any(named: 'data')),
+    ).thenAnswer(
+      (_) async => Response(
+        requestOptions: RequestOptions(path: '/devices/register'),
+        data: {'id': 'test_device'},
+      ),
+    );
 
-    when(() => mockDio.post('/sync/mutations/batch', data: any(named: 'data')))
-        .thenAnswer((_) async => Response(
-          requestOptions: RequestOptions(path: ''),
-          data: {'results': []},
-        ));
-        
-    when(() => mockDio.get('/sync/catalog/dsa', queryParameters: any(named: 'queryParameters')))
-        .thenAnswer((_) async => Response(
-          requestOptions: RequestOptions(path: ''),
-          data: {'changes': [], 'next_cursor': 1},
-        ));
-        
-    when(() => mockDio.get('/sync/user', queryParameters: any(named: 'queryParameters')))
-        .thenAnswer((_) async => Response(
-          requestOptions: RequestOptions(path: ''),
-          data: {'changes': [], 'next_cursor': 1},
-        ));
+    when(
+      () => mockDio.post('/sync/mutations/batch', data: any(named: 'data')),
+    ).thenAnswer(
+      (_) async => Response(
+        requestOptions: RequestOptions(path: ''),
+        data: {'results': []},
+      ),
+    );
+
+    when(
+      () => mockDio.get(
+        '/sync/catalog/dsa',
+        queryParameters: any(named: 'queryParameters'),
+      ),
+    ).thenAnswer(
+      (_) async => Response(
+        requestOptions: RequestOptions(path: ''),
+        data: {'changes': [], 'next_cursor': 1},
+      ),
+    );
+
+    when(
+      () => mockDio.get(
+        '/sync/user',
+        queryParameters: any(named: 'queryParameters'),
+      ),
+    ).thenAnswer(
+      (_) async => Response(
+        requestOptions: RequestOptions(path: ''),
+        data: {'changes': [], 'next_cursor': 1},
+      ),
+    );
 
     // Avoid full fetch in tests by populating cursors
-    await db.into(db.syncCursors).insert(
-      SyncCursorsCompanion.insert(id: 'catalog_dsa', cursorValue: '1', updatedAt: DateTime.now()),
-    );
-    await db.into(db.syncCursors).insert(
-      SyncCursorsCompanion.insert(id: 'user', cursorValue: '1', updatedAt: DateTime.now()),
+    await db
+        .into(db.syncCursors)
+        .insert(
+          SyncCursorsCompanion.insert(
+            id: 'catalog_dsa',
+            cursorValue: '1',
+            updatedAt: DateTime.now(),
+          ),
+        );
+    await db
+        .into(db.syncCursors)
+        .insert(
+          SyncCursorsCompanion.insert(
+            id: 'user',
+            cursorValue: '1',
+            updatedAt: DateTime.now(),
+          ),
+        );
+
+    final syncEngine = SyncEngine(
+      mockApiClient,
+      db,
+      container.read(Provider((ref) => ref)),
     );
 
-    final syncEngine = SyncEngine(mockApiClient, db, container.read(Provider((ref) => ref)));
-    
     final result = await syncEngine.runSync();
     expect(result, equals(SyncResult.success));
   });
@@ -137,7 +177,7 @@ void main() {
       aud: 'authenticated',
       createdAt: '',
     );
-    
+
     final container = ProviderContainer(
       overrides: [
         currentUserProvider.overrideWithValue(user),
@@ -147,14 +187,24 @@ void main() {
     );
 
     // Mock an auth failure during device registration (first step)
-    when(() => mockDio.post('/devices/register', data: any(named: 'data')))
-        .thenThrow(DioException(
-          requestOptions: RequestOptions(path: '/devices/register'),
-          response: Response(requestOptions: RequestOptions(path: ''), statusCode: 401),
-        ));
+    when(
+      () => mockDio.post('/devices/register', data: any(named: 'data')),
+    ).thenThrow(
+      DioException(
+        requestOptions: RequestOptions(path: '/devices/register'),
+        response: Response(
+          requestOptions: RequestOptions(path: ''),
+          statusCode: 401,
+        ),
+      ),
+    );
 
-    final syncEngine = SyncEngine(mockApiClient, db, container.read(Provider((ref) => ref)));
-    
+    final syncEngine = SyncEngine(
+      mockApiClient,
+      db,
+      container.read(Provider((ref) => ref)),
+    );
+
     final result = await syncEngine.runSync();
     expect(result, equals(SyncResult.authRequired));
     expect(mockSyncStatusNotifier.isSyncing, false);
@@ -168,7 +218,7 @@ void main() {
       aud: 'authenticated',
       createdAt: '',
     );
-    
+
     final container = ProviderContainer(
       overrides: [
         currentUserProvider.overrideWithValue(user),
@@ -178,90 +228,167 @@ void main() {
     );
 
     // Mock an offline failure (e.g. SocketException wrapped in DioException)
-    when(() => mockDio.post('/devices/register', data: any(named: 'data')))
-        .thenThrow(DioException(
-          requestOptions: RequestOptions(path: '/devices/register'),
-          type: DioExceptionType.connectionError,
-        ));
+    when(
+      () => mockDio.post('/devices/register', data: any(named: 'data')),
+    ).thenThrow(
+      DioException(
+        requestOptions: RequestOptions(path: '/devices/register'),
+        type: DioExceptionType.connectionError,
+      ),
+    );
 
-    final syncEngine = SyncEngine(mockApiClient, db, container.read(Provider((ref) => ref)));
-    
+    final syncEngine = SyncEngine(
+      mockApiClient,
+      db,
+      container.read(Provider((ref) => ref)),
+    );
+
     final result = await syncEngine.runSync();
     expect(result, equals(SyncResult.offline));
   });
 
-  test('runSync aborts and returns serverFailure if /me/reviews/due fails', () async {
-    final user = supabase.User(
-      id: 'test_user',
-      appMetadata: {},
-      userMetadata: {},
-      aud: 'authenticated',
-      createdAt: '',
-    );
-    
-    final container = ProviderContainer(
-      overrides: [
-        currentUserProvider.overrideWithValue(user),
-        syncStatusProvider.overrideWith(() => mockSyncStatusNotifier),
-        appDatabaseProvider.overrideWithValue(db),
-      ],
-    );
+  test(
+    'runSync aborts and returns serverFailure if /me/reviews/due fails',
+    () async {
+      final user = supabase.User(
+        id: 'test_user',
+        appMetadata: {},
+        userMetadata: {},
+        aud: 'authenticated',
+        createdAt: '',
+      );
 
-    when(() => mockDio.post('/devices/register', data: any(named: 'data')))
-        .thenAnswer((_) async => Response(
+      final container = ProviderContainer(
+        overrides: [
+          currentUserProvider.overrideWithValue(user),
+          syncStatusProvider.overrideWith(() => mockSyncStatusNotifier),
+          appDatabaseProvider.overrideWithValue(db),
+        ],
+      );
+
+      when(
+        () => mockDio.post('/devices/register', data: any(named: 'data')),
+      ).thenAnswer(
+        (_) async => Response(
           requestOptions: RequestOptions(path: '/devices/register'),
           data: {'id': 'test_device'},
-        ));
+        ),
+      );
 
-    when(() => mockDio.post('/sync/mutations/batch', data: any(named: 'data')))
-        .thenAnswer((_) async => Response(
+      when(
+        () => mockDio.post('/sync/mutations/batch', data: any(named: 'data')),
+      ).thenAnswer(
+        (_) async => Response(
           requestOptions: RequestOptions(path: ''),
           data: {'results': []},
-        ));
-        
-    when(() => mockDio.get('/sync/catalog/dsa', queryParameters: any(named: 'queryParameters')))
-        .thenAnswer((_) async => Response(
+        ),
+      );
+
+      when(
+        () => mockDio.get(
+          '/sync/catalog/dsa',
+          queryParameters: any(named: 'queryParameters'),
+        ),
+      ).thenAnswer(
+        (_) async => Response(
           requestOptions: RequestOptions(path: ''),
           data: {'changes': [], 'next_cursor': 1},
-        ));
-        
-    when(() => mockDio.get('/sync/user', queryParameters: any(named: 'queryParameters')))
-        .thenAnswer((_) async => Response(
+        ),
+      );
+
+      when(
+        () => mockDio.get(
+          '/sync/user',
+          queryParameters: any(named: 'queryParameters'),
+        ),
+      ).thenAnswer(
+        (_) async => Response(
           requestOptions: RequestOptions(path: ''),
           data: {'changes': [], 'next_cursor': 1},
-        ));
+        ),
+      );
 
-    // Mock progress, bookmarks, notes success
-    when(() => mockDio.get('/me/progress', queryParameters: any(named: 'queryParameters')))
-        .thenAnswer((_) async => Response(
+      // Mock progress, bookmarks, notes success
+      when(
+        () => mockDio.get(
+          '/me/progress',
+          queryParameters: any(named: 'queryParameters'),
+        ),
+      ).thenAnswer(
+        (_) async => Response(
           requestOptions: RequestOptions(path: ''),
-          data: {'items': [], 'pagination': {'total_pages': 1}},
-        ));
-    when(() => mockDio.get('/me/bookmarks', queryParameters: any(named: 'queryParameters')))
-        .thenAnswer((_) async => Response(
+          data: {
+            'items': [],
+            'pagination': {'total_pages': 1},
+          },
+        ),
+      );
+      when(
+        () => mockDio.get(
+          '/me/bookmarks',
+          queryParameters: any(named: 'queryParameters'),
+        ),
+      ).thenAnswer(
+        (_) async => Response(
           requestOptions: RequestOptions(path: ''),
-          data: {'items': [], 'pagination': {'total_pages': 1}},
-        ));
-    when(() => mockDio.get('/me/notes', queryParameters: any(named: 'queryParameters')))
-        .thenAnswer((_) async => Response(
+          data: {
+            'items': [],
+            'pagination': {'total_pages': 1},
+          },
+        ),
+      );
+      when(
+        () => mockDio.get(
+          '/me/notes',
+          queryParameters: any(named: 'queryParameters'),
+        ),
+      ).thenAnswer(
+        (_) async => Response(
           requestOptions: RequestOptions(path: ''),
-          data: {'items': [], 'pagination': {'total_pages': 1}},
-        ));
+          data: {
+            'items': [],
+            'pagination': {'total_pages': 1},
+          },
+        ),
+      );
 
-    // Mock /me/reviews/due throwing 500
-    when(() => mockDio.get('/me/reviews/due', queryParameters: any(named: 'queryParameters')))
-        .thenThrow(DioException(
+      // Mock /me/reviews/due throwing 500
+      when(
+        () => mockDio.get(
+          '/me/reviews/due',
+          queryParameters: any(named: 'queryParameters'),
+        ),
+      ).thenThrow(
+        DioException(
           requestOptions: RequestOptions(path: '/me/reviews/due'),
-          response: Response(requestOptions: RequestOptions(path: ''), statusCode: 500),
-        ));
+          response: Response(
+            requestOptions: RequestOptions(path: ''),
+            statusCode: 500,
+          ),
+        ),
+      );
 
-    await db.into(db.syncCursors).insert(
-      SyncCursorsCompanion.insert(id: 'catalog_dsa', cursorValue: '1', updatedAt: DateTime.now()),
-    );
+      await db
+          .into(db.syncCursors)
+          .insert(
+            SyncCursorsCompanion.insert(
+              id: 'catalog_dsa',
+              cursorValue: '1',
+              updatedAt: DateTime.now(),
+            ),
+          );
 
-    final syncEngine = SyncEngine(mockApiClient, db, container.read(Provider((ref) => ref)));
-    
-    final result = await syncEngine.runSync();
-    expect(result, equals(SyncResult.partialFailure)); // Should not be swallowed!
-  });
+      final syncEngine = SyncEngine(
+        mockApiClient,
+        db,
+        container.read(Provider((ref) => ref)),
+      );
+
+      final result = await syncEngine.runSync();
+      expect(
+        result,
+        equals(SyncResult.partialFailure),
+      ); // Should not be swallowed!
+    },
+  );
 }

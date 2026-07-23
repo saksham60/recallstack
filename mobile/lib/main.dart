@@ -9,11 +9,13 @@ import 'package:app/core/auth/supabase_auth_repository.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   try {
     await dotenv.load(fileName: '.env');
   } catch (e) {
-    debugPrint('.env file not found, falling back to --dart-define or environment variables.');
+    debugPrint(
+      '.env file not found, falling back to --dart-define or environment variables.',
+    );
   }
   await SupabaseAuthRepository.initialize();
 
@@ -27,7 +29,9 @@ void main() async {
       return true;
     };
   } catch (e) {
-    debugPrint('Firebase initialization failed (likely missing google-services.json): $e');
+    debugPrint(
+      'Firebase initialization failed (likely missing google-services.json): $e',
+    );
   }
 
   runApp(
