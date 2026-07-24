@@ -3,9 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-final dsaCategoriesProvider = StreamProvider.family<List<CategoryWithStats>, String>((ref, domainId) {
-  return ref.watch(catalogRepositoryProvider).watchCategories(domainId);
-});
+final dsaCategoriesProvider =
+    StreamProvider.family<List<CategoryWithStats>, String>((ref, domainId) {
+      return ref.watch(catalogRepositoryProvider).watchCategories(domainId);
+    });
 
 class DSACategoryScreen extends ConsumerWidget {
   const DSACategoryScreen({super.key});
@@ -16,9 +17,7 @@ class DSACategoryScreen extends ConsumerWidget {
     final categoriesAsync = ref.watch(dsaCategoriesProvider('dsa'));
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('DSA Topics'),
-      ),
+      appBar: AppBar(title: const Text('DSA Topics')),
       body: categoriesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(child: Text('Error: $err')),
@@ -45,7 +44,11 @@ class DSACategoryScreen extends ConsumerWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.inbox, size: 64, color: Theme.of(context).colorScheme.outline),
+          Icon(
+            Icons.inbox,
+            size: 64,
+            color: Theme.of(context).colorScheme.outline,
+          ),
           const SizedBox(height: 16),
           Text(
             'No categories synced yet.',
@@ -61,17 +64,18 @@ class DSACategoryScreen extends ConsumerWidget {
 
 class _CategoryCard extends StatelessWidget {
   final CategoryWithStats item;
-  
+
   const _CategoryCard({required this.item});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     // Calculate progress percentage
     double progress = 0;
     if (item.totalContent > 0) {
-      progress = (item.masteredCount + item.learningCount * 0.5) / item.totalContent;
+      progress =
+          (item.masteredCount + item.learningCount * 0.5) / item.totalContent;
     }
 
     return Card(
@@ -88,14 +92,18 @@ class _CategoryCard extends StatelessWidget {
             children: [
               Text(
                 item.category.title,
-                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               if (item.category.description?.isNotEmpty == true)
                 Padding(
                   padding: const EdgeInsets.only(top: 4.0),
                   child: Text(
                     item.category.description!,
-                    style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -147,7 +155,11 @@ class _StatBadge extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 14, color: color ?? Theme.of(context).colorScheme.onSurfaceVariant),
+        Icon(
+          icon,
+          size: 14,
+          color: color ?? Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
         const SizedBox(width: 4),
         Text(
           label,

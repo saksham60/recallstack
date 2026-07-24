@@ -8,10 +8,12 @@ import 'package:app/shared/widgets/sync_status_badge.dart';
 
 final dueReviewsCountProvider = StreamProvider.autoDispose<int>((ref) {
   final db = ref.watch(appDatabaseProvider);
-  return (db.select(db.reviewCards)
-        ..where((t) =>
+  return (db.select(db.reviewCards)..where(
+        (t) =>
             t.state.isNotValue('pending_sync') &
-            (t.nextReviewAt.isNull() | t.nextReviewAt.isSmallerOrEqualValue(DateTime.now()))))
+            (t.nextReviewAt.isNull() |
+                t.nextReviewAt.isSmallerOrEqualValue(DateTime.now())),
+      ))
       .watch()
       .map((cards) => cards.length);
 });
@@ -34,7 +36,7 @@ class HomeScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.person),
             onPressed: () => context.push('/profile'),
-          )
+          ),
         ],
       ),
       body: ListView(
@@ -64,10 +66,18 @@ class HomeScreen extends ConsumerWidget {
         type: BottomNavigationBarType.fixed,
         onTap: (index) {
           switch (index) {
-            case 0: context.go('/home'); break;
-            case 1: context.go('/dsa'); break;
-            case 2: context.go('/revise'); break;
-            case 3: context.go('/profile'); break;
+            case 0:
+              context.go('/home');
+              break;
+            case 1:
+              context.go('/dsa');
+              break;
+            case 2:
+              context.go('/revise');
+              break;
+            case 3:
+              context.go('/profile');
+              break;
           }
         },
         items: const [
@@ -83,14 +93,17 @@ class HomeScreen extends ConsumerWidget {
   Widget _buildSectionTitle(BuildContext context, String title) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12.0),
-      child: Text(
-        title,
-        style: Theme.of(context).textTheme.titleLarge,
-      ),
+      child: Text(title, style: Theme.of(context).textTheme.titleLarge),
     );
   }
 
-  Widget _buildCompactCard(BuildContext context, {required String title, required String subtitle, required IconData icon, required VoidCallback onTap}) {
+  Widget _buildCompactCard(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
     return Card(
       child: InkWell(
         onTap: onTap,
@@ -114,7 +127,10 @@ class HomeScreen extends ConsumerWidget {
                   children: [
                     Text(title, style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: 4),
-                    Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+                    Text(
+                      subtitle,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
                   ],
                 ),
               ),

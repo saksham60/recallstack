@@ -15,7 +15,10 @@ class AuthException extends AppException {
 }
 
 class AuthorizationException extends AppException {
-  AuthorizationException([super.message = 'Not authorized to perform this action', super.cause]);
+  AuthorizationException([
+    super.message = 'Not authorized to perform this action',
+    super.cause,
+  ]);
 }
 
 class NotFoundException extends AppException {
@@ -31,7 +34,10 @@ class ValidationException extends AppException {
 }
 
 class RateLimitException extends AppException {
-  RateLimitException([super.message = 'Rate limit exceeded. Try again later.', super.cause]);
+  RateLimitException([
+    super.message = 'Rate limit exceeded. Try again later.',
+    super.cause,
+  ]);
 }
 
 class ServerException extends AppException {

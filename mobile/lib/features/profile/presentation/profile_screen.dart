@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:app/core/api/api_client.dart';
 import 'package:app/core/auth/supabase_auth_repository.dart';
 
-final profileProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
+final profileProvider = FutureProvider.autoDispose<Map<String, dynamic>>((
+  ref,
+) async {
   final apiClient = ref.watch(apiClientProvider);
   final response = await apiClient.client.get('/me');
   return response.data as Map<String, dynamic>;
@@ -27,17 +29,19 @@ class ProfileScreen extends ConsumerWidget {
             onPressed: () {
               ref.read(authRepositoryProvider).signOut();
             },
-          )
+          ),
         ],
       ),
       body: profileAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(child: Text('Error: $err')),
         data: (profile) {
-          final displayName = profile['display_name'] as String? ?? 'Anonymous User';
+          final displayName =
+              profile['display_name'] as String? ?? 'Anonymous User';
           final avatarUrl = profile['avatar_url'] as String?;
           final timezone = profile['timezone'] as String? ?? 'Unknown';
-          final roles = (profile['roles'] as List<dynamic>?)?.join(', ') ?? 'None';
+          final roles =
+              (profile['roles'] as List<dynamic>?)?.join(', ') ?? 'None';
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(24.0),
@@ -47,26 +51,38 @@ class ProfileScreen extends ConsumerWidget {
                 const SizedBox(height: 32),
                 CircleAvatar(
                   radius: 50,
-                  backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                  backgroundImage: avatarUrl != null
+                      ? NetworkImage(avatarUrl)
+                      : null,
                   backgroundColor: theme.colorScheme.primaryContainer,
                   child: avatarUrl == null
-                      ? Icon(Icons.person, size: 50, color: theme.colorScheme.onPrimaryContainer)
+                      ? Icon(
+                          Icons.person,
+                          size: 50,
+                          color: theme.colorScheme.onPrimaryContainer,
+                        )
                       : null,
                 ),
                 const SizedBox(height: 24),
                 Text(
                   displayName,
-                  style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Timezone: $timezone',
-                  style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Roles: $roles',
-                  style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(height: 48),
                 const Divider(),
@@ -93,10 +109,18 @@ class ProfileScreen extends ConsumerWidget {
         type: BottomNavigationBarType.fixed,
         onTap: (index) {
           switch (index) {
-            case 0: context.go('/home'); break;
-            case 1: context.go('/dsa'); break;
-            case 2: context.go('/revise'); break;
-            case 3: context.go('/profile'); break;
+            case 0:
+              context.go('/home');
+              break;
+            case 1:
+              context.go('/dsa');
+              break;
+            case 2:
+              context.go('/revise');
+              break;
+            case 3:
+              context.go('/profile');
+              break;
           }
         },
         items: const [

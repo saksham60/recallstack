@@ -17,14 +17,14 @@ part 'router.g.dart';
 @riverpod
 GoRouter router(Ref ref) {
   final authState = ref.watch(authStateChangesProvider);
-  
+
   return GoRouter(
     initialLocation: '/home',
     redirect: (context, state) {
       // If authState is loading, we might want to show a splash screen, but for now:
       final isLoading = authState.isLoading;
       final session = authState.value?.session;
-      
+
       final isGoingToLogin = state.uri.path == '/login';
 
       if (isLoading) return null; // wait for it
@@ -40,29 +40,21 @@ GoRouter router(Ref ref) {
       return null;
     },
     routes: [
-      GoRoute(
-        path: '/login',
-        builder: (context, state) => const LoginScreen(),
-      ),
-      GoRoute(
-        path: '/home',
-        builder: (context, state) => const HomeScreen(),
-      ),
+      GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+      GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
       GoRoute(
         path: '/dsa',
         builder: (context, state) => const DSACategoryScreen(),
       ),
       GoRoute(
         path: '/categories/:categoryId',
-        builder: (context, state) => ProblemListScreen(
-          categoryId: state.pathParameters['categoryId']!,
-        ),
+        builder: (context, state) =>
+            ProblemListScreen(categoryId: state.pathParameters['categoryId']!),
       ),
       GoRoute(
         path: '/content/:slug',
-        builder: (context, state) => StudyNoteScreen(
-          slug: state.pathParameters['slug']!,
-        ),
+        builder: (context, state) =>
+            StudyNoteScreen(slug: state.pathParameters['slug']!),
       ),
       GoRoute(
         path: '/revise',

@@ -14,11 +14,11 @@ class ConflictResolutionScreen extends ConsumerWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Sync Conflicts'),
-      ),
+      appBar: AppBar(title: const Text('Sync Conflicts')),
       body: StreamBuilder<List<LocalOutboxData>>(
-        stream: (db.select(db.localOutbox)..where((t) => t.status.equals('conflict'))).watch(),
+        stream: (db.select(
+          db.localOutbox,
+        )..where((t) => t.status.equals('conflict'))).watch(),
         builder: (context, snapshot) {
           final conflicts = snapshot.data ?? [];
           if (conflicts.isEmpty) {
@@ -37,11 +37,16 @@ class ConflictResolutionScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildConflictItem(BuildContext context, WidgetRef ref, LocalOutboxData m, ThemeData theme) {
+  Widget _buildConflictItem(
+    BuildContext context,
+    WidgetRef ref,
+    LocalOutboxData m,
+    ThemeData theme,
+  ) {
     String myVersion = 'Unknown';
     String serverVersion = 'Unknown';
     int serverRowVersion = 1;
-    
+
     try {
       final payload = jsonDecode(m.payloadJson) as Map<String, dynamic>;
       myVersion = payload['note'] as String? ?? 'Unknown';
@@ -68,7 +73,10 @@ class ConflictResolutionScreen extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 16),
-            const Text('Your Version', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text(
+              'Your Version',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(8),
@@ -76,7 +84,10 @@ class ConflictResolutionScreen extends ConsumerWidget {
               child: Text(myVersion),
             ),
             const SizedBox(height: 16),
-            const Text('Server Version', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text(
+              'Server Version',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(8),
@@ -107,29 +118,38 @@ class ConflictResolutionScreen extends ConsumerWidget {
   Future<void> _resolveUseServer(WidgetRef ref, LocalOutboxData m) async {
     final db = ref.read(appDatabaseProvider);
     // Delete the conflicting mutation, letting the next sync pull the authoritative server version
-    await (db.delete(db.localOutbox)..where((t) => t.mutationId.equals(m.mutationId))).go();
+    await (db.delete(
+      db.localOutbox,
+    )..where((t) => t.mutationId.equals(m.mutationId))).go();
     ref.read(syncEngineProvider).runSync();
   }
 
-  Future<void> _resolveKeepMine(WidgetRef ref, LocalOutboxData m, int newServerRowVersion) async {
+  Future<void> _resolveKeepMine(
+    WidgetRef ref,
+    LocalOutboxData m,
+    int newServerRowVersion,
+  ) async {
     final db = ref.read(appDatabaseProvider);
-    
+
     // Create a new valid mutation/update with latest row_version
     try {
       final payload = jsonDecode(m.payloadJson) as Map<String, dynamic>;
       payload['expected_row_version'] = newServerRowVersion;
 
-      // Do not retry the stale conflicting mutation unchanged. 
+      // Do not retry the stale conflicting mutation unchanged.
       // Mark it retryable with new payload
-      await (db.update(db.localOutbox)..where((t) => t.mutationId.equals(m.mutationId)))
-          .write(LocalOutboxCompanion(
-            payloadJson: Value(jsonEncode(payload)),
-            status: const Value('pending'),
-            retryCount: const Value(0),
-            nextRetryAt: const Value(null),
-            lastError: const Value(null),
-          ));
-          
+      await (db.update(
+        db.localOutbox,
+      )..where((t) => t.mutationId.equals(m.mutationId))).write(
+        LocalOutboxCompanion(
+          payloadJson: Value(jsonEncode(payload)),
+          status: const Value('pending'),
+          retryCount: const Value(0),
+          nextRetryAt: const Value(null),
+          lastError: const Value(null),
+        ),
+      );
+
       ref.read(syncEngineProvider).runSync();
     } catch (_) {}
   }

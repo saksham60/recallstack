@@ -4,7 +4,7 @@ class AppColors {
   static const Color background = Color(0xFF121214);
   static const Color surface = Color(0xFF1C1C1F);
   static const Color surfaceElevated = Color(0xFF252529);
-  
+
   static const Color border = Color(0xFF2C2C30);
   static const Color borderHover = Color(0xFF3F3F46);
 

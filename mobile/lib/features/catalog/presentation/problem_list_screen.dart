@@ -3,9 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-final problemListProvider = StreamProvider.family<List<ContentItemWithProgress>, String>((ref, categoryId) {
-  return ref.watch(catalogRepositoryProvider).watchContentItems(categoryId);
-});
+final problemListProvider =
+    StreamProvider.family<List<ContentItemWithProgress>, String>((
+      ref,
+      categoryId,
+    ) {
+      return ref.watch(catalogRepositoryProvider).watchContentItems(categoryId);
+    });
 
 class ProblemListScreen extends ConsumerWidget {
   final String categoryId;
@@ -17,9 +21,7 @@ class ProblemListScreen extends ConsumerWidget {
     final itemsAsync = ref.watch(problemListProvider(categoryId));
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Problems'),
-      ),
+      appBar: AppBar(title: const Text('Problems')),
       body: itemsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(child: Text('Error: $err')),
@@ -47,7 +49,11 @@ class ProblemListScreen extends ConsumerWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.list_alt_rounded, size: 64, color: Theme.of(context).colorScheme.outline),
+          Icon(
+            Icons.list_alt_rounded,
+            size: 64,
+            color: Theme.of(context).colorScheme.outline,
+          ),
           const SizedBox(height: 16),
           Text(
             'No problems found.',
@@ -68,33 +74,39 @@ class _ProblemListItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isMastered = content.progress?.status == 'mastered';
-    
+
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       leading: CircleAvatar(
-        backgroundColor: _getDifficultyColor(content.item.difficulty, theme).withAlpha(40), // 0.15 * 255 = ~38
+        backgroundColor: _getDifficultyColor(
+          content.item.difficulty,
+          theme,
+        ).withAlpha(40), // 0.15 * 255 = ~38
         child: Icon(
           isMastered ? Icons.check_circle : Icons.article_outlined,
-          color: isMastered ? Colors.greenAccent : _getDifficultyColor(content.item.difficulty, theme),
+          color: isMastered
+              ? Colors.greenAccent
+              : _getDifficultyColor(content.item.difficulty, theme),
         ),
       ),
-      title: Text(
-        content.item.title,
-        style: theme.textTheme.titleMedium,
-      ),
+      title: Text(content.item.title, style: theme.textTheme.titleMedium),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 8.0),
         child: Row(
           children: [
             _buildBadge(
-              context, 
+              context,
               content.item.difficulty?.toUpperCase() ?? 'UNKNOWN',
-              _getDifficultyColor(content.item.difficulty, theme)
+              _getDifficultyColor(content.item.difficulty, theme),
             ),
             if (content.item.type != 'problem') ...[
               const SizedBox(width: 8),
-              _buildBadge(context, content.item.type.toUpperCase(), theme.colorScheme.tertiary),
-            ]
+              _buildBadge(
+                context,
+                content.item.type.toUpperCase(),
+                theme.colorScheme.tertiary,
+              ),
+            ],
           ],
         ),
       ),

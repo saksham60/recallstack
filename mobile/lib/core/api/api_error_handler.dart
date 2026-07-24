@@ -36,9 +36,6 @@ class ApiErrorHandler {
         if (statusCode == 400 || statusCode == 422) {
           return SyncErrorType.permanentFailure;
         }
-        if (statusCode == 429) {
-          return SyncErrorType.serverFailure; // Retryable throttling
-        }
         if (statusCode >= 500 && statusCode <= 599) {
           return SyncErrorType.serverFailure;
         }

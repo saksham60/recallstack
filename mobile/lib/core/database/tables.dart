@@ -86,7 +86,8 @@ class LocalOutbox extends Table {
   TextColumn get entityType => text()();
   TextColumn get entityId => text()();
   TextColumn get payloadJson => text()();
-  TextColumn get status => text()(); // 'pending', 'processing', 'retryable', 'rejected', 'conflict', 'failed'
+  TextColumn get status =>
+      text()(); // 'pending', 'processing', 'retryable', 'rejected', 'conflict', 'failed'
   IntColumn get retryCount => integer().withDefault(const Constant(0))();
   DateTimeColumn get nextRetryAt => dateTime().nullable()();
   TextColumn get lastError => text().nullable()();
