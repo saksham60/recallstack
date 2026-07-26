@@ -235,3 +235,56 @@ class CatalogSyncChangeLogModel(Base):
     entity_version: Mapped[int | None] = mapped_column(BigInteger)
     changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     retain_until: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class FullResyncSnapshotModel(Base):
+    __tablename__ = "full_resync_snapshots"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["device_id", "user_id"],
+            ["devices.id", "devices.user_id"],
+            ondelete="CASCADE",
+            name="fk_full_resync_snapshots_device_user",
+        ),
+        CheckConstraint(
+            "stream_type IN ('catalog', 'user')",
+            name="chk_full_resync_snapshots_stream",
+        ),
+        CheckConstraint(
+            "(stream_type = 'catalog' AND domain_id IS NOT NULL) OR "
+            "(stream_type = 'user' AND domain_id IS NULL)",
+            name="chk_full_resync_snapshots_domain",
+        ),
+        CheckConstraint(
+            "snapshot_cursor >= 0",
+            name="chk_full_resync_snapshots_cursor",
+        ),
+        CheckConstraint(
+            "expires_at > created_at",
+            name="chk_full_resync_snapshots_expiry",
+        ),
+        Index(
+            "ix_full_resync_snapshots_owner_stream",
+            "user_id",
+            "device_id",
+            "stream_type",
+            "domain_id",
+        ),
+        Index(
+            "ix_full_resync_snapshots_device_user",
+            "device_id",
+            "user_id",
+        ),
+        Index("ix_full_resync_snapshots_domain_id", "domain_id"),
+        Index("ix_full_resync_snapshots_expires_at", "expires_at"),
+    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, server_default=func.gen_random_uuid())
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("profiles.id", ondelete="CASCADE"))
+    device_id: Mapped[UUID]
+    stream_type: Mapped[str] = mapped_column(String(20))
+    domain_id: Mapped[UUID | None] = mapped_column(ForeignKey("domains.id", ondelete="CASCADE"))
+    snapshot_cursor: Mapped[int] = mapped_column(BigInteger)
+    payload: Mapped[dict[str, object]] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

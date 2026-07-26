@@ -36,6 +36,21 @@ class DueResponse(BaseModel):
     pagination: Pagination
 
 
+class ScheduledReviewItem(BaseModel):
+    id: UUID
+    content_item_id: UUID
+    state: Literal["due", "scheduled"]
+    next_review_at: datetime
+    row_version: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class ScheduledReviewResponse(BaseModel):
+    items: list[ScheduledReviewItem]
+    pagination: Pagination
+
+
 class SubmitRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     review_event_id: UUID
@@ -98,6 +113,30 @@ async def due(
     )
     return DueResponse(
         items=[DueItem.model_validate(item, from_attributes=True) for item in items],
+        pagination=_pagination(total, page, page_size),
+    )
+
+
+@router.get("", response_model=ScheduledReviewResponse, operation_id="listScheduledReviews")
+async def scheduled(
+    current_user: CurrentUserDependency,
+    request: Request,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 25,
+    due_after: datetime | None = None,
+    due_before: datetime | None = None,
+    state: Annotated[Literal["due", "scheduled"] | None, Query()] = None,
+) -> ScheduledReviewResponse:
+    total, items = await _service(request).scheduled(
+        profile_id=current_user.profile_id,
+        page=page,
+        page_size=page_size,
+        due_after=due_after,
+        due_before=due_before,
+        state=state,
+    )
+    return ScheduledReviewResponse(
+        items=[ScheduledReviewItem.model_validate(item, from_attributes=True) for item in items],
         pagination=_pagination(total, page, page_size),
     )
 

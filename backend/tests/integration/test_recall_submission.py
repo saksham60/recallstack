@@ -186,6 +186,19 @@ async def test_recall_review_submission_is_safe_and_deterministic(
             text("SELECT count(*) FROM review_history WHERE review_event_id = :id"),
             {"id": rollback_event},
         ).scalar_one()
+        review_sync_changes = connection.execute(
+            text(
+                "SELECT count(*) FROM user_sync_change_log "
+                "WHERE user_id = :user AND entity_type = 'review'"
+            ),
+            {"user": user_a},
+        ).scalar_one()
+        rolled_back_card_version = connection.execute(
+            text("SELECT row_version FROM review_cards WHERE id = :id"),
+            {"id": cards[2][0]},
+        ).scalar_one()
     engine.dispose()
     assert rolled_back == 0
+    assert review_sync_changes >= len(ratings) - 1
+    assert rolled_back_card_version == 5
     await database.close()

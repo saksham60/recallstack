@@ -3,12 +3,20 @@ from types import TracebackType
 from typing import Any, Self, cast
 from uuid import UUID
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import and_, delete, func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from recallstack.modules.catalog.infrastructure.sqlalchemy_models import DomainModel
+from recallstack.modules.catalog.infrastructure.sqlalchemy_models import CategoryModel, DomainModel
+from recallstack.modules.content.infrastructure.sqlalchemy_models import (
+    ContentBlockModel,
+    ContentItemModel,
+    ContentVersionBlockModel,
+    ContentVersionCategoryModel,
+    ContentVersionModel,
+    PublicationStatus,
+)
 from recallstack.modules.learning.application.learning_state import (
     LearningService,
     LearningStateRepository,
@@ -16,6 +24,11 @@ from recallstack.modules.learning.application.learning_state import (
 from recallstack.modules.learning.domain.enums import LearningStatus
 from recallstack.modules.learning.infrastructure.learning_state_repository import (
     SqlAlchemyLearningStateRepository,
+)
+from recallstack.modules.learning.infrastructure.sqlalchemy_models import (
+    BookmarkModel,
+    UserNoteModel,
+    UserProgressModel,
 )
 from recallstack.modules.practice.application.attempt_submission import (
     DeterministicInitialReviewScheduler,
@@ -33,13 +46,17 @@ from recallstack.modules.recall.application.review_submission import (
     SubmitReview,
 )
 from recallstack.modules.recall.infrastructure.review_repository import SqlAlchemyRecallRepository
+from recallstack.modules.recall.infrastructure.sqlalchemy_models import ReviewCardModel
 from recallstack.modules.sync.application.sync_service import (
     AppliedMutation,
     Change,
     ChangeFeed,
     CompactionResult,
     Device,
+    FullResyncAck,
+    FullResyncSnapshot,
     MutationCommand,
+    MutationConflict,
     MutationRecord,
     SyncRepository,
     SyncUnitOfWork,
@@ -51,6 +68,7 @@ from recallstack.modules.sync.infrastructure.sqlalchemy_models import (
     DeviceCatalogSyncStateModel,
     DeviceModel,
     DeviceUserSyncStateModel,
+    FullResyncSnapshotModel,
     MutationOperation,
     MutationStatus,
     SyncMutationModel,
@@ -324,6 +342,7 @@ class SqlAlchemySyncRepository(SyncRepository):
                     "next_review_at": review_result.next_review_at.isoformat(),
                     "row_version": review_result.row_version,
                 },
+                review_result.sync_cursor,
             )
         raise AppError(
             error_type="unsupported-mutation-type",
@@ -434,6 +453,92 @@ class SqlAlchemySyncRepository(SyncRepository):
             )
         )
 
+    async def mark_mutation_conflict(
+        self, *, mutation_id: UUID, error_code: str, conflict: MutationConflict
+    ) -> None:
+        await self._session.execute(
+            update(SyncMutationModel)
+            .where(SyncMutationModel.mutation_id == mutation_id)
+            .values(
+                status=MutationStatus.REJECTED,
+                error_code=error_code[:80],
+                result_payload={
+                    "conflict": {
+                        "entity_type": conflict.entity_type,
+                        "entity_id": str(conflict.entity_id),
+                        "expected_row_version": conflict.expected_row_version,
+                        "current_row_version": conflict.current_row_version,
+                        "server_entity": conflict.server_entity,
+                    }
+                },
+                processed_at=datetime.now(UTC),
+            )
+        )
+
+    async def load_conflict(
+        self, *, profile_id: UUID, command: MutationCommand, error_code: str
+    ) -> MutationConflict | None:
+        if "stale" not in error_code and "conflict" not in error_code:
+            return None
+        expected = command.base_row_version
+        if command.entity_type == "review":
+            raw_expected = command.payload.get("expected_row_version")
+            expected = raw_expected if isinstance(raw_expected, int) else None
+        if expected is None:
+            return None
+        if command.entity_type == "note":
+            note = await self._session.scalar(
+                select(UserNoteModel).where(
+                    UserNoteModel.id == command.entity_id,
+                    UserNoteModel.user_id == profile_id,
+                    UserNoteModel.deleted_at.is_(None),
+                )
+            )
+            if note is None:
+                return None
+            entity: dict[str, object] = {
+                "id": str(note.id),
+                "content_item_id": str(note.content_item_id),
+                "kind": note.kind.value,
+                "title": note.title,
+                "body": note.body,
+                "row_version": note.row_version,
+                "created_at": note.created_at.isoformat(),
+                "updated_at": note.updated_at.isoformat(),
+            }
+            return MutationConflict("note", note.id, expected, note.row_version, entity)
+        if command.entity_type == "progress":
+            progress = await self._session.get(UserProgressModel, (profile_id, command.entity_id))
+            if progress is None:
+                return None
+            entity = {
+                "content_item_id": str(progress.content_item_id),
+                "status": progress.status.value,
+                "confidence": progress.confidence,
+                "row_version": progress.row_version,
+                "updated_at": progress.updated_at.isoformat(),
+            }
+            return MutationConflict(
+                "progress",
+                progress.content_item_id,
+                expected,
+                progress.row_version,
+                entity,
+            )
+        if command.entity_type == "review":
+            card = await self._session.scalar(
+                select(ReviewCardModel).where(
+                    ReviewCardModel.id == command.entity_id,
+                    ReviewCardModel.user_id == profile_id,
+                    ReviewCardModel.suspended_at.is_(None),
+                )
+            )
+            if card is None:
+                return None
+            entity = self._review_card_payload(card)
+            return MutationConflict("review", card.id, expected, card.row_version, entity)
+        return None
+
     async def mark_device_pushed(self, device_id: UUID) -> None:
         now = datetime.now(UTC)
         await self._session.execute(
@@ -460,6 +565,13 @@ class SqlAlchemySyncRepository(SyncRepository):
             )
             or 0
         )
+        if after > current:
+            raise AppError(
+                error_type="user-cursor-ahead",
+                title="Invalid user cursor",
+                status=422,
+                detail="The user cursor is ahead of the server stream",
+            )
         earliest = await self._session.scalar(
             select(func.min(UserSyncChangeLogModel.cursor)).where(
                 UserSyncChangeLogModel.user_id == profile_id
@@ -530,6 +642,13 @@ class SqlAlchemySyncRepository(SyncRepository):
             )
             or 0
         )
+        if after > current:
+            raise AppError(
+                error_type="catalog-cursor-ahead",
+                title="Invalid catalog cursor",
+                status=422,
+                detail="The catalog cursor is ahead of the server stream",
+            )
         earliest = await self._session.scalar(
             select(func.min(CatalogSyncChangeLogModel.cursor)).where(
                 CatalogSyncChangeLogModel.domain_id == domain_id
@@ -564,6 +683,394 @@ class SqlAlchemySyncRepository(SyncRepository):
             has_more,
             False,
         )
+
+    async def create_catalog_snapshot(
+        self,
+        *,
+        profile_id: UUID,
+        device_id: UUID,
+        domain_id: UUID,
+        retention_minutes: int,
+    ) -> FullResyncSnapshot:
+        await self._session.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ"))
+        await self._require_active_device(profile_id, device_id)
+        domain = await self._session.get(DomainModel, domain_id)
+        if domain is None or not domain.is_active:
+            raise AppError(
+                error_type="domain-not-found",
+                title="Domain not found",
+                status=404,
+                detail="The requested catalog domain does not exist",
+            )
+        cursor = int(
+            await self._session.scalar(
+                select(CatalogSyncCounterModel.last_cursor).where(
+                    CatalogSyncCounterModel.domain_id == domain_id
+                )
+            )
+            or 0
+        )
+        await self._after_snapshot_cursor("catalog")
+        categories = (
+            await self._session.scalars(
+                select(CategoryModel)
+                .where(
+                    CategoryModel.domain_id == domain_id,
+                    CategoryModel.is_active.is_(True),
+                )
+                .order_by(CategoryModel.sort_order, CategoryModel.id)
+            )
+        ).all()
+        item_rows = (
+            await self._session.execute(
+                select(ContentItemModel, ContentVersionModel)
+                .join(
+                    ContentVersionModel,
+                    and_(
+                        ContentVersionModel.id == ContentItemModel.current_published_version_id,
+                        ContentVersionModel.content_item_id == ContentItemModel.id,
+                    ),
+                )
+                .where(
+                    ContentItemModel.domain_id == domain_id,
+                    ContentItemModel.archived_at.is_(None),
+                    ContentVersionModel.status == PublicationStatus.PUBLISHED,
+                )
+                .order_by(ContentItemModel.id)
+            )
+        ).all()
+        version_ids = [version.id for _, version in item_rows]
+        category_rows = (
+            await self._session.execute(
+                select(
+                    ContentVersionCategoryModel.content_version_id,
+                    ContentVersionCategoryModel.category_id,
+                )
+                .where(ContentVersionCategoryModel.content_version_id.in_(version_ids))
+                .order_by(
+                    ContentVersionCategoryModel.content_version_id,
+                    ContentVersionCategoryModel.sort_order,
+                    ContentVersionCategoryModel.category_id,
+                )
+            )
+        ).all()
+        categories_by_version: dict[UUID, list[str]] = {}
+        for version_id, category_id in category_rows:
+            categories_by_version.setdefault(version_id, []).append(str(category_id))
+        block_rows = (
+            await self._session.execute(
+                select(
+                    ContentVersionBlockModel.content_version_id,
+                    ContentVersionBlockModel.position,
+                    ContentVersionBlockModel.heading,
+                    ContentBlockModel,
+                )
+                .join(
+                    ContentBlockModel,
+                    ContentBlockModel.id == ContentVersionBlockModel.content_block_id,
+                )
+                .where(ContentVersionBlockModel.content_version_id.in_(version_ids))
+                .order_by(
+                    ContentVersionBlockModel.content_version_id,
+                    ContentVersionBlockModel.position,
+                )
+            )
+        ).all()
+        blocks_by_version: dict[UUID, list[dict[str, object]]] = {}
+        for version_id, position, heading, block in block_rows:
+            blocks_by_version.setdefault(version_id, []).append(
+                {
+                    "id": str(block.id),
+                    "position": position,
+                    "heading": heading,
+                    "type": block.type.value,
+                    "payload": block.payload,
+                }
+            )
+        payload: dict[str, object] = {
+            "categories": [
+                {
+                    "id": str(category.id),
+                    "domain_id": str(category.domain_id),
+                    "parent_category_id": (
+                        str(category.parent_category_id) if category.parent_category_id else None
+                    ),
+                    "slug": category.slug,
+                    "name": category.name,
+                    "description": category.description,
+                    "sort_order": category.sort_order,
+                    "updated_at": category.updated_at.isoformat(),
+                }
+                for category in categories
+            ],
+            "content_items": [
+                {
+                    "id": str(item.id),
+                    "domain_id": str(item.domain_id),
+                    "slug": item.slug,
+                    "type": item.type.value,
+                    "difficulty": item.difficulty.value if item.difficulty else None,
+                    "current_published_version_id": str(version.id),
+                    "title": version.title,
+                    "summary": version.summary,
+                    "row_version": version.row_version,
+                    "category_ids": categories_by_version.get(version.id, []),
+                    "updated_at": item.updated_at.isoformat(),
+                }
+                for item, version in item_rows
+            ],
+            "content_documents": [
+                {
+                    "id": str(version.id),
+                    "content_item_id": str(item.id),
+                    "version_number": version.version_number,
+                    "published_at": (
+                        version.published_at.isoformat() if version.published_at else None
+                    ),
+                    "blocks": blocks_by_version.get(version.id, []),
+                }
+                for item, version in item_rows
+            ],
+        }
+        return await self._store_snapshot(
+            profile_id=profile_id,
+            device_id=device_id,
+            stream_type="catalog",
+            domain_id=domain_id,
+            domain_slug=domain.slug,
+            cursor=cursor,
+            payload=payload,
+            retention_minutes=retention_minutes,
+        )
+
+    async def create_user_snapshot(
+        self,
+        *,
+        profile_id: UUID,
+        device_id: UUID,
+        retention_minutes: int,
+    ) -> FullResyncSnapshot:
+        await self._session.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ"))
+        await self._require_active_device(profile_id, device_id)
+        cursor = int(
+            await self._session.scalar(
+                select(UserSyncCounterModel.last_cursor).where(
+                    UserSyncCounterModel.user_id == profile_id
+                )
+            )
+            or 0
+        )
+        await self._after_snapshot_cursor("user")
+        progress = (
+            await self._session.scalars(
+                select(UserProgressModel)
+                .where(UserProgressModel.user_id == profile_id)
+                .order_by(UserProgressModel.content_item_id)
+            )
+        ).all()
+        bookmarks = (
+            await self._session.scalars(
+                select(BookmarkModel)
+                .where(BookmarkModel.user_id == profile_id)
+                .order_by(BookmarkModel.content_item_id)
+            )
+        ).all()
+        notes = (
+            await self._session.scalars(
+                select(UserNoteModel)
+                .where(
+                    UserNoteModel.user_id == profile_id,
+                    UserNoteModel.deleted_at.is_(None),
+                )
+                .order_by(UserNoteModel.id)
+            )
+        ).all()
+        review_cards = (
+            await self._session.scalars(
+                select(ReviewCardModel)
+                .join(
+                    ContentItemModel,
+                    ContentItemModel.id == ReviewCardModel.content_item_id,
+                )
+                .join(
+                    ContentVersionModel,
+                    and_(
+                        ContentVersionModel.id == ContentItemModel.current_published_version_id,
+                        ContentVersionModel.content_item_id == ContentItemModel.id,
+                    ),
+                )
+                .where(
+                    ReviewCardModel.user_id == profile_id,
+                    ReviewCardModel.suspended_at.is_(None),
+                    ContentItemModel.archived_at.is_(None),
+                    ContentVersionModel.status == PublicationStatus.PUBLISHED,
+                )
+                .order_by(ReviewCardModel.due_at, ReviewCardModel.id)
+            )
+        ).all()
+        payload: dict[str, object] = {
+            "progress": [
+                {
+                    "content_item_id": str(item.content_item_id),
+                    "status": item.status.value,
+                    "confidence": item.confidence,
+                    "last_opened_at": (
+                        item.last_opened_at.isoformat() if item.last_opened_at else None
+                    ),
+                    "row_version": item.row_version,
+                    "updated_at": item.updated_at.isoformat(),
+                }
+                for item in progress
+            ],
+            "bookmarks": [
+                {
+                    "content_item_id": str(item.content_item_id),
+                    "created_at": item.created_at.isoformat(),
+                }
+                for item in bookmarks
+            ],
+            "notes": [self._note_payload(item) for item in notes],
+            "review_cards": [self._review_card_payload(item) for item in review_cards],
+        }
+        return await self._store_snapshot(
+            profile_id=profile_id,
+            device_id=device_id,
+            stream_type="user",
+            domain_id=None,
+            domain_slug=None,
+            cursor=cursor,
+            payload=payload,
+            retention_minutes=retention_minutes,
+        )
+
+    async def acknowledge_snapshot(
+        self,
+        *,
+        profile_id: UUID,
+        device_id: UUID,
+        snapshot_id: UUID,
+        snapshot_cursor: int,
+        stream_type: str,
+        domain_id: UUID | None,
+    ) -> FullResyncAck:
+        await self._require_active_device(profile_id, device_id)
+        snapshot = await self._session.scalar(
+            select(FullResyncSnapshotModel)
+            .where(
+                FullResyncSnapshotModel.id == snapshot_id,
+                FullResyncSnapshotModel.user_id == profile_id,
+                FullResyncSnapshotModel.device_id == device_id,
+                FullResyncSnapshotModel.stream_type == stream_type,
+                FullResyncSnapshotModel.domain_id == domain_id,
+            )
+            .with_for_update()
+        )
+        if snapshot is None:
+            raise AppError(
+                error_type="full-resync-snapshot-not-found",
+                title="Full resync snapshot not found",
+                status=404,
+                detail="No matching full resync snapshot exists",
+            )
+        now = datetime.now(UTC)
+        if snapshot.expires_at <= now:
+            raise AppError(
+                error_type="full-resync-snapshot-expired",
+                title="Full resync snapshot expired",
+                status=410,
+                detail="Request a new full resync snapshot",
+            )
+        if snapshot.snapshot_cursor != snapshot_cursor:
+            raise AppError(
+                error_type="full-resync-cursor-mismatch",
+                title="Full resync cursor mismatch",
+                status=409,
+                detail="snapshot_cursor does not match the issued snapshot",
+            )
+        if stream_type == "catalog":
+            assert domain_id is not None
+            await self._session.execute(
+                insert(DeviceCatalogSyncStateModel)
+                .values(
+                    device_id=device_id,
+                    domain_id=domain_id,
+                    last_catalog_cursor=snapshot_cursor,
+                    full_resync_required=False,
+                    last_pull_at=now,
+                    updated_at=now,
+                )
+                .on_conflict_do_update(
+                    index_elements=[
+                        DeviceCatalogSyncStateModel.device_id,
+                        DeviceCatalogSyncStateModel.domain_id,
+                    ],
+                    set_={
+                        "last_catalog_cursor": func.greatest(
+                            DeviceCatalogSyncStateModel.last_catalog_cursor,
+                            snapshot_cursor,
+                        ),
+                        "full_resync_required": False,
+                        "last_pull_at": now,
+                        "updated_at": now,
+                    },
+                )
+            )
+        else:
+            await self._session.execute(
+                update(DeviceUserSyncStateModel)
+                .where(DeviceUserSyncStateModel.device_id == device_id)
+                .values(
+                    last_user_cursor=func.greatest(
+                        DeviceUserSyncStateModel.last_user_cursor,
+                        snapshot_cursor,
+                    ),
+                    full_resync_required=False,
+                    last_pull_at=now,
+                    updated_at=now,
+                )
+            )
+        if snapshot.acknowledged_at is None:
+            snapshot.acknowledged_at = now
+        return FullResyncAck(True, snapshot.snapshot_cursor)
+
+    async def _store_snapshot(
+        self,
+        *,
+        profile_id: UUID,
+        device_id: UUID,
+        stream_type: str,
+        domain_id: UUID | None,
+        domain_slug: str | None,
+        cursor: int,
+        payload: dict[str, object],
+        retention_minutes: int,
+    ) -> FullResyncSnapshot:
+        generated_at = datetime.now(UTC)
+        expires_at = generated_at + timedelta(minutes=retention_minutes)
+        model = FullResyncSnapshotModel(
+            user_id=profile_id,
+            device_id=device_id,
+            stream_type=stream_type,
+            domain_id=domain_id,
+            snapshot_cursor=cursor,
+            payload=payload,
+            expires_at=expires_at,
+        )
+        self._session.add(model)
+        await self._session.flush()
+        return FullResyncSnapshot(
+            model.id,
+            stream_type,
+            domain_id,
+            domain_slug,
+            cursor,
+            generated_at,
+            expires_at,
+            payload,
+        )
+
+    async def _after_snapshot_cursor(self, stream_type: str) -> None:
+        """Test seam invoked after PostgreSQL establishes the MVCC snapshot."""
 
     async def compact(self, *, now: datetime) -> CompactionResult:
         user_expired = (
@@ -684,6 +1191,31 @@ class SqlAlchemySyncRepository(SyncRepository):
             model.entity_version,
             model.changed_at,
         )
+
+    @staticmethod
+    def _note_payload(note: UserNoteModel) -> dict[str, object]:
+        return {
+            "id": str(note.id),
+            "content_item_id": str(note.content_item_id),
+            "kind": note.kind.value,
+            "title": note.title,
+            "body": note.body,
+            "row_version": note.row_version,
+            "created_at": note.created_at.isoformat(),
+            "updated_at": note.updated_at.isoformat(),
+        }
+
+    @staticmethod
+    def _review_card_payload(card: ReviewCardModel) -> dict[str, object]:
+        return {
+            "id": str(card.id),
+            "content_item_id": str(card.content_item_id),
+            "state": "scheduled",
+            "next_review_at": card.due_at.isoformat(),
+            "row_version": card.row_version,
+            "created_at": card.created_at.isoformat(),
+            "updated_at": card.updated_at.isoformat(),
+        }
 
 
 class SqlAlchemySyncUnitOfWork(SyncUnitOfWork):

@@ -149,7 +149,7 @@ async def test_sync_mutations_are_retry_safe_ordered_scoped_and_use_online_servi
         assert applied.cursor == 1
         assert applied.resulting_row_version == 1
         assert duplicate.deduplicated is True
-        assert duplicate.status == "applied"
+        assert duplicate.status == "duplicate"
         assert duplicate.cursor == applied.cursor
         assert duplicate.resulting_row_version == applied.resulting_row_version
         assert duplicate.result == applied.result
@@ -214,7 +214,7 @@ async def test_sync_mutations_are_retry_safe_ordered_scoped_and_use_online_servi
             },
         )
         attempt_result = await service.process_mutation(profile_id=profile_id, command=attempt)
-        assert attempt_result.cursor == 3
+        assert attempt_result.cursor == 4
         assert attempt_result.result is not None
         card_id = UUID(str(attempt_result.result["review_card_id"]))
 
@@ -234,7 +234,7 @@ async def test_sync_mutations_are_retry_safe_ordered_scoped_and_use_online_servi
             },
         )
         review_result = await service.process_mutation(profile_id=profile_id, command=review)
-        assert review_result.cursor == 4
+        assert review_result.cursor == 5
         assert review_result.resulting_row_version == 2
 
         stale = _progress(
@@ -248,19 +248,19 @@ async def test_sync_mutations_are_retry_safe_ordered_scoped_and_use_online_servi
             uuid4(), device.id, "bookmark", content_id, "insert", None, {}
         )
         batch = await service.process_batch(profile_id=profile_id, commands=(stale, valid_bookmark))
-        assert [item.status for item in batch] == ["rejected", "applied"]
-        assert batch[1].cursor == 5
+        assert [item.status for item in batch] == ["conflict", "applied"]
+        assert batch[1].cursor == 6
         rejected_retry = (await service.process_batch(profile_id=profile_id, commands=(stale,)))[0]
         assert rejected_retry.deduplicated is True
-        assert rejected_retry.status == "rejected"
+        assert rejected_retry.status == "conflict"
         assert rejected_retry.error_code == batch[0].error_code
         assert rejected_retry.cursor is None
 
         feed = await service.user_changes(
             profile_id=profile_id, device_id=device.id, after=0, limit=100
         )
-        assert [change.cursor for change in feed.changes] == [1, 2, 3, 4, 5]
-        assert feed.next_cursor == 5
+        assert [change.cursor for change in feed.changes] == [1, 2, 3, 4, 5, 6]
+        assert feed.next_cursor == 6
         assert feed.full_resync_required is False
 
         async with database.session_factory.create_session() as session:

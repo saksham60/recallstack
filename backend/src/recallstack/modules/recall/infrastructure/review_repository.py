@@ -1,5 +1,6 @@
 # ruff: noqa: E501
 
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import cast
 from uuid import UUID
@@ -27,6 +28,7 @@ from recallstack.modules.recall.application.review_submission import (
     ReviewHistoryEntry,
     ReviewSchedule,
     ReviewSubmissionResult,
+    ScheduledReview,
     StaleReviewCard,
     SubmitReview,
 )
@@ -35,11 +37,17 @@ from recallstack.modules.recall.infrastructure.sqlalchemy_models import (
     ReviewHistoryModel,
     ReviewRating,
 )
+from recallstack.modules.sync.infrastructure.sqlalchemy_models import (
+    ChangeOperation,
+    UserSyncChangeLogModel,
+    UserSyncCounterModel,
+)
 
 
 class SqlAlchemyRecallRepository(RecallRepository):
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, *, sync_retention_days: int = 30) -> None:
         self._session = session
+        self._sync_retention_days = sync_retention_days
 
     async def list_due(
         self, *, profile_id: UUID, page: int, page_size: int
@@ -98,6 +106,69 @@ class SqlAlchemyRecallRepository(RecallRepository):
             for card_id, due_at, version, content_id, slug, title, summary, item_type, difficulty in await self._session.execute(
                 statement
             )
+        )
+
+    async def list_scheduled(
+        self,
+        *,
+        profile_id: UUID,
+        page: int,
+        page_size: int,
+        due_after: datetime | None,
+        due_before: datetime | None,
+        state: str | None,
+    ) -> tuple[int, tuple[ScheduledReview, ...]]:
+        now = datetime.now(UTC)
+        filters = [
+            ReviewCardModel.user_id == profile_id,
+            ReviewCardModel.suspended_at.is_(None),
+            ContentItemModel.archived_at.is_(None),
+            ContentVersionModel.status == PublicationStatus.PUBLISHED,
+            ContentVersionModel.published_at.is_not(None),
+        ]
+        if due_after is not None:
+            filters.append(ReviewCardModel.due_at >= due_after)
+        if due_before is not None:
+            filters.append(ReviewCardModel.due_at <= due_before)
+        if state == "due":
+            filters.append(ReviewCardModel.due_at <= now)
+        elif state == "scheduled":
+            filters.append(ReviewCardModel.due_at > now)
+        source = ReviewCardModel.__table__.join(
+            ContentItemModel.__table__,
+            ContentItemModel.id == ReviewCardModel.content_item_id,
+        ).join(
+            ContentVersionModel.__table__,
+            and_(
+                ContentVersionModel.id == ContentItemModel.current_published_version_id,
+                ContentVersionModel.content_item_id == ContentItemModel.id,
+            ),
+        )
+        total = int(
+            await self._session.scalar(select(func.count()).select_from(source).where(*filters))
+            or 0
+        )
+        cards = (
+            await self._session.scalars(
+                select(ReviewCardModel)
+                .select_from(source)
+                .where(*filters)
+                .order_by(ReviewCardModel.due_at, ReviewCardModel.id)
+                .offset((page - 1) * page_size)
+                .limit(page_size)
+            )
+        ).all()
+        return total, tuple(
+            ScheduledReview(
+                card.id,
+                card.content_item_id,
+                "due" if card.due_at <= now else "scheduled",
+                card.due_at,
+                card.row_version,
+                card.created_at,
+                card.updated_at,
+            )
+            for card in cards
         )
 
     async def list_history(
@@ -261,8 +332,39 @@ class SqlAlchemyRecallRepository(RecallRepository):
                 },
             )
         )
+        await self._session.execute(
+            insert(UserSyncCounterModel)
+            .values(user_id=profile_id, last_cursor=0)
+            .on_conflict_do_nothing(index_elements=[UserSyncCounterModel.user_id])
+        )
+        counter = await self._session.scalar(
+            select(UserSyncCounterModel)
+            .where(UserSyncCounterModel.user_id == profile_id)
+            .with_for_update()
+        )
+        if counter is None:
+            raise RuntimeError("User sync counter could not be created")
+        counter.last_cursor += 1
+        counter.updated_at = datetime.now(UTC)
+        self._session.add(
+            UserSyncChangeLogModel(
+                user_id=profile_id,
+                cursor=counter.last_cursor,
+                entity_type="review",
+                entity_id=card.id,
+                operation=ChangeOperation.UPSERT,
+                entity_version=updated.row_version,
+                retain_until=datetime.now(UTC) + timedelta(days=self._sync_retention_days),
+            )
+        )
+        await self._session.flush()
         return ReviewSubmissionResult(
-            history.id, card.id, schedule.due_at, updated.row_version, True
+            history.id,
+            card.id,
+            schedule.due_at,
+            updated.row_version,
+            True,
+            counter.last_cursor,
         )
 
     @staticmethod

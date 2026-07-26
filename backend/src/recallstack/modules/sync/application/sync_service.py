@@ -61,6 +61,7 @@ class AppliedMutation:
     operation: str
     resulting_row_version: int | None
     result: dict[str, object]
+    preallocated_cursor: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,6 +76,34 @@ class MutationResult:
     resulting_row_version: int | None
     error_code: str | None
     result: dict[str, object] | None
+    conflict: "MutationConflict | None" = None
+
+
+@dataclass(frozen=True, slots=True)
+class MutationConflict:
+    entity_type: str
+    entity_id: UUID
+    expected_row_version: int
+    current_row_version: int
+    server_entity: dict[str, object]
+
+
+@dataclass(frozen=True, slots=True)
+class FullResyncSnapshot:
+    snapshot_id: UUID
+    stream_type: str
+    domain_id: UUID | None
+    domain_slug: str | None
+    snapshot_cursor: int
+    generated_at: datetime
+    expires_at: datetime
+    payload: dict[str, object]
+
+
+@dataclass(frozen=True, slots=True)
+class FullResyncAck:
+    acknowledged: bool
+    snapshot_cursor: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,6 +173,12 @@ class SyncRepository(Protocol):
     ) -> None: ...
 
     async def mark_mutation_rejected(self, *, mutation_id: UUID, error_code: str) -> None: ...
+    async def mark_mutation_conflict(
+        self, *, mutation_id: UUID, error_code: str, conflict: MutationConflict
+    ) -> None: ...
+    async def load_conflict(
+        self, *, profile_id: UUID, command: MutationCommand, error_code: str
+    ) -> MutationConflict | None: ...
     async def mark_device_pushed(self, device_id: UUID) -> None: ...
 
     async def user_changes(
@@ -153,6 +188,34 @@ class SyncRepository(Protocol):
     async def catalog_changes(
         self, *, profile_id: UUID, device_id: UUID, domain_id: UUID, after: int, limit: int
     ) -> ChangeFeed: ...
+
+    async def create_catalog_snapshot(
+        self,
+        *,
+        profile_id: UUID,
+        device_id: UUID,
+        domain_id: UUID,
+        retention_minutes: int,
+    ) -> FullResyncSnapshot: ...
+
+    async def create_user_snapshot(
+        self,
+        *,
+        profile_id: UUID,
+        device_id: UUID,
+        retention_minutes: int,
+    ) -> FullResyncSnapshot: ...
+
+    async def acknowledge_snapshot(
+        self,
+        *,
+        profile_id: UUID,
+        device_id: UUID,
+        snapshot_id: UUID,
+        snapshot_cursor: int,
+        stream_type: str,
+        domain_id: UUID | None,
+    ) -> FullResyncAck: ...
 
     async def compact(self, *, now: datetime) -> CompactionResult: ...
 
@@ -174,9 +237,16 @@ SyncUnitOfWorkFactory = Callable[[], SyncUnitOfWork]
 
 
 class SyncService:
-    def __init__(self, uow_factory: SyncUnitOfWorkFactory, *, retention_days: int) -> None:
+    def __init__(
+        self,
+        uow_factory: SyncUnitOfWorkFactory,
+        *,
+        retention_days: int,
+        snapshot_retention_minutes: int = 30,
+    ) -> None:
         self._uow_factory = uow_factory
         self._retention_days = retention_days
+        self._snapshot_retention_minutes = snapshot_retention_minutes
 
     async def register_device(
         self, *, profile_id: UUID, device_name: str | None, platform: str, app_version: str | None
@@ -239,12 +309,24 @@ class SyncService:
                     )
                 except AppError as exc:
                     rejection = exc
-                    await uow.repository.mark_mutation_rejected(
-                        mutation_id=command.mutation_id, error_code=exc.error_type
+                    conflict = await uow.repository.load_conflict(
+                        profile_id=profile_id,
+                        command=command,
+                        error_code=exc.error_type,
                     )
+                    if conflict is None:
+                        await uow.repository.mark_mutation_rejected(
+                            mutation_id=command.mutation_id, error_code=exc.error_type
+                        )
+                    else:
+                        await uow.repository.mark_mutation_conflict(
+                            mutation_id=command.mutation_id,
+                            error_code=exc.error_type,
+                            conflict=conflict,
+                        )
                     result = MutationResult(
                         command.mutation_id,
-                        "rejected",
+                        "conflict" if conflict is not None else "rejected",
                         False,
                         None,
                         command.entity_type,
@@ -253,13 +335,16 @@ class SyncService:
                         None,
                         exc.error_type,
                         None,
+                        conflict,
                     )
                 else:
-                    cursor = await uow.repository.allocate_user_change(
-                        profile_id=profile_id,
-                        mutation=applied,
-                        retention_days=self._retention_days,
-                    )
+                    cursor = applied.preallocated_cursor
+                    if cursor is None:
+                        cursor = await uow.repository.allocate_user_change(
+                            profile_id=profile_id,
+                            mutation=applied,
+                            retention_days=self._retention_days,
+                        )
                     await uow.repository.mark_mutation_applied(
                         mutation_id=command.mutation_id,
                         resulting_row_version=applied.resulting_row_version,
@@ -280,7 +365,7 @@ class SyncService:
                         applied.result,
                     )
             await uow.commit()
-        if result.status == "rejected" and reject_as_error:
+        if result.status in {"rejected", "conflict"} and reject_as_error:
             if rejection is not None:
                 raise rejection
             raise AppError(
@@ -333,6 +418,51 @@ class SyncService:
             await uow.commit()
         return feed
 
+    async def catalog_full_resync(
+        self, *, profile_id: UUID, device_id: UUID, domain_id: UUID
+    ) -> FullResyncSnapshot:
+        async with self._uow_factory() as uow:
+            snapshot = await uow.repository.create_catalog_snapshot(
+                profile_id=profile_id,
+                device_id=device_id,
+                domain_id=domain_id,
+                retention_minutes=self._snapshot_retention_minutes,
+            )
+            await uow.commit()
+        return snapshot
+
+    async def user_full_resync(self, *, profile_id: UUID, device_id: UUID) -> FullResyncSnapshot:
+        async with self._uow_factory() as uow:
+            snapshot = await uow.repository.create_user_snapshot(
+                profile_id=profile_id,
+                device_id=device_id,
+                retention_minutes=self._snapshot_retention_minutes,
+            )
+            await uow.commit()
+        return snapshot
+
+    async def acknowledge_full_resync(
+        self,
+        *,
+        profile_id: UUID,
+        device_id: UUID,
+        snapshot_id: UUID,
+        snapshot_cursor: int,
+        stream_type: str,
+        domain_id: UUID | None = None,
+    ) -> FullResyncAck:
+        async with self._uow_factory() as uow:
+            ack = await uow.repository.acknowledge_snapshot(
+                profile_id=profile_id,
+                device_id=device_id,
+                snapshot_id=snapshot_id,
+                snapshot_cursor=snapshot_cursor,
+                stream_type=stream_type,
+                domain_id=domain_id,
+            )
+            await uow.commit()
+        return ack
+
     async def compact(self, *, now: datetime) -> CompactionResult:
         async with self._uow_factory() as uow:
             result = await uow.repository.compact(now=now)
@@ -358,9 +488,37 @@ class SyncService:
 
     @staticmethod
     def _deduplicated(record: MutationRecord) -> MutationResult:
+        conflict = None
+        raw = record.result_payload.get("conflict") if record.result_payload else None
+        if isinstance(raw, dict):
+            entity_type = raw.get("entity_type")
+            entity_id = raw.get("entity_id")
+            expected = raw.get("expected_row_version")
+            current = raw.get("current_row_version")
+            server_entity = raw.get("server_entity")
+            if (
+                isinstance(entity_type, str)
+                and isinstance(entity_id, str)
+                and isinstance(expected, int)
+                and isinstance(current, int)
+                and isinstance(server_entity, dict)
+            ):
+                conflict = MutationConflict(
+                    entity_type,
+                    UUID(entity_id),
+                    expected,
+                    current,
+                    server_entity,
+                )
         return MutationResult(
             record.mutation_id,
-            record.status,
+            (
+                "conflict"
+                if conflict is not None
+                else "duplicate"
+                if record.status == "applied"
+                else record.status
+            ),
             True,
             record.result_cursor,
             record.entity_type,
@@ -368,7 +526,8 @@ class SyncService:
             record.operation,
             record.resulting_row_version,
             record.error_code,
-            record.result_payload,
+            None if conflict is not None else record.result_payload,
+            conflict,
         )
 
     @staticmethod

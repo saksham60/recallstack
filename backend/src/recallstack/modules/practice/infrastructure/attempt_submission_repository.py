@@ -1,3 +1,4 @@
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
@@ -30,6 +31,11 @@ from recallstack.modules.practice.infrastructure.sqlalchemy_models import (
     PracticeResourceModel,
 )
 from recallstack.modules.recall.infrastructure.sqlalchemy_models import ReviewCardModel
+from recallstack.modules.sync.infrastructure.sqlalchemy_models import (
+    ChangeOperation,
+    UserSyncChangeLogModel,
+    UserSyncCounterModel,
+)
 from recallstack.shared.errors import AppError
 
 _to_persistence_outcome = {
@@ -43,8 +49,9 @@ _to_api_outcome = {value: key for key, value in _to_persistence_outcome.items()}
 
 
 class SqlAlchemyPracticeAttemptRepository:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, *, sync_retention_days: int = 30) -> None:
         self._session = session
+        self._sync_retention_days = sync_retention_days
 
     async def find_by_event_id(self, attempt_event_id: UUID) -> PersistedAttempt | None:
         attempt = await self._session.scalar(
@@ -234,6 +241,31 @@ class SqlAlchemyPracticeAttemptRepository:
             card.row_version += 1
             card.updated_at = func.now()
             await self._session.flush()
+        await self._session.execute(
+            insert(UserSyncCounterModel)
+            .values(user_id=profile_id, last_cursor=0)
+            .on_conflict_do_nothing(index_elements=[UserSyncCounterModel.user_id])
+        )
+        counter = await self._session.scalar(
+            select(UserSyncCounterModel)
+            .where(UserSyncCounterModel.user_id == profile_id)
+            .with_for_update()
+        )
+        if counter is None:
+            raise RuntimeError("User sync counter could not be created")
+        counter.last_cursor += 1
+        counter.updated_at = datetime.now(UTC)
+        self._session.add(
+            UserSyncChangeLogModel(
+                user_id=profile_id,
+                cursor=counter.last_cursor,
+                entity_type="review",
+                entity_id=card.id,
+                operation=ChangeOperation.UPSERT,
+                entity_version=card.row_version,
+                retain_until=datetime.now(UTC) + timedelta(days=self._sync_retention_days),
+            )
+        )
         self._session.add(
             ActivityEventModel(
                 user_id=profile_id,

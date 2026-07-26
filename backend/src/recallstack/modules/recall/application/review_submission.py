@@ -82,6 +82,7 @@ class ReviewSubmissionResult:
     next_review_at: datetime
     row_version: int
     newly_applied: bool
+    sync_cursor: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,6 +96,17 @@ class DueReview:
     summary: str | None
     type: str
     difficulty: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class ScheduledReview:
+    id: UUID
+    content_item_id: UUID
+    state: str
+    next_review_at: datetime
+    row_version: int
+    created_at: datetime
+    updated_at: datetime
 
 
 @dataclass(frozen=True, slots=True)
@@ -125,6 +137,17 @@ class RecallRepository(Protocol):
     async def list_due(
         self, *, profile_id: UUID, page: int, page_size: int
     ) -> tuple[int, tuple[DueReview, ...]]: ...
+
+    async def list_scheduled(
+        self,
+        *,
+        profile_id: UUID,
+        page: int,
+        page_size: int,
+        due_after: datetime | None,
+        due_before: datetime | None,
+        state: str | None,
+    ) -> tuple[int, tuple[ScheduledReview, ...]]: ...
 
     async def list_history(
         self, *, profile_id: UUID, page: int, page_size: int
@@ -180,6 +203,26 @@ class RecallService:
         async with self._unit_of_work() as uow:
             return await uow.repository.list_due(
                 profile_id=profile_id, page=page, page_size=page_size
+            )
+
+    async def scheduled(
+        self,
+        *,
+        profile_id: UUID,
+        page: int,
+        page_size: int,
+        due_after: datetime | None,
+        due_before: datetime | None,
+        state: str | None,
+    ) -> tuple[int, tuple[ScheduledReview, ...]]:
+        async with self._unit_of_work() as uow:
+            return await uow.repository.list_scheduled(
+                profile_id=profile_id,
+                page=page,
+                page_size=page_size,
+                due_after=due_after,
+                due_before=due_before,
+                state=state,
             )
 
     async def history(

@@ -7,22 +7,28 @@ from fastapi import APIRouter, Depends, Path, Query, Request
 from recallstack.modules.identity.presentation.dependencies import CurrentUserDependency
 from recallstack.modules.sync.application.sync_service import (
     ChangeFeed,
+    FullResyncSnapshot,
     MutationCommand,
     MutationResult,
     SyncService,
 )
 from recallstack.modules.sync.presentation.schemas import (
+    CatalogFullResyncResponse,
     ChangeFeedResponse,
     ChangeResponse,
     DeviceListResponse,
     DeviceRegisterRequest,
     DeviceResponse,
+    FullResyncAckRequest,
+    FullResyncAckResponse,
+    FullResyncRequest,
     MutationBatchRequest,
     MutationBatchResponse,
     MutationEnvelope,
     MutationRequest,
     MutationResponse,
     PaginationResponse,
+    UserFullResyncResponse,
 )
 
 router = APIRouter(tags=["sync"])
@@ -49,6 +55,35 @@ def _command(device_id: UUID, item: MutationRequest) -> MutationCommand:
 
 def _mutation_response(result: MutationResult) -> MutationResponse:
     return MutationResponse.model_validate(result, from_attributes=True)
+
+
+def _catalog_snapshot_response(snapshot: FullResyncSnapshot) -> CatalogFullResyncResponse:
+    data = snapshot
+    return CatalogFullResyncResponse(
+        snapshot_id=data.snapshot_id,
+        domain_id=cast(UUID, data.domain_id),
+        domain_slug=cast(str, data.domain_slug),
+        snapshot_cursor=data.snapshot_cursor,
+        generated_at=data.generated_at,
+        expires_at=data.expires_at,
+        categories=cast(list[dict[str, object]], data.payload["categories"]),
+        content_items=cast(list[dict[str, object]], data.payload["content_items"]),
+        content_documents=cast(list[dict[str, object]], data.payload["content_documents"]),
+    )
+
+
+def _user_snapshot_response(snapshot: FullResyncSnapshot) -> UserFullResyncResponse:
+    data = snapshot
+    return UserFullResyncResponse(
+        snapshot_id=data.snapshot_id,
+        snapshot_cursor=data.snapshot_cursor,
+        generated_at=data.generated_at,
+        expires_at=data.expires_at,
+        progress=cast(list[dict[str, object]], data.payload["progress"]),
+        bookmarks=cast(list[dict[str, object]], data.payload["bookmarks"]),
+        notes=cast(list[dict[str, object]], data.payload["notes"]),
+        review_cards=cast(list[dict[str, object]], data.payload["review_cards"]),
+    )
 
 
 def _feed_response(feed: ChangeFeed) -> ChangeFeedResponse:
@@ -142,6 +177,8 @@ async def apply_mutation_batch(
         results=[_mutation_response(item) for item in results],
         applied_count=sum(item.status == "applied" for item in results),
         rejected_count=sum(item.status == "rejected" for item in results),
+        duplicate_count=sum(item.status == "duplicate" for item in results),
+        conflict_count=sum(item.status == "conflict" for item in results),
     )
 
 
@@ -185,3 +222,83 @@ async def pull_catalog_changes(
             limit=limit,
         )
     )
+
+
+@router.post(
+    "/sync/catalog/{domainId}/full-resync",
+    response_model=CatalogFullResyncResponse,
+    operation_id="createCatalogFullResync",
+)
+async def create_catalog_full_resync(
+    domain_id: Annotated[UUID, Path(alias="domainId")],
+    payload: FullResyncRequest,
+    current_user: CurrentUserDependency,
+    service: SyncServiceDependency,
+) -> CatalogFullResyncResponse:
+    return _catalog_snapshot_response(
+        await service.catalog_full_resync(
+            profile_id=current_user.profile_id,
+            device_id=payload.device_id,
+            domain_id=domain_id,
+        )
+    )
+
+
+@router.post(
+    "/sync/catalog/{domainId}/full-resync/ack",
+    response_model=FullResyncAckResponse,
+    operation_id="acknowledgeCatalogFullResync",
+)
+async def acknowledge_catalog_full_resync(
+    domain_id: Annotated[UUID, Path(alias="domainId")],
+    payload: FullResyncAckRequest,
+    current_user: CurrentUserDependency,
+    service: SyncServiceDependency,
+) -> FullResyncAckResponse:
+    result = await service.acknowledge_full_resync(
+        profile_id=current_user.profile_id,
+        device_id=payload.device_id,
+        snapshot_id=payload.snapshot_id,
+        snapshot_cursor=payload.snapshot_cursor,
+        stream_type="catalog",
+        domain_id=domain_id,
+    )
+    return FullResyncAckResponse.model_validate(result, from_attributes=True)
+
+
+@router.post(
+    "/sync/user/full-resync",
+    response_model=UserFullResyncResponse,
+    operation_id="createUserFullResync",
+)
+async def create_user_full_resync(
+    payload: FullResyncRequest,
+    current_user: CurrentUserDependency,
+    service: SyncServiceDependency,
+) -> UserFullResyncResponse:
+    return _user_snapshot_response(
+        await service.user_full_resync(
+            profile_id=current_user.profile_id,
+            device_id=payload.device_id,
+        )
+    )
+
+
+@router.post(
+    "/sync/user/full-resync/ack",
+    response_model=FullResyncAckResponse,
+    operation_id="acknowledgeUserFullResync",
+)
+async def acknowledge_user_full_resync(
+    payload: FullResyncAckRequest,
+    current_user: CurrentUserDependency,
+    service: SyncServiceDependency,
+) -> FullResyncAckResponse:
+    result = await service.acknowledge_full_resync(
+        profile_id=current_user.profile_id,
+        device_id=payload.device_id,
+        snapshot_id=payload.snapshot_id,
+        snapshot_cursor=payload.snapshot_cursor,
+        stream_type="user",
+    )
+    return FullResyncAckResponse.model_validate(result, from_attributes=True)

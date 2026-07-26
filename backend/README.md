@@ -4,6 +4,35 @@ Python 3.12 FastAPI modular monolith using standard PostgreSQL, SQLAlchemy 2, ps
 Supabase is isolated to the JWT verifier and the identity migration’s `profiles -> auth.users` foreign
 key; runtime persistence never uses the Supabase SDK or PostgREST.
 
+## Offline mobile synchronization
+
+Incremental sync remains available through `GET /api/v1/sync/catalog/{domainId}`
+and `GET /api/v1/sync/user`. When either feed returns
+`full_resync_required=true`, clients:
+
+1. Request `POST /api/v1/sync/catalog/{domainId}/full-resync` or
+   `POST /api/v1/sync/user/full-resync` with `device_id`.
+2. Persist the complete response and `snapshot_cursor` atomically.
+3. ACK that exact `snapshot_id`, `device_id`, and `snapshot_cursor` at the
+   matching `/full-resync/ack` endpoint.
+4. Resume incremental sync with `after=snapshot_cursor`.
+
+Snapshot rows and their cursor are read in one PostgreSQL repeatable-read MVCC
+snapshot and persisted immutably for 30 minutes. Downloading never advances
+device state. ACK is ownership-scoped and idempotent; it is the only operation
+that clears `full_resync_required`. Expired snapshots return HTTP 410, while
+unknown or cross-owner snapshots return HTTP 404.
+
+`GET /api/v1/me/reviews` returns all active due and future scheduled cards in
+stable `next_review_at`, `id` order. The existing `/me/reviews/due` endpoint
+remains due-only.
+
+Mutation results use the bounded statuses `applied`, `duplicate`, `rejected`,
+and `conflict`. Row-version conflicts include a structured `conflict` object
+with the expected version, authoritative current version, and owner-scoped
+server projection. Existing fields such as `mutation_id`, `status`, and
+`error_code` remain present.
+
 ## Local setup
 
 Prerequisites: Python 3.12, `uv`, and Docker.

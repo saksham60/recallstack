@@ -11,14 +11,22 @@ from recallstack.shared.database import DatabaseSessionFactory
 
 
 class SqlAlchemyPracticeAttemptUnitOfWork:
-    def __init__(self, session_factory: DatabaseSessionFactory[AsyncSession]) -> None:
+    def __init__(
+        self,
+        session_factory: DatabaseSessionFactory[AsyncSession],
+        *,
+        sync_retention_days: int = 30,
+    ) -> None:
         self._session_factory = session_factory
+        self._sync_retention_days = sync_retention_days
         self._session: AsyncSession | None = None
         self.repository: PracticeAttemptRepository
 
     async def __aenter__(self) -> Self:
         self._session = self._session_factory.create_session()
-        self.repository = SqlAlchemyPracticeAttemptRepository(self._session)
+        self.repository = SqlAlchemyPracticeAttemptRepository(
+            self._session, sync_retention_days=self._sync_retention_days
+        )
         return self
 
     async def __aexit__(

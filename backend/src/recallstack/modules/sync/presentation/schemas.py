@@ -162,9 +162,17 @@ class MutationBatchRequest(StrictSchema):
         return self
 
 
+class MutationConflictResponse(StrictSchema):
+    entity_type: str
+    entity_id: UUID
+    expected_row_version: int
+    current_row_version: int
+    server_entity: dict[str, object]
+
+
 class MutationResponse(StrictSchema):
     mutation_id: UUID
-    status: Literal["applied", "rejected"]
+    status: Literal["applied", "duplicate", "rejected", "conflict"]
     deduplicated: bool
     cursor: int | None
     entity_type: str
@@ -173,12 +181,15 @@ class MutationResponse(StrictSchema):
     resulting_row_version: int | None
     error_code: str | None
     result: dict[str, object] | None
+    conflict: MutationConflictResponse | None = None
 
 
 class MutationBatchResponse(StrictSchema):
     results: list[MutationResponse]
     applied_count: int
     rejected_count: int
+    duplicate_count: int
+    conflict_count: int
 
 
 class ChangeResponse(StrictSchema):
@@ -196,3 +207,41 @@ class ChangeFeedResponse(StrictSchema):
     next_cursor: int
     has_more: bool
     full_resync_required: bool
+
+
+class FullResyncRequest(StrictSchema):
+    device_id: UUID
+
+
+class FullResyncAckRequest(StrictSchema):
+    device_id: UUID
+    snapshot_id: UUID
+    snapshot_cursor: Annotated[int, Field(ge=0)]
+
+
+class FullResyncAckResponse(StrictSchema):
+    acknowledged: bool
+    snapshot_cursor: int
+
+
+class CatalogFullResyncResponse(StrictSchema):
+    snapshot_id: UUID
+    domain_id: UUID
+    domain_slug: str
+    snapshot_cursor: int
+    generated_at: datetime
+    expires_at: datetime
+    categories: list[dict[str, object]]
+    content_items: list[dict[str, object]]
+    content_documents: list[dict[str, object]]
+
+
+class UserFullResyncResponse(StrictSchema):
+    snapshot_id: UUID
+    snapshot_cursor: int
+    generated_at: datetime
+    expires_at: datetime
+    progress: list[dict[str, object]]
+    bookmarks: list[dict[str, object]]
+    notes: list[dict[str, object]]
+    review_cards: list[dict[str, object]]

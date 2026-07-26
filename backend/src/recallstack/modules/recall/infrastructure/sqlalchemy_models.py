@@ -47,6 +47,13 @@ class ReviewCardModel(Base):
             "due_at",
             postgresql_where=text("suspended_at IS NULL"),
         ),
+        Index(
+            "ix_review_cards_user_due_id_active",
+            "user_id",
+            "due_at",
+            "id",
+            postgresql_where=text("suspended_at IS NULL"),
+        ),
     )
     id: Mapped[UUID] = mapped_column(primary_key=True, server_default=func.gen_random_uuid())
     user_id: Mapped[UUID] = mapped_column(ForeignKey("profiles.id", ondelete="CASCADE"))

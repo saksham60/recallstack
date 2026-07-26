@@ -274,6 +274,13 @@ async def test_practice_attempt_is_idempotent_atomic_and_user_scoped(
             text("SELECT count(*) FROM practice_attempts WHERE attempt_event_id = :event_id"),
             {"event_id": rollback_event_id},
         ).scalar_one()
+        review_sync_changes = connection.execute(
+            text(
+                "SELECT count(*) FROM user_sync_change_log "
+                "WHERE user_id = :user_id AND entity_type = 'review'"
+            ),
+            {"user_id": user_a},
+        ).scalar_one()
         progress_rows = connection.execute(
             text(
                 "SELECT user_id, status, confidence FROM user_progress "
@@ -294,6 +301,7 @@ async def test_practice_attempt_is_idempotent_atomic_and_user_scoped(
         ).scalar_one()
     engine.dispose()
     assert rollback_count == 0
+    assert review_sync_changes >= 1
     assert concurrent_count == 1
     assert concurrent_progress == "confident"
     assert {row.user_id for row in progress_rows} == {user_a, user_b}

@@ -107,12 +107,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             lambda: SqlAlchemyAdminUserUnitOfWork(database.session_factory)
         )
         app.state.practice_attempt_service = PracticeAttemptService(
-            lambda: SqlAlchemyPracticeAttemptUnitOfWork(database.session_factory),
+            lambda: SqlAlchemyPracticeAttemptUnitOfWork(
+                database.session_factory, sync_retention_days=resolved.sync_retention_days
+            ),
             DeterministicInitialReviewScheduler(),
             app.state.event_publisher,
         )
         app.state.recall_service = RecallService(
-            lambda: SqlAlchemyRecallUnitOfWork(database.session_factory),
+            lambda: SqlAlchemyRecallUnitOfWork(
+                database.session_factory, sync_retention_days=resolved.sync_retention_days
+            ),
             DeterministicReviewScheduler(),
             app.state.event_publisher,
         )
