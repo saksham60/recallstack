@@ -156,11 +156,55 @@ async def test_practice_attempt_is_idempotent_atomic_and_user_scoped(
         assert result.updated_progress == status
         assert result.review_card_id is not None
 
+    engine = create_engine(migrated_database_url)
+    with engine.connect() as connection:
+        cursor_before_retry = connection.execute(
+            text("SELECT last_cursor FROM user_sync_counters WHERE user_id = :user_id"),
+            {"user_id": user_a},
+        ).scalar_one()
+        changes_before_retry = connection.execute(
+            text("SELECT count(*) FROM user_sync_change_log WHERE user_id = :user_id"),
+            {"user_id": user_a},
+        ).scalar_one()
+    engine.dispose()
     retry_command = command(event_id=uuid4(), content_id=content_id, resource_id=resource_id)
     first = await service.submit(profile_id=user_a, command=retry_command)
     retry = await service.submit(profile_id=user_a, command=retry_command)
     assert first.attempt_id == retry.attempt_id
+    assert first.newly_applied is True
+    assert first.sync_cursor == cursor_before_retry + 1
     assert retry.newly_applied is False
+    assert retry.sync_cursor is None
+    engine = create_engine(migrated_database_url)
+    with engine.connect() as connection:
+        cursor_after_retry = connection.execute(
+            text("SELECT last_cursor FROM user_sync_counters WHERE user_id = :user_id"),
+            {"user_id": user_a},
+        ).scalar_one()
+        changes_after_retry = connection.execute(
+            text("SELECT count(*) FROM user_sync_change_log WHERE user_id = :user_id"),
+            {"user_id": user_a},
+        ).scalar_one()
+        retry_changes = (
+            connection.execute(
+                text(
+                    "SELECT cursor, entity_type, entity_id, operation "
+                    "FROM user_sync_change_log WHERE user_id = :user_id "
+                    "AND cursor > :cursor ORDER BY cursor"
+                ),
+                {"user_id": user_a, "cursor": cursor_before_retry},
+            )
+            .mappings()
+            .all()
+        )
+    engine.dispose()
+    assert cursor_after_retry == first.sync_cursor
+    assert len(retry_changes) == 1
+    assert changes_after_retry == changes_before_retry + 1
+    assert retry_changes[0]["cursor"] == first.sync_cursor
+    assert retry_changes[0]["entity_type"] == "review"
+    assert retry_changes[0]["entity_id"] == first.review_card_id
+    assert retry_changes[0]["operation"] == "upsert"
     later = await service.submit(
         profile_id=user_a,
         command=command(
@@ -177,6 +221,7 @@ async def test_practice_attempt_is_idempotent_atomic_and_user_scoped(
     assert retry_after_later_change.updated_confidence == first.updated_confidence
     assert retry_after_later_change.review_card_id == first.review_card_id
     assert retry_after_later_change.next_review_at == first.next_review_at
+    assert retry_after_later_change.sync_cursor is None
     with pytest.raises(AppError) as cross_user_retry:
         await service.submit(profile_id=user_b, command=retry_command)
     assert cross_user_retry.value.status == 409
@@ -221,6 +266,17 @@ async def test_practice_attempt_is_idempotent_atomic_and_user_scoped(
         DeterministicInitialReviewScheduler(),
         None,
     )
+    engine = create_engine(migrated_database_url)
+    with engine.connect() as connection:
+        cursor_before_failure = connection.execute(
+            text("SELECT last_cursor FROM user_sync_counters WHERE user_id = :user_id"),
+            {"user_id": user_a},
+        ).scalar_one()
+        changes_before_failure = connection.execute(
+            text("SELECT count(*) FROM user_sync_change_log WHERE user_id = :user_id"),
+            {"user_id": user_a},
+        ).scalar_one()
+    engine.dispose()
     rollback_event_id = uuid4()
     with pytest.raises(RuntimeError, match="mandatory write failure"):
         await failing_service.submit(
@@ -231,6 +287,19 @@ async def test_practice_attempt_is_idempotent_atomic_and_user_scoped(
                 resource_id=resource_id,
             ),
         )
+    engine = create_engine(migrated_database_url)
+    with engine.connect() as connection:
+        cursor_after_failure = connection.execute(
+            text("SELECT last_cursor FROM user_sync_counters WHERE user_id = :user_id"),
+            {"user_id": user_a},
+        ).scalar_one()
+        changes_after_failure = connection.execute(
+            text("SELECT count(*) FROM user_sync_change_log WHERE user_id = :user_id"),
+            {"user_id": user_a},
+        ).scalar_one()
+    engine.dispose()
+    assert cursor_after_failure == cursor_before_failure
+    assert changes_after_failure == changes_before_failure
 
     user_b_result = await service.submit(
         profile_id=user_b,
@@ -244,6 +313,7 @@ async def test_practice_attempt_is_idempotent_atomic_and_user_scoped(
         service.submit(profile_id=user_a, command=concurrent_command),
     )
     assert {result.newly_applied for result in concurrent_results} == {False, True}
+    assert {result.sync_cursor is None for result in concurrent_results} == {False, True}
     assert len({result.attempt_id for result in concurrent_results}) == 1
 
     different_outcome_results = await asyncio.gather(
@@ -267,6 +337,11 @@ async def test_practice_attempt_is_idempotent_atomic_and_user_scoped(
         ),
     )
     assert len(different_outcome_results) == 2
+    concurrent_cursors = sorted(
+        result.sync_cursor for result in different_outcome_results if result.sync_cursor is not None
+    )
+    assert len(concurrent_cursors) == 2
+    assert concurrent_cursors[1] == concurrent_cursors[0] + 1
 
     engine = create_engine(migrated_database_url)
     with engine.connect() as connection:

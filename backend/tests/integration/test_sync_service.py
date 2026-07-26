@@ -33,6 +33,7 @@ from recallstack.modules.sync.infrastructure.sqlalchemy_models import (
     MutationStatus,
     SyncMutationModel,
     UserSyncChangeLogModel,
+    UserSyncCounterModel,
 )
 from recallstack.shared.config import Settings
 from recallstack.shared.database import Database
@@ -215,7 +216,7 @@ async def test_sync_mutations_are_retry_safe_ordered_scoped_and_use_online_servi
             },
         )
         attempt_result = await service.process_mutation(profile_id=profile_id, command=attempt)
-        assert attempt_result.cursor == 4
+        assert attempt_result.cursor == 3
         assert attempt_result.result is not None
         card_id = UUID(str(attempt_result.result["review_card_id"]))
 
@@ -235,7 +236,7 @@ async def test_sync_mutations_are_retry_safe_ordered_scoped_and_use_online_servi
             },
         )
         review_result = await service.process_mutation(profile_id=profile_id, command=review)
-        assert review_result.cursor == 5
+        assert review_result.cursor == 4
         assert review_result.resulting_row_version == 2
 
         stale = _progress(
@@ -250,7 +251,7 @@ async def test_sync_mutations_are_retry_safe_ordered_scoped_and_use_online_servi
         )
         batch = await service.process_batch(profile_id=profile_id, commands=(stale, valid_bookmark))
         assert [item.status for item in batch] == ["conflict", "applied"]
-        assert batch[1].cursor == 6
+        assert batch[1].cursor == 5
         rejected_retry = (await service.process_batch(profile_id=profile_id, commands=(stale,)))[0]
         assert rejected_retry.deduplicated is True
         assert rejected_retry.status == "conflict"
@@ -260,8 +261,8 @@ async def test_sync_mutations_are_retry_safe_ordered_scoped_and_use_online_servi
         feed = await service.user_changes(
             profile_id=profile_id, device_id=device.id, after=0, limit=100
         )
-        assert [change.cursor for change in feed.changes] == [1, 2, 3, 4, 5, 6]
-        assert feed.next_cursor == 6
+        assert [change.cursor for change in feed.changes] == [1, 2, 3, 4, 5]
+        assert feed.next_cursor == 5
         assert feed.full_resync_required is False
 
         async with database.session_factory.create_session() as session:
@@ -319,6 +320,95 @@ async def test_sync_mutations_are_retry_safe_ordered_scoped_and_use_online_servi
             limit=100,
         )
         assert len(catalog.changes) == 1
+    finally:
+        await database.close()
+
+
+@pytest.mark.integration
+async def test_practice_attempt_mutation_reuses_preallocated_review_cursor(
+    migrated_database_url: str,
+) -> None:
+    database = Database(
+        Settings(
+            supabase_project_url="https://example.supabase.co",
+            app_env="test",
+            database_url=migrated_database_url,
+        )
+    )
+    service = SyncService(
+        lambda: SqlAlchemySyncUnitOfWork(database.session_factory), retention_days=1
+    )
+    try:
+        profile_id = await _profile(database)
+        content_id, _ = await _published_content(database)
+        device = await service.register_device(
+            profile_id=profile_id,
+            device_name="Practice cursor",
+            platform="android",
+            app_version="1",
+        )
+        command = MutationCommand(
+            uuid4(),
+            device.id,
+            "practice_attempt",
+            uuid4(),
+            "insert",
+            None,
+            {
+                "content_item_id": str(content_id),
+                "practice_resource_id": None,
+                "outcome": "solved_independently",
+                "duration_seconds": 60,
+                "hint_used": False,
+                "confidence_before": 20,
+                "confidence_after": 80,
+                "attempted_at": datetime.now(UTC).isoformat(),
+            },
+        )
+        applied = await service.process_mutation(profile_id=profile_id, command=command)
+        assert applied.status == "applied"
+        assert applied.cursor == 1
+        assert applied.result is not None
+        review_card_id = UUID(str(applied.result["review_card_id"]))
+
+        async with database.session_factory.create_session() as session:
+            counter = await session.get(UserSyncCounterModel, profile_id)
+            changes = (
+                await session.scalars(
+                    select(UserSyncChangeLogModel)
+                    .where(UserSyncChangeLogModel.user_id == profile_id)
+                    .order_by(UserSyncChangeLogModel.cursor)
+                )
+            ).all()
+        assert counter is not None and counter.last_cursor == 1
+        assert [
+            (
+                change.cursor,
+                change.entity_type,
+                change.operation,
+                change.entity_id,
+            )
+            for change in changes
+        ] == [(1, "review", ChangeOperation.UPSERT, review_card_id)]
+        assert applied.cursor == changes[0].cursor
+
+        duplicate = await service.process_mutation(profile_id=profile_id, command=command)
+        assert duplicate.status == "duplicate"
+        assert duplicate.deduplicated is True
+        assert duplicate.cursor == applied.cursor
+        async with database.session_factory.create_session() as session:
+            counter_after_replay = await session.get(UserSyncCounterModel, profile_id)
+            changes_after_replay = (
+                await session.scalars(
+                    select(UserSyncChangeLogModel).where(
+                        UserSyncChangeLogModel.user_id == profile_id
+                    )
+                )
+            ).all()
+        assert counter_after_replay is not None
+        assert counter_after_replay.last_cursor == 1
+        assert len(changes_after_replay) == 1
+        assert all(change.entity_type != "practice_attempt" for change in changes_after_replay)
     finally:
         await database.close()
 

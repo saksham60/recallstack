@@ -351,6 +351,8 @@ class SqlAlchemySyncRepository(SyncRepository):
                     "review_card_id": str(attempt_result.review_card_id),
                     "next_review_at": attempt_result.next_review_at.isoformat(),
                 },
+                attempt_result.sync_cursor,
+                attempt_result.newly_applied,
             )
         if command.entity_type == "review":
             recall = RecallService(

@@ -66,6 +66,7 @@ class AttemptResult:
     review_card_id: UUID
     next_review_at: datetime
     newly_applied: bool
+    sync_cursor: int | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -214,6 +215,7 @@ class PracticeAttemptService:
             review_card_id=existing.review_card_id,
             next_review_at=existing.next_review_at,
             newly_applied=False,
+            sync_cursor=None,
         )
 
     async def _publish(

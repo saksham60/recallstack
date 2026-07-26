@@ -254,11 +254,12 @@ class SqlAlchemyPracticeAttemptRepository:
         if counter is None:
             raise RuntimeError("User sync counter could not be created")
         counter.last_cursor += 1
+        allocated_cursor = counter.last_cursor
         counter.updated_at = datetime.now(UTC)
         self._session.add(
             UserSyncChangeLogModel(
                 user_id=profile_id,
-                cursor=counter.last_cursor,
+                cursor=allocated_cursor,
                 entity_type="review",
                 entity_id=card.id,
                 operation=ChangeOperation.UPSERT,
@@ -293,4 +294,5 @@ class SqlAlchemyPracticeAttemptRepository:
             review_card_id=card.id,
             next_review_at=card.due_at,
             newly_applied=True,
+            sync_cursor=allocated_cursor,
         )
