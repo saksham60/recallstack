@@ -8,10 +8,17 @@ import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from recallstack.composition.category_content_list_uow import (
+    SqlAlchemyCategoryContentReadUnitOfWork,
+)
 from recallstack.composition.recall_uow import SqlAlchemyRecallUnitOfWork
 from recallstack.composition.sync_uow import (
     SqlAlchemySyncRepository,
     SqlAlchemySyncUnitOfWork,
+)
+from recallstack.modules.content.application.category_content_list import (
+    CategoryContentListFilters,
+    CategoryContentListService,
 )
 from recallstack.modules.recall.application.review_submission import (
     DeterministicReviewScheduler,
@@ -161,7 +168,100 @@ class _FailingSnapshotUnitOfWork(SqlAlchemySyncUnitOfWork):
 async def test_catalog_full_resync_snapshot_cursor_race_and_ack_are_safe(
     migrated_database_url: str,
 ) -> None:
-    user_a, user_b, domain_id, _, content_id = _seed_contract_data(migrated_database_url)
+    user_a, user_b, domain_id, category_id, content_id = _seed_contract_data(migrated_database_url)
+    second_category_id = uuid4()
+    primary_resource_id, secondary_resource_id, archived_resource_id = (
+        uuid4(),
+        uuid4(),
+        uuid4(),
+    )
+    block_id = uuid4()
+    provider_slug = f"leetcode-{uuid4().hex[:8]}"
+    engine = create_engine(migrated_database_url)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO categories (id, domain_id, slug, name, sort_order) "
+                "VALUES (:id, :domain, :slug, 'Second category', 2)"
+            ),
+            {
+                "id": second_category_id,
+                "domain": domain_id,
+                "slug": f"second-{second_category_id.hex[:8]}",
+            },
+        )
+        connection.execute(
+            text(
+                "INSERT INTO content_blocks "
+                "(id, type, payload, plain_text, content_hash) "
+                "VALUES (:id, 'recognize', CAST(:payload AS jsonb), "
+                "'Offline body', :content_hash)"
+            ),
+            {
+                "id": block_id,
+                "payload": '{"markdown":"Offline body"}',
+                "content_hash": "d" * 64,
+            },
+        )
+        connection.execute(
+            text(
+                "INSERT INTO content_version_blocks "
+                "(content_version_id, content_block_id, position, heading) "
+                "SELECT current_published_version_id, :block, 0, 'Overview' "
+                "FROM content_items WHERE id = :content"
+            ),
+            {"block": block_id, "content": content_id},
+        )
+        connection.execute(
+            text(
+                "UPDATE content_version_categories SET sort_order = 7 "
+                "WHERE content_item_id = :content AND category_id = :category"
+            ),
+            {"content": content_id, "category": category_id},
+        )
+        connection.execute(
+            text(
+                "INSERT INTO content_version_categories "
+                "(content_version_id, content_item_id, domain_id, category_id, sort_order) "
+                "SELECT current_published_version_id, id, domain_id, :category, 2 "
+                "FROM content_items WHERE id = :content"
+            ),
+            {"category": second_category_id, "content": content_id},
+        )
+        provider_id = connection.execute(
+            text(
+                "INSERT INTO practice_providers (slug, name, base_url, is_active) "
+                "VALUES (:slug, 'LeetCode', 'https://leetcode.com', true) RETURNING id"
+            ),
+            {"slug": provider_slug},
+        ).scalar_one()
+        connection.execute(
+            text(
+                "INSERT INTO practice_resources "
+                "(id, content_item_id, provider_id, external_key, url, url_hash, "
+                "title, is_primary, sort_order, archived_at) VALUES "
+                "(:primary, :content, :provider, 'two-sum', :url, :primary_hash, "
+                "'Two Sum', true, 0, NULL), "
+                "(:secondary, :content, :provider, 'secondary', :secondary_url, "
+                ":secondary_hash, 'Secondary', false, 1, NULL), "
+                "(:archived, :content, :provider, 'archived', :archived_url, "
+                ":archived_hash, 'Archived', true, 2, now())"
+            ),
+            {
+                "primary": primary_resource_id,
+                "secondary": secondary_resource_id,
+                "archived": archived_resource_id,
+                "content": content_id,
+                "provider": provider_id,
+                "url": "https://leetcode.com/problems/two-sum",
+                "secondary_url": "https://leetcode.com/problems/secondary",
+                "archived_url": "https://leetcode.com/problems/archived",
+                "primary_hash": "a" * 64,
+                "secondary_hash": "b" * 64,
+                "archived_hash": "c" * 64,
+            },
+        )
+    engine.dispose()
     database = Database(
         Settings(
             supabase_project_url="https://example.supabase.co",
@@ -239,8 +339,43 @@ async def test_catalog_full_resync_snapshot_cursor_race_and_ack_are_safe(
     items = snapshot.payload["content_items"]
     assert isinstance(items, list)
     assert items[0]["title"] == "Version 3"
+    assert items[0]["category_ids"] == [
+        str(second_category_id),
+        str(category_id),
+    ]
+    assert items[0]["category_assignments"] == [
+        {"category_id": str(second_category_id), "sort_order": 2},
+        {"category_id": str(category_id), "sort_order": 7},
+    ]
+    primary_resource = items[0]["primary_practice_resource"]
+    assert primary_resource == {
+        "id": str(primary_resource_id),
+        "provider_slug": provider_slug,
+        "provider_name": "LeetCode",
+        "external_key": "two-sum",
+        "title": "Two Sum",
+        "url": "https://leetcode.com/problems/two-sum",
+        "practice_url": "https://leetcode.com/problems/two-sum",
+        "is_primary": True,
+        "sort_order": 0,
+    }
+    assert items[0]["primary_practice_url"] == "https://leetcode.com/problems/two-sum"
     assert snapshot.payload["categories"]
-    assert snapshot.payload["content_documents"]
+    documents = snapshot.payload["content_documents"]
+    assert isinstance(documents, list)
+    assert documents[0]["id"] == items[0]["current_published_version_id"]
+    assert documents[0]["content_item_id"] == str(content_id)
+    assert documents[0]["version_number"] >= 1
+    assert documents[0]["blocks"]
+    assert documents[0]["blocks"][0] == {
+        "id": str(block_id),
+        "position": 0,
+        "heading": "Overview",
+        "type": "recognize",
+        "payload": {"markdown": "Offline body"},
+    }
+    assert str(secondary_resource_id) not in str(snapshot.payload)
+    assert str(archived_resource_id) not in str(snapshot.payload)
 
     async with database.session_factory.create_session() as session:
         state = await session.get(DeviceCatalogSyncStateModel, (device_a.id, domain_id))
@@ -341,6 +476,34 @@ async def test_catalog_full_resync_snapshot_cursor_race_and_ack_are_safe(
     post_commit_items = post_commit_snapshot.payload["content_items"]
     assert isinstance(post_commit_items, list)
     assert post_commit_items[0]["title"] == "Version 4"
+    catalog_service = CategoryContentListService(
+        lambda: SqlAlchemyCategoryContentReadUnitOfWork(database.session_factory)
+    )
+    normal_page = await catalog_service.query(
+        category_id=category_id,
+        profile_id=user_a,
+        filters=CategoryContentListFilters(
+            content_type=None,
+            difficulty=None,
+            status=None,
+            topic_slug=None,
+            search=None,
+            page=1,
+            page_size=100,
+            sort="sort_order",
+        ),
+    )
+    normal_item = normal_page.items[0]
+    assert normal_item.content_item_id == UUID(post_commit_items[0]["id"])
+    assert normal_item.title == post_commit_items[0]["title"]
+    assert normal_item.summary == post_commit_items[0]["summary"]
+    assert normal_item.difficulty == post_commit_items[0]["difficulty"]
+    assert normal_item.primary_practice_resource is not None
+    assert (
+        str(normal_item.primary_practice_resource.id)
+        == post_commit_items[0]["primary_practice_resource"]["id"]
+    )
+    assert normal_item.primary_practice_resource.url == post_commit_items[0]["primary_practice_url"]
     await normal.acknowledge_full_resync(
         profile_id=user_a,
         device_id=device_a.id,
@@ -391,7 +554,7 @@ async def test_catalog_full_resync_snapshot_cursor_race_and_ack_are_safe(
 async def test_user_full_resync_contains_all_projections_and_ack_is_owned(
     migrated_database_url: str,
 ) -> None:
-    user_a, user_b, _, _, content_id = _seed_contract_data(migrated_database_url)
+    user_a, user_b, domain_id, category_id, content_id = _seed_contract_data(migrated_database_url)
     database = Database(
         Settings(
             supabase_project_url="https://example.supabase.co",
@@ -416,8 +579,31 @@ async def test_user_full_resync_contains_all_projections_and_ack_is_owned(
         app_version="1",
     )
     note_id, card_id = uuid4(), uuid4()
+    overdue_card_id, due_now_card_id, suspended_card_id = uuid4(), uuid4(), uuid4()
+    review_now = datetime.now(UTC)
     engine = create_engine(migrated_database_url)
     with engine.begin() as connection:
+        overdue_content_id = add_content(
+            connection,
+            domain_id=domain_id,
+            category_id=category_id,
+            slug=f"overdue-{uuid4().hex[:8]}",
+            title="Overdue",
+        )[0]
+        due_now_content_id = add_content(
+            connection,
+            domain_id=domain_id,
+            category_id=category_id,
+            slug=f"due-now-{uuid4().hex[:8]}",
+            title="Due now",
+        )[0]
+        suspended_content_id = add_content(
+            connection,
+            domain_id=domain_id,
+            category_id=category_id,
+            slug=f"suspended-user-snapshot-{uuid4().hex[:8]}",
+            title="Suspended",
+        )[0]
         connection.execute(
             text(
                 "INSERT INTO user_progress "
@@ -449,6 +635,28 @@ async def test_user_full_resync_contains_all_projections_and_ack_is_owned(
                 "VALUES (:id, :user, :content, now() + interval '1 day', 4)"
             ),
             {"id": card_id, "user": user_a, "content": content_id},
+        )
+        connection.execute(
+            text(
+                "INSERT INTO review_cards "
+                "(id, user_id, content_item_id, due_at, row_version, suspended_at) "
+                "VALUES "
+                "(:overdue, :user, :overdue_content, :overdue_at, 2, NULL), "
+                "(:due_now, :user, :due_now_content, :due_now_at, 3, NULL), "
+                "(:suspended, :user, :suspended_content, :future_at, 5, now())"
+            ),
+            {
+                "overdue": overdue_card_id,
+                "due_now": due_now_card_id,
+                "suspended": suspended_card_id,
+                "user": user_a,
+                "overdue_content": overdue_content_id,
+                "due_now_content": due_now_content_id,
+                "suspended_content": suspended_content_id,
+                "overdue_at": review_now - timedelta(days=1),
+                "due_now_at": review_now,
+                "future_at": review_now + timedelta(days=2),
+            },
         )
         connection.execute(
             text("INSERT INTO user_sync_counters (user_id, last_cursor) VALUES (:user, 8)"),
@@ -499,7 +707,16 @@ async def test_user_full_resync_contains_all_projections_and_ack_is_owned(
     assert len(snapshot.payload["progress"]) == 1
     assert len(snapshot.payload["bookmarks"]) == 1
     assert snapshot.payload["notes"][0]["body"] == "Offline note"
-    assert snapshot.payload["review_cards"][0]["next_review_at"]
+    review_cards = snapshot.payload["review_cards"]
+    assert isinstance(review_cards, list)
+    states = {item["id"]: item["state"] for item in review_cards}
+    assert states == {
+        str(overdue_card_id): "due",
+        str(due_now_card_id): "due",
+        str(card_id): "scheduled",
+    }
+    assert str(suspended_card_id) not in states
+    assert all(item["next_review_at"] for item in review_cards)
 
     async with database.session_factory.create_session() as session:
         state = await session.get(DeviceUserSyncStateModel, device.id)

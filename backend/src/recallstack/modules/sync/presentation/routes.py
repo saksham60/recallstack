@@ -155,6 +155,7 @@ async def apply_mutation(
     result = await service.process_mutation(
         profile_id=current_user.profile_id,
         command=_command(payload.device_id, payload.mutation),
+        reject_as_error=False,
     )
     return _mutation_response(result)
 

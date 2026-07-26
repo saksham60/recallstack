@@ -39,6 +39,10 @@ from recallstack.modules.practice.application.attempt_submission import (
 from recallstack.modules.practice.infrastructure.attempt_submission_repository import (
     SqlAlchemyPracticeAttemptRepository,
 )
+from recallstack.modules.practice.infrastructure.sqlalchemy_models import (
+    PracticeProviderModel,
+    PracticeResourceModel,
+)
 from recallstack.modules.recall.application.review_submission import (
     DeterministicReviewScheduler,
     RecallRepository,
@@ -80,9 +84,11 @@ from recallstack.shared.errors import AppError
 
 
 class _AmbientLearningUnitOfWork:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, *, sync_retention_days: int) -> None:
         self._session = session
-        self.repository: LearningStateRepository = SqlAlchemyLearningStateRepository(session)
+        self.repository: LearningStateRepository = SqlAlchemyLearningStateRepository(
+            session, sync_retention_days=sync_retention_days
+        )
 
     async def __aenter__(self) -> Self:
         return self
@@ -100,9 +106,11 @@ class _AmbientLearningUnitOfWork:
 
 
 class _AmbientPracticeUnitOfWork:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, *, sync_retention_days: int) -> None:
         self._session = session
-        self.repository: PracticeAttemptRepository = SqlAlchemyPracticeAttemptRepository(session)
+        self.repository: PracticeAttemptRepository = SqlAlchemyPracticeAttemptRepository(
+            session, sync_retention_days=sync_retention_days
+        )
 
     async def __aenter__(self) -> Self:
         return self
@@ -120,9 +128,11 @@ class _AmbientPracticeUnitOfWork:
 
 
 class _AmbientRecallUnitOfWork:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, *, sync_retention_days: int) -> None:
         self._session = session
-        self.repository: RecallRepository = SqlAlchemyRecallRepository(session)
+        self.repository: RecallRepository = SqlAlchemyRecallRepository(
+            session, sync_retention_days=sync_retention_days
+        )
 
     async def __aenter__(self) -> Self:
         return self
@@ -237,16 +247,24 @@ class SqlAlchemySyncRepository(SyncRepository):
         return self._mutation(model), claimed_id is not None
 
     async def apply_authoritative(
-        self, *, profile_id: UUID, command: MutationCommand
+        self, *, profile_id: UUID, command: MutationCommand, retention_days: int
     ) -> AppliedMutation:
         async with self._session.begin_nested():
-            return await self._execute_authoritative(profile_id=profile_id, command=command)
+            return await self._execute_authoritative(
+                profile_id=profile_id,
+                command=command,
+                retention_days=retention_days,
+            )
 
     async def _execute_authoritative(
-        self, *, profile_id: UUID, command: MutationCommand
+        self, *, profile_id: UUID, command: MutationCommand, retention_days: int
     ) -> AppliedMutation:
         if command.entity_type == "progress":
-            service = LearningService(lambda: _AmbientLearningUnitOfWork(self._session))
+            service = LearningService(
+                lambda: _AmbientLearningUnitOfWork(
+                    self._session, sync_retention_days=retention_days
+                )
+            )
             state = await service.save_progress(
                 profile_id=profile_id,
                 content_item_id=command.entity_id,
@@ -264,25 +282,44 @@ class SqlAlchemySyncRepository(SyncRepository):
                     "confidence": state.confidence,
                     "row_version": state.row_version,
                 },
+                state.sync_cursor,
             )
         if command.entity_type == "bookmark":
-            learning = LearningService(lambda: _AmbientLearningUnitOfWork(self._session))
+            learning = LearningService(
+                lambda: _AmbientLearningUnitOfWork(
+                    self._session, sync_retention_days=retention_days
+                )
+            )
             if command.operation == "delete":
-                await learning.remove_bookmark(
+                bookmark = await learning.remove_bookmark(
                     profile_id=profile_id, content_item_id=command.entity_id
                 )
                 operation = "delete"
             else:
-                await learning.add_bookmark(
+                bookmark = await learning.add_bookmark(
                     profile_id=profile_id, content_item_id=command.entity_id
                 )
                 operation = "upsert"
-            return AppliedMutation("bookmark", command.entity_id, operation, None, {})
+            return AppliedMutation(
+                "bookmark",
+                command.entity_id,
+                operation,
+                None,
+                {},
+                bookmark.sync_cursor,
+                bookmark.changed,
+            )
         if command.entity_type == "note":
-            return await self._apply_note(profile_id=profile_id, command=command)
+            return await self._apply_note(
+                profile_id=profile_id,
+                command=command,
+                retention_days=retention_days,
+            )
         if command.entity_type == "practice_attempt":
             practice = PracticeAttemptService(
-                lambda: _AmbientPracticeUnitOfWork(self._session),
+                lambda: _AmbientPracticeUnitOfWork(
+                    self._session, sync_retention_days=retention_days
+                ),
                 DeterministicInitialReviewScheduler(),
                 None,
             )
@@ -317,7 +354,7 @@ class SqlAlchemySyncRepository(SyncRepository):
             )
         if command.entity_type == "review":
             recall = RecallService(
-                lambda: _AmbientRecallUnitOfWork(self._session),
+                lambda: _AmbientRecallUnitOfWork(self._session, sync_retention_days=retention_days),
                 DeterministicReviewScheduler(),
                 None,
             )
@@ -351,8 +388,16 @@ class SqlAlchemySyncRepository(SyncRepository):
             detail="The mutation entity type is not supported",
         )
 
-    async def _apply_note(self, *, profile_id: UUID, command: MutationCommand) -> AppliedMutation:
-        learning = LearningService(lambda: _AmbientLearningUnitOfWork(self._session))
+    async def _apply_note(
+        self,
+        *,
+        profile_id: UUID,
+        command: MutationCommand,
+        retention_days: int,
+    ) -> AppliedMutation:
+        learning = LearningService(
+            lambda: _AmbientLearningUnitOfWork(self._session, sync_retention_days=retention_days)
+        )
         if command.operation == "insert":
             note = await learning.create_note(
                 profile_id=profile_id,
@@ -375,13 +420,18 @@ class SqlAlchemySyncRepository(SyncRepository):
             )
             operation = "upsert"
         else:
-            await learning.delete_note(
+            deleted = await learning.delete_note(
                 profile_id=profile_id,
                 note_id=command.entity_id,
                 expected_row_version=cast(int, command.base_row_version),
             )
             return AppliedMutation(
-                "note", command.entity_id, "delete", cast(int, command.base_row_version) + 1, {}
+                "note",
+                command.entity_id,
+                "delete",
+                deleted.row_version,
+                {},
+                deleted.sync_cursor,
             )
         return AppliedMutation(
             "note",
@@ -389,6 +439,7 @@ class SqlAlchemySyncRepository(SyncRepository):
             operation,
             note.row_version,
             {"row_version": note.row_version},
+            note.sync_cursor,
         )
 
     async def allocate_user_change(
@@ -427,7 +478,7 @@ class SqlAlchemySyncRepository(SyncRepository):
         *,
         mutation_id: UUID,
         resulting_row_version: int | None,
-        cursor: int,
+        cursor: int | None,
         result: dict[str, object],
     ) -> None:
         await self._session.execute(
@@ -745,6 +796,7 @@ class SqlAlchemySyncRepository(SyncRepository):
                 select(
                     ContentVersionCategoryModel.content_version_id,
                     ContentVersionCategoryModel.category_id,
+                    ContentVersionCategoryModel.sort_order,
                 )
                 .where(ContentVersionCategoryModel.content_version_id.in_(version_ids))
                 .order_by(
@@ -755,8 +807,49 @@ class SqlAlchemySyncRepository(SyncRepository):
             )
         ).all()
         categories_by_version: dict[UUID, list[str]] = {}
-        for version_id, category_id in category_rows:
+        assignments_by_version: dict[UUID, list[dict[str, object]]] = {}
+        for version_id, category_id, sort_order in category_rows:
             categories_by_version.setdefault(version_id, []).append(str(category_id))
+            assignments_by_version.setdefault(version_id, []).append(
+                {
+                    "category_id": str(category_id),
+                    "sort_order": sort_order,
+                }
+            )
+        resource_rows = (
+            await self._session.execute(
+                select(
+                    PracticeResourceModel.content_item_id,
+                    PracticeResourceModel,
+                    PracticeProviderModel,
+                )
+                .join(
+                    PracticeProviderModel,
+                    PracticeProviderModel.id == PracticeResourceModel.provider_id,
+                )
+                .where(
+                    PracticeResourceModel.content_item_id.in_([item.id for item, _ in item_rows]),
+                    PracticeResourceModel.is_primary.is_(True),
+                    PracticeResourceModel.archived_at.is_(None),
+                    PracticeProviderModel.is_active.is_(True),
+                )
+                .order_by(PracticeResourceModel.content_item_id)
+            )
+        ).all()
+        resources_by_item: dict[UUID, dict[str, object]] = {
+            content_item_id: {
+                "id": str(resource.id),
+                "provider_slug": provider.slug,
+                "provider_name": provider.name,
+                "external_key": resource.external_key,
+                "title": resource.title,
+                "url": resource.url,
+                "practice_url": resource.url,
+                "is_primary": resource.is_primary,
+                "sort_order": resource.sort_order,
+            }
+            for content_item_id, resource, provider in resource_rows
+        }
         block_rows = (
             await self._session.execute(
                 select(
@@ -815,6 +908,11 @@ class SqlAlchemySyncRepository(SyncRepository):
                     "summary": version.summary,
                     "row_version": version.row_version,
                     "category_ids": categories_by_version.get(version.id, []),
+                    "category_assignments": assignments_by_version.get(version.id, []),
+                    "primary_practice_resource": resources_by_item.get(item.id),
+                    "primary_practice_url": (
+                        resources_by_item[item.id]["url"] if item.id in resources_by_item else None
+                    ),
                     "updated_at": item.updated_at.isoformat(),
                 }
                 for item, version in item_rows
@@ -908,6 +1006,7 @@ class SqlAlchemySyncRepository(SyncRepository):
                 .order_by(ReviewCardModel.due_at, ReviewCardModel.id)
             )
         ).all()
+        snapshot_now = datetime.now(UTC)
         payload: dict[str, object] = {
             "progress": [
                 {
@@ -930,7 +1029,9 @@ class SqlAlchemySyncRepository(SyncRepository):
                 for item in bookmarks
             ],
             "notes": [self._note_payload(item) for item in notes],
-            "review_cards": [self._review_card_payload(item) for item in review_cards],
+            "review_cards": [
+                self._review_card_payload(item, now=snapshot_now) for item in review_cards
+            ],
         }
         return await self._store_snapshot(
             profile_id=profile_id,
@@ -1126,10 +1227,14 @@ class SqlAlchemySyncRepository(SyncRepository):
         catalog_result = await self._session.execute(
             delete(CatalogSyncChangeLogModel).where(CatalogSyncChangeLogModel.retain_until <= now)
         )
+        snapshot_result = await self._session.execute(
+            delete(FullResyncSnapshotModel).where(FullResyncSnapshotModel.expires_at <= now)
+        )
         return CompactionResult(
             cast(CursorResult[Any], mutation_result).rowcount,
             cast(CursorResult[Any], user_result).rowcount,
             cast(CursorResult[Any], catalog_result).rowcount,
+            cast(CursorResult[Any], snapshot_result).rowcount,
             user_marked,
             catalog_marked,
         )
@@ -1206,11 +1311,14 @@ class SqlAlchemySyncRepository(SyncRepository):
         }
 
     @staticmethod
-    def _review_card_payload(card: ReviewCardModel) -> dict[str, object]:
+    def _review_card_payload(
+        card: ReviewCardModel, *, now: datetime | None = None
+    ) -> dict[str, object]:
+        effective_now = now or datetime.now(UTC)
         return {
             "id": str(card.id),
             "content_item_id": str(card.content_item_id),
-            "state": "scheduled",
+            "state": "due" if card.due_at <= effective_now else "scheduled",
             "next_review_at": card.due_at.isoformat(),
             "row_version": card.row_version,
             "created_at": card.created_at.isoformat(),

@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import delete, select, text
 
 from recallstack.composition.sync_uow import SqlAlchemySyncUnitOfWork
 from recallstack.modules.catalog.infrastructure.sqlalchemy_models import DomainModel
@@ -29,6 +29,7 @@ from recallstack.modules.sync.infrastructure.sqlalchemy_models import (
     CatalogSyncChangeLogModel,
     CatalogSyncCounterModel,
     ChangeOperation,
+    FullResyncSnapshotModel,
     MutationStatus,
     SyncMutationModel,
     UserSyncChangeLogModel,
@@ -267,9 +268,26 @@ async def test_sync_mutations_are_retry_safe_ordered_scoped_and_use_online_servi
             stored_note = await session.get(UserNoteModel, note_id)
             bookmark = await session.get(BookmarkModel, (profile_id, content_id))
             rejected = await session.get(SyncMutationModel, stale.mutation_id)
+            learning_changes = (
+                await session.scalars(
+                    select(UserSyncChangeLogModel)
+                    .where(
+                        UserSyncChangeLogModel.user_id == profile_id,
+                        UserSyncChangeLogModel.entity_type.in_(["progress", "note", "bookmark"]),
+                    )
+                    .order_by(UserSyncChangeLogModel.cursor)
+                )
+            ).all()
         assert stored_note is not None and stored_note.user_id == profile_id
         assert bookmark is not None
         assert rejected is not None and rejected.status == MutationStatus.REJECTED
+        assert [
+            (change.entity_type, change.cursor, change.entity_id) for change in learning_changes
+        ] == [
+            ("progress", applied.cursor, content_id),
+            ("note", note_result.cursor, note_id),
+            ("bookmark", batch[1].cursor, content_id),
+        ]
 
         revoked = await service.revoke_device(profile_id=profile_id, device_id=device.id)
         assert revoked.revoked_at is not None
@@ -369,10 +387,61 @@ async def test_concurrent_duplicate_and_compaction_require_full_resync(
         )
         assert {result.cursor for result in concurrent_changes} == {2, 3}
 
-        compacted = await service.compact(now=datetime.now(UTC) + timedelta(days=2))
+        compaction_at = datetime.now(UTC) + timedelta(days=2)
+        expired_ids = {uuid4(), uuid4()}
+        active_ids = {uuid4(), uuid4()}
+        async with database.session_factory.create_session() as session, session.begin():
+            await session.execute(delete(FullResyncSnapshotModel))
+            session.add_all(
+                [
+                    FullResyncSnapshotModel(
+                        id=snapshot_id,
+                        user_id=profile_id,
+                        device_id=writing.id,
+                        stream_type="user",
+                        domain_id=None,
+                        snapshot_cursor=3,
+                        payload={},
+                        created_at=compaction_at - timedelta(hours=2),
+                        expires_at=compaction_at - timedelta(hours=1),
+                        acknowledged_at=(
+                            compaction_at - timedelta(minutes=90) if index == 1 else None
+                        ),
+                    )
+                    for index, snapshot_id in enumerate(expired_ids)
+                ]
+                + [
+                    FullResyncSnapshotModel(
+                        id=snapshot_id,
+                        user_id=profile_id,
+                        device_id=writing.id,
+                        stream_type="user",
+                        domain_id=None,
+                        snapshot_cursor=3,
+                        payload={},
+                        created_at=compaction_at - timedelta(hours=1),
+                        expires_at=compaction_at + timedelta(hours=1),
+                        acknowledged_at=(
+                            compaction_at - timedelta(minutes=30) if index == 1 else None
+                        ),
+                    )
+                    for index, snapshot_id in enumerate(active_ids)
+                ]
+            )
+        compacted = await service.compact(now=compaction_at)
         assert compacted.mutations_deleted >= 1
         assert compacted.user_changes_deleted >= 1
+        assert compacted.snapshots_deleted == 2
         assert compacted.user_devices_marked_for_resync >= 1
+        async with database.session_factory.create_session() as session:
+            remaining_snapshot_ids = set(
+                await session.scalars(
+                    select(FullResyncSnapshotModel.id).where(
+                        FullResyncSnapshotModel.user_id == profile_id
+                    )
+                )
+            )
+        assert remaining_snapshot_ids == active_ids
         feed = await service.user_changes(
             profile_id=profile_id, device_id=lagging.id, after=0, limit=100
         )

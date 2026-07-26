@@ -42,6 +42,7 @@ class ProgressState:
     last_opened_at: datetime | None
     row_version: int
     updated_at: datetime | None
+    sync_cursor: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,6 +63,19 @@ class UserNote:
     row_version: int
     created_at: datetime
     updated_at: datetime
+    sync_cursor: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BookmarkWrite:
+    changed: bool
+    sync_cursor: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class NoteDeletion:
+    row_version: int
+    sync_cursor: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,9 +114,11 @@ class LearningStateRepository(Protocol):
         self, *, profile_id: UUID, page: int, page_size: int
     ) -> tuple[int, tuple[Bookmark, ...]]: ...
 
-    async def add_bookmark(self, *, profile_id: UUID, content_item_id: UUID) -> bool: ...
+    async def add_bookmark(self, *, profile_id: UUID, content_item_id: UUID) -> BookmarkWrite: ...
 
-    async def remove_bookmark(self, *, profile_id: UUID, content_item_id: UUID) -> bool: ...
+    async def remove_bookmark(
+        self, *, profile_id: UUID, content_item_id: UUID
+    ) -> BookmarkWrite: ...
 
     async def list_notes(
         self,
@@ -138,7 +154,7 @@ class LearningStateRepository(Protocol):
 
     async def delete_note(
         self, *, profile_id: UUID, note_id: UUID, expected_row_version: int
-    ) -> bool | None: ...
+    ) -> NoteDeletion | None: ...
 
     async def active_note_exists(self, *, profile_id: UUID, note_id: UUID) -> bool: ...
 
@@ -236,21 +252,23 @@ class LearningService:
             )
         return self._page(items, page, page_size, total)
 
-    async def add_bookmark(self, *, profile_id: UUID, content_item_id: UUID) -> None:
+    async def add_bookmark(self, *, profile_id: UUID, content_item_id: UUID) -> BookmarkWrite:
         async with self._unit_of_work() as uow:
             if not await uow.repository.content_is_user_accessible(content_item_id):
                 self._content_not_found(content_item_id)
-            await uow.repository.add_bookmark(
+            result = await uow.repository.add_bookmark(
                 profile_id=profile_id, content_item_id=content_item_id
             )
             await uow.commit()
+        return result
 
-    async def remove_bookmark(self, *, profile_id: UUID, content_item_id: UUID) -> None:
+    async def remove_bookmark(self, *, profile_id: UUID, content_item_id: UUID) -> BookmarkWrite:
         async with self._unit_of_work() as uow:
-            await uow.repository.remove_bookmark(
+            result = await uow.repository.remove_bookmark(
                 profile_id=profile_id, content_item_id=content_item_id
             )
             await uow.commit()
+        return result
 
     async def list_notes(
         self,
@@ -328,7 +346,7 @@ class LearningService:
 
     async def delete_note(
         self, *, profile_id: UUID, note_id: UUID, expected_row_version: int
-    ) -> None:
+    ) -> NoteDeletion:
         async with self._unit_of_work() as uow:
             deleted = await uow.repository.delete_note(
                 profile_id=profile_id,
@@ -340,6 +358,8 @@ class LearningService:
                     self._stale_note()
                 self._note_not_found(note_id)
             await uow.commit()
+        assert deleted is not None
+        return deleted
 
     @staticmethod
     def _page[T](items: tuple[T, ...], page: int, page_size: int, total: int) -> Page[T]:

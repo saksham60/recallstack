@@ -22,6 +22,7 @@ async def compact() -> None:
             f"mutations_deleted={result.mutations_deleted} "
             f"user_changes_deleted={result.user_changes_deleted} "
             f"catalog_changes_deleted={result.catalog_changes_deleted} "
+            f"snapshots_deleted={result.snapshots_deleted} "
             f"user_devices_marked={result.user_devices_marked_for_resync} "
             f"catalog_devices_marked={result.catalog_devices_marked_for_resync}"
         )

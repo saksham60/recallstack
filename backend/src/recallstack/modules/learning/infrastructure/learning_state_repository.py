@@ -1,3 +1,4 @@
+from datetime import UTC, datetime, timedelta
 from typing import cast
 from uuid import UUID
 
@@ -12,6 +13,8 @@ from recallstack.modules.content.infrastructure.sqlalchemy_models import (
 )
 from recallstack.modules.learning.application.learning_state import (
     Bookmark,
+    BookmarkWrite,
+    NoteDeletion,
     ProgressState,
     UserNote,
 )
@@ -23,11 +26,17 @@ from recallstack.modules.learning.infrastructure.sqlalchemy_models import (
     UserNoteModel,
     UserProgressModel,
 )
+from recallstack.modules.sync.infrastructure.sqlalchemy_models import (
+    ChangeOperation,
+    UserSyncChangeLogModel,
+    UserSyncCounterModel,
+)
 
 
 class SqlAlchemyLearningStateRepository:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, *, sync_retention_days: int = 30) -> None:
         self._session = session
+        self._sync_retention_days = sync_retention_days
 
     async def content_exists(self, content_item_id: UUID) -> bool:
         statement = select(ContentItemModel.id).where(ContentItemModel.id == content_item_id)
@@ -111,7 +120,14 @@ class SqlAlchemyLearningStateRepository:
                 source_entity_id=None,
                 metadata={"status": str(status), "confidence": confidence},
             )
-            return self._progress(model)
+            cursor = await self._record_user_change(
+                profile_id=profile_id,
+                entity_type="progress",
+                entity_id=content_item_id,
+                operation=ChangeOperation.UPSERT,
+                entity_version=model.row_version,
+            )
+            return self._progress(model, sync_cursor=cursor)
         update_statement = (
             update(UserProgressModel)
             .where(
@@ -138,7 +154,14 @@ class SqlAlchemyLearningStateRepository:
             source_entity_id=None,
             metadata={"status": str(status), "confidence": confidence},
         )
-        return self._progress(model)
+        cursor = await self._record_user_change(
+            profile_id=profile_id,
+            entity_type="progress",
+            entity_id=content_item_id,
+            operation=ChangeOperation.UPSERT,
+            entity_version=model.row_version,
+        )
+        return self._progress(model, sync_cursor=cursor)
 
     async def list_bookmarks(
         self, *, profile_id: UUID, page: int, page_size: int
@@ -169,7 +192,7 @@ class SqlAlchemyLearningStateRepository:
             for content_id, slug, title, created_at in await self._session.execute(statement)
         )
 
-    async def add_bookmark(self, *, profile_id: UUID, content_item_id: UUID) -> bool:
+    async def add_bookmark(self, *, profile_id: UUID, content_item_id: UUID) -> BookmarkWrite:
         statement = (
             insert(BookmarkModel)
             .values(user_id=profile_id, content_item_id=content_item_id)
@@ -178,7 +201,7 @@ class SqlAlchemyLearningStateRepository:
         )
         added = await self._session.scalar(statement)
         if added is None:
-            return False
+            return BookmarkWrite(False, None)
         await self._activity(
             profile_id=profile_id,
             content_item_id=content_item_id,
@@ -187,9 +210,16 @@ class SqlAlchemyLearningStateRepository:
             source_entity_id=None,
             metadata=None,
         )
-        return True
+        cursor = await self._record_user_change(
+            profile_id=profile_id,
+            entity_type="bookmark",
+            entity_id=content_item_id,
+            operation=ChangeOperation.UPSERT,
+            entity_version=None,
+        )
+        return BookmarkWrite(True, cursor)
 
-    async def remove_bookmark(self, *, profile_id: UUID, content_item_id: UUID) -> bool:
+    async def remove_bookmark(self, *, profile_id: UUID, content_item_id: UUID) -> BookmarkWrite:
         statement = (
             delete(BookmarkModel)
             .where(
@@ -200,7 +230,7 @@ class SqlAlchemyLearningStateRepository:
         )
         removed = await self._session.scalar(statement)
         if removed is None:
-            return False
+            return BookmarkWrite(False, None)
         await self._activity(
             profile_id=profile_id,
             content_item_id=content_item_id,
@@ -209,7 +239,14 @@ class SqlAlchemyLearningStateRepository:
             source_entity_id=None,
             metadata=None,
         )
-        return True
+        cursor = await self._record_user_change(
+            profile_id=profile_id,
+            entity_type="bookmark",
+            entity_id=content_item_id,
+            operation=ChangeOperation.DELETE,
+            entity_version=None,
+        )
+        return BookmarkWrite(True, cursor)
 
     async def list_notes(
         self,
@@ -262,7 +299,14 @@ class SqlAlchemyLearningStateRepository:
             source_entity_id=model.id,
             metadata={"kind": kind},
         )
-        return self._note(model)
+        cursor = await self._record_user_change(
+            profile_id=profile_id,
+            entity_type="note",
+            entity_id=model.id,
+            operation=ChangeOperation.UPSERT,
+            entity_version=model.row_version,
+        )
+        return self._note(model, sync_cursor=cursor)
 
     async def update_note(
         self,
@@ -307,11 +351,18 @@ class SqlAlchemyLearningStateRepository:
             source_entity_id=model.id,
             metadata=None,
         )
-        return self._note(model)
+        cursor = await self._record_user_change(
+            profile_id=profile_id,
+            entity_type="note",
+            entity_id=model.id,
+            operation=ChangeOperation.UPSERT,
+            entity_version=model.row_version,
+        )
+        return self._note(model, sync_cursor=cursor)
 
     async def delete_note(
         self, *, profile_id: UUID, note_id: UUID, expected_row_version: int
-    ) -> bool | None:
+    ) -> NoteDeletion | None:
         statement = (
             update(UserNoteModel)
             .where(
@@ -325,7 +376,11 @@ class SqlAlchemyLearningStateRepository:
                 updated_at=func.now(),
                 row_version=UserNoteModel.row_version + 1,
             )
-            .returning(UserNoteModel.content_item_id, UserNoteModel.id)
+            .returning(
+                UserNoteModel.content_item_id,
+                UserNoteModel.id,
+                UserNoteModel.row_version,
+            )
         )
         row = (await self._session.execute(statement)).one_or_none()
         if row is None:
@@ -338,7 +393,14 @@ class SqlAlchemyLearningStateRepository:
             source_entity_id=row.id,
             metadata=None,
         )
-        return True
+        cursor = await self._record_user_change(
+            profile_id=profile_id,
+            entity_type="note",
+            entity_id=row.id,
+            operation=ChangeOperation.DELETE,
+            entity_version=row.row_version,
+        )
+        return NoteDeletion(row.row_version, cursor)
 
     async def active_note_exists(self, *, profile_id: UUID, note_id: UUID) -> bool:
         statement = select(UserNoteModel.id).where(
@@ -369,8 +431,46 @@ class SqlAlchemyLearningStateRepository:
             )
         )
 
+    async def _record_user_change(
+        self,
+        *,
+        profile_id: UUID,
+        entity_type: str,
+        entity_id: UUID,
+        operation: ChangeOperation,
+        entity_version: int | None,
+    ) -> int:
+        await self._session.execute(
+            insert(UserSyncCounterModel)
+            .values(user_id=profile_id, last_cursor=0)
+            .on_conflict_do_nothing(index_elements=[UserSyncCounterModel.user_id])
+        )
+        counter = await self._session.scalar(
+            select(UserSyncCounterModel)
+            .where(UserSyncCounterModel.user_id == profile_id)
+            .with_for_update()
+        )
+        if counter is None:
+            raise RuntimeError("User sync counter could not be created")
+        now = datetime.now(UTC)
+        counter.last_cursor += 1
+        counter.updated_at = now
+        self._session.add(
+            UserSyncChangeLogModel(
+                user_id=profile_id,
+                cursor=counter.last_cursor,
+                entity_type=entity_type,
+                entity_id=entity_id,
+                operation=operation,
+                entity_version=entity_version,
+                retain_until=now + timedelta(days=self._sync_retention_days),
+            )
+        )
+        await self._session.flush()
+        return counter.last_cursor
+
     @staticmethod
-    def _progress(model: UserProgressModel) -> ProgressState:
+    def _progress(model: UserProgressModel, *, sync_cursor: int | None = None) -> ProgressState:
         return ProgressState(
             content_item_id=model.content_item_id,
             status=model.status,
@@ -378,10 +478,11 @@ class SqlAlchemyLearningStateRepository:
             last_opened_at=model.last_opened_at,
             row_version=model.row_version,
             updated_at=model.updated_at,
+            sync_cursor=sync_cursor,
         )
 
     @staticmethod
-    def _note(model: UserNoteModel) -> UserNote:
+    def _note(model: UserNoteModel, *, sync_cursor: int | None = None) -> UserNote:
         return UserNote(
             id=model.id,
             content_item_id=model.content_item_id,
@@ -391,4 +492,5 @@ class SqlAlchemyLearningStateRepository:
             row_version=model.row_version,
             created_at=model.created_at,
             updated_at=model.updated_at,
+            sync_cursor=sync_cursor,
         )

@@ -54,6 +54,57 @@ class StubSyncService:
     async def process_mutation(self, **kwargs: object) -> MutationResult:
         assert kwargs["profile_id"] == self.profile_id
         command = cast(MutationCommand, kwargs["command"])
+        if command.entity_type == "note":
+            conflict = MutationConflict(
+                "note",
+                command.entity_id,
+                cast(int, command.base_row_version),
+                4,
+                {
+                    "id": str(command.entity_id),
+                    "body": "Current server note",
+                    "row_version": 4,
+                },
+            )
+            return MutationResult(
+                command.mutation_id,
+                "conflict",
+                False,
+                None,
+                "note",
+                command.entity_id,
+                command.operation,
+                None,
+                "stale-note-version",
+                None,
+                conflict,
+            )
+        if command.entity_type == "bookmark":
+            return MutationResult(
+                command.mutation_id,
+                "duplicate",
+                True,
+                None,
+                "bookmark",
+                command.entity_id,
+                command.operation,
+                None,
+                None,
+                {},
+            )
+        if command.operation == "update":
+            return MutationResult(
+                command.mutation_id,
+                "rejected",
+                False,
+                None,
+                command.entity_type,
+                command.entity_id,
+                command.operation,
+                None,
+                "stale-progress-version",
+                None,
+            )
         return MutationResult(
             command.mutation_id,
             "applied",
@@ -70,48 +121,15 @@ class StubSyncService:
     async def process_batch(self, **kwargs: object) -> tuple[MutationResult, ...]:
         assert kwargs["profile_id"] == self.profile_id
         commands = cast(tuple[MutationCommand, ...], kwargs["commands"])
-        if commands[0].entity_type == "note":
-            command = commands[0]
-            conflict = MutationConflict(
-                "note",
-                command.entity_id,
-                cast(int, command.base_row_version),
-                4,
-                {
-                    "id": str(command.entity_id),
-                    "body": "Current server note",
-                    "row_version": 4,
-                },
-            )
-            return (
-                MutationResult(
-                    command.mutation_id,
-                    "conflict",
-                    False,
-                    None,
-                    "note",
-                    command.entity_id,
-                    "update",
-                    None,
-                    "stale-note-version",
-                    None,
-                    conflict,
-                ),
-            )
         return tuple(
-            MutationResult(
-                item.mutation_id,
-                "applied" if index == 0 else "rejected",
-                False,
-                1 if index == 0 else None,
-                item.entity_type,
-                item.entity_id,
-                "upsert",
-                1 if index == 0 else None,
-                None if index == 0 else "stale-progress-version",
-                {} if index == 0 else None,
-            )
-            for index, item in enumerate(commands)
+            [
+                await self.process_mutation(
+                    profile_id=self.profile_id,
+                    command=item,
+                    reject_as_error=False,
+                )
+                for item in commands
+            ]
         )
 
     async def user_changes(self, **kwargs: object) -> ChangeFeed:
@@ -328,3 +346,66 @@ async def test_batch_conflict_response_contains_structured_server_state() -> Non
             "row_version": 4,
         },
     }
+
+
+async def test_single_mutation_returns_structured_domain_outcomes() -> None:
+    profile_id, device_id, content_id, note_id = uuid4(), uuid4(), uuid4(), uuid4()
+    app = _app(profile_id)
+    mutations = [
+        {
+            "mutation_id": str(uuid4()),
+            "entity_type": "progress",
+            "entity_id": str(content_id),
+            "operation": "insert",
+            "payload": {"status": "learning", "confidence": 25},
+        },
+        {
+            "mutation_id": str(uuid4()),
+            "entity_type": "bookmark",
+            "entity_id": str(content_id),
+            "operation": "insert",
+            "payload": {},
+        },
+        {
+            "mutation_id": str(uuid4()),
+            "entity_type": "progress",
+            "entity_id": str(content_id),
+            "operation": "update",
+            "base_row_version": 3,
+            "payload": {"status": "confident", "confidence": 75},
+        },
+        {
+            "mutation_id": str(uuid4()),
+            "entity_type": "note",
+            "entity_id": str(note_id),
+            "operation": "update",
+            "base_row_version": 2,
+            "payload": {"body": "Client edit"},
+        },
+    ]
+    async with app.router.lifespan_context(app):
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            singles = [
+                await client.post(
+                    "/api/v1/sync/mutations",
+                    json={"device_id": str(device_id), "mutation": mutation},
+                )
+                for mutation in mutations
+            ]
+            batch = await client.post(
+                "/api/v1/sync/mutations/batch",
+                json={"device_id": str(device_id), "mutations": [mutations[-1]]},
+            )
+    assert all(response.status_code == 200 for response in singles)
+    assert [response.json()["status"] for response in singles] == [
+        "applied",
+        "duplicate",
+        "rejected",
+        "conflict",
+    ]
+    conflict = singles[-1].json()
+    assert conflict == batch.json()["results"][0]
+    assert conflict["conflict"]["current_row_version"] == 4
+    assert conflict["conflict"]["server_entity"]["body"] == "Current server note"

@@ -21,7 +21,17 @@ Snapshot rows and their cursor are read in one PostgreSQL repeatable-read MVCC
 snapshot and persisted immutably for 30 minutes. Downloading never advances
 device state. ACK is ownership-scoped and idempotent; it is the only operation
 that clears `full_resync_required`. Expired snapshots return HTTP 410, while
-unknown or cross-owner snapshots return HTTP 404.
+unknown or cross-owner snapshots return HTTP 404. Sync compaction deletes both
+acknowledged and unacknowledged snapshots after expiration while retaining all
+active snapshots.
+
+Catalog snapshots preserve the mobile offline fields used by category lists and
+content rendering. Each item includes ordered `category_assignments`
+(`category_id`, `sort_order`), the current published version ID, the complete
+published document blocks, and its active primary practice resource. The
+resource exposes the canonical `url`, a mobile-compatible `practice_url`, and
+the flattened `primary_practice_url`; absent or archived resources produce
+`null`.
 
 `GET /api/v1/me/reviews` returns all active due and future scheduled cards in
 stable `next_review_at`, `id` order. The existing `/me/reviews/due` endpoint
@@ -30,8 +40,14 @@ remains due-only.
 Mutation results use the bounded statuses `applied`, `duplicate`, `rejected`,
 and `conflict`. Row-version conflicts include a structured `conflict` object
 with the expected version, authoritative current version, and owner-scoped
-server projection. Existing fields such as `mutation_id`, `status`, and
-`error_code` remain present.
+server projection. Both the single and batch mutation endpoints return these
+domain outcomes as structured successful HTTP responses. Existing fields such
+as `mutation_id`, `status`, and `error_code` remain present.
+
+Direct progress, bookmark, and note writes allocate their user-sync change in
+the same transaction as the entity and activity event. Bookmark PUT/DELETE
+no-ops do not allocate cursors. The mutation adapter reuses the authoritative
+write's cursor, so one learning mutation cannot generate a duplicate change.
 
 ## Local setup
 

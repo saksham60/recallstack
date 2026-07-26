@@ -224,6 +224,67 @@ class FullResyncAckResponse(StrictSchema):
     snapshot_cursor: int
 
 
+class CatalogCategorySnapshotResponse(StrictSchema):
+    id: UUID
+    domain_id: UUID
+    parent_category_id: UUID | None
+    slug: str
+    name: str
+    description: str | None
+    sort_order: int
+    updated_at: datetime
+
+
+class CatalogCategoryAssignmentResponse(StrictSchema):
+    category_id: UUID
+    sort_order: int
+
+
+class CatalogPrimaryPracticeResourceResponse(StrictSchema):
+    id: UUID
+    provider_slug: str
+    provider_name: str
+    external_key: str | None
+    title: str | None
+    url: str
+    practice_url: str
+    is_primary: bool
+    sort_order: int
+
+
+class CatalogContentItemSnapshotResponse(StrictSchema):
+    id: UUID
+    domain_id: UUID
+    slug: str
+    type: str
+    difficulty: str | None
+    current_published_version_id: UUID
+    title: str
+    summary: str | None
+    row_version: int
+    category_ids: list[UUID]
+    category_assignments: list[CatalogCategoryAssignmentResponse]
+    primary_practice_resource: CatalogPrimaryPracticeResourceResponse | None
+    primary_practice_url: str | None
+    updated_at: datetime
+
+
+class CatalogContentBlockSnapshotResponse(StrictSchema):
+    id: UUID
+    position: int
+    heading: str | None
+    type: str
+    payload: dict[str, object]
+
+
+class CatalogContentDocumentSnapshotResponse(StrictSchema):
+    id: UUID
+    content_item_id: UUID
+    version_number: int
+    published_at: datetime | None
+    blocks: list[CatalogContentBlockSnapshotResponse]
+
+
 class CatalogFullResyncResponse(StrictSchema):
     snapshot_id: UUID
     domain_id: UUID
@@ -231,9 +292,19 @@ class CatalogFullResyncResponse(StrictSchema):
     snapshot_cursor: int
     generated_at: datetime
     expires_at: datetime
-    categories: list[dict[str, object]]
-    content_items: list[dict[str, object]]
-    content_documents: list[dict[str, object]]
+    categories: list[CatalogCategorySnapshotResponse]
+    content_items: list[CatalogContentItemSnapshotResponse]
+    content_documents: list[CatalogContentDocumentSnapshotResponse]
+
+
+class UserReviewCardSnapshotResponse(StrictSchema):
+    id: UUID
+    content_item_id: UUID
+    state: Literal["due", "scheduled"]
+    next_review_at: datetime
+    row_version: int
+    created_at: datetime
+    updated_at: datetime
 
 
 class UserFullResyncResponse(StrictSchema):
@@ -244,4 +315,4 @@ class UserFullResyncResponse(StrictSchema):
     progress: list[dict[str, object]]
     bookmarks: list[dict[str, object]]
     notes: list[dict[str, object]]
-    review_cards: list[dict[str, object]]
+    review_cards: list[UserReviewCardSnapshotResponse]

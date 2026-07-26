@@ -62,6 +62,7 @@ class AppliedMutation:
     resulting_row_version: int | None
     result: dict[str, object]
     preallocated_cursor: int | None = None
+    user_change_required: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,6 +131,7 @@ class CompactionResult:
     mutations_deleted: int
     user_changes_deleted: int
     catalog_changes_deleted: int
+    snapshots_deleted: int
     user_devices_marked_for_resync: int
     catalog_devices_marked_for_resync: int
 
@@ -156,7 +158,7 @@ class SyncRepository(Protocol):
     ) -> tuple[MutationRecord, bool]: ...
 
     async def apply_authoritative(
-        self, *, profile_id: UUID, command: MutationCommand
+        self, *, profile_id: UUID, command: MutationCommand, retention_days: int
     ) -> AppliedMutation: ...
 
     async def allocate_user_change(
@@ -168,7 +170,7 @@ class SyncRepository(Protocol):
         *,
         mutation_id: UUID,
         resulting_row_version: int | None,
-        cursor: int,
+        cursor: int | None,
         result: dict[str, object],
     ) -> None: ...
 
@@ -305,7 +307,9 @@ class SyncService:
             else:
                 try:
                     applied = await uow.repository.apply_authoritative(
-                        profile_id=profile_id, command=command
+                        profile_id=profile_id,
+                        command=command,
+                        retention_days=self._retention_days,
                     )
                 except AppError as exc:
                     rejection = exc
@@ -339,7 +343,7 @@ class SyncService:
                     )
                 else:
                     cursor = applied.preallocated_cursor
-                    if cursor is None:
+                    if cursor is None and applied.user_change_required:
                         cursor = await uow.repository.allocate_user_change(
                             profile_id=profile_id,
                             mutation=applied,

@@ -94,7 +94,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             lambda: SqlAlchemyCategoryContentReadUnitOfWork(database.session_factory)
         )
         app.state.learning_service = LearningService(
-            lambda: SqlAlchemyLearningUnitOfWork(database.session_factory)
+            lambda: SqlAlchemyLearningUnitOfWork(
+                database.session_factory, sync_retention_days=resolved.sync_retention_days
+            )
         )
         app.state.event_publisher = InProcessEventPublisher()
         app.state.admin_content_service = AdminContentService(
