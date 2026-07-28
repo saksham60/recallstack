@@ -87,7 +87,7 @@ async def test_normal_user_is_denied_admin_user_inspection() -> None:
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app), base_url="http://test"
         ) as client:
-            response = await client.get("/api/v1/admin/users")
+            response = await client.get("/api/v1/admin/users/legacy")
     assert response.status_code == 403
 
 
@@ -99,7 +99,7 @@ async def test_admin_can_list_users_with_pagination_and_redacted_fields() -> Non
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app), base_url="http://test"
         ) as client:
-            response = await client.get("/api/v1/admin/users?page=1&page_size=25")
+            response = await client.get("/api/v1/admin/users/legacy?page=1&page_size=25")
     assert response.status_code == 200
     body = response.json()
     assert body["pagination"]["total_items"] == 1
@@ -134,7 +134,7 @@ async def test_admin_user_filters_are_validated() -> None:
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app), base_url="http://test"
         ) as client:
-            invalid_status = await client.get("/api/v1/admin/users?progress_status=invalid")
-            invalid_page_size = await client.get("/api/v1/admin/users?page_size=101")
+            invalid_status = await client.get("/api/v1/admin/users/legacy?progress_status=invalid")
+            invalid_page_size = await client.get("/api/v1/admin/users/legacy?page_size=101")
     assert invalid_status.status_code == 422
     assert invalid_page_size.status_code == 422

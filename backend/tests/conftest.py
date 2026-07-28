@@ -37,7 +37,10 @@ def migrated_database_url(postgres_url: str) -> Iterator[str]:
     engine = create_engine(sync_url)
     with engine.begin() as connection:
         connection.execute(text("CREATE SCHEMA IF NOT EXISTS auth"))
-        connection.execute(text("CREATE TABLE IF NOT EXISTS auth.users (id uuid PRIMARY KEY)"))
+        connection.execute(
+            text("CREATE TABLE IF NOT EXISTS auth.users (id uuid PRIMARY KEY, email text)")
+        )
+        connection.execute(text("ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS email text"))
         connection.execute(
             text("INSERT INTO auth.users (id) VALUES (:id) ON CONFLICT DO NOTHING"),
             {"id": subject},

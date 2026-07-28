@@ -160,7 +160,7 @@ def test_upgrade_from_previous_head_preserves_and_backfills_data(postgres_url: s
         assert version_category == category
         assert version_topic == topic
         assert tuple(snapshot) == ("confident", 77, card_id, now)
-        assert revision == "20260726_0014"
+        assert revision == "20260728_0016"
     finally:
         engine.dispose()
         if old_url is None:

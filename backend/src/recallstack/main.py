@@ -179,9 +179,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(practice_router, prefix="/api/v1")
     app.include_router(recall_router, prefix="/api/v1")
     app.include_router(search_router, prefix="/api/v1")
-    app.include_router(admin_analytics_router, prefix="/api/v1")
     app.include_router(admin_content_router, prefix="/api/v1")
     app.include_router(admin_user_router, prefix="/api/v1")
+    app.include_router(admin_analytics_router, prefix="/api/v1")
     app.include_router(sync_router, prefix="/api/v1")
     return app
 

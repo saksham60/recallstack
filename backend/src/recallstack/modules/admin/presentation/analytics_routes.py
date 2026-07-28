@@ -3,10 +3,8 @@ from typing import Annotated, Any, Literal, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path, Query, Request
-from fastapi.responses import JSONResponse
 
 from recallstack.modules.admin.application.analytics import AdminAnalyticsService
-from recallstack.modules.admin.application.user_inspection import UserFilters
 from recallstack.modules.admin.presentation.analytics_schemas import (
     ActivityListResponse,
     AdminUserListItem,
@@ -20,11 +18,6 @@ from recallstack.modules.admin.presentation.analytics_schemas import (
     UserDetailResponse,
 )
 from recallstack.modules.admin.presentation.schemas import PaginationResponse
-from recallstack.modules.admin.presentation.user_routes import (
-    AdminUserServiceDependency,
-    get_admin_user_service,
-)
-from recallstack.modules.admin.presentation.user_schemas import AdminUserResponse, UserListResponse
 from recallstack.modules.identity.presentation.dependencies import AdminUserDependency
 
 router = APIRouter(prefix="/admin", tags=["admin-analytics"])
@@ -92,7 +85,6 @@ async def list_users(
     request: Request,
     current_user: AdminUserDependency,
     service: AnalyticsDependency,
-    legacy_service: AdminUserServiceDependency,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 25,
     search: Annotated[str | None, Query(max_length=320)] = None,
@@ -104,32 +96,16 @@ async def list_users(
     signed_up_to: datetime | None = None,
     active_from: datetime | None = None,
     active_to: datetime | None = None,
-    progress_status: Literal["new", "learning", "attempted", "confident", "mastered"] | None = None,
     sort_by: Literal[
         "created_at",
         "last_active_at",
         "unique_problems_completed",
         "unique_problems_attempted",
-        "current_streak",
         "name",
         "email",
     ] = "created_at",
     sort_order: SortOrder = "desc",
-) -> Any:
-    # Compatibility for existing isolated route tests that override the legacy service.
-    # Production and new tests always take the analytics branch.
-    if get_admin_user_service in request.app.dependency_overrides:
-        old = await legacy_service.list_users(
-            filters=UserFilters(),
-            page=page,
-            page_size=page_size,
-        )
-        legacy_response = UserListResponse(
-            items=[AdminUserResponse.model_validate(x, from_attributes=True) for x in old.items],
-            pagination=_page(page, page_size, old.total_items),
-        )
-        return JSONResponse(legacy_response.model_dump(mode="json"))
-    del progress_status
+) -> AnalyticsUserListResponse:
     filters = {
         "search": search,
         "account_status": account_status,
@@ -175,14 +151,7 @@ async def user_detail(
     user_id: Annotated[UUID, Path(alias="userId")],
     current_user: AdminUserDependency,
     service: AnalyticsDependency,
-    legacy_service: AdminUserServiceDependency,
-) -> Any:
-    if get_admin_user_service in request.app.dependency_overrides:
-        legacy_response = AdminUserResponse.model_validate(
-            await legacy_service.get_user(user_id),
-            from_attributes=True,
-        )
-        return JSONResponse(legacy_response.model_dump(mode="json"))
+) -> UserDetailResponse:
     result = await service.user_detail(
         user_id,
         audit=_audit(request, current_user.profile_id, "admin.user.viewed", "user", str(user_id)),

@@ -125,6 +125,46 @@ def test_admin_practice_resource_revision_schema(migrated_database_url: str) -> 
     engine.dispose()
 
 
+def test_auth_email_updates_are_projected_to_profiles(
+    migrated_database_url: str,
+) -> None:
+    engine = create_engine(migrated_database_url)
+    user_id = uuid4()
+    with engine.begin() as connection:
+        connection.execute(
+            text("INSERT INTO auth.users (id, email) VALUES (:id, 'First@Example.Test')"),
+            {"id": user_id},
+        )
+        connection.execute(text("INSERT INTO profiles (id) VALUES (:id)"), {"id": user_id})
+        assert (
+            connection.execute(
+                text("SELECT email FROM profiles WHERE id=:id"), {"id": user_id}
+            ).scalar_one()
+            == "first@example.test"
+        )
+        connection.execute(
+            text("UPDATE auth.users SET email='Changed@Example.Test' WHERE id=:id"),
+            {"id": user_id},
+        )
+        assert (
+            connection.execute(
+                text("SELECT email FROM profiles WHERE id=:id"), {"id": user_id}
+            ).scalar_one()
+            == "changed@example.test"
+        )
+        connection.execute(
+            text("UPDATE auth.users SET email=NULL WHERE id=:id"),
+            {"id": user_id},
+        )
+        assert (
+            connection.execute(
+                text("SELECT email FROM profiles WHERE id=:id"), {"id": user_id}
+            ).scalar_one()
+            is None
+        )
+    engine.dispose()
+
+
 async def test_development_seed_is_idempotent(migrated_database_url: str) -> None:
     await seed()
     await seed()

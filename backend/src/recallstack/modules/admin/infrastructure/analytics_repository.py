@@ -1,4 +1,5 @@
-# ruff: noqa: E501, S608
+# Ruff cannot reflow SQL embedded in triple-quoted strings without changing the query text.
+# ruff: noqa: E501
 
 from datetime import UTC, datetime
 from typing import Any
@@ -108,7 +109,6 @@ class SqlAlchemyAdminAnalyticsRepository:
             "last_active_at": "last_active_at",
             "unique_problems_completed": "completed",
             "unique_problems_attempted": "attempted",
-            "current_streak": "created_at",
             "name": "name",
             "email": "email",
         }
@@ -141,23 +141,34 @@ class SqlAlchemyAdminAnalyticsRepository:
             params["account_status"] = filters["account_status"]
         where = " AND ".join(conditions)
         base = """
-          SELECT p.id user_id, p.display_name name, coalesce(p.email,'') email, p.created_at,
-            GREATEST(
-              (SELECT max(a.occurred_at) FROM activity_events a WHERE a.user_id=p.id),
-              (SELECT max(a.attempted_at) FROM practice_attempts a WHERE a.user_id=p.id),
-              (SELECT max(r.reviewed_at) FROM review_history r WHERE r.user_id=p.id)
-            ) last_active_at,
-            (SELECT count(DISTINCT pa.content_item_id) FROM practice_attempts pa
-             JOIN content_items ci ON ci.id=pa.content_item_id
-             WHERE pa.user_id=p.id AND ci.type='problem')::int attempted,
-            (SELECT count(DISTINCT pa.content_item_id) FROM practice_attempts pa
-             JOIN content_items ci ON ci.id=pa.content_item_id
-             WHERE pa.user_id=p.id AND ci.type='problem' AND pa.outcome::text=:accepted)::int completed
+          WITH activity_sources AS (
+            SELECT user_id,max(occurred_at) last_active_at FROM activity_events GROUP BY user_id
+            UNION ALL
+            SELECT user_id,max(attempted_at) FROM practice_attempts GROUP BY user_id
+            UNION ALL
+            SELECT user_id,max(reviewed_at) FROM review_history GROUP BY user_id
+          ), activity AS (
+            SELECT user_id,max(last_active_at) last_active_at
+            FROM activity_sources GROUP BY user_id
+          ), problem_counts AS (
+            SELECT pa.user_id,count(DISTINCT pa.content_item_id)::int attempted,
+              count(DISTINCT pa.content_item_id)
+                FILTER(WHERE pa.outcome::text=:accepted)::int completed
+            FROM practice_attempts pa
+            JOIN content_items ci ON ci.id=pa.content_item_id AND ci.type='problem'
+            GROUP BY pa.user_id
+          )
+          SELECT p.id user_id,p.display_name name,coalesce(p.email,'') email,p.created_at,
+            activity.last_active_at,coalesce(problem_counts.attempted,0)::int attempted,
+            coalesce(problem_counts.completed,0)::int completed
           FROM profiles p
+          LEFT JOIN activity ON activity.user_id=p.id
+          LEFT JOIN problem_counts ON problem_counts.user_id=p.id
         """
         total = int(
             await self._session.scalar(
-                text(f"SELECT count(*) FROM ({base}) users WHERE {where}"), params
+                text(f"SELECT count(*) FROM ({base}) users WHERE {where}"),  # noqa: S608
+                params,
             )
             or 0
         )
@@ -165,7 +176,7 @@ class SqlAlchemyAdminAnalyticsRepository:
             (
                 await self._session.execute(
                     text(
-                        f"SELECT * FROM ({base}) users WHERE {where} ORDER BY {order} LIMIT :limit OFFSET :offset"
+                        f"SELECT * FROM ({base}) users WHERE {where} ORDER BY {order} LIMIT :limit OFFSET :offset"  # noqa: S608
                     ),
                     params,
                 )
@@ -228,10 +239,14 @@ class SqlAlchemyAdminAnalyticsRepository:
                     SELECT d.difficulty,
                       count(DISTINCT pa.content_item_id)::int attempted,
                       count(DISTINCT pa.content_item_id) FILTER(WHERE pa.outcome::text=:accepted)::int completed
-                    FROM (VALUES ('easy'),('medium'),('hard')) d(difficulty)
+                    FROM (VALUES ('beginner'),('easy'),('medium'),('hard'),('expert'))
+                      d(difficulty)
                     LEFT JOIN content_items ci ON ci.difficulty::text=d.difficulty AND ci.type='problem'
                     LEFT JOIN practice_attempts pa ON pa.content_item_id=ci.id AND pa.user_id=:user_id
-                    GROUP BY d.difficulty ORDER BY array_position(ARRAY['easy','medium','hard'],d.difficulty)
+                    GROUP BY d.difficulty
+                    ORDER BY array_position(
+                      ARRAY['beginner','easy','medium','hard','expert'],d.difficulty
+                    )
                     """
                     ),
                     {"user_id": user_id, "accepted": ACCEPTED_OUTCOME},
@@ -359,7 +374,7 @@ class SqlAlchemyAdminAnalyticsRepository:
             ci.difficulty::text difficulty,
             (SELECT t.name FROM content_version_topics cvt JOIN topics t ON t.id=cvt.topic_id
              WHERE cvt.content_version_id=ci.current_published_version_id ORDER BY cvt.is_primary DESC,cvt.sort_order LIMIT 1) topic,
-            r.attempt_number,r.outcome status,r.duration_seconds,r.hint_used
+            r.attempt_number,r.outcome::text status,r.duration_seconds,r.hint_used
           FROM (SELECT pa.*,row_number() OVER(PARTITION BY user_id,content_item_id ORDER BY attempted_at,id)::int attempt_number
                 FROM practice_attempts pa) r
           JOIN content_items ci ON ci.id=r.content_item_id
@@ -383,7 +398,8 @@ class SqlAlchemyAdminAnalyticsRepository:
         """
         total = int(
             await self._session.scalar(
-                text(f"SELECT count(*) FROM ({base}) a WHERE {where}"), params
+                text(f"SELECT count(*) FROM ({base}) a WHERE {where}"),  # noqa: S608
+                params,
             )
             or 0
         )
@@ -391,7 +407,7 @@ class SqlAlchemyAdminAnalyticsRepository:
             (
                 await self._session.execute(
                     text(
-                        f"SELECT * FROM ({base}) a WHERE {where} ORDER BY occurred_at DESC,activity_id DESC LIMIT :limit OFFSET :offset"
+                        f"SELECT * FROM ({base}) a WHERE {where} ORDER BY occurred_at DESC,activity_id DESC LIMIT :limit OFFSET :offset"  # noqa: S608
                     ),
                     params,
                 )
@@ -460,7 +476,8 @@ class SqlAlchemyAdminAnalyticsRepository:
         where = " AND ".join(conditions)
         total = int(
             await self._session.scalar(
-                text(f"SELECT count(*) FROM ({base}) q WHERE {where}"), params
+                text(f"SELECT count(*) FROM ({base}) q WHERE {where}"),  # noqa: S608
+                params,
             )
             or 0
         )
@@ -468,7 +485,7 @@ class SqlAlchemyAdminAnalyticsRepository:
             (
                 await self._session.execute(
                     text(
-                        f"SELECT * FROM ({base}) q WHERE {where} ORDER BY {sort_columns[sort_by]} {'DESC' if descending else 'ASC'} NULLS LAST,problem_id LIMIT :limit OFFSET :offset"
+                        f"SELECT * FROM ({base}) q WHERE {where} ORDER BY {sort_columns[sort_by]} {'DESC' if descending else 'ASC'} NULLS LAST,problem_id LIMIT :limit OFFSET :offset"  # noqa: S608
                     ),
                     params,
                 )
@@ -483,7 +500,7 @@ class SqlAlchemyAdminAnalyticsRepository:
             (
                 await self._session.execute(
                     text(
-                        f"SELECT * FROM ({self._problem_analytics_sql()}) q WHERE problem_id=:problem_id"
+                        f"SELECT * FROM ({self._problem_analytics_sql()}) q WHERE problem_id=:problem_id"  # noqa: S608
                     ),
                     {"problem_id": problem_id, "accepted": ACCEPTED_OUTCOME},
                 )
@@ -562,7 +579,8 @@ class SqlAlchemyAdminAnalyticsRepository:
         where = " AND ".join(conditions)
         total = int(
             await self._session.scalar(
-                text(f"SELECT count(*) FROM admin_audit_logs WHERE {where}"), params
+                text(f"SELECT count(*) FROM admin_audit_logs WHERE {where}"),  # noqa: S608
+                params,
             )
             or 0
         )
@@ -570,7 +588,7 @@ class SqlAlchemyAdminAnalyticsRepository:
             (
                 await self._session.execute(
                     text(
-                        f"SELECT * FROM admin_audit_logs WHERE {where} ORDER BY created_at DESC,id DESC LIMIT :limit OFFSET :offset"
+                        f"SELECT * FROM admin_audit_logs WHERE {where} ORDER BY created_at DESC,id DESC LIMIT :limit OFFSET :offset"  # noqa: S608
                     ),
                     params,
                 )

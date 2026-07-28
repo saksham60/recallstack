@@ -34,6 +34,14 @@ curl -H "Authorization: Bearer <ADMIN_TOKEN>" \
 The interactive OpenAPI document at `/docs` lists all filters, sort allowlists, validation limits,
 descriptions, and response schemas.
 
+Supported user sort fields are `created_at`, `last_active_at`,
+`unique_problems_completed`, `unique_problems_attempted`, `name`, and `email`. `current_streak`
+sorting is intentionally rejected because the product has no approved streak formula. Both current
+and longest streak values remain `null`.
+
+Problem difficulty values are returned in this stable order: `beginner`, `easy`, `medium`, `hard`,
+and `expert`. User detail includes every value even when its counts are zero.
+
 ## Metric definitions
 
 - A DSA problem is a `content_items` row whose type is `problem`.
@@ -54,18 +62,37 @@ descriptions, and response schemas.
 - No official readiness or streak formula exists, so those values are `null`.
 - Solve-time data and hint-usage analytics do not yet have approved semantics, so they are `null`.
 
+Activity classification is deterministic:
+
+- the first nonaccepted problem attempt is `problem_attempted`;
+- later nonaccepted attempts are `problem_reattempted`;
+- any accepted attempt is `problem_completed`, including an accepted reattempt;
+- persisted review history is `revision_completed`;
+- the profile creation timestamp is `user_signed_up`.
+
+Activity is newest first. Signup events have no problem, and analytics never invent events from
+derived progress state.
+
 Revision data is available from `review_cards` and `review_history`. No mock-test persistence module
 exists, so mock-test summaries return `available: false`.
 
 ## Email projection and privacy
 
 Supabase Auth remains the email source of truth. Migration `20260728_0015` creates a private,
-application-owned `profiles.email` projection, backfills it when `auth.users.email` is available,
-and installs an insert projection trigger in Supabase deployments. Non-Supabase identity adapters
-should populate this nullable column when provisioning profiles.
+application-owned `profiles.email` projection, backfills it, and projects email during profile
+insertion. Migration `20260728_0016` adds an `auth.users` email-update trigger so later changes,
+including changes to `null`, remain synchronized and lowercased. Both migrations detect the Auth
+schema conditionally, so non-Supabase adapters remain valid. Such adapters should populate the
+nullable projection during profile provisioning.
 
 Admin responses never include passwords, tokens, provider metadata, submitted source code, hidden
 solutions, test-case answers, or authorization headers. Audit metadata is allowlisted.
+
+Each successful analytics read writes a sanitized audit record after the read result has been
+selected. Consequently, `GET /audit-logs` does not include its own audit row in that same response;
+the row appears on the next request. Audit failures are logged internally and do not fail a
+successful read. The only nonempty metadata currently approved is user-list pagination
+(`page` and `page_size`).
 
 ## Migration, indexes, and tests
 
@@ -78,3 +105,14 @@ RUN_INTEGRATION_TESTS=1 make test
 The migration adds `admin_audit_logs`, a partial unique lower-case profile-email index, analytics
 indexes on `(content_item_id, user_id, attempted_at)` and `outcome`, and audit lookup indexes. It
 does not add stored counters, views, materialized views, or duplicate progress tables.
+
+The user list computes activity and completion aggregates with grouped CTEs and joins rather than
+per-profile correlated subqueries. Queries remain live aggregates with allowlisted sort fragments
+and parameterized user input. This first version has no materialized views or stored counters;
+overview, broad unfiltered user lists, and problem analytics will eventually need query-plan and
+latency monitoring as the attempt table grows.
+
+The indexes in migration `0015` use normal transactional Alembic DDL, matching the repository's
+established migration style. Creating the two indexes on an already large `practice_attempts` table
+can briefly block writes; schedule that migration during a low-write window. They are deliberately
+not created concurrently inside the normal migration transaction.
