@@ -9,6 +9,7 @@ from recallstack.commands.seed import DSA_CATEGORIES, seed
 pytestmark = pytest.mark.integration
 
 EXPECTED_TABLES = {
+    "admin_audit_logs",
     "profiles",
     "roles",
     "profile_role_grants",
@@ -89,6 +90,8 @@ def test_critical_constraints_and_indexes_exist(migrated_database_url: str) -> N
         "chk_sync_mutation_result_cursor",
     } <= constraints
     assert {
+        "ix_admin_audit_logs_admin_created",
+        "ix_admin_audit_logs_action_created",
         "uq_content_item_topics_one_primary",
         "uq_content_version_topics_one_primary",
         "uq_practice_resources_one_primary",

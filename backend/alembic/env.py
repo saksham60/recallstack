@@ -3,6 +3,7 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 
 from alembic import context
+from recallstack.modules.admin.infrastructure import analytics_models as admin_models  # noqa: F401
 from recallstack.modules.catalog.infrastructure import (
     sqlalchemy_models as catalog_models,  # noqa: F401
 )

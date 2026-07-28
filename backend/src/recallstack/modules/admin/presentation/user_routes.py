@@ -43,7 +43,12 @@ def _pagination(page: Page[Any]) -> PaginationResponse:
     )
 
 
-@router.get("", response_model=UserListResponse, operation_id="adminListUsers")
+@router.get(
+    "/legacy",
+    response_model=UserListResponse,
+    operation_id="adminListUsers",
+    include_in_schema=False,
+)
 async def list_users(
     current_user: AdminUserDependency,
     service: AdminUserServiceDependency,
@@ -67,7 +72,12 @@ async def list_users(
     )
 
 
-@router.get("/{userId}", response_model=AdminUserResponse, operation_id="adminGetUser")
+@router.get(
+    "/legacy/{userId}",
+    response_model=AdminUserResponse,
+    operation_id="adminGetUser",
+    include_in_schema=False,
+)
 async def get_user(
     user_id: Annotated[UUID, Path(alias="userId")],
     current_user: AdminUserDependency,

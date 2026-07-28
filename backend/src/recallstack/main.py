@@ -19,8 +19,10 @@ from recallstack.composition.search_uow import SqlAlchemySearchUnitOfWork
 from recallstack.composition.sync_uow import SqlAlchemySyncUnitOfWork
 from recallstack.health import ReadinessProbe
 from recallstack.health import router as health_router
+from recallstack.modules.admin.application.analytics import AdminAnalyticsService
 from recallstack.modules.admin.application.content_management import AdminContentService
 from recallstack.modules.admin.application.user_inspection import AdminUserService
+from recallstack.modules.admin.presentation.analytics_routes import router as admin_analytics_router
 from recallstack.modules.admin.presentation.routes import router as admin_content_router
 from recallstack.modules.admin.presentation.user_routes import router as admin_user_router
 from recallstack.modules.catalog.application.category_dashboard import CategoryDashboardService
@@ -108,6 +110,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.admin_user_service = AdminUserService(
             lambda: SqlAlchemyAdminUserUnitOfWork(database.session_factory)
         )
+        app.state.admin_analytics_service = AdminAnalyticsService(database.session_factory)
         app.state.practice_attempt_service = PracticeAttemptService(
             lambda: SqlAlchemyPracticeAttemptUnitOfWork(
                 database.session_factory, sync_retention_days=resolved.sync_retention_days
@@ -176,6 +179,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(practice_router, prefix="/api/v1")
     app.include_router(recall_router, prefix="/api/v1")
     app.include_router(search_router, prefix="/api/v1")
+    app.include_router(admin_analytics_router, prefix="/api/v1")
     app.include_router(admin_content_router, prefix="/api/v1")
     app.include_router(admin_user_router, prefix="/api/v1")
     app.include_router(sync_router, prefix="/api/v1")

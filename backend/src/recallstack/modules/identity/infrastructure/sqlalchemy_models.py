@@ -22,6 +22,7 @@ class ProfileModel(Base):
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     display_name: Mapped[str | None] = mapped_column(String(120))
+    email: Mapped[str | None] = mapped_column(String(320))
     avatar_url: Mapped[str | None] = mapped_column(Text)
     timezone: Mapped[str] = mapped_column(String(64), nullable=False, default="UTC")
     created_at: Mapped[datetime] = mapped_column(

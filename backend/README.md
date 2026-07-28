@@ -1,5 +1,8 @@
 # RecallStack backend
 
+Read-only Admin Panel setup, endpoints, and metric definitions:
+[`docs/admin-panel-backend.md`](docs/admin-panel-backend.md).
+
 Python 3.12 FastAPI modular monolith using standard PostgreSQL, SQLAlchemy 2, psycopg 3, and Alembic.
 Supabase is isolated to the JWT verifier and the identity migration’s `profiles -> auth.users` foreign
 key; runtime persistence never uses the Supabase SDK or PostgREST.
