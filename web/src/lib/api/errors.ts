@@ -120,7 +120,7 @@ export function getApiErrorMessage(
     case 404:
       return "The requested item could not be found.";
     case 409:
-      return "This item changed elsewhere. Refresh and try again.";
+      return error.message || "This item changed elsewhere. Refresh and try again.";
     case 422:
       return error.message || "Please check the submitted values.";
     case 429:

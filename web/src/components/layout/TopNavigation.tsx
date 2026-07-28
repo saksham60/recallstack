@@ -2,6 +2,7 @@ import React from "react";
 import Link from "next/link";
 import { UserMenu } from "./UserMenu";
 import { GlobalSearch } from "./GlobalSearch";
+import { AdminNavigationLink } from "./AdminNavigationLink";
 
 export function TopNavigation() {
   return (
@@ -26,6 +27,7 @@ export function TopNavigation() {
             <span className="hidden sm:inline">Revise</span>
             <span className="bg-accent/20 text-accent text-[10px] px-1.5 rounded-full">New</span>
           </Link>
+          <AdminNavigationLink />
         </div>
         
         <div className="flex-1 max-w-xl mx-auto flex justify-center w-full min-w-[120px]">

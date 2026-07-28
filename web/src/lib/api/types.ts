@@ -264,6 +264,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Scheduled */
+        get: operations["listScheduledReviews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/reviews/{cardId}/submit": {
         parameters: {
             query?: never;
@@ -452,40 +469,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/users": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Users */
-        get: operations["adminListUsers"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/users/{userId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get User */
-        get: operations["adminGetUser"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/admin/users/{userId}/progress": {
         parameters: {
             query?: never;
@@ -566,6 +549,146 @@ export interface paths {
         put?: never;
         /** Revoke Role */
         post: operations["adminRevokeUserRole"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get platform overview
+         * @description Returns aggregate user and DSA-problem metrics. Active users use the latest reliable timestamp across activity events, practice attempts, and revision history.
+         */
+        get: operations["adminAnalyticsOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List users with progress metrics
+         * @description Search, filter, sort, and paginate users without per-user queries.
+         */
+        get: operations["adminAnalyticsListUsers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get user progress detail
+         * @description Returns authoritative attempt, completion, topic, difficulty, and revision aggregates.
+         */
+        get: operations["adminAnalyticsGetUser"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{userId}/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a user's activity timeline
+         * @description Composes reliable signup and problem-attempt events; newest activity is first.
+         */
+        get: operations["adminAnalyticsUserActivity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/problems/analytics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List problem analytics
+         * @description Metrics use unique user/problem pairs; first-attempt success uses the earliest attempt.
+         */
+        get: operations["adminProblemAnalyticsList"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/problems/{problemId}/analytics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get one problem's analytics
+         * @description Includes at most 20 recent attempts and never includes submitted source code.
+         */
+        get: operations["adminProblemAnalyticsDetail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/audit-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List administrator access audit logs
+         * @description Returns sanitized access records; credentials and authorization headers are never stored.
+         */
+        get: operations["adminAuditLogs"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -691,39 +814,154 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sync/catalog/{domainId}/full-resync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Catalog Full Resync */
+        post: operations["createCatalogFullResync"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sync/catalog/{domainId}/full-resync/ack": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Acknowledge Catalog Full Resync */
+        post: operations["acknowledgeCatalogFullResync"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sync/user/full-resync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create User Full Resync */
+        post: operations["createUserFullResync"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sync/user/full-resync/ack": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Acknowledge User Full Resync */
+        post: operations["acknowledgeUserFullResync"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** AdminUserResponse */
-        AdminUserResponse: {
+        /** ActivityItem */
+        ActivityItem: {
+            /** Activity Id */
+            activity_id: string;
+            /** Activity Type */
+            activity_type: string;
             /**
-             * Id
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            problem: components["schemas"]["ActivityProblem"] | null;
+            /** Metadata */
+            metadata: {
+                [key: string]: unknown | null;
+            };
+        };
+        /** ActivityListResponse */
+        ActivityListResponse: {
+            /** Items */
+            items: components["schemas"]["ActivityItem"][];
+            pagination: components["schemas"]["recallstack__modules__admin__presentation__schemas__PaginationResponse"];
+        };
+        /** ActivityProblem */
+        ActivityProblem: {
+            /**
+             * Problem Id
              * Format: uuid
              */
-            id: string;
-            /** Display Name */
-            display_name: string | null;
+            problem_id: string;
+            /** Title */
+            title: string;
+            /** Difficulty */
+            difficulty: string;
+            /** Topic */
+            topic: string | null;
+        };
+        /** AdminUserListItem */
+        AdminUserListItem: {
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** Name */
+            name: string | null;
+            /** Email */
+            email: string;
             /**
              * Created At
              * Format: date-time
              */
             created_at: string;
+            /** Last Active At */
+            last_active_at: string | null;
             /**
-             * Updated At
-             * Format: date-time
+             * Account Status
+             * @default active
+             * @constant
              */
-            updated_at: string;
-            /** Active Roles */
-            active_roles: string[];
-            /** Progress Count */
-            progress_count: number;
-            /** Practice Attempt Count */
-            practice_attempt_count: number;
-            /** Review Count */
-            review_count: number;
-            /** Last Activity At */
-            last_activity_at: string | null;
+            account_status: "active";
+            /** Unique Problems Attempted */
+            unique_problems_attempted: number;
+            /** Unique Problems Completed */
+            unique_problems_completed: number;
+            /** Current Streak */
+            current_streak?: null;
+            /** Readiness Score */
+            readiness_score?: null;
+            interview_unlock: components["schemas"]["InterviewUnlock"];
+        };
+        /** AnalyticsUserListResponse */
+        AnalyticsUserListResponse: {
+            /** Items */
+            items: components["schemas"]["AdminUserListItem"][];
+            pagination: components["schemas"]["recallstack__modules__admin__presentation__schemas__PaginationResponse"];
         };
         /** ArchiveRequest */
         ArchiveRequest: {
@@ -742,6 +980,43 @@ export interface components {
              * Format: date-time
              */
             archived_at: string;
+        };
+        /** AuditLogItem */
+        AuditLogItem: {
+            /** Id */
+            id: number;
+            /**
+             * Admin User Id
+             * Format: uuid
+             */
+            admin_user_id: string;
+            /** Action */
+            action: string;
+            /** Resource Type */
+            resource_type: string;
+            /** Resource Id */
+            resource_id: string | null;
+            /** Request Method */
+            request_method: string;
+            /** Request Path */
+            request_path: string;
+            /** Request Id */
+            request_id: string;
+            /** Metadata Json */
+            metadata_json: {
+                [key: string]: unknown;
+            };
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** AuditLogListResponse */
+        AuditLogListResponse: {
+            /** Items */
+            items: components["schemas"]["AuditLogItem"][];
+            pagination: components["schemas"]["recallstack__modules__admin__presentation__schemas__PaginationResponse"];
         };
         /** BookmarkListResponse */
         BookmarkListResponse: {
@@ -765,6 +1040,180 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+        };
+        /** CatalogCategoryAssignmentResponse */
+        CatalogCategoryAssignmentResponse: {
+            /**
+             * Category Id
+             * Format: uuid
+             */
+            category_id: string;
+            /** Sort Order */
+            sort_order: number;
+        };
+        /** CatalogCategorySnapshotResponse */
+        CatalogCategorySnapshotResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Domain Id
+             * Format: uuid
+             */
+            domain_id: string;
+            /** Parent Category Id */
+            parent_category_id: string | null;
+            /** Slug */
+            slug: string;
+            /** Name */
+            name: string;
+            /** Description */
+            description: string | null;
+            /** Sort Order */
+            sort_order: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** CatalogContentBlockSnapshotResponse */
+        CatalogContentBlockSnapshotResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Position */
+            position: number;
+            /** Heading */
+            heading: string | null;
+            /** Type */
+            type: string;
+            /** Payload */
+            payload: {
+                [key: string]: unknown;
+            };
+        };
+        /** CatalogContentDocumentSnapshotResponse */
+        CatalogContentDocumentSnapshotResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Content Item Id
+             * Format: uuid
+             */
+            content_item_id: string;
+            /** Version Number */
+            version_number: number;
+            /** Published At */
+            published_at: string | null;
+            /** Blocks */
+            blocks: components["schemas"]["CatalogContentBlockSnapshotResponse"][];
+        };
+        /** CatalogContentItemSnapshotResponse */
+        CatalogContentItemSnapshotResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Domain Id
+             * Format: uuid
+             */
+            domain_id: string;
+            /** Slug */
+            slug: string;
+            /** Type */
+            type: string;
+            /** Difficulty */
+            difficulty: string | null;
+            /**
+             * Current Published Version Id
+             * Format: uuid
+             */
+            current_published_version_id: string;
+            /** Title */
+            title: string;
+            /** Summary */
+            summary: string | null;
+            /** Row Version */
+            row_version: number;
+            /** Category Ids */
+            category_ids: string[];
+            /** Category Assignments */
+            category_assignments: components["schemas"]["CatalogCategoryAssignmentResponse"][];
+            primary_practice_resource: components["schemas"]["CatalogPrimaryPracticeResourceResponse"] | null;
+            /** Primary Practice Url */
+            primary_practice_url: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** CatalogFullResyncResponse */
+        CatalogFullResyncResponse: {
+            /**
+             * Snapshot Id
+             * Format: uuid
+             */
+            snapshot_id: string;
+            /**
+             * Domain Id
+             * Format: uuid
+             */
+            domain_id: string;
+            /** Domain Slug */
+            domain_slug: string;
+            /** Snapshot Cursor */
+            snapshot_cursor: number;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Categories */
+            categories: components["schemas"]["CatalogCategorySnapshotResponse"][];
+            /** Content Items */
+            content_items: components["schemas"]["CatalogContentItemSnapshotResponse"][];
+            /** Content Documents */
+            content_documents: components["schemas"]["CatalogContentDocumentSnapshotResponse"][];
+        };
+        /** CatalogPrimaryPracticeResourceResponse */
+        CatalogPrimaryPracticeResourceResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Provider Slug */
+            provider_slug: string;
+            /** Provider Name */
+            provider_name: string;
+            /** External Key */
+            external_key: string | null;
+            /** Title */
+            title: string | null;
+            /** Url */
+            url: string;
+            /** Practice Url */
+            practice_url: string;
+            /** Is Primary */
+            is_primary: boolean;
+            /** Sort Order */
+            sort_order: number;
         };
         /** CategoryContentItemResponse */
         CategoryContentItemResponse: {
@@ -985,6 +1434,15 @@ export interface components {
             /** Revoked At */
             revoked_at: string | null;
         };
+        /** DifficultyProgress */
+        DifficultyProgress: {
+            /** Difficulty */
+            difficulty: string;
+            /** Attempted */
+            attempted: number;
+            /** Completed */
+            completed: number;
+        };
         /** DocumentBlockRequest */
         DocumentBlockRequest: {
             /**
@@ -1076,6 +1534,36 @@ export interface components {
             items: components["schemas"]["DueItem"][];
             pagination: components["schemas"]["Pagination"];
         };
+        /** FullResyncAckRequest */
+        FullResyncAckRequest: {
+            /**
+             * Device Id
+             * Format: uuid
+             */
+            device_id: string;
+            /**
+             * Snapshot Id
+             * Format: uuid
+             */
+            snapshot_id: string;
+            /** Snapshot Cursor */
+            snapshot_cursor: number;
+        };
+        /** FullResyncAckResponse */
+        FullResyncAckResponse: {
+            /** Acknowledged */
+            acknowledged: boolean;
+            /** Snapshot Cursor */
+            snapshot_cursor: number;
+        };
+        /** FullResyncRequest */
+        FullResyncRequest: {
+            /**
+             * Device Id
+             * Format: uuid
+             */
+            device_id: string;
+        };
         /** GrantRoleRequest */
         GrantRoleRequest: {
             /** Role Id */
@@ -1134,11 +1622,45 @@ export interface components {
             items: components["schemas"]["HistoryItem"][];
             pagination: components["schemas"]["Pagination"];
         };
+        /** InterviewUnlock */
+        InterviewUnlock: {
+            /**
+             * Required Completions
+             * @default 100
+             */
+            required_completions: number;
+            /** Current Completions */
+            current_completions: number;
+            /** Remaining Completions */
+            remaining_completions: number;
+            /** Eligible */
+            eligible: boolean;
+        };
         /**
          * LearningStatus
          * @enum {string}
          */
         LearningStatus: "new" | "learning" | "attempted" | "confident" | "mastered";
+        /** MockTestSummary */
+        MockTestSummary: {
+            /**
+             * Available
+             * @default false
+             */
+            available: boolean;
+            /**
+             * Total Attempts
+             * @default 0
+             */
+            total_attempts: number;
+            /**
+             * Completed Tests
+             * @default 0
+             */
+            completed_tests: number;
+            /** Average Score */
+            average_score?: null;
+        };
         /** MutationBatchRequest */
         MutationBatchRequest: {
             /**
@@ -1157,6 +1679,28 @@ export interface components {
             applied_count: number;
             /** Rejected Count */
             rejected_count: number;
+            /** Duplicate Count */
+            duplicate_count: number;
+            /** Conflict Count */
+            conflict_count: number;
+        };
+        /** MutationConflictResponse */
+        MutationConflictResponse: {
+            /** Entity Type */
+            entity_type: string;
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Expected Row Version */
+            expected_row_version: number;
+            /** Current Row Version */
+            current_row_version: number;
+            /** Server Entity */
+            server_entity: {
+                [key: string]: unknown;
+            };
         };
         /** MutationEnvelope */
         MutationEnvelope: {
@@ -1207,7 +1751,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "applied" | "rejected";
+            status: "applied" | "duplicate" | "rejected" | "conflict";
             /** Deduplicated */
             deduplicated: boolean;
             /** Cursor */
@@ -1229,6 +1773,7 @@ export interface components {
             result: {
                 [key: string]: unknown;
             } | null;
+            conflict?: components["schemas"]["MutationConflictResponse"] | null;
         };
         /** NoteCreateRequest */
         NoteCreateRequest: {
@@ -1302,6 +1847,17 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /** OverviewResponse */
+        OverviewResponse: {
+            users: components["schemas"]["UserMetrics"];
+            problems: components["schemas"]["ProblemMetrics"];
+            progress: components["schemas"]["ProgressMetrics"];
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
         };
         /** Pagination */
         Pagination: {
@@ -1437,6 +1993,107 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** ProblemAnalyticsItem */
+        ProblemAnalyticsItem: {
+            /**
+             * Problem Id
+             * Format: uuid
+             */
+            problem_id: string;
+            /** Title */
+            title: string;
+            /** Difficulty */
+            difficulty: string;
+            /** Publication Status */
+            publication_status: string;
+            /** Topics */
+            topics: string[];
+            /** Total Attempts */
+            total_attempts: number;
+            /** Accepted Attempts */
+            accepted_attempts: number;
+            /** Unique Users Attempted */
+            unique_users_attempted: number;
+            /** Unique Users Completed */
+            unique_users_completed: number;
+            /** Solve Rate */
+            solve_rate: number;
+            /** First Attempt Successes */
+            first_attempt_successes: number;
+            /** First Attempt Success Rate */
+            first_attempt_success_rate: number;
+            /** Average Attempts Before Completion */
+            average_attempts_before_completion: number | null;
+            /** Average Solve Time Seconds */
+            average_solve_time_seconds: number | null;
+            /** Hint Usage Count */
+            hint_usage_count: number | null;
+        };
+        /** ProblemAnalyticsListResponse */
+        ProblemAnalyticsListResponse: {
+            /** Items */
+            items: components["schemas"]["ProblemAnalyticsItem"][];
+            pagination: components["schemas"]["recallstack__modules__admin__presentation__schemas__PaginationResponse"];
+        };
+        /** ProblemAnalyticsSummary */
+        ProblemAnalyticsSummary: {
+            /** Total Attempts */
+            total_attempts: number;
+            /** Accepted Attempts */
+            accepted_attempts: number;
+            /** Unique Users Attempted */
+            unique_users_attempted: number;
+            /** Unique Users Completed */
+            unique_users_completed: number;
+            /** Solve Rate */
+            solve_rate: number;
+            /** First Attempt Success Rate */
+            first_attempt_success_rate: number;
+            /** Average Attempts Before Completion */
+            average_attempts_before_completion: number | null;
+            /** Average Solve Time Seconds */
+            average_solve_time_seconds: number | null;
+            /** Hint Usage Count */
+            hint_usage_count: number | null;
+        };
+        /** ProblemDetailResponse */
+        ProblemDetailResponse: {
+            problem: components["schemas"]["ProblemIdentity"];
+            analytics: components["schemas"]["ProblemAnalyticsSummary"];
+            /** Recent Attempts */
+            recent_attempts: components["schemas"]["RecentAttempt"][];
+        };
+        /** ProblemIdentity */
+        ProblemIdentity: {
+            /**
+             * Problem Id
+             * Format: uuid
+             */
+            problem_id: string;
+            /** Title */
+            title: string;
+            /** Difficulty */
+            difficulty: string;
+            /** Publication Status */
+            publication_status: string;
+            /** Topics */
+            topics: string[];
+        };
+        /** ProblemMetrics */
+        ProblemMetrics: {
+            /** Total Published */
+            total_published: number;
+            /** Total Attempts */
+            total_attempts: number;
+            /** Accepted Attempts */
+            accepted_attempts: number;
+            /** Unique User Problem Attempts */
+            unique_user_problem_attempts: number;
+            /** Unique User Problem Completions */
+            unique_user_problem_completions: number;
+            /** Completion Rate */
+            completion_rate: number;
+        };
         /** ProfilePatchRequest */
         ProfilePatchRequest: {
             /** Display Name */
@@ -1472,6 +2129,19 @@ export interface components {
              */
             updated_at: string;
         };
+        /** ProgressMetrics */
+        ProgressMetrics: {
+            /** Average Unique Problems Completed */
+            average_unique_problems_completed: number;
+            /** Users With Zero Completions */
+            users_with_zero_completions: number;
+            /** Users With 1 To 69 Completions */
+            users_with_1_to_69_completions: number;
+            /** Users With 70 To 99 Completions */
+            users_with_70_to_99_completions: number;
+            /** Users With 100 Or More Completions */
+            users_with_100_or_more_completions: number;
+        };
         /** ProgressPutRequest */
         ProgressPutRequest: {
             status: components["schemas"]["LearningStatus"];
@@ -1479,6 +2149,27 @@ export interface components {
             confidence: number;
             /** Row Version */
             row_version: number;
+        };
+        /** ProgressSummary */
+        ProgressSummary: {
+            /** Unique Problems Attempted */
+            unique_problems_attempted: number;
+            /** Unique Problems Completed */
+            unique_problems_completed: number;
+            /** Total Attempts */
+            total_attempts: number;
+            /** Accepted Attempts */
+            accepted_attempts: number;
+            /** First Attempt Successes */
+            first_attempt_successes: number;
+            /** First Attempt Success Rate */
+            first_attempt_success_rate: number;
+            /** Current Streak */
+            current_streak?: null;
+            /** Longest Streak */
+            longest_streak?: null;
+            /** Readiness Score */
+            readiness_score?: null;
         };
         /**
          * PublishRequest
@@ -1565,6 +2256,25 @@ export interface components {
              */
             published_by: string;
         };
+        /** RecentAttempt */
+        RecentAttempt: {
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** User Name */
+            user_name: string | null;
+            /**
+             * Attempted At
+             * Format: date-time
+             */
+            attempted_at: string;
+            /** Status */
+            status: string;
+            /** Attempt Number */
+            attempt_number: number;
+        };
         /**
          * ReplacePracticeResourcesRequest
          * @example {
@@ -1644,6 +2354,19 @@ export interface components {
              */
             created_at: string;
         };
+        /** RevisionSummary */
+        RevisionSummary: {
+            /** Available */
+            available: boolean;
+            /** Total Revision Items */
+            total_revision_items: number;
+            /** Completed Revisions */
+            completed_revisions: number;
+            /** Overdue Revisions */
+            overdue_revisions: number;
+            /** Last Revision At */
+            last_revision_at: string | null;
+        };
         /** RoleGrantListResponse */
         RoleGrantListResponse: {
             /** Items */
@@ -1679,6 +2402,47 @@ export interface components {
             grant: components["schemas"]["RoleGrantResponse"];
             /** Changed */
             changed: boolean;
+        };
+        /** ScheduledReviewItem */
+        ScheduledReviewItem: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Content Item Id
+             * Format: uuid
+             */
+            content_item_id: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "due" | "scheduled";
+            /**
+             * Next Review At
+             * Format: date-time
+             */
+            next_review_at: string;
+            /** Row Version */
+            row_version: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** ScheduledReviewResponse */
+        ScheduledReviewResponse: {
+            /** Items */
+            items: components["schemas"]["ScheduledReviewItem"][];
+            pagination: components["schemas"]["Pagination"];
         };
         /** SearchItem */
         SearchItem: {
@@ -1906,6 +2670,24 @@ export interface components {
              */
             sort_order: number;
         };
+        /** TopicProgress */
+        TopicProgress: {
+            /**
+             * Topic Id
+             * Format: uuid
+             */
+            topic_id: string;
+            /** Topic Name */
+            topic_name: string;
+            /** Available Problems */
+            available_problems: number;
+            /** Attempted Problems */
+            attempted_problems: number;
+            /** Completed Problems */
+            completed_problems: number;
+            /** Completion Percentage */
+            completion_percentage: number;
+        };
         /** TransitionRequest */
         TransitionRequest: {
             /** Expected Row Version */
@@ -1913,11 +2695,128 @@ export interface components {
             /** Reason */
             reason?: string | null;
         };
-        /** UserListResponse */
-        UserListResponse: {
-            /** Items */
-            items: components["schemas"]["AdminUserResponse"][];
-            pagination: components["schemas"]["recallstack__modules__admin__presentation__schemas__PaginationResponse"];
+        /** UserDetailResponse */
+        UserDetailResponse: {
+            profile: components["schemas"]["UserProfile"];
+            progress_summary: components["schemas"]["ProgressSummary"];
+            interview_unlock: components["schemas"]["InterviewUnlock"];
+            /** Difficulty Breakdown */
+            difficulty_breakdown: components["schemas"]["DifficultyProgress"][];
+            /** Topic Progress */
+            topic_progress: components["schemas"]["TopicProgress"][];
+            revision_summary: components["schemas"]["RevisionSummary"];
+            mock_test_summary: components["schemas"]["MockTestSummary"];
+        };
+        /** UserFullResyncResponse */
+        UserFullResyncResponse: {
+            /**
+             * Snapshot Id
+             * Format: uuid
+             */
+            snapshot_id: string;
+            /** Snapshot Cursor */
+            snapshot_cursor: number;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Progress */
+            progress: {
+                [key: string]: unknown;
+            }[];
+            /** Bookmarks */
+            bookmarks: {
+                [key: string]: unknown;
+            }[];
+            /** Notes */
+            notes: {
+                [key: string]: unknown;
+            }[];
+            /** Review Cards */
+            review_cards: components["schemas"]["UserReviewCardSnapshotResponse"][];
+        };
+        /** UserMetrics */
+        UserMetrics: {
+            /** Total */
+            total: number;
+            /** New Today */
+            new_today: number;
+            /** New Last 7 Days */
+            new_last_7_days: number;
+            /** New Last 30 Days */
+            new_last_30_days: number;
+            /** Active Last 24 Hours */
+            active_last_24_hours: number;
+            /** Active Last 7 Days */
+            active_last_7_days: number;
+            /** Active Last 30 Days */
+            active_last_30_days: number;
+        };
+        /** UserProfile */
+        UserProfile: {
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** Name */
+            name: string | null;
+            /** Email */
+            email: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Last Active At */
+            last_active_at: string | null;
+            /**
+             * Account Status
+             * @default active
+             * @constant
+             */
+            account_status: "active";
+        };
+        /** UserReviewCardSnapshotResponse */
+        UserReviewCardSnapshotResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Content Item Id
+             * Format: uuid
+             */
+            content_item_id: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "due" | "scheduled";
+            /**
+             * Next Review At
+             * Format: date-time
+             */
+            next_review_at: string;
+            /** Row Version */
+            row_version: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /** ValidationError */
         ValidationError: {
@@ -2792,6 +3691,41 @@ export interface operations {
             };
         };
     };
+    listScheduledReviews: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+                due_after?: string | null;
+                due_before?: string | null;
+                state?: ("due" | "scheduled") | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduledReviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     submit_api_v1_me_reviews__cardId__submit_post: {
         parameters: {
             query?: never;
@@ -3205,72 +4139,6 @@ export interface operations {
             };
         };
     };
-    adminListUsers: {
-        parameters: {
-            query?: {
-                progress_status?: ("new" | "learning" | "attempted" | "confident" | "mastered") | null;
-                activity_from?: string | null;
-                activity_to?: string | null;
-                page?: number;
-                page_size?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UserListResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    adminGetUser: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                userId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AdminUserResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     adminListUserProgress: {
         parameters: {
             query?: {
@@ -3468,6 +4336,243 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RoleMutationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    adminAnalyticsOverview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OverviewResponse"];
+                };
+            };
+        };
+    };
+    adminAnalyticsListUsers: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+                search?: string | null;
+                account_status?: "active" | null;
+                interview_eligible?: boolean | null;
+                min_completed?: number | null;
+                max_completed?: number | null;
+                signed_up_from?: string | null;
+                signed_up_to?: string | null;
+                active_from?: string | null;
+                active_to?: string | null;
+                sort_by?: "created_at" | "last_active_at" | "unique_problems_completed" | "unique_problems_attempted" | "name" | "email";
+                sort_order?: "asc" | "desc";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyticsUserListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    adminAnalyticsGetUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    adminAnalyticsUserActivity: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+                activity_type?: ("problem_attempted" | "problem_completed" | "problem_reattempted" | "revision_completed" | "user_signed_up") | null;
+                from_date?: string | null;
+                to_date?: string | null;
+            };
+            header?: never;
+            path: {
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    adminProblemAnalyticsList: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+                search?: string | null;
+                topic_id?: string | null;
+                difficulty?: ("beginner" | "easy" | "medium" | "hard" | "expert") | null;
+                publication_status?: ("draft" | "in_review" | "published" | "archived") | null;
+                sort_by?: "attempts" | "unique_users_attempted" | "unique_users_completed" | "solve_rate" | "first_attempt_success_rate" | "title" | "created_at";
+                sort_order?: "asc" | "desc";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemAnalyticsListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    adminProblemAnalyticsDetail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                problemId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    adminAuditLogs: {
+        parameters: {
+            query?: {
+                admin_user_id?: string | null;
+                action?: string | null;
+                resource_type?: string | null;
+                from_date?: string | null;
+                to_date?: string | null;
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditLogListResponse"];
                 };
             };
             /** @description Validation Error */
@@ -3698,6 +4803,142 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ChangeFeedResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createCatalogFullResync: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                domainId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FullResyncRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogFullResyncResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    acknowledgeCatalogFullResync: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                domainId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FullResyncAckRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FullResyncAckResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createUserFullResync: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FullResyncRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserFullResyncResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    acknowledgeUserFullResync: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FullResyncAckRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FullResyncAckResponse"];
                 };
             };
             /** @description Validation Error */

@@ -90,6 +90,37 @@ Supabase responsibilities are separated as follows:
 
 The E2E bypass is disabled whenever `NODE_ENV=production`. Playwright starts a development server and installs an exact Supabase-compatible auth cookie through `e2e/helpers/auth.ts`.
 
+## Admin panel
+
+The web-only administrator area is available at:
+
+```text
+/admin
+/admin/users
+/admin/users/[userId]
+/admin/problems
+/admin/problems/[problemId]
+/admin/audit-logs
+```
+
+The normal navigation only exposes the Admin link when the backend `/api/v1/me`
+profile projection includes the active `admin` role. The Admin layout repeats the
+authorization check and every data request is made against the protected FastAPI
+Admin API with the current Supabase bearer token. The backend remains the final
+authorization boundary and returns 401/403 as appropriate.
+
+Role grants never use a hardcoded role ID. The client reads the signed-in
+administrator's own role grants and resolves the active grant whose code is
+`admin`; its server-returned role ID is used for grant mutations. If it cannot be
+resolved, the action is disabled. Revocations use the role ID already returned on
+the target user's grant, and server-side final-admin protection is displayed as a
+business-rule conflict.
+
+All list filters, sort order, page, and page size are URL-backed and sent to the
+server. Dates are displayed in the browser's local timezone, optional analytics
+remain explicitly unavailable, and audit metadata receives an additional
+client-side sensitive-key filter before rendering.
+
 ## Testing
 
 E2E tests live by feature under `e2e/`. Authenticated tests should use `e2e/fixtures/authenticated-test.ts`. Reusable schema-shaped responses belong in `e2e/helpers/factories.ts`; avoid wildcard auth mocks and arbitrary sleeps.
