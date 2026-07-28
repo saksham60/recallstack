@@ -67,14 +67,19 @@ Activity classification is deterministic:
 - the first nonaccepted problem attempt is `problem_attempted`;
 - later nonaccepted attempts are `problem_reattempted`;
 - any accepted attempt is `problem_completed`, including an accepted reattempt;
-- persisted review history is `revision_completed`;
+- persisted review history for DSA problem content is `revision_completed`;
 - the profile creation timestamp is `user_signed_up`.
 
 Activity is newest first. Signup events have no problem, and analytics never invent events from
-derived progress state.
+derived progress state. Revisions of concepts, patterns, articles, architecture, case studies, and
+other non-problem content are intentionally excluded from this first DSA-focused admin timeline.
 
 Revision data is available from `review_cards` and `review_history`. No mock-test persistence module
 exists, so mock-test summaries return `available: false`.
+
+`account_status` remains fixed to `active` because suspension/account-state persistence is not part
+of this read-only version. The user-list filter is retained for API compatibility, but only
+`account_status=active` is accepted; other values fail request validation.
 
 ## Email projection and privacy
 

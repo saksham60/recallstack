@@ -392,6 +392,7 @@ class SqlAlchemyAdminAnalyticsRepository:
             ON rc.id=rh.review_card_id AND rc.user_id=rh.user_id
           JOIN content_items ci ON ci.id=rc.content_item_id
           LEFT JOIN content_versions cv ON cv.id=ci.current_published_version_id
+          WHERE ci.type='problem'
           UNION ALL
           SELECT 'signup:'||p.id,'user_signed_up',p.created_at,p.id,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL
           FROM profiles p

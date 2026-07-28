@@ -2,13 +2,17 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 from uuid import UUID, uuid4
 
+import httpx
 import pytest
 from sqlalchemy import Connection, create_engine, text
 
+from recallstack.main import create_app
 from recallstack.modules.admin.application.analytics import AdminAnalyticsService
 from recallstack.modules.admin.infrastructure.analytics_repository import (
     SqlAlchemyAdminAnalyticsRepository,
 )
+from recallstack.modules.identity.presentation.dependencies import get_current_user
+from recallstack.shared.auth import CurrentUser
 from recallstack.shared.config import Settings
 from recallstack.shared.database import Database
 from tests.integration.test_published_study_note_repository import add_content
@@ -393,6 +397,129 @@ async def test_activity_union_returns_attempt_revision_and_signup_in_timestamp_o
         assert detail["revision_summary"]["total_revision_items"] == 1
         assert detail["revision_summary"]["completed_revisions"] == 1
         assert detail["revision_summary"]["last_revision_at"] == base + timedelta(hours=2)
+    finally:
+        await database.close()
+        engine.dispose()
+
+
+async def test_activity_excludes_non_problem_revisions_in_repository_and_endpoint(
+    migrated_database_url: str,
+) -> None:
+    engine = create_engine(migrated_database_url)
+    user_id = uuid4()
+    base = datetime(2026, 7, 20, 14, tzinfo=UTC)
+    with engine.begin() as connection:
+        _add_user(
+            connection,
+            user_id=user_id,
+            name="DSA Revision User",
+            email="dsa-revision@example.test",
+            created_at=base,
+        )
+        domain_id, category_id, _ = _add_catalog(connection)
+        problem_id, _ = add_content(
+            connection,
+            domain_id=domain_id,
+            category_id=category_id,
+            slug=f"dsa-revision-{uuid4().hex[:8]}",
+            title="DSA revision problem",
+        )
+        concept_id, _ = add_content(
+            connection,
+            domain_id=domain_id,
+            category_id=category_id,
+            slug=f"concept-revision-{uuid4().hex[:8]}",
+            title="Non-problem concept",
+        )
+        connection.execute(
+            text("UPDATE content_items SET type='concept',difficulty=NULL WHERE id=:concept_id"),
+            {"concept_id": concept_id},
+        )
+        for index, content_id in enumerate((problem_id, concept_id), start=1):
+            card_id = uuid4()
+            connection.execute(
+                text(
+                    "INSERT INTO review_cards (id,user_id,content_item_id,due_at) "
+                    "VALUES (:id,:user,:content,:due)"
+                ),
+                {
+                    "id": card_id,
+                    "user": user_id,
+                    "content": content_id,
+                    "due": base + timedelta(hours=index),
+                },
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO review_history "
+                    "(review_event_id,review_card_id,user_id,rating,reviewed_at,"
+                    "next_due_at,scheduler_name,scheduler_version) VALUES "
+                    "(:event,:card,:user,'good',:at,:next_due,'simple','1')"
+                ),
+                {
+                    "event": uuid4(),
+                    "card": card_id,
+                    "user": user_id,
+                    "at": base + timedelta(hours=index),
+                    "next_due": base + timedelta(days=index),
+                },
+            )
+
+    settings = Settings(
+        supabase_project_url="https://example.supabase.co",
+        app_env="test",
+        database_url=migrated_database_url,
+    )
+    database = Database(settings)
+    try:
+        async with database.session_factory.create_session() as session:
+            result = await SqlAlchemyAdminAnalyticsRepository(session).activity(
+                user_id,
+                activity_type=None,
+                from_date=None,
+                to_date=None,
+                offset=0,
+                limit=25,
+            )
+        assert result is not None
+        total, items = result
+        assert total == 2
+        assert [item["activity_type"] for item in items] == [
+            "revision_completed",
+            "user_signed_up",
+        ]
+        assert [item["occurred_at"] for item in items] == sorted(
+            (item["occurred_at"] for item in items), reverse=True
+        )
+        problem_revision = items[0]
+        assert problem_revision["problem"]["problem_id"] == problem_id
+        assert problem_revision["problem"]["title"] == "DSA revision problem"
+        assert problem_revision["problem"]["difficulty"] == "easy"
+        assert all(
+            item["problem"] is None or item["problem"]["problem_id"] != concept_id for item in items
+        )
+
+        app = create_app(settings)
+        app.dependency_overrides[get_current_user] = lambda: CurrentUser(
+            user_id,
+            user_id,
+            frozenset({"admin"}),
+        )
+        async with app.router.lifespan_context(app):
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app),
+                base_url="http://test",
+            ) as client:
+                response = await client.get(f"/api/v1/admin/users/{user_id}/activity")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["pagination"]["total_items"] == 2
+        assert [item["activity_type"] for item in body["items"]] == [
+            "revision_completed",
+            "user_signed_up",
+        ]
+        assert body["items"][0]["problem"]["problem_id"] == str(problem_id)
+        assert str(concept_id) not in response.text
     finally:
         await database.close()
         engine.dispose()

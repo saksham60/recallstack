@@ -386,3 +386,17 @@ async def test_sort_and_page_size_allowlists_are_enforced() -> None:
     assert invalid_sort.status_code == 422
     assert invalid_streak_sort.status_code == 422
     assert invalid_page.status_code == 422
+
+
+async def test_account_status_filter_only_accepts_active() -> None:
+    profile_id = uuid4()
+    app = _app(CurrentUser(profile_id, profile_id, frozenset({"admin"})))
+    async with app.router.lifespan_context(app):
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            active = await client.get("/api/v1/admin/users?account_status=active")
+            unsupported = await client.get("/api/v1/admin/users?account_status=suspended")
+    assert active.status_code == 200
+    assert all(item["account_status"] == "active" for item in active.json()["items"])
+    assert unsupported.status_code == 422
