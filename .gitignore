@@ -3,3 +3,5 @@
 !.env.example
 backend/.env
 data/
+!web/src/features/system-design/data/
+!web/src/features/system-design/data/**

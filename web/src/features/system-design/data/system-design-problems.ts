@@ -1,0 +1,357 @@
+import type { SystemDesignProblem } from "../types/system-design.types";
+
+export const SYSTEM_DESIGN_PROBLEMS = [
+  {
+    id: "url-shortener",
+    slug: "url-shortener",
+    title: "URL Shortener",
+    summary:
+      "Design a globally available service that creates compact links and redirects them with low latency.",
+    category: "Web Infrastructure",
+    difficulty: "easy",
+    estimatedMinutes: 30,
+    requirements: [
+      "Convert long URLs into short URLs.",
+      "Redirect short URLs to original URLs.",
+      "Support expiration.",
+      "Track click count.",
+    ],
+    scaleAssumptions: [
+      "100 million new short links are created each month.",
+      "Redirect traffic peaks at 120,000 requests per second.",
+      "Short links remain active for an average of three years.",
+      "Redirects should complete within 100 ms at the 95th percentile.",
+    ],
+    tags: ["redirects", "key-value", "caching", "high-read"],
+  },
+  {
+    id: "distributed-rate-limiter",
+    slug: "distributed-rate-limiter",
+    title: "Distributed Rate Limiter",
+    summary:
+      "Design a low-latency rate-limiting service that enforces consistent policies across a fleet of API servers.",
+    category: "Infrastructure",
+    difficulty: "medium",
+    estimatedMinutes: 40,
+    requirements: [
+      "Apply limits per user and per API.",
+      "Work across multiple application instances.",
+      "Support configurable time windows.",
+      "Return rate-limit metadata.",
+    ],
+    scaleAssumptions: [
+      "The platform receives 1 million API requests per second at peak.",
+      "Policies cover 50 million active identities and 10,000 API routes.",
+      "A limit decision should add less than 5 ms at the 99th percentile.",
+      "Regional enforcement may tolerate up to one second of propagation delay.",
+    ],
+    tags: ["distributed-systems", "redis", "consistency", "low-latency"],
+  },
+  {
+    id: "notification-service",
+    slug: "notification-service",
+    title: "Notification Service",
+    summary:
+      "Design a multi-channel notification platform with reliable delivery, retries, preferences, and status tracking.",
+    category: "Messaging",
+    difficulty: "medium",
+    estimatedMinutes: 45,
+    requirements: [
+      "Support email, SMS and push notifications.",
+      "Handle retries.",
+      "Store notification status.",
+      "Respect user preferences.",
+    ],
+    scaleAssumptions: [
+      "The service sends 500 million notifications per day.",
+      "Traffic can spike to 100,000 notifications per second during campaigns.",
+      "Transactional messages should enter a provider queue within five seconds.",
+      "Delivery and preference history is retained for 90 days.",
+    ],
+    tags: ["queues", "retries", "providers", "fan-out"],
+  },
+  {
+    id: "real-time-chat-system",
+    slug: "real-time-chat-system",
+    title: "Real-Time Chat System",
+    summary:
+      "Design a durable chat platform that delivers one-to-one messages in real time across devices.",
+    category: "Communication",
+    difficulty: "hard",
+    estimatedMinutes: 60,
+    requirements: [
+      "Support one-to-one conversations.",
+      "Deliver messages in real time.",
+      "Store message history.",
+      "Show online and offline status.",
+    ],
+    scaleAssumptions: [
+      "The platform has 50 million daily active users.",
+      "Five million WebSocket connections may be active concurrently.",
+      "Peak message throughput is 2 million messages per second.",
+      "Online presence may be eventually consistent within five seconds.",
+    ],
+    tags: ["websockets", "presence", "messaging", "ordering"],
+  },
+  {
+    id: "cloud-file-storage",
+    slug: "cloud-file-storage",
+    title: "Cloud File Storage",
+    summary:
+      "Design secure, durable file storage with resumable transfers, metadata, and shareable access links.",
+    category: "Storage",
+    difficulty: "hard",
+    estimatedMinutes: 60,
+    requirements: [
+      "Upload and download files.",
+      "Support large files.",
+      "Store metadata.",
+      "Provide secure access links.",
+    ],
+    scaleAssumptions: [
+      "One billion files totaling 20 petabytes are stored.",
+      "Individual files can be as large as 5 TB.",
+      "The service handles 50,000 upload initiations per second at peak.",
+      "Stored objects target eleven nines of annual durability.",
+    ],
+    tags: ["object-storage", "multipart-upload", "metadata", "security"],
+  },
+  {
+    id: "video-streaming-platform",
+    slug: "video-streaming-platform",
+    title: "Video Streaming Platform",
+    summary:
+      "Design a global video platform that ingests, transcodes, distributes, and resumes playback reliably.",
+    category: "Media",
+    difficulty: "hard",
+    estimatedMinutes: 75,
+    requirements: [
+      "Upload videos.",
+      "Transcode multiple resolutions.",
+      "Stream globally.",
+      "Track playback progress.",
+    ],
+    scaleAssumptions: [
+      "Creators upload 500,000 hours of video each day.",
+      "Ten million viewers may stream concurrently.",
+      "The catalog stores 100 petabytes of encoded media.",
+      "Playback should start within two seconds for most viewers.",
+    ],
+    tags: ["cdn", "transcoding", "object-storage", "adaptive-bitrate"],
+  },
+  {
+    id: "search-autocomplete",
+    slug: "search-autocomplete",
+    title: "Search Autocomplete",
+    summary:
+      "Design a fast suggestion service that ranks frequently changing prefixes while users type.",
+    category: "Search",
+    difficulty: "medium",
+    estimatedMinutes: 40,
+    requirements: [
+      "Return suggestions while users type.",
+      "Rank popular searches.",
+      "Support prefix matching.",
+      "Update suggestions regularly.",
+    ],
+    scaleAssumptions: [
+      "The service handles 300,000 suggestion requests per second.",
+      "The searchable vocabulary contains 500 million normalized queries.",
+      "The top suggestions are refreshed every five minutes.",
+      "Responses should complete within 50 ms at the 99th percentile.",
+    ],
+    tags: ["prefix-index", "ranking", "caching", "typeahead"],
+  },
+  {
+    id: "ride-sharing-platform",
+    slug: "ride-sharing-platform",
+    title: "Ride-Sharing Platform",
+    summary:
+      "Design a geo-distributed marketplace that matches riders and drivers and tracks trips in real time.",
+    category: "Location Services",
+    difficulty: "hard",
+    estimatedMinutes: 75,
+    requirements: [
+      "Match riders with nearby drivers.",
+      "Track live locations.",
+      "Calculate estimated arrival time.",
+      "Process trip state changes.",
+    ],
+    scaleAssumptions: [
+      "The service supports 20 million trips per day.",
+      "Two million drivers can publish location updates every four seconds.",
+      "Matching should propose a driver within three seconds.",
+      "Location history is retained at full resolution for seven days.",
+    ],
+    tags: ["geospatial", "matching", "streaming", "state-machine"],
+  },
+  {
+    id: "food-delivery-platform",
+    slug: "food-delivery-platform",
+    title: "Food Delivery Platform",
+    summary:
+      "Design an ordering marketplace that coordinates customers, restaurants, couriers, and live order state.",
+    category: "Marketplace",
+    difficulty: "hard",
+    estimatedMinutes: 75,
+    requirements: [
+      "Browse restaurants and menus.",
+      "Place orders.",
+      "Assign delivery partners.",
+      "Track order status.",
+    ],
+    scaleAssumptions: [
+      "The marketplace serves 10 million orders per day.",
+      "Lunch and dinner peaks reach 25,000 order changes per second.",
+      "Menus for one million restaurants change throughout the day.",
+      "Courier locations are refreshed every five seconds during delivery.",
+    ],
+    tags: ["marketplace", "geospatial", "orders", "event-driven"],
+  },
+  {
+    id: "payment-processing-system",
+    slug: "payment-processing-system",
+    title: "Payment Processing System",
+    summary:
+      "Design an auditable payment platform with idempotent processing, refunds, and external provider integration.",
+    category: "FinTech",
+    difficulty: "hard",
+    estimatedMinutes: 75,
+    requirements: [
+      "Process payments.",
+      "Prevent duplicate transactions.",
+      "Support refunds.",
+      "Maintain an auditable transaction history.",
+    ],
+    scaleAssumptions: [
+      "The platform processes 200 million payment attempts per day.",
+      "Peak authorization volume is 20,000 transactions per second.",
+      "Financial records must be retained for at least seven years.",
+      "The core ledger targets zero acknowledged transaction loss.",
+    ],
+    tags: ["ledger", "idempotency", "transactions", "audit"],
+  },
+  {
+    id: "web-crawler",
+    slug: "web-crawler",
+    title: "Web Crawler",
+    summary:
+      "Design a polite distributed crawler that discovers, deduplicates, schedules, and stores web content.",
+    category: "Data Processing",
+    difficulty: "medium",
+    estimatedMinutes: 50,
+    requirements: [
+      "Discover URLs.",
+      "Avoid crawling duplicate pages.",
+      "Respect rate limits.",
+      "Store crawled content.",
+    ],
+    scaleAssumptions: [
+      "The crawler fetches one billion pages per day.",
+      "The frontier may contain 50 billion discovered URLs.",
+      "Per-host politeness delays range from one to sixty seconds.",
+      "Raw page content is retained for 30 days before archival.",
+    ],
+    tags: ["scheduling", "deduplication", "politeness", "data-pipeline"],
+  },
+  {
+    id: "distributed-cache",
+    slug: "distributed-cache",
+    title: "Distributed Cache",
+    summary:
+      "Design a partitioned in-memory cache with expiration, replication, and graceful node-failure handling.",
+    category: "Infrastructure",
+    difficulty: "hard",
+    estimatedMinutes: 60,
+    requirements: [
+      "Store key-value data.",
+      "Support expiration.",
+      "Partition data.",
+      "Handle node failures.",
+    ],
+    scaleAssumptions: [
+      "The cluster stores 20 billion keys across multiple regions.",
+      "Peak traffic reaches 10 million operations per second.",
+      "Values average 2 KB and are capped at 1 MB.",
+      "A cache operation should finish within 2 ms at the 99th percentile.",
+    ],
+    tags: ["consistent-hashing", "replication", "eviction", "in-memory"],
+  },
+  {
+    id: "metrics-and-logging-platform",
+    slug: "metrics-and-logging-platform",
+    title: "Metrics and Logging Platform",
+    summary:
+      "Design an observability platform that ingests, indexes, aggregates, queries, and alerts on telemetry.",
+    category: "Observability",
+    difficulty: "hard",
+    estimatedMinutes: 60,
+    requirements: [
+      "Ingest logs and metrics.",
+      "Search recent logs.",
+      "Aggregate time-series metrics.",
+      "Configure alerts.",
+    ],
+    scaleAssumptions: [
+      "The platform ingests 5 TB of logs and 50 billion metric samples per day.",
+      "Recent logs must be searchable within 30 seconds of ingestion.",
+      "Metrics are retained at decreasing resolution for 13 months.",
+      "Alert evaluations run every 15 seconds for one million rules.",
+    ],
+    tags: ["time-series", "log-indexing", "streaming", "alerting"],
+  },
+  {
+    id: "distributed-job-scheduler",
+    slug: "distributed-job-scheduler",
+    title: "Distributed Job Scheduler",
+    summary:
+      "Design a reliable scheduler for one-time and recurring work across a large, failure-prone worker fleet.",
+    category: "Infrastructure",
+    difficulty: "hard",
+    estimatedMinutes: 60,
+    requirements: [
+      "Schedule one-time and recurring jobs.",
+      "Distribute jobs across workers.",
+      "Retry failed jobs.",
+      "Prevent duplicate execution.",
+    ],
+    scaleAssumptions: [
+      "The system stores 100 million active schedules.",
+      "One million jobs may become due in the same minute.",
+      "Ten thousand workers execute jobs across several regions.",
+      "Most jobs require at-least-once delivery with idempotency controls.",
+    ],
+    tags: ["scheduling", "workers", "leases", "idempotency"],
+  },
+  {
+    id: "social-media-feed",
+    slug: "social-media-feed",
+    title: "Social Media Feed",
+    summary:
+      "Design a personalized social feed that balances fan-out, freshness, ranking, and high-fan-out accounts.",
+    category: "Social",
+    difficulty: "hard",
+    estimatedMinutes: 75,
+    requirements: [
+      "Create posts.",
+      "Follow users.",
+      "Generate a personalized feed.",
+      "Support likes and comments.",
+    ],
+    scaleAssumptions: [
+      "The service has 300 million daily active users.",
+      "Users create 500 million posts and 5 billion reactions per day.",
+      "Feed reads peak at 2 million requests per second.",
+      "New posts should appear in follower feeds within five seconds.",
+    ],
+    tags: ["fan-out", "ranking", "feeds", "high-availability"],
+  },
+] as const satisfies readonly SystemDesignProblem[];
+
+export function getSystemDesignProblem(
+  idOrSlug: string,
+): SystemDesignProblem | undefined {
+  return SYSTEM_DESIGN_PROBLEMS.find(
+    (problem) => problem.id === idOrSlug || problem.slug === idOrSlug,
+  );
+}
