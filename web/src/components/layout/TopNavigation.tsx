@@ -4,7 +4,11 @@ import { UserMenu } from "./UserMenu";
 import { GlobalSearch } from "./GlobalSearch";
 import { AdminNavigationLink } from "./AdminNavigationLink";
 
-export function TopNavigation() {
+export function TopNavigation({
+  systemDesignEnabled,
+}: {
+  systemDesignEnabled: boolean;
+}) {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-surface/80 backdrop-blur">
       <div className="max-w-7xl mx-auto flex h-14 items-center justify-between px-4 sm:px-6 lg:px-8 gap-4">
@@ -27,7 +31,9 @@ export function TopNavigation() {
             <span className="hidden sm:inline">Revise</span>
             <span className="bg-accent/20 text-accent text-[10px] px-1.5 rounded-full">New</span>
           </Link>
-          <AdminNavigationLink />
+          <AdminNavigationLink
+            systemDesignEnabled={systemDesignEnabled}
+          />
         </div>
         
         <div className="flex-1 max-w-xl mx-auto flex justify-center w-full min-w-[120px]">

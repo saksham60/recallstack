@@ -10,6 +10,14 @@ test("the disabled feature flag hides navigation and both routes", async ({
     route.fulfill({ json: createProfile({ roles: ["admin"] }) }),
   );
 
+  await page.goto("/dsa");
+  await expect(
+    page.getByRole("link", { name: "System Design", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("link", { name: "Admin", exact: true }),
+  ).toBeVisible();
+
   await page.goto("/admin");
   await expect(
     page

@@ -214,6 +214,18 @@ test.describe("System Design access", () => {
   test("shows enabled navigation and dashboard to an admin", async ({
     authenticatedPage: page,
   }) => {
+    await mockProfile(page);
+    await page.goto("/dsa");
+    const globalSystemDesignLink = page.getByRole("link", {
+      name: "System Design",
+      exact: true,
+    });
+    await expect(globalSystemDesignLink).toBeVisible();
+    await expect(globalSystemDesignLink).toHaveAttribute(
+      "href",
+      "/admin/system-design",
+    );
+
     await openDashboard(page);
 
     await expect(
@@ -235,6 +247,11 @@ test.describe("System Design access", () => {
     authenticatedPage: page,
   }) => {
     await mockProfile(page, []);
+
+    await page.goto("/dsa");
+    await expect(
+      page.getByRole("link", { name: "System Design", exact: true }),
+    ).toHaveCount(0);
 
     await page.goto("/admin/system-design");
     await expect(
