@@ -14,6 +14,7 @@ Copy `.env.example` to `.env.local` and set:
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
 NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SYSTEM_DESIGN_ADMIN_ENABLED=1
 ```
 
 Only public browser configuration belongs in `NEXT_PUBLIC_*` variables. Server-only or test-only values must be read from `src/lib/config/server.ts` and must not be re-exported into client modules.
@@ -101,7 +102,13 @@ The web-only administrator area is available at:
 /admin/problems
 /admin/problems/[problemId]
 /admin/audit-logs
+/admin/system-design
+/admin/system-design/[problemId]
 ```
+
+The System Design Practice routes and navigation are enabled only when
+`SYSTEM_DESIGN_ADMIN_ENABLED=1`; they remain restricted to active admins by the
+same profile-role gate as the rest of the admin area.
 
 The normal navigation only exposes the Admin link when the backend `/api/v1/me`
 profile projection includes the active `admin` role. The Admin layout repeats the

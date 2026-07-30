@@ -3,18 +3,25 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
+import { Network } from "lucide-react";
 import { useAuth } from "@/features/auth";
 import { useAdminIdentity } from "../use-admin";
 import { LoadingSkeleton, QueryError } from "./AdminPrimitives";
 
-const navigation = [
+const coreNavigation = [
   { href: "/admin", label: "Overview" },
   { href: "/admin/users", label: "Users" },
   { href: "/admin/problems", label: "Problem Analytics" },
   { href: "/admin/audit-logs", label: "Audit Logs" },
 ];
 
-export function AdminGate({ children }: { children: ReactNode }) {
+export function AdminGate({
+  children,
+  systemDesignEnabled = false,
+}: {
+  children: ReactNode;
+  systemDesignEnabled?: boolean;
+}) {
   const { session, isLoading: authLoading } = useAuth();
   const identity = useAdminIdentity();
   const router = useRouter();
@@ -42,11 +49,37 @@ export function AdminGate({ children }: { children: ReactNode }) {
       </main>
     );
   }
-  return <AdminShell identity={identity.adminName}>{children}</AdminShell>;
+  return (
+    <AdminShell
+      identity={identity.adminName}
+      systemDesignEnabled={systemDesignEnabled}
+    >
+      {children}
+    </AdminShell>
+  );
 }
 
-function AdminShell({ children, identity }: { children: ReactNode; identity: string }) {
+function AdminShell({
+  children,
+  identity,
+  systemDesignEnabled,
+}: {
+  children: ReactNode;
+  identity: string;
+  systemDesignEnabled: boolean;
+}) {
   const pathname = usePathname();
+  const isSystemDesignEditor =
+    pathname.startsWith("/admin/system-design/") &&
+    pathname !== "/admin/system-design/";
+  const navigation = systemDesignEnabled
+    ? [
+        ...coreNavigation.slice(0, 3),
+        { href: "/admin/system-design", label: "System Design" },
+        ...coreNavigation.slice(3),
+      ]
+    : coreNavigation;
+
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-40 border-b border-border bg-surface/95 backdrop-blur">
@@ -61,20 +94,55 @@ function AdminShell({ children, identity }: { children: ReactNode; identity: str
           </div>
         </div>
       </header>
-      <div className="mx-auto grid max-w-[1600px] lg:grid-cols-[230px_1fr]">
-        <aside className="border-b border-border bg-surface/50 p-3 lg:min-h-[calc(100vh-57px)] lg:border-b-0 lg:border-r lg:p-4">
-          <nav aria-label="Admin navigation" className="flex gap-2 overflow-x-auto lg:flex-col">
-            {navigation.map((item) => {
-              const active = item.href === "/admin" ? pathname === item.href : pathname.startsWith(item.href);
-              return (
-                <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={`whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium transition ${active ? "bg-accent text-accent-foreground" : "text-muted hover:bg-surface-elevated hover:text-foreground"}`}>
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
-        </aside>
-        <main className="min-w-0 p-4 sm:p-6 lg:p-8">{children}</main>
+      <div
+        className={
+          isSystemDesignEditor
+            ? "w-full"
+            : "mx-auto grid max-w-[1600px] lg:grid-cols-[230px_1fr]"
+        }
+      >
+        {!isSystemDesignEditor && (
+          <aside className="border-b border-border bg-surface/50 p-3 lg:min-h-[calc(100vh-57px)] lg:border-b-0 lg:border-r lg:p-4">
+            <nav
+              aria-label="Admin navigation"
+              className="flex gap-2 overflow-x-auto lg:flex-col"
+            >
+              {navigation.map((item) => {
+                const active =
+                  item.href === "/admin"
+                    ? pathname === item.href
+                    : pathname.startsWith(item.href);
+                const isSystemDesign = item.href === "/admin/system-design";
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-current={active ? "page" : undefined}
+                    className={`flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium transition ${
+                      active
+                        ? "bg-accent text-accent-foreground"
+                        : "text-muted hover:bg-surface-elevated hover:text-foreground"
+                    }`}
+                  >
+                    {isSystemDesign && (
+                      <Network aria-hidden="true" className="h-4 w-4" />
+                    )}
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+          </aside>
+        )}
+        <main
+          className={
+            isSystemDesignEditor
+              ? "min-w-0"
+              : "min-w-0 p-4 sm:p-6 lg:p-8"
+          }
+        >
+          {children}
+        </main>
       </div>
     </div>
   );

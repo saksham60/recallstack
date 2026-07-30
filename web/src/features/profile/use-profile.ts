@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/features/auth";
 import { apiClient } from "@/lib/api/client";
 import type { components } from "@/lib/api/types";
 
@@ -12,22 +13,28 @@ interface UpdateProfileInput {
 
 export const profileKeys = {
   all: ["me"] as const,
-  profile: () => [...profileKeys.all, "profile"] as const,
+  profile: (userId?: string) =>
+    userId
+      ? ([...profileKeys.all, "profile", userId] as const)
+      : ([...profileKeys.all, "profile"] as const),
 };
 
 export function useProfile() {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: profileKeys.profile(),
+    queryKey: profileKeys.profile(user?.id),
     queryFn: async () => {
       const { data, error } = await apiClient.GET("/api/v1/me");
       if (error) throw error;
       return data;
     },
+    enabled: Boolean(user?.id),
   });
 }
 
 export function useUpdateProfile() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async ({ displayName, timezone }: UpdateProfileInput) => {
@@ -40,7 +47,12 @@ export function useUpdateProfile() {
       return data;
     },
     onSuccess: (updatedProfile) => {
-      queryClient.setQueryData(profileKeys.profile(), updatedProfile);
+      if (user?.id) {
+        queryClient.setQueryData(
+          profileKeys.profile(user.id),
+          updatedProfile,
+        );
+      }
     },
   });
 }

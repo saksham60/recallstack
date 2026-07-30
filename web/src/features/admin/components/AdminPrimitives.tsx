@@ -125,11 +125,25 @@ export function Modal({ open, title, description, confirmLabel, destructive, pen
 }) {
   const cancelRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  const pendingRef = useRef(pending);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+    pendingRef.current = pending;
+  }, [onClose, pending]);
+
   useEffect(() => {
     if (!open) return;
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
     cancelRef.current?.focus();
     const handleKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !pending) onClose();
+      if (event.key === "Escape" && !pendingRef.current) {
+        onCloseRef.current();
+      }
       if (event.key === "Tab") {
         const focusable = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>("button:not([disabled]), [href], input:not([disabled]), select:not([disabled])") ?? []);
         if (focusable.length === 0) return;
@@ -145,8 +159,11 @@ export function Modal({ open, title, description, confirmLabel, destructive, pen
       }
     };
     document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
-  }, [open, pending, onClose]);
+    return () => {
+      document.removeEventListener("keydown", handleKey);
+      if (previouslyFocused?.isConnected) previouslyFocused.focus();
+    };
+  }, [open]);
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" onMouseDown={(event) => event.target === event.currentTarget && !pending && onClose()}>

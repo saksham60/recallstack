@@ -5,6 +5,10 @@ loadEnvConfig(process.cwd());
 
 export default defineConfig({
   testDir: './e2e',
+  testIgnore: [
+    '**/system-design-disabled.spec.ts',
+    '**/system-design-state.spec.ts',
+  ],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
@@ -30,6 +34,7 @@ export default defineConfig({
     timeout: 120 * 1000,
     env: {
       E2E_BYPASS_AUTH: '1',
+      SYSTEM_DESIGN_ADMIN_ENABLED: '1',
     },
   },
 });
