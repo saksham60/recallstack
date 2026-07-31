@@ -1,4 +1,5 @@
-export const SYSTEM_DESIGN_SCHEMA_VERSION = 1 as const;
+export const SYSTEM_DESIGN_SCHEMA_VERSION = 2 as const;
+export const SYSTEM_DESIGN_LEGACY_SCHEMA_VERSION = 1 as const;
 
 export type SystemDesignDifficulty = "easy" | "medium" | "hard";
 
@@ -42,7 +43,12 @@ export type SystemDesignNodeType =
   | "pubsub"
   | "third_party_api"
   | "payment_provider"
-  | "notification_provider";
+  | "notification_provider"
+  | "module"
+  | "system_boundary"
+  | "container"
+  | "text"
+  | "note";
 
 export type SystemDesignNodeCategory =
   | "clients"
@@ -50,7 +56,53 @@ export type SystemDesignNodeCategory =
   | "compute"
   | "data"
   | "messaging"
-  | "external";
+  | "external"
+  | "architecture"
+  | "annotations";
+
+export type TechnologyRegistryId =
+  | "postgresql"
+  | "mysql"
+  | "mongodb"
+  | "redis"
+  | "kafka"
+  | "rabbitmq"
+  | "elasticsearch"
+  | "kubernetes"
+  | "docker"
+  | "aws_lambda"
+  | "aws_s3"
+  | "aws_cloudfront"
+  | "nginx"
+  | "kong"
+  | "firebase"
+  | "supabase"
+  | "gcp_pubsub"
+  | "custom";
+
+export type TechnologyCategory =
+  | "database"
+  | "cache"
+  | "messaging"
+  | "search"
+  | "compute"
+  | "container"
+  | "storage"
+  | "networking"
+  | "platform"
+  | "custom";
+
+/**
+ * A safe reference into the bundled technology-icon registry.
+ *
+ * `id` is deliberately not a URL. Renderers resolve it to an approved local
+ * asset, while `name` keeps imported legacy/custom technology labels intact.
+ */
+export interface TechnologyIdentity {
+  id: TechnologyRegistryId;
+  name: string;
+  category: TechnologyCategory;
+}
 
 export type SystemDesignPort = "top" | "right" | "bottom" | "left";
 
@@ -75,8 +127,12 @@ export interface SystemDesignNode {
   height: number;
   label: string;
   subtitle?: string;
-  technology?: string;
+  technology?: TechnologyIdentity;
   description?: string;
+  childDiagramId?: string;
+  isExpandable?: boolean;
+  isCollapsed?: boolean;
+  parentModuleId?: string;
   layer: number;
   locked: boolean;
   visible: boolean;
@@ -89,7 +145,10 @@ export type SystemDesignEdgeType =
   | "async"
   | "event"
   | "data"
-  | "replication";
+  | "replication"
+  | "read"
+  | "write"
+  | "stream";
 
 export type SystemDesignEdgeRouting = "straight" | "curved";
 
@@ -117,15 +176,24 @@ export type SystemDesignDocumentStatus = Exclude<
   "not_started"
 >;
 
+export interface SystemDesignDiagram {
+  id: string;
+  name: string;
+  parentNodeId?: string;
+  nodes: SystemDesignNode[];
+  edges: SystemDesignEdge[];
+  viewport: SystemDesignViewport;
+}
+
 export interface SystemDesignDocument {
   schemaVersion: typeof SYSTEM_DESIGN_SCHEMA_VERSION;
   id: string;
   problemId: string;
   title: string;
   status: SystemDesignDocumentStatus;
-  nodes: SystemDesignNode[];
-  edges: SystemDesignEdge[];
-  viewport: SystemDesignViewport;
+  rootDiagramId: string;
+  diagrams: Record<string, SystemDesignDiagram>;
+  metadata?: Record<string, string>;
   createdAt: string;
   updatedAt: string;
 }
@@ -207,6 +275,7 @@ export type SystemDesignSaveStatus =
 export interface SystemDesignEditorState {
   problemId: string;
   document: SystemDesignDocument;
+  activeDiagramId: string;
   selectedNodeIds: string[];
   selectedEdgeIds: string[];
   clipboard: SystemDesignClipboard | null;

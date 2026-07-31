@@ -1,9 +1,11 @@
 import { createElement } from "react";
 import {
+  Blocks,
   Boxes,
   Box,
   CloudCog,
   Component,
+  Container,
   CreditCard,
   Database,
   DatabaseZap,
@@ -16,11 +18,14 @@ import {
   PlugZap,
   RadioTower,
   Route,
+  Scan,
   Search,
   Send,
   Server,
   ShieldCheck,
   Smartphone,
+  StickyNote,
+  Type,
   User,
   Warehouse,
   Waves,
@@ -31,7 +36,7 @@ import {
 } from "lucide-react";
 import type { SystemDesignNodeType } from "../types/system-design.types";
 
-const nodeIcons = {
+const nodeIcons: Record<string, LucideIcon> = {
   user: User,
   web_app: Monitor,
   mobile_app: Smartphone,
@@ -57,10 +62,15 @@ const nodeIcons = {
   third_party_api: PlugZap,
   payment_provider: CreditCard,
   notification_provider: Mail,
-} satisfies Record<SystemDesignNodeType, LucideIcon>;
+  module: Blocks,
+  system_boundary: Container,
+  container: Box,
+  text: Type,
+  note: StickyNote,
+};
 
 export function getSystemDesignNodeIcon(type: SystemDesignNodeType): LucideIcon {
-  return nodeIcons[type];
+  return nodeIcons[type] ?? Scan;
 }
 
 export function SystemDesignNodeIcon({

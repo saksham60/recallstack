@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -55,6 +56,54 @@ function LayerAction({
     >
       {children}
     </button>
+  );
+}
+
+function BufferedLayerName({
+  value,
+  onCommit,
+}: {
+  value: string;
+  onCommit: (value: string) => void;
+}) {
+  const [edit, setEdit] = useState(() => ({
+    source: value,
+    draft: value,
+  }));
+  const cancelBlurRef = useRef(false);
+  const draft = edit.source === value ? edit.draft : value;
+
+  return (
+    <input
+      className={`${inputClass} h-7 min-h-7 px-2 text-xs`}
+      value={draft}
+      onClick={(event) => event.stopPropagation()}
+      onChange={(event) =>
+        setEdit({ source: value, draft: event.target.value })
+      }
+      onBlur={() => {
+        if (cancelBlurRef.current) {
+          cancelBlurRef.current = false;
+          return;
+        }
+        if (draft !== value) {
+          onCommit(draft);
+        }
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          cancelBlurRef.current = true;
+          setEdit({ source: value, draft: value });
+          event.currentTarget.blur();
+          return;
+        }
+        if (event.key === "Enter") {
+          event.preventDefault();
+          event.currentTarget.blur();
+        }
+      }}
+    />
   );
 }
 
@@ -116,11 +165,9 @@ export function SystemDesignLayersPanel({
               </button>
               <label className="min-w-0 flex-1">
                 <span className="sr-only">Layer name</span>
-                <input
-                  className={`${inputClass} min-h-7 h-7 px-2 text-xs`}
+                <BufferedLayerName
                   value={node.label}
-                  onClick={(event) => event.stopPropagation()}
-                  onChange={(event) => onRenameNode(node.id, event.target.value)}
+                  onCommit={(label) => onRenameNode(node.id, label)}
                 />
               </label>
             </div>

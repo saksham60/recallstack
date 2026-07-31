@@ -1,6 +1,7 @@
-import type {
-  SystemDesignDocument,
-  SystemDesignDocumentSummary,
+import {
+  SYSTEM_DESIGN_LEGACY_SCHEMA_VERSION,
+  type SystemDesignDocument,
+  type SystemDesignDocumentSummary,
 } from "../types/system-design.types";
 import { parseSystemDesignDocument } from "../utils/diagram-validation";
 import { createSystemDesignDocumentSummary } from "../utils/system-design-defaults";
@@ -44,6 +45,11 @@ export class LocalStorageSystemDesignRepository
           "The locally saved diagram belongs to a different problem.",
         );
       }
+      this.persistMigrationIfNeeded(
+        LocalStorageSystemDesignRepository.storageKey(problemId),
+        value,
+        document,
+      );
       return document;
     });
   }
@@ -83,9 +89,9 @@ export class LocalStorageSystemDesignRepository
             cause: error,
           });
         }
-        summaries.push(
-          createSystemDesignDocumentSummary(parseSystemDesignDocument(value)),
-        );
+        const document = parseSystemDesignDocument(value);
+        this.persistMigrationIfNeeded(key, value, document);
+        summaries.push(createSystemDesignDocumentSummary(document));
       }
       return summaries.sort(
         (left, right) =>
@@ -105,6 +111,21 @@ export class LocalStorageSystemDesignRepository
       );
     }
     return window.localStorage;
+  }
+
+  private persistMigrationIfNeeded(
+    key: string,
+    original: unknown,
+    migrated: SystemDesignDocument,
+  ): void {
+    if (
+      typeof original === "object" &&
+      original !== null &&
+      "schemaVersion" in original &&
+      original.schemaVersion === SYSTEM_DESIGN_LEGACY_SCHEMA_VERSION
+    ) {
+      this.getStorage().setItem(key, JSON.stringify(migrated));
+    }
   }
 
   private async run<T>(

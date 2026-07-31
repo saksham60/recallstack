@@ -27,6 +27,7 @@ import {
 import type {
   SystemDesignDocument,
   SystemDesignEdge,
+  SystemDesignNode,
   SystemDesignNodeType,
   SystemDesignProblem,
   SystemDesignViewport,
@@ -37,11 +38,17 @@ import {
 } from "../utils/diagram-import-export";
 import {
   DEFAULT_SYSTEM_DESIGN_VIEWPORT,
+  countSystemDesignElements,
   createEmptySystemDesignDocument,
   createNextSystemDesignTimestamp,
   createSystemDesignNode,
+  getSystemDesignDiagramBreadcrumbs,
   normalizeSystemDesignLayers,
 } from "../utils/system-design-defaults";
+import {
+  alignSystemDesignNodes,
+  distributeSystemDesignNodes,
+} from "../utils/node-layout";
 import {
   SystemDesignCanvas,
   type SystemDesignCanvasHandle,
@@ -51,12 +58,17 @@ import {
   type SystemDesignInspectorTab,
 } from "./SystemDesignInspector";
 import { SystemDesignPalette } from "./SystemDesignPalette";
+import { SystemDesignBreadcrumbs } from "./SystemDesignBreadcrumbs";
+import { SystemDesignPerformancePanel } from "./SystemDesignPerformancePanel";
 import { SystemDesignProblemPanel } from "./SystemDesignProblemPanel";
 import {
   SystemDesignStatusBar,
   type SystemDesignSaveState,
 } from "./SystemDesignStatusBar";
-import { SystemDesignToolbar } from "./SystemDesignToolbar";
+import {
+  SystemDesignToolbar,
+  type SystemDesignArrangeOperation,
+} from "./SystemDesignToolbar";
 
 function isSystemDesignNodeType(
   value: string,
@@ -111,6 +123,8 @@ export function SystemDesignWorkspace({
     useState<SystemDesignDocument | null>(null);
   const [uiError, setUiError] = useState<string | null>(null);
   const [previewBriefOpen, setPreviewBriefOpen] = useState(true);
+  const [showGrid, setShowGrid] = useState(true);
+  const [snapToGrid, setSnapToGrid] = useState(true);
 
   const { save, retryLoad } = useSystemDesignPersistence({
     problemId: problem.id,
@@ -122,15 +136,45 @@ export function SystemDesignWorkspace({
     dispatch,
   });
 
+  const activeDiagram =
+    state.document.diagrams[state.activeDiagramId] ??
+    state.document.diagrams[state.document.rootDiagramId];
+  const documentCounts = useMemo(
+    () => countSystemDesignElements(state.document),
+    [state.document],
+  );
+  const breadcrumbSegments = useMemo(
+    () =>
+      getSystemDesignDiagramBreadcrumbs(
+        state.document,
+        activeDiagram.id,
+      ).map((diagram) => ({
+        diagramId: diagram.id,
+        label: diagram.name,
+      })),
+    [activeDiagram.id, state.document],
+  );
+  const internalComponentCounts = useMemo(
+    () =>
+      Object.fromEntries(
+        activeDiagram.nodes.flatMap((node) => {
+          if (!node.childDiagramId) return [];
+          const child = state.document.diagrams[node.childDiagramId];
+          return child ? [[node.id, child.nodes.length] as const] : [];
+        }),
+      ),
+    [activeDiagram.nodes, state.document.diagrams],
+  );
+
   const selectedNode =
     state.selectedNodeIds.length === 1
-      ? state.document.nodes.find(
+      ? activeDiagram.nodes.find(
           (node) => node.id === state.selectedNodeIds[0],
         ) ?? null
       : null;
   const selectedEdge =
     state.selectedEdgeIds.length === 1
-      ? state.document.edges.find(
+      ? activeDiagram.edges.find(
           (edge) => edge.id === state.selectedEdgeIds[0],
         ) ?? null
       : null;
@@ -202,8 +246,11 @@ export function SystemDesignWorkspace({
       center: { x: number; y: number },
       arrangeAroundCenter: boolean,
     ) => {
-      const index = state.document.nodes.length;
-      const node = createSystemDesignNode(type, center);
+      const index = activeDiagram.nodes.length;
+      const node = createSystemDesignNode(type, center, {
+        parentModuleId: activeDiagram.parentNodeId,
+        isExpandable: type === "module" ? true : undefined,
+      });
       const column = index % 3;
       const row = Math.floor(index / 3) % 3;
       const x = arrangeAroundCenter
@@ -221,7 +268,7 @@ export function SystemDesignWorkspace({
       );
       setInspectorTab("properties");
     },
-    [state.document.nodes.length],
+    [activeDiagram.nodes.length, activeDiagram.parentNodeId],
   );
 
   const addNodeFromPalette = useCallback(
@@ -282,7 +329,7 @@ export function SystemDesignWorkspace({
 
   const handleMarkComplete = useCallback(() => {
     if (
-      state.document.nodes.length === 0 ||
+      documentCounts.nodeCount === 0 ||
       state.document.status === "completed"
     ) {
       return;
@@ -297,7 +344,7 @@ export function SystemDesignWorkspace({
     };
     dispatch(systemDesignEditorActions.markComplete(at));
     void save(completedDocument);
-  }, [save, state.document]);
+  }, [documentCounts.nodeCount, save, state.document]);
 
   const handleConfirmReset = useCallback(() => {
     const at = createNextSystemDesignTimestamp(
@@ -306,9 +353,15 @@ export function SystemDesignWorkspace({
     const resetDocument: SystemDesignDocument = {
       ...state.document,
       status: "in_progress",
-      nodes: [],
-      edges: [],
-      viewport: { ...DEFAULT_SYSTEM_DESIGN_VIEWPORT },
+      diagrams: {
+        [state.document.rootDiagramId]: {
+          ...state.document.diagrams[state.document.rootDiagramId],
+          parentNodeId: undefined,
+          nodes: [],
+          edges: [],
+          viewport: { ...DEFAULT_SYSTEM_DESIGN_VIEWPORT },
+        },
+      },
       updatedAt: at,
     };
     dispatch(systemDesignEditorActions.resetDocument(at));
@@ -323,7 +376,17 @@ export function SystemDesignWorkspace({
     );
     const importedDocument: SystemDesignDocument = {
       ...pendingImport,
-      nodes: normalizeSystemDesignLayers(pendingImport.nodes),
+      diagrams: Object.fromEntries(
+        Object.entries(pendingImport.diagrams).map(
+          ([diagramId, diagram]) => [
+            diagramId,
+            {
+              ...diagram,
+              nodes: normalizeSystemDesignLayers(diagram.nodes),
+            },
+          ],
+        ),
+      ),
       updatedAt: at,
     };
     dispatch(
@@ -405,8 +468,50 @@ export function SystemDesignWorkspace({
     [],
   );
 
+  const handleOpenModule = useCallback((nodeId: string) => {
+    dispatch(systemDesignEditorActions.openOrCreateModule(nodeId));
+  }, []);
+
+  const handleNavigateDiagram = useCallback((diagramId: string) => {
+    dispatch(systemDesignEditorActions.activateDiagram(diagramId));
+  }, []);
+
+  const handleInlineLabelEdit = useCallback(
+    (nodeId: string, label: string) => {
+      dispatch(systemDesignEditorActions.updateNode(nodeId, { label }));
+    },
+    [],
+  );
+
+  const handleArrange = useCallback(
+    (operation: SystemDesignArrangeOperation) => {
+      const nodes: SystemDesignNode[] = activeDiagram.nodes.filter(
+        (node) => state.selectedNodeIds.includes(node.id),
+      );
+      const positions =
+        operation === "distribute-horizontal"
+          ? distributeSystemDesignNodes(nodes, "horizontal")
+          : operation === "distribute-vertical"
+            ? distributeSystemDesignNodes(nodes, "vertical")
+            : alignSystemDesignNodes(
+                nodes,
+                operation.replace("align-", "") as
+                  | "left"
+                  | "center"
+                  | "right"
+                  | "top"
+                  | "middle"
+                  | "bottom",
+              );
+      if (Object.keys(positions).length > 0) {
+        dispatch(systemDesignEditorActions.moveNodes(positions));
+      }
+    },
+    [activeDiagram.nodes, state.selectedNodeIds],
+  );
+
   const layersProps = {
-    nodes: state.document.nodes,
+    nodes: activeDiagram.nodes,
     selectedNodeIds: state.selectedNodeIds,
     onSelectNode: (nodeId: string, additive: boolean) =>
       dispatch(
@@ -418,7 +523,7 @@ export function SystemDesignWorkspace({
     onRenameNode: (nodeId: string, label: string) =>
       dispatch(systemDesignEditorActions.updateNode(nodeId, { label })),
     onToggleVisibility: (nodeId: string) => {
-      const node = state.document.nodes.find(
+      const node = activeDiagram.nodes.find(
         (candidate) => candidate.id === nodeId,
       );
       if (node) {
@@ -430,7 +535,7 @@ export function SystemDesignWorkspace({
       }
     },
     onToggleLocked: (nodeId: string) => {
-      const node = state.document.nodes.find(
+      const node = activeDiagram.nodes.find(
         (candidate) => candidate.id === nodeId,
       );
       if (node) {
@@ -459,11 +564,14 @@ export function SystemDesignWorkspace({
         saveState={saveState}
         isCompleted={state.document.status === "completed"}
         isPreviewMode={state.isPreviewMode}
-        zoom={state.document.viewport.zoom}
+        zoom={activeDiagram.viewport.zoom}
         canUndo={state.history.length > 0}
         canRedo={state.future.length > 0}
         canSave={state.isDirty || state.saveStatus === "error"}
-        canMarkComplete={state.document.nodes.length > 0}
+        canMarkComplete={documentCounts.nodeCount > 0}
+        showGrid={showGrid}
+        snapToGrid={snapToGrid}
+        selectedNodeCount={state.selectedNodeIds.length}
         onUndo={handleUndo}
         onRedo={handleRedo}
         onSave={handleSave}
@@ -476,7 +584,17 @@ export function SystemDesignWorkspace({
         onResetViewport={() => canvasRef.current?.resetViewport()}
         onZoomOut={() => canvasRef.current?.zoomBy(1 / 1.15)}
         onZoomIn={() => canvasRef.current?.zoomBy(1.15)}
+        onToggleGrid={() => setShowGrid((visible) => !visible)}
+        onToggleSnapToGrid={() => setSnapToGrid((enabled) => !enabled)}
+        onArrange={handleArrange}
       />
+
+      <div className="flex min-h-9 shrink-0 items-center border-b border-border bg-surface/80 px-3">
+        <SystemDesignBreadcrumbs
+          segments={breadcrumbSegments}
+          onNavigate={handleNavigateDiagram}
+        />
+      </div>
 
       <div className="relative flex min-h-0 flex-1">
         {!state.isPreviewMode && (
@@ -485,10 +603,13 @@ export function SystemDesignWorkspace({
         <div className="relative min-w-0 flex-1">
           <SystemDesignCanvas
             ref={canvasRef}
-            document={state.document}
+            diagram={activeDiagram}
             selectedNodeIds={state.selectedNodeIds}
             selectedEdgeIds={state.selectedEdgeIds}
             preview={state.isPreviewMode}
+            showGrid={showGrid}
+            snapToGrid={snapToGrid}
+            internalComponentCounts={internalComponentCounts}
             onSelectNode={handleSelectNode}
             onSelectEdge={handleSelectEdge}
             onClearSelection={handleClearSelection}
@@ -497,7 +618,10 @@ export function SystemDesignWorkspace({
             onAddEdge={handleAddEdge}
             onViewportChange={handleViewportChange}
             onDropNodeType={addDroppedNode}
+            onOpenModule={handleOpenModule}
+            onEditNodeLabel={handleInlineLabelEdit}
           />
+          <SystemDesignPerformancePanel />
 
           {state.isPreviewMode && (
             <details
@@ -566,10 +690,10 @@ export function SystemDesignWorkspace({
       </div>
 
       <SystemDesignStatusBar
-        nodeCount={state.document.nodes.length}
-        edgeCount={state.document.edges.length}
+        nodeCount={activeDiagram.nodes.length}
+        edgeCount={activeDiagram.edges.length}
         selectedCount={selectedCount}
-        zoom={state.document.viewport.zoom}
+        zoom={activeDiagram.viewport.zoom}
         saveState={saveState}
         lastSavedAt={state.lastSavedAt}
         saveError={state.saveError}

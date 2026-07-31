@@ -12,8 +12,9 @@ import {
 import type Konva from "konva";
 import { Arrow, Layer, Line, Stage, Text, Transformer } from "react-konva";
 import type {
-  SystemDesignDocument,
+  SystemDesignDiagram,
   SystemDesignEdge,
+  SystemDesignNode,
   SystemDesignPort,
   SystemDesignViewport,
 } from "../types/system-design.types";
@@ -26,13 +27,21 @@ import {
   createSystemDesignEdge,
 } from "../utils/system-design-defaults";
 import {
+  recordSystemDesignDragFrame,
+  recordSystemDesignRender,
+  requestSystemDesignDragMeasurementFinish,
+  startSystemDesignDragMeasurement,
+} from "../utils/performance-instrumentation";
+import {
   getNodePortPosition,
   SystemDesignEdgeRenderer,
+  type SystemDesignEdgeRendererHandle,
 } from "./SystemDesignEdgeRenderer";
 import {
   SystemDesignNodeRenderer,
   type SystemDesignCanvasTheme,
 } from "./SystemDesignNodeRenderer";
+import { SystemDesignMinimap } from "./SystemDesignMinimap";
 
 const GRID_SIZE = 24;
 
@@ -76,10 +85,13 @@ export interface SystemDesignCanvasHandle {
 }
 
 interface SystemDesignCanvasProps {
-  document: SystemDesignDocument;
+  diagram: SystemDesignDiagram;
   selectedNodeIds: string[];
   selectedEdgeIds: string[];
   preview: boolean;
+  showGrid?: boolean;
+  snapToGrid?: boolean;
+  internalComponentCounts?: Readonly<Record<string, number>>;
   onSelectNode: (nodeId: string, additive: boolean) => void;
   onSelectEdge: (edgeId: string, additive: boolean) => void;
   onClearSelection: () => void;
@@ -91,6 +103,8 @@ interface SystemDesignCanvasProps {
     nodeType: string,
     position: { x: number; y: number },
   ) => void;
+  onOpenModule?: (nodeId: string) => void;
+  onEditNodeLabel?: (nodeId: string, label: string) => void;
 }
 
 function clampZoom(value: number): number {
@@ -133,15 +147,21 @@ function worldPoint(
   };
 }
 
+function isBoundaryNode(node: SystemDesignNode): boolean {
+  return node.type === "system_boundary" || node.type === "container";
+}
+
 export const SystemDesignCanvas = forwardRef<
   SystemDesignCanvasHandle,
   SystemDesignCanvasProps
 >(function SystemDesignCanvas(
   {
-    document,
+    diagram,
     selectedNodeIds,
     selectedEdgeIds,
     preview,
+    showGrid = true,
+    snapToGrid = true,
     onSelectNode,
     onSelectEdge,
     onClearSelection,
@@ -150,21 +170,44 @@ export const SystemDesignCanvas = forwardRef<
     onAddEdge,
     onViewportChange,
     onDropNodeType,
+    onOpenModule,
+    onEditNodeLabel,
+    internalComponentCounts = {},
   },
   ref,
 ) {
   const [containerRef, size] = useElementSize<HTMLDivElement>();
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
+  const edgesLayerRef = useRef<Konva.Layer>(null);
+  const boundaryLayerRef = useRef<Konva.Layer>(null);
+  const nodesLayerRef = useRef<Konva.Layer>(null);
+  const interactionLayerRef = useRef<Konva.Layer>(null);
+  const verticalGuideRef = useRef<Konva.Line>(null);
+  const horizontalGuideRef = useRef<Konva.Line>(null);
+  const alignmentFrameRef = useRef<number | null>(null);
+  const wheelCommitTimerRef = useRef<number | null>(null);
+  const pendingWheelViewportRef = useRef<SystemDesignViewport | null>(
+    null,
+  );
+  const liftedNodeIdsRef = useRef<string[]>([]);
+  const liftedEdgeIdsRef = useRef<string[]>([]);
   const nodeRefs = useRef(new Map<string, Konva.Group>());
+  const edgeRefs = useRef(
+    new Map<string, SystemDesignEdgeRendererHandle>(),
+  );
+  const connectionArrowRef = useRef<Konva.Arrow>(null);
   const dragSnapshot = useRef(new Map<string, { x: number; y: number }>());
-  const [dragPositions, setDragPositions] = useState<
-    Map<string, { x: number; y: number }> | null
-  >(null);
   const [connection, setConnection] = useState<ConnectionDraft | null>(null);
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
+  const [editingLabel, setEditingLabel] = useState("");
   const connectionRef = useRef<ConnectionDraft | null>(null);
   const [theme, setTheme] = useState(DEFAULT_THEME);
-  const { viewport } = document;
+  const { viewport } = diagram;
+
+  useEffect(() => {
+    recordSystemDesignRender("canvas");
+  });
 
   const clearConnection = useCallback(() => {
     connectionRef.current = null;
@@ -191,32 +234,152 @@ export const SystemDesignCanvas = forwardRef<
 
   const visibleNodes = useMemo(
     () =>
-      [...document.nodes]
+      [...diagram.nodes]
         .filter((node) => node.visible !== false)
         .sort((a, b) => a.layer - b.layer),
-    [document.nodes],
+    [diagram.nodes],
   );
   const nodeMap = useMemo(
     () => new Map(visibleNodes.map((node) => [node.id, node])),
     [visibleNodes],
   );
-  const renderedNodeMap = useMemo(() => {
-    if (!dragPositions) return nodeMap;
-    const rendered = new Map(nodeMap);
-    dragPositions.forEach((position, id) => {
-      const node = rendered.get(id);
-      if (node) rendered.set(id, { ...node, ...position });
+  const boundaryNodes = useMemo(
+    () => visibleNodes.filter(isBoundaryNode),
+    [visibleNodes],
+  );
+  const foregroundNodes = useMemo(
+    () => visibleNodes.filter((node) => !isBoundaryNode(node)),
+    [visibleNodes],
+  );
+  const connectedEdgesByNode = useMemo(() => {
+    const byNode = new Map<string, SystemDesignEdge[]>();
+    diagram.edges.forEach((edge) => {
+      const sourceEdges = byNode.get(edge.sourceNodeId) ?? [];
+      sourceEdges.push(edge);
+      byNode.set(edge.sourceNodeId, sourceEdges);
+      const targetEdges = byNode.get(edge.targetNodeId) ?? [];
+      targetEdges.push(edge);
+      byNode.set(edge.targetNodeId, targetEdges);
     });
-    return rendered;
-  }, [dragPositions, nodeMap]);
+    return byNode;
+  }, [diagram.edges]);
+  const edgeMap = useMemo(
+    () => new Map(diagram.edges.map((edge) => [edge.id, edge])),
+    [diagram.edges],
+  );
+
+  const updateConnectedEdgeGeometry = useCallback(
+    (positions: ReadonlyMap<string, { x: number; y: number }>) => {
+      const edgeIds = new Set<string>();
+      positions.forEach((_, nodeId) => {
+        connectedEdgesByNode
+          .get(nodeId)
+          ?.forEach((edge) => edgeIds.add(edge.id));
+      });
+      edgeIds.forEach((edgeId) => {
+        const edge = edgeMap.get(edgeId);
+        if (!edge) return;
+        const source = nodeMap.get(edge.sourceNodeId);
+        const target = nodeMap.get(edge.targetNodeId);
+        if (!source || !target) return;
+        const sourcePosition = positions.get(source.id);
+        const targetPosition = positions.get(target.id);
+        const nextSource: SystemDesignNode = sourcePosition
+          ? { ...source, ...sourcePosition }
+          : source;
+        const nextTarget: SystemDesignNode = targetPosition
+          ? { ...target, ...targetPosition }
+          : target;
+        edgeRefs.current
+          .get(edgeId)
+          ?.updateGeometry(nextSource, nextTarget);
+      });
+      recordSystemDesignDragFrame(edgeIds.size);
+    },
+    [connectedEdgesByNode, edgeMap, nodeMap],
+  );
+
+  const liftDragVisuals = useCallback(
+    (nodeIds: readonly string[]) => {
+      const interactionLayer = interactionLayerRef.current;
+      if (!interactionLayer) return;
+      const edgeIds = new Set<string>();
+      nodeIds.forEach((nodeId) => {
+        connectedEdgesByNode
+          .get(nodeId)
+          ?.forEach((edge) => edgeIds.add(edge.id));
+      });
+      liftedNodeIdsRef.current = [...nodeIds];
+      liftedEdgeIdsRef.current = [...edgeIds];
+      transformerRef.current?.nodes([]);
+      edgeIds.forEach((edgeId) => {
+        edgeRefs.current.get(edgeId)?.getGroup()?.moveTo(interactionLayer);
+      });
+      nodeIds.forEach((nodeId) => {
+        const group = nodeRefs.current.get(nodeId);
+        group?.find("Shape").forEach((nodeShape) => {
+          const shape = nodeShape as Konva.Shape;
+          shape.setAttr(
+            "_systemDesignShadowEnabled",
+            shape.shadowEnabled(),
+          );
+          shape.shadowEnabled(false);
+        });
+        group?.moveTo(interactionLayer);
+      });
+      transformerRef.current?.moveToTop();
+      edgesLayerRef.current?.batchDraw();
+      boundaryLayerRef.current?.batchDraw();
+      nodesLayerRef.current?.batchDraw();
+      interactionLayer.batchDraw();
+    },
+    [connectedEdgesByNode],
+  );
+
+  const restoreDragVisuals = useCallback(() => {
+    const edgesLayer = edgesLayerRef.current;
+    const nodesLayer = nodesLayerRef.current;
+    if (edgesLayer) {
+      liftedEdgeIdsRef.current.forEach((edgeId) => {
+        edgeRefs.current.get(edgeId)?.getGroup()?.moveTo(edgesLayer);
+      });
+    }
+    if (nodesLayer) {
+      liftedNodeIdsRef.current.forEach((nodeId) => {
+        const group = nodeRefs.current.get(nodeId);
+        group?.find("Shape").forEach((nodeShape) => {
+          const shape = nodeShape as Konva.Shape;
+          const shadowEnabled = shape.getAttr(
+            "_systemDesignShadowEnabled",
+          );
+          if (typeof shadowEnabled === "boolean") {
+            shape.shadowEnabled(shadowEnabled);
+          }
+          shape.setAttr("_systemDesignShadowEnabled", undefined);
+        });
+        const targetLayer = nodeMap.get(nodeId);
+        group?.moveTo(
+          targetLayer && isBoundaryNode(targetLayer)
+            ? boundaryLayerRef.current ?? nodesLayer
+            : nodesLayer,
+        );
+      });
+    }
+    liftedEdgeIdsRef.current = [];
+    liftedNodeIdsRef.current = [];
+    edgesLayer?.batchDraw();
+    boundaryLayerRef.current?.batchDraw();
+    nodesLayer?.batchDraw();
+    interactionLayerRef.current?.batchDraw();
+  }, [nodeMap]);
 
   const getVisibleCenter = useCallback(
     () =>
       worldPoint(
         { x: size.width / 2, y: size.height / 2 },
-        document.viewport,
+        diagram.viewport,
       ),
-    [document.viewport, size.height, size.width],
+    [diagram.viewport, size.height, size.width],
   );
 
   const setViewport = useCallback(
@@ -306,10 +469,10 @@ export const SystemDesignCanvas = forwardRef<
       transformer.nodes([selectedRef]);
     }
     transformer.getLayer()?.batchDraw();
-  }, [document.nodes, nodeMap, preview, selectedNodeIds]);
+  }, [diagram.nodes, nodeMap, preview, selectedNodeIds]);
 
   const gridLines = useMemo(() => {
-    if (size.width === 0 || size.height === 0) return [];
+    if (!showGrid || size.width === 0 || size.height === 0) return [];
     const left = -viewport.x / viewport.zoom;
     const top = -viewport.y / viewport.zoom;
     const right = left + size.width / viewport.zoom;
@@ -335,10 +498,120 @@ export const SystemDesignCanvas = forwardRef<
   }, [
     size.height,
     size.width,
+    showGrid,
     viewport.x,
     viewport.y,
     viewport.zoom,
   ]);
+
+  const hideAlignmentGuides = useCallback(() => {
+    verticalGuideRef.current?.visible(false);
+    horizontalGuideRef.current?.visible(false);
+    interactionLayerRef.current?.batchDraw();
+  }, []);
+
+  const scheduleAlignmentGuides = useCallback(
+    (nodeId: string, group: Konva.Group) => {
+      if (alignmentFrameRef.current !== null) return;
+      alignmentFrameRef.current = window.requestAnimationFrame(() => {
+        alignmentFrameRef.current = null;
+        const dragged = nodeMap.get(nodeId);
+        if (!dragged) return;
+        const ignored = new Set(dragSnapshot.current.keys());
+        const threshold = 6 / viewport.zoom;
+        const draggedX = [
+          group.x(),
+          group.x() + dragged.width / 2,
+          group.x() + dragged.width,
+        ];
+        const draggedY = [
+          group.y(),
+          group.y() + dragged.height / 2,
+          group.y() + dragged.height,
+        ];
+        let closestXValue: number | null = null;
+        let closestXDistance = Number.POSITIVE_INFINITY;
+        let closestYValue: number | null = null;
+        let closestYDistance = Number.POSITIVE_INFINITY;
+
+        nodeMap.forEach((candidate) => {
+          if (ignored.has(candidate.id)) return;
+          const anchorsX = [
+            candidate.x,
+            candidate.x + candidate.width / 2,
+            candidate.x + candidate.width,
+          ];
+          const anchorsY = [
+            candidate.y,
+            candidate.y + candidate.height / 2,
+            candidate.y + candidate.height,
+          ];
+          anchorsX.forEach((anchor) => {
+            draggedX.forEach((value) => {
+              const distance = Math.abs(anchor - value);
+              if (
+                distance <= threshold &&
+                distance < closestXDistance
+              ) {
+                closestXValue = anchor;
+                closestXDistance = distance;
+              }
+            });
+          });
+          anchorsY.forEach((anchor) => {
+            draggedY.forEach((value) => {
+              const distance = Math.abs(anchor - value);
+              if (
+                distance <= threshold &&
+                distance < closestYDistance
+              ) {
+                closestYValue = anchor;
+                closestYDistance = distance;
+              }
+            });
+          });
+        });
+
+        const left = -viewport.x / viewport.zoom;
+        const top = -viewport.y / viewport.zoom;
+        const right = left + size.width / viewport.zoom;
+        const bottom = top + size.height / viewport.zoom;
+        if (closestXValue !== null) {
+          verticalGuideRef.current?.points([
+            closestXValue,
+            top,
+            closestXValue,
+            bottom,
+          ]);
+          verticalGuideRef.current?.visible(true);
+        } else {
+          verticalGuideRef.current?.visible(false);
+        }
+        if (closestYValue !== null) {
+          horizontalGuideRef.current?.points([
+            left,
+            closestYValue,
+            right,
+            closestYValue,
+          ]);
+          horizontalGuideRef.current?.visible(true);
+        } else {
+          horizontalGuideRef.current?.visible(false);
+        }
+        interactionLayerRef.current?.batchDraw();
+      });
+    },
+    [nodeMap, size.height, size.width, viewport],
+  );
+
+  useEffect(
+    () => () => {
+      if (alignmentFrameRef.current !== null) {
+        window.cancelAnimationFrame(alignmentFrameRef.current);
+      }
+    },
+    [],
+  );
 
   const handleWheel = useCallback(
     (event: Konva.KonvaEventObject<WheelEvent>) => {
@@ -346,16 +619,56 @@ export const SystemDesignCanvas = forwardRef<
       const stage = event.target.getStage();
       const pointer = stage?.getPointerPosition();
       if (!stage || !pointer) return;
-      const pointerWorld = worldPoint(pointer, viewport);
+      const currentViewport = {
+        x: stage.x(),
+        y: stage.y(),
+        zoom: stage.scaleX(),
+      };
+      const pointerWorld = worldPoint(pointer, currentViewport);
       const direction = event.evt.deltaY > 0 ? 1 / 1.08 : 1.08;
-      const nextZoom = clampZoom(viewport.zoom * direction);
-      setViewport({
+      const nextZoom = clampZoom(currentViewport.zoom * direction);
+      const nextViewport = {
         x: pointer.x - pointerWorld.x * nextZoom,
         y: pointer.y - pointerWorld.y * nextZoom,
         zoom: nextZoom,
+      };
+      stage.position({ x: nextViewport.x, y: nextViewport.y });
+      stage.scale({ x: nextZoom, y: nextZoom });
+      stage.batchDraw();
+      pendingWheelViewportRef.current = nextViewport;
+      if (wheelCommitTimerRef.current !== null) {
+        window.clearTimeout(wheelCommitTimerRef.current);
+      }
+      wheelCommitTimerRef.current = window.setTimeout(() => {
+        wheelCommitTimerRef.current = null;
+        const pending = pendingWheelViewportRef.current;
+        pendingWheelViewportRef.current = null;
+        if (pending) setViewport(pending);
+      }, 120);
+    },
+    [setViewport],
+  );
+
+  useEffect(
+    () => () => {
+      if (wheelCommitTimerRef.current !== null) {
+        window.clearTimeout(wheelCommitTimerRef.current);
+      }
+      const pending = pendingWheelViewportRef.current;
+      if (pending) onViewportChange(pending);
+    },
+    [onViewportChange],
+  );
+
+  const handleMinimapNavigate = useCallback(
+    (point: { x: number; y: number }) => {
+      setViewport({
+        x: size.width / 2 - point.x * viewport.zoom,
+        y: size.height / 2 - point.y * viewport.zoom,
+        zoom: viewport.zoom,
       });
     },
-    [setViewport, viewport],
+    [setViewport, size.height, size.width, viewport.zoom],
   );
 
   const handleDragStart = useCallback(
@@ -372,15 +685,22 @@ export const SystemDesignCanvas = forwardRef<
             : [];
         }),
       );
-      setDragPositions(null);
+      liftDragVisuals([...dragSnapshot.current.keys()]);
+      startSystemDesignDragMeasurement(dragSnapshot.current.size);
     },
-    [nodeMap, onSelectNode, selectedNodeIds],
+    [liftDragVisuals, nodeMap, onSelectNode, selectedNodeIds],
   );
 
   const handleDragMove = useCallback(
     (nodeId: string, group: Konva.Group) => {
       const origin = dragSnapshot.current.get(nodeId);
       if (!origin) return;
+      if (snapToGrid) {
+        group.position({
+          x: Math.round(group.x() / GRID_SIZE) * GRID_SIZE,
+          y: Math.round(group.y() / GRID_SIZE) * GRID_SIZE,
+        });
+      }
       const deltaX = group.x() - origin.x;
       const deltaY = group.y() - origin.y;
       const positions = new Map<string, { x: number; y: number }>();
@@ -392,18 +712,21 @@ export const SystemDesignCanvas = forwardRef<
         positions.set(id, next);
         if (id !== nodeId) nodeRefs.current.get(id)?.position(next);
       });
-      setDragPositions(positions);
+      updateConnectedEdgeGeometry(positions);
+      scheduleAlignmentGuides(nodeId, group);
       group.getLayer()?.batchDraw();
     },
-    [],
+    [scheduleAlignmentGuides, snapToGrid, updateConnectedEdgeGeometry],
   );
 
   const handleDragEnd = useCallback(
     (nodeId: string, group: Konva.Group) => {
       const origin = dragSnapshot.current.get(nodeId);
       if (!origin) {
+        hideAlignmentGuides();
+        restoreDragVisuals();
         onMoveNodes([{ id: nodeId, x: group.x(), y: group.y() }]);
-        setDragPositions(null);
+        requestSystemDesignDragMeasurementFinish();
         return;
       }
       const deltaX = group.x() - origin.x;
@@ -416,10 +739,12 @@ export const SystemDesignCanvas = forwardRef<
         }),
       );
       dragSnapshot.current.clear();
+      hideAlignmentGuides();
+      restoreDragVisuals();
       onMoveNodes(changes);
-      setDragPositions(null);
+      requestSystemDesignDragMeasurementFinish();
     },
-    [onMoveNodes],
+    [hideAlignmentGuides, onMoveNodes, restoreDragVisuals],
   );
 
   const handlePortStart = useCallback(
@@ -469,6 +794,23 @@ export const SystemDesignCanvas = forwardRef<
     [clearConnection, onAddEdge],
   );
 
+  const updateConnectionPointer = useCallback(
+    (pointer: { x: number; y: number }) => {
+      const current = connectionRef.current;
+      if (!current) return;
+      const end = worldPoint(pointer, viewport);
+      connectionRef.current = { ...current, end };
+      connectionArrowRef.current?.points([
+        current.start.x,
+        current.start.y,
+        end.x,
+        end.y,
+      ]);
+      connectionArrowRef.current?.getLayer()?.batchDraw();
+    },
+    [viewport],
+  );
+
   const emptyCenter = getVisibleCenter();
 
   const registerNodeRef = useCallback(
@@ -483,9 +825,61 @@ export const SystemDesignCanvas = forwardRef<
     (
       id: string,
       frame: { x: number; y: number; width: number; height: number },
-    ) => onResizeNode({ id, ...frame }),
-    [onResizeNode],
+    ) =>
+      onResizeNode({
+        id,
+        x: snapToGrid
+          ? Math.round(frame.x / GRID_SIZE) * GRID_SIZE
+          : frame.x,
+        y: snapToGrid
+          ? Math.round(frame.y / GRID_SIZE) * GRID_SIZE
+          : frame.y,
+        width: snapToGrid
+          ? Math.round(frame.width / GRID_SIZE) * GRID_SIZE
+          : frame.width,
+        height: snapToGrid
+          ? Math.round(frame.height / GRID_SIZE) * GRID_SIZE
+          : frame.height,
+      }),
+    [onResizeNode, snapToGrid],
   );
+
+  const beginInlineLabelEdit = useCallback(
+    (nodeId: string) => {
+      const node = nodeMap.get(nodeId);
+      if (!node || preview || !onEditNodeLabel) return;
+      onSelectNode(nodeId, false);
+      setEditingNodeId(nodeId);
+      setEditingLabel(node.label);
+    },
+    [nodeMap, onEditNodeLabel, onSelectNode, preview],
+  );
+
+  const finishInlineLabelEdit = useCallback(
+    (commit: boolean) => {
+      if (commit && editingNodeId && onEditNodeLabel) {
+        const label = editingLabel.trim();
+        const current = nodeMap.get(editingNodeId);
+        if (label && current && label !== current.label) {
+          onEditNodeLabel(editingNodeId, label);
+        }
+      }
+      setEditingNodeId(null);
+      setEditingLabel("");
+    },
+    [editingLabel, editingNodeId, nodeMap, onEditNodeLabel],
+  );
+
+  useEffect(() => {
+    if (editingNodeId && !nodeMap.has(editingNodeId)) {
+      setEditingNodeId(null);
+      setEditingLabel("");
+    }
+  }, [editingNodeId, nodeMap]);
+
+  const editingNode = editingNodeId
+    ? nodeMap.get(editingNodeId) ?? null
+    : null;
 
   return (
     <div
@@ -506,13 +900,18 @@ export const SystemDesignCanvas = forwardRef<
         );
         if (!type) return;
         const rect = event.currentTarget.getBoundingClientRect();
-        onDropNodeType(
-          type,
-          worldPoint(
-            { x: event.clientX - rect.left, y: event.clientY - rect.top },
-            viewport,
-          ),
+        const position = worldPoint(
+          { x: event.clientX - rect.left, y: event.clientY - rect.top },
+          viewport,
         );
+        onDropNodeType(type, {
+          x: snapToGrid
+            ? Math.round(position.x / GRID_SIZE) * GRID_SIZE
+            : position.x,
+          y: snapToGrid
+            ? Math.round(position.y / GRID_SIZE) * GRID_SIZE
+            : position.y,
+        });
       }}
     >
       <span className="sr-only">
@@ -520,7 +919,8 @@ export const SystemDesignCanvas = forwardRef<
         shortcuts are available from the Help button.
       </span>
       {size.width > 0 && size.height > 0 && (
-        <Stage
+        <>
+          <Stage
           ref={stageRef}
           width={size.width}
           height={size.height}
@@ -543,38 +943,14 @@ export const SystemDesignCanvas = forwardRef<
             if (isEmptyCanvas) onClearSelection();
           }}
           onMouseMove={(event) => {
-            if (!connection) return;
             const pointer = event.target.getStage()?.getPointerPosition();
             if (!pointer) return;
-            setConnection((current) =>
-              current
-                ? (() => {
-                    const next = {
-                      ...current,
-                      end: worldPoint(pointer, viewport),
-                    };
-                    connectionRef.current = next;
-                    return next;
-                  })()
-                : null,
-            );
+            updateConnectionPointer(pointer);
           }}
           onTouchMove={(event) => {
-            if (!connection) return;
             const pointer = event.target.getStage()?.getPointerPosition();
             if (!pointer) return;
-            setConnection((current) =>
-              current
-                ? (() => {
-                    const next = {
-                      ...current,
-                      end: worldPoint(pointer, viewport),
-                    };
-                    connectionRef.current = next;
-                    return next;
-                  })()
-                : null,
-            );
+            updateConnectionPointer(pointer);
           }}
           onMouseUp={(event) => {
             event.target.getStage()?.draggable(true);
@@ -604,14 +980,41 @@ export const SystemDesignCanvas = forwardRef<
               />
             ))}
           </Layer>
-          <Layer>
-            {document.edges.map((edge) => {
-              const source = renderedNodeMap.get(edge.sourceNodeId);
-              const target = renderedNodeMap.get(edge.targetNodeId);
+          <Layer ref={boundaryLayerRef}>
+            {boundaryNodes.map((node) => (
+              <SystemDesignNodeRenderer
+                key={node.id}
+                node={node}
+                selected={selectedNodeIds.includes(node.id)}
+                connecting={connection?.sourceNodeId === node.id}
+                preview={preview}
+                theme={theme}
+                registerRef={registerNodeRef}
+                onSelect={onSelectNode}
+                onDragStart={handleDragStart}
+                onDragMove={handleDragMove}
+                onDragEnd={handleDragEnd}
+                onResizeEnd={handleResizeEnd}
+                onPortStart={handlePortStart}
+                onPortEnd={handlePortEnd}
+                onOpenModule={onOpenModule}
+                onEditLabel={beginInlineLabelEdit}
+                internalComponentCount={internalComponentCounts[node.id]}
+              />
+            ))}
+          </Layer>
+          <Layer ref={edgesLayerRef}>
+            {diagram.edges.map((edge) => {
+              const source = nodeMap.get(edge.sourceNodeId);
+              const target = nodeMap.get(edge.targetNodeId);
               if (!source || !target) return null;
               return (
                 <SystemDesignEdgeRenderer
                   key={edge.id}
+                  ref={(handle) => {
+                    if (handle) edgeRefs.current.set(edge.id, handle);
+                    else edgeRefs.current.delete(edge.id);
+                  }}
                   edge={edge}
                   source={source}
                   target={target}
@@ -622,8 +1025,34 @@ export const SystemDesignCanvas = forwardRef<
                 />
               );
             })}
+          </Layer>
+          <Layer ref={nodesLayerRef}>
+            {foregroundNodes.map((node) => (
+              <SystemDesignNodeRenderer
+                key={node.id}
+                node={node}
+                selected={selectedNodeIds.includes(node.id)}
+                connecting={connection?.sourceNodeId === node.id}
+                preview={preview}
+                theme={theme}
+                registerRef={registerNodeRef}
+                onSelect={onSelectNode}
+                onDragStart={handleDragStart}
+                onDragMove={handleDragMove}
+                onDragEnd={handleDragEnd}
+                onResizeEnd={handleResizeEnd}
+                onPortStart={handlePortStart}
+                onPortEnd={handlePortEnd}
+                onOpenModule={onOpenModule}
+                onEditLabel={beginInlineLabelEdit}
+                internalComponentCount={internalComponentCounts[node.id]}
+              />
+            ))}
+          </Layer>
+          <Layer ref={interactionLayerRef}>
             {connection && (
               <Arrow
+                ref={connectionArrowRef}
                 points={[
                   connection.start.x,
                   connection.start.y,
@@ -640,26 +1069,22 @@ export const SystemDesignCanvas = forwardRef<
                 listening={false}
               />
             )}
-          </Layer>
-          <Layer>
-            {visibleNodes.map((node) => (
-              <SystemDesignNodeRenderer
-                key={node.id}
-                node={node}
-                selected={selectedNodeIds.includes(node.id)}
-                connecting={connection?.sourceNodeId === node.id}
-                preview={preview}
-                theme={theme}
-                registerRef={registerNodeRef}
-                onSelect={onSelectNode}
-                onDragStart={handleDragStart}
-                onDragMove={handleDragMove}
-                onDragEnd={handleDragEnd}
-                onResizeEnd={handleResizeEnd}
-                onPortStart={handlePortStart}
-                onPortEnd={handlePortEnd}
-              />
-            ))}
+            <Line
+              ref={verticalGuideRef}
+              visible={false}
+              listening={false}
+              stroke={theme.accent}
+              strokeWidth={1}
+              dash={[5, 5]}
+            />
+            <Line
+              ref={horizontalGuideRef}
+              visible={false}
+              listening={false}
+              stroke={theme.accent}
+              strokeWidth={1}
+              dash={[5, 5]}
+            />
             {!preview && (
               <Transformer
                 ref={transformerRef}
@@ -690,9 +1115,8 @@ export const SystemDesignCanvas = forwardRef<
                 }
               />
             )}
-          </Layer>
-          {visibleNodes.length === 0 && (
-            <Layer listening={false}>
+            {visibleNodes.length === 0 && (
+              <>
               <Text
                 x={emptyCenter.x - 220}
                 y={emptyCenter.y - 30}
@@ -714,9 +1138,44 @@ export const SystemDesignCanvas = forwardRef<
                 fontFamily="Arial"
                 fontSize={12}
               />
-            </Layer>
+              </>
+            )}
+          </Layer>
+          </Stage>
+          <SystemDesignMinimap
+            nodes={diagram.nodes}
+            edges={diagram.edges}
+            viewport={viewport}
+            canvasSize={size}
+            onNavigate={handleMinimapNavigate}
+          />
+          {editingNode && (
+            <input
+              autoFocus
+              data-testid="system-design-inline-label-input"
+              aria-label={`Rename ${editingNode.label}`}
+              className="absolute z-30 rounded border border-accent bg-surface px-2 text-sm font-semibold text-foreground shadow-xl outline-none ring-2 ring-accent/30"
+              style={{
+                left: editingNode.x * viewport.zoom + viewport.x,
+                top: editingNode.y * viewport.zoom + viewport.y,
+                width: Math.max(120, editingNode.width * viewport.zoom),
+                height: Math.max(32, Math.min(44, editingNode.height * viewport.zoom)),
+              }}
+              value={editingLabel}
+              onChange={(event) => setEditingLabel(event.target.value)}
+              onBlur={() => finishInlineLabelEdit(true)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  finishInlineLabelEdit(true);
+                } else if (event.key === "Escape") {
+                  event.preventDefault();
+                  finishInlineLabelEdit(false);
+                }
+              }}
+            />
           )}
-        </Stage>
+        </>
       )}
     </div>
   );

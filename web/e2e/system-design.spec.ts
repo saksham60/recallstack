@@ -6,8 +6,10 @@ import { canAccessSystemDesign } from "../src/features/system-design/access";
 import { LocalStorageSystemDesignRepository } from "../src/features/system-design/repository/LocalStorageSystemDesignRepository";
 import type {
   SystemDesignDocument,
+  SystemDesignEdge,
   SystemDesignNode,
 } from "../src/features/system-design/types/system-design.types";
+import { SYSTEM_DESIGN_SCHEMA_VERSION } from "../src/features/system-design/types/system-design.types";
 
 async function mockProfile(page: Page, roles: string[] = ["admin"]) {
   await page.route("**/api/v1/me", (route) =>
@@ -30,6 +32,7 @@ function createDocument({
   updatedAt: string;
   withEdge?: boolean;
 }): SystemDesignDocument {
+  const rootDiagramId = `${problemId}-diagram`;
   const nodes: SystemDesignNode[] = Array.from(
     { length: nodeCount },
     (_, index) => ({
@@ -47,30 +50,112 @@ function createDocument({
   );
 
   return {
-    schemaVersion: 1,
-    id: `${problemId}-diagram`,
+    schemaVersion: SYSTEM_DESIGN_SCHEMA_VERSION,
+    id: `${problemId}-document`,
     problemId,
     title,
     status,
-    nodes,
-    edges:
-      (withEdge ?? nodes.length > 1)
-        ? [
-            {
-              id: `${problemId}-edge-1`,
-              sourceNodeId: nodes[0].id,
-              targetNodeId: nodes[1].id,
-              sourcePort: "right",
-              targetPort: "left",
-              type: "request",
-              protocol: "HTTPS",
-              routing: "straight",
-            },
-          ]
-        : [],
-    viewport: { x: 0, y: 0, zoom: 1 },
+    rootDiagramId,
+    diagrams: {
+      [rootDiagramId]: {
+        id: rootDiagramId,
+        name: title,
+        nodes,
+        edges:
+          (withEdge ?? nodes.length > 1)
+            ? [
+                {
+                  id: `${problemId}-edge-1`,
+                  sourceNodeId: nodes[0].id,
+                  targetNodeId: nodes[1].id,
+                  sourcePort: "right",
+                  targetPort: "left",
+                  type: "request",
+                  protocol: "HTTPS",
+                  routing: "straight",
+                },
+              ]
+            : [],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    },
     createdAt: "2026-07-20T08:00:00.000Z",
     updatedAt,
+  };
+}
+
+function rootDiagram(document: SystemDesignDocument | null | undefined) {
+  return document?.diagrams[document.rootDiagramId];
+}
+
+function createPerformanceFixture(): SystemDesignDocument {
+  const document = createDocument({
+    problemId: "url-shortener",
+    title: "URL Shortener",
+    status: "in_progress",
+    nodeCount: 0,
+    withEdge: false,
+    updatedAt: "2026-07-29T08:00:00.000Z",
+  });
+  const nodeTypes: readonly SystemDesignNode["type"][] = [
+    "user",
+    "web_app",
+    "cdn",
+    "api_gateway",
+    "service",
+    "cache",
+    "sql_database",
+    "object_storage",
+    "message_queue",
+    "event_stream",
+  ];
+  const nodes: SystemDesignNode[] = Array.from(
+    { length: 100 },
+    (_, index) => ({
+      id: `perf-node-${index}`,
+      type: nodeTypes[index % nodeTypes.length],
+      x: 64 + (index % 10) * 216,
+      y: 64 + Math.floor(index / 10) * 132,
+      width: 160,
+      height: 88,
+      label: `Component ${index + 1}`,
+      layer: index,
+      locked: false,
+      visible: true,
+    }),
+  );
+  const ringEdges: SystemDesignEdge[] = nodes.map((node, index) => ({
+    id: `perf-ring-edge-${index}`,
+    sourceNodeId: node.id,
+    targetNodeId: nodes[(index + 1) % nodes.length].id,
+    sourcePort: "right",
+    targetPort: "left",
+    type: "request",
+    routing: "straight",
+  }));
+  const crossEdges: SystemDesignEdge[] = Array.from(
+    { length: 50 },
+    (_, index) => ({
+      id: `perf-cross-edge-${index}`,
+      sourceNodeId: nodes[index].id,
+      targetNodeId: nodes[(index + 5) % nodes.length].id,
+      sourcePort: "bottom",
+      targetPort: "top",
+      type: "async",
+      routing: "curved",
+    }),
+  );
+  const diagram = rootDiagram(document)!;
+  return {
+    ...document,
+    diagrams: {
+      ...document.diagrams,
+      [document.rootDiagramId]: {
+        ...diagram,
+        nodes,
+        edges: [...ringEdges, ...crossEdges],
+      },
+    },
   };
 }
 
@@ -515,7 +600,7 @@ test.describe("System Design editor", () => {
     await seedDocuments(page, [document]);
     await openEditor(page);
 
-    const original = document.nodes[0];
+    const original = rootDiagram(document)!.nodes[0];
     const start = await canvasPoint(
       page,
       original.x + original.width / 2,
@@ -533,10 +618,16 @@ test.describe("System Design editor", () => {
     });
     await saveFromToolbar(page);
     await expect
-      .poll(async () => (await readStoredDocument(page))?.nodes[0].x)
+      .poll(
+        async () =>
+          rootDiagram(await readStoredDocument(page))?.nodes[0].x,
+      )
       .toBeGreaterThan(original.x + 60);
     await expect
-      .poll(async () => (await readStoredDocument(page))?.nodes[0].y)
+      .poll(
+        async () =>
+          rootDiagram(await readStoredDocument(page))?.nodes[0].y,
+      )
       .toBeGreaterThan(original.y + 30);
 
     await page.getByRole("tab", { name: "Layers" }).click();
@@ -553,8 +644,8 @@ test.describe("System Design editor", () => {
       .poll(async () => {
         const stored = await readStoredDocument(page);
         return {
-          width: stored?.nodes[0].width,
-          height: stored?.nodes[0].height,
+          width: rootDiagram(stored)?.nodes[0].width,
+          height: rootDiagram(stored)?.nodes[0].height,
         };
       })
       .toEqual({ width: 210, height: 120 });
@@ -574,8 +665,8 @@ test.describe("System Design editor", () => {
     await seedDocuments(page, [document]);
     await openEditor(page);
 
-    const source = document.nodes[0];
-    const target = document.nodes[1];
+    const source = rootDiagram(document)!.nodes[0];
+    const target = rootDiagram(document)!.nodes[1];
     const sourcePort = await canvasPoint(
       page,
       source.x + source.width,
@@ -619,7 +710,7 @@ test.describe("System Design editor", () => {
 
     await expect
       .poll(async () => {
-        const edge = (await readStoredDocument(page))?.edges[0];
+        const edge = rootDiagram(await readStoredDocument(page))?.edges[0];
         return {
           type: edge?.type,
           label: edge?.label,
@@ -633,6 +724,176 @@ test.describe("System Design editor", () => {
       });
   });
 
+  test("drills into a module, preserves its child diagram, and navigates with breadcrumbs", async ({
+    authenticatedPage: page,
+  }) => {
+    const document = createDocument({
+      problemId: "url-shortener",
+      title: "URL Shortener",
+      status: "in_progress",
+      nodeCount: 0,
+      withEdge: false,
+      updatedAt: "2026-07-28T09:00:00.000Z",
+    });
+    const root = rootDiagram(document)!;
+    const moduleNode: SystemDesignNode = {
+      id: "analytics-module",
+      type: "module",
+      label: "Analytics Module",
+      description: "Reporting and event processing",
+      isExpandable: true,
+      x: 120,
+      y: 100,
+      width: 220,
+      height: 120,
+      layer: 0,
+      locked: false,
+      visible: true,
+    };
+    document.diagrams[document.rootDiagramId] = {
+      ...root,
+      nodes: [moduleNode],
+    };
+
+    await seedDocuments(page, [document]);
+    await openEditor(page);
+    await expectEditorCounts(page, {
+      nodes: 1,
+      connections: 0,
+      selected: 0,
+    });
+
+    const moduleCenter = await canvasPoint(
+      page,
+      moduleNode.x + moduleNode.width / 2,
+      moduleNode.y + moduleNode.height / 2,
+    );
+    await page.mouse.click(moduleCenter.x, moduleCenter.y);
+    await expect(page.getByText("Module behavior", { exact: true })).toBeVisible();
+
+    await page.mouse.dblclick(moduleCenter.x, moduleCenter.y);
+    await expect(
+      page
+        .getByRole("navigation", { name: "Diagram breadcrumb" })
+        .getByText("Analytics Module", { exact: true }),
+    ).toHaveAttribute("aria-current", "page");
+    await expectEditorCounts(page, {
+      nodes: 0,
+      connections: 0,
+      selected: 0,
+    });
+
+    await page.getByRole("button", { name: "Add Service" }).click();
+    await expectEditorCounts(page, {
+      nodes: 1,
+      connections: 0,
+      selected: 1,
+    });
+    await saveFromToolbar(page);
+
+    await page
+      .getByRole("navigation", { name: "Diagram breadcrumb" })
+      .getByRole("button", { name: "URL Shortener", exact: true })
+      .click();
+    await expectEditorCounts(page, {
+      nodes: 1,
+      connections: 0,
+      selected: 0,
+    });
+
+    await page.mouse.dblclick(moduleCenter.x, moduleCenter.y);
+    await expectEditorCounts(page, {
+      nodes: 1,
+      connections: 0,
+      selected: 0,
+    });
+
+    const stored = await readStoredDocument(page);
+    const storedRoot = rootDiagram(stored);
+    const storedModule = storedRoot?.nodes.find(
+      (node) => node.id === moduleNode.id,
+    );
+    expect(storedModule?.childDiagramId).toBeTruthy();
+    expect(
+      stored?.diagrams[storedModule?.childDiagramId ?? ""]?.nodes,
+    ).toHaveLength(1);
+  });
+
+  test("loads a 100-node, 150-edge architecture with development performance counters", async ({
+    authenticatedPage: page,
+  }) => {
+    test.slow();
+    const fixture = createPerformanceFixture();
+    await seedDocuments(page, [fixture]);
+    await mockProfile(page);
+    await page.goto("/admin/system-design/url-shortener?sdPerf=1");
+    await expect(page.getByTestId("system-design-canvas")).toBeVisible();
+
+    await expectEditorCounts(page, {
+      nodes: 100,
+      connections: 150,
+      selected: 0,
+    });
+    await expect(
+      page.getByTestId("system-design-performance-panel"),
+    ).toBeVisible();
+
+    const beforeDrag = await page.evaluate(
+      () => window.__RECALLSTACK_SYSTEM_DESIGN_PERF__!,
+    );
+    expect(beforeDrag).toEqual(
+      expect.objectContaining({
+        canvasRenders: expect.any(Number),
+        nodeRenders: expect.any(Number),
+        edgeRenders: expect.any(Number),
+        dragFrames: expect.any(Number),
+        edgeGeometryUpdates: expect.any(Number),
+        documentCommits: expect.any(Number),
+        persistenceWrites: expect.any(Number),
+      }),
+    );
+
+    const firstNode = rootDiagram(fixture)!.nodes[0];
+    const start = await canvasPoint(
+      page,
+      firstNode.x + firstNode.width / 2,
+      firstNode.y + firstNode.height / 2,
+    );
+    await page.mouse.click(start.x, start.y);
+    await expectEditorCounts(page, {
+      nodes: 100,
+      connections: 150,
+      selected: 1,
+    });
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(start.x + 72, start.y + 48, { steps: 8 });
+    await page.mouse.up();
+
+    await expect
+      .poll(async () =>
+        page.evaluate(
+          () =>
+            window.__RECALLSTACK_SYSTEM_DESIGN_PERF__
+              ?.lastDragDocumentCommits,
+        ),
+      )
+      .toBe(1);
+    const afterDrag = await page.evaluate(
+      () => window.__RECALLSTACK_SYSTEM_DESIGN_PERF__!,
+    );
+    expect(afterDrag.dragFrames).toBeGreaterThan(beforeDrag.dragFrames);
+    expect(afterDrag.edgeGeometryUpdates).toBeGreaterThan(
+      beforeDrag.edgeGeometryUpdates,
+    );
+    expect(afterDrag.maxEdgesUpdatedInFrame).toBe(3);
+    expect(afterDrag.maxEdgesUpdatedInFrame).toBeLessThan(150);
+    expect(afterDrag.lastDragCanvasRenders).toBe(0);
+    expect(afterDrag.lastDragEdgeRenders).toBe(0);
+    expect(afterDrag.lastDragNodeRenders).toBeLessThanOrEqual(1);
+    expect(afterDrag.lastDragPersistenceWrites).toBe(0);
+  });
+
   test("supports manual save, debounced autosave, and reload restoration", async ({
     authenticatedPage: page,
   }) => {
@@ -642,7 +903,10 @@ test.describe("System Design editor", () => {
     await page.getByRole("button", { name: "Add User" }).click();
     await saveFromToolbar(page);
     await expect
-      .poll(async () => (await readStoredDocument(page))?.nodes.length)
+      .poll(
+        async () =>
+          rootDiagram(await readStoredDocument(page))?.nodes.length,
+      )
       .toBe(1);
 
     await page
@@ -658,9 +922,10 @@ test.describe("System Design editor", () => {
     await expect
       .poll(async () => {
         const stored = await readStoredDocument(page);
+        const diagram = rootDiagram(stored);
         return {
-          nodes: stored?.nodes.length,
-          firstLabel: stored?.nodes[0].label,
+          nodes: diagram?.nodes.length,
+          firstLabel: diagram?.nodes[0].label,
         };
       })
       .toEqual({ nodes: 2, firstLabel: "Persistent User" });
@@ -723,9 +988,10 @@ test.describe("System Design editor", () => {
     await expect
       .poll(async () => {
         const stored = await readStoredDocument(page);
+        const diagram = rootDiagram(stored);
         return {
-          nodes: stored?.nodes.length,
-          edges: stored?.edges.length,
+          nodes: diagram?.nodes.length,
+          edges: diagram?.edges.length,
           status: stored?.status,
         };
       })
@@ -759,13 +1025,13 @@ test.describe("System Design editor", () => {
       await readFile(downloadPath as string, "utf8"),
     ) as SystemDesignDocument;
     expect(exported).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: SYSTEM_DESIGN_SCHEMA_VERSION,
       problemId: "url-shortener",
       title: "URL Shortener",
       status: "completed",
     });
-    expect(exported.nodes).toHaveLength(2);
-    expect(exported.edges).toHaveLength(1);
+    expect(rootDiagram(exported)?.nodes).toHaveLength(2);
+    expect(rootDiagram(exported)?.edges).toHaveLength(1);
 
     await page.locator('input[type="file"][accept*="json"]').setInputFiles({
       name: "invalid-diagram.json",

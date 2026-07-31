@@ -10,6 +10,10 @@ import type {
   SystemDesignDocument,
   SystemDesignLoadStatus,
 } from "../types/system-design.types";
+import {
+  recordSystemDesignDocumentCommit,
+  recordSystemDesignPersistenceWrite,
+} from "../utils/performance-instrumentation";
 
 interface UseSystemDesignPersistenceOptions {
   problemId: string;
@@ -46,9 +50,14 @@ export function useSystemDesignPersistence({
   const activeLoad = useRef(0);
   const [reloadVersion, setReloadVersion] = useState(0);
   const latest = useRef({ document, isDirty, loadStatus });
+  const previousDocumentUpdatedAt = useRef(document.updatedAt);
 
   useEffect(() => {
     latest.current = { document, isDirty, loadStatus };
+    if (previousDocumentUpdatedAt.current !== document.updatedAt) {
+      previousDocumentUpdatedAt.current = document.updatedAt;
+      recordSystemDesignDocumentCommit();
+    }
   }, [document, isDirty, loadStatus]);
 
   useEffect(() => {
@@ -89,6 +98,7 @@ export function useSystemDesignPersistence({
       const documentUpdatedAt = snapshot.updatedAt;
       dispatch(systemDesignEditorActions.saveStarted(documentUpdatedAt));
       try {
+        recordSystemDesignPersistenceWrite();
         await repository.saveDocument(snapshot);
         dispatch(
           systemDesignEditorActions.saveSucceeded(
@@ -123,6 +133,7 @@ export function useSystemDesignPersistence({
       if (current.loadStatus !== "ready" || !current.isDirty) return;
       // The local repository writes synchronously before its promise resolves,
       // so this also protects client-side navigation and page shutdown.
+      recordSystemDesignPersistenceWrite();
       void repository.saveDocument(current.document).catch(() => {
         // Unload/navigation cannot reliably present async errors. The normal
         // manual and debounced save paths surface the same storage failure.

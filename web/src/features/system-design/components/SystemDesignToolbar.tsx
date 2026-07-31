@@ -1,14 +1,34 @@
 "use client";
 
-import { useRef, type ChangeEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type KeyboardEvent,
+} from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
+  AlignHorizontalJustifyCenter,
+  AlignHorizontalJustifyEnd,
+  AlignHorizontalJustifyStart,
+  AlignHorizontalSpaceBetween,
+  AlignVerticalJustifyCenter,
+  AlignVerticalJustifyEnd,
+  AlignVerticalJustifyStart,
+  AlignVerticalSpaceBetween,
   ArrowLeft,
   CheckCircle2,
+  ChevronDown,
   Download,
   Eye,
   EyeOff,
+  Grid3X3,
+  LayoutGrid,
   LocateFixed,
+  Magnet,
   Maximize2,
   Redo2,
   RotateCcw,
@@ -24,6 +44,16 @@ import type { SystemDesignProblem } from "../types/system-design.types";
 import { SystemDesignShortcutHelp } from "./SystemDesignShortcutHelp";
 import type { SystemDesignSaveState } from "./SystemDesignStatusBar";
 
+export type SystemDesignArrangeOperation =
+  | "align-left"
+  | "align-center"
+  | "align-right"
+  | "align-top"
+  | "align-middle"
+  | "align-bottom"
+  | "distribute-horizontal"
+  | "distribute-vertical";
+
 export interface SystemDesignToolbarProps {
   backHref?: string;
   problem: Pick<SystemDesignProblem, "title" | "difficulty">;
@@ -36,6 +66,9 @@ export interface SystemDesignToolbarProps {
   canSave: boolean;
   canMarkComplete: boolean;
   canExport?: boolean;
+  showGrid?: boolean;
+  snapToGrid?: boolean;
+  selectedNodeCount?: number;
   onUndo: () => void;
   onRedo: () => void;
   onSave: () => void;
@@ -48,6 +81,9 @@ export interface SystemDesignToolbarProps {
   onResetViewport: () => void;
   onZoomOut: () => void;
   onZoomIn: () => void;
+  onToggleGrid?: () => void;
+  onToggleSnapToGrid?: () => void;
+  onArrange?: (operation: SystemDesignArrangeOperation) => void;
   className?: string;
 }
 
@@ -56,6 +92,7 @@ interface ToolbarButtonProps {
   onClick: () => void;
   disabled?: boolean;
   emphasized?: boolean;
+  pressed?: boolean;
   children: React.ReactNode;
 }
 
@@ -64,6 +101,7 @@ function ToolbarButton({
   onClick,
   disabled,
   emphasized,
+  pressed,
   children,
 }: ToolbarButtonProps) {
   return (
@@ -75,10 +113,290 @@ function ToolbarButton({
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
+      aria-pressed={pressed}
       title={label}
     >
       {children}
     </button>
+  );
+}
+
+interface ArrangeAction {
+  operation: SystemDesignArrangeOperation;
+  label: string;
+  minimumSelection: number;
+  icon: React.ReactNode;
+}
+
+const ARRANGE_ACTIONS: ArrangeAction[] = [
+  {
+    operation: "align-left",
+    label: "Align left",
+    minimumSelection: 2,
+    icon: <AlignHorizontalJustifyStart className="h-4 w-4" aria-hidden="true" />,
+  },
+  {
+    operation: "align-center",
+    label: "Align horizontal centers",
+    minimumSelection: 2,
+    icon: (
+      <AlignHorizontalJustifyCenter className="h-4 w-4" aria-hidden="true" />
+    ),
+  },
+  {
+    operation: "align-right",
+    label: "Align right",
+    minimumSelection: 2,
+    icon: <AlignHorizontalJustifyEnd className="h-4 w-4" aria-hidden="true" />,
+  },
+  {
+    operation: "align-top",
+    label: "Align top",
+    minimumSelection: 2,
+    icon: <AlignVerticalJustifyStart className="h-4 w-4" aria-hidden="true" />,
+  },
+  {
+    operation: "align-middle",
+    label: "Align vertical centers",
+    minimumSelection: 2,
+    icon: (
+      <AlignVerticalJustifyCenter className="h-4 w-4" aria-hidden="true" />
+    ),
+  },
+  {
+    operation: "align-bottom",
+    label: "Align bottom",
+    minimumSelection: 2,
+    icon: <AlignVerticalJustifyEnd className="h-4 w-4" aria-hidden="true" />,
+  },
+  {
+    operation: "distribute-horizontal",
+    label: "Distribute horizontally",
+    minimumSelection: 3,
+    icon: <AlignHorizontalSpaceBetween className="h-4 w-4" aria-hidden="true" />,
+  },
+  {
+    operation: "distribute-vertical",
+    label: "Distribute vertically",
+    minimumSelection: 3,
+    icon: <AlignVerticalSpaceBetween className="h-4 w-4" aria-hidden="true" />,
+  },
+];
+
+function ArrangeMenu({
+  selectedNodeCount,
+  onArrange,
+}: {
+  selectedNodeCount: number;
+  onArrange?: (operation: SystemDesignArrangeOperation) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState({ left: 0, top: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const focusLastOnOpenRef = useRef(false);
+  const enabled = selectedNodeCount >= 2 && Boolean(onArrange);
+  const menuOpen = open && enabled;
+
+  const positionMenu = useCallback(() => {
+    const bounds = buttonRef.current?.getBoundingClientRect();
+    if (!bounds) return;
+    const menuWidth = 224;
+    setPosition({
+      left: Math.max(
+        8,
+        Math.min(bounds.right - menuWidth, window.innerWidth - menuWidth - 8),
+      ),
+      top: bounds.bottom + 4,
+    });
+  }, []);
+
+  const openMenu = useCallback(
+    (focusLast = false) => {
+      if (!enabled) return;
+      focusLastOnOpenRef.current = focusLast;
+      positionMenu();
+      setOpen(true);
+    },
+    [enabled, positionMenu],
+  );
+
+  const closeMenu = useCallback((restoreFocus = false) => {
+    setOpen(false);
+    if (restoreFocus) {
+      window.requestAnimationFrame(() => buttonRef.current?.focus());
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (
+        buttonRef.current?.contains(target) ||
+        menuRef.current?.contains(target)
+      ) {
+        return;
+      }
+      closeMenu();
+    };
+    const handleEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") closeMenu(true);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+    window.addEventListener("resize", positionMenu);
+    window.addEventListener("scroll", positionMenu, true);
+
+    const focusFrame = window.requestAnimationFrame(() => {
+      const items = menuRef.current?.querySelectorAll<HTMLButtonElement>(
+        '[role="menuitem"]:not(:disabled)',
+      );
+      const item = focusLastOnOpenRef.current
+        ? items?.[items.length - 1]
+        : items?.[0];
+      item?.focus();
+    });
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+      window.removeEventListener("resize", positionMenu);
+      window.removeEventListener("scroll", positionMenu, true);
+      window.cancelAnimationFrame(focusFrame);
+    };
+  }, [closeMenu, menuOpen, positionMenu]);
+
+  const handleMenuKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const items = Array.from(
+      menuRef.current?.querySelectorAll<HTMLButtonElement>(
+        '[role="menuitem"]:not(:disabled)',
+      ) ?? [],
+    );
+    if (items.length === 0) return;
+
+    const currentIndex = items.findIndex(
+      (item) => item === document.activeElement,
+    );
+    let nextIndex: number | null = null;
+    if (event.key === "ArrowDown") {
+      nextIndex = (currentIndex + 1) % items.length;
+    } else if (event.key === "ArrowUp") {
+      nextIndex = (currentIndex - 1 + items.length) % items.length;
+    } else if (event.key === "Home") {
+      nextIndex = 0;
+    } else if (event.key === "End") {
+      nextIndex = items.length - 1;
+    } else if (event.key === "Tab") {
+      closeMenu();
+    }
+
+    if (nextIndex !== null) {
+      event.preventDefault();
+      items[nextIndex]?.focus();
+    }
+  };
+
+  const menu =
+    menuOpen && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            ref={menuRef}
+            id="system-design-arrange-menu"
+            role="menu"
+            aria-label="Arrange selected components"
+            className="fixed z-[100] w-56 rounded-lg border border-border bg-surface p-1 shadow-2xl"
+            style={position}
+            onKeyDown={handleMenuKeyDown}
+          >
+            <p className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
+              Align
+            </p>
+            {ARRANGE_ACTIONS.slice(0, 6).map((action) => (
+              <button
+                key={action.operation}
+                type="button"
+                role="menuitem"
+                className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-foreground transition hover:bg-surface-elevated focus-visible:bg-surface-elevated focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={selectedNodeCount < action.minimumSelection}
+                onClick={() => {
+                  onArrange?.(action.operation);
+                  closeMenu(true);
+                }}
+              >
+                {action.icon}
+                {action.label}
+              </button>
+            ))}
+            <div className="my-1 h-px bg-border" role="separator" />
+            <p className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
+              Distribute
+            </p>
+            {ARRANGE_ACTIONS.slice(6).map((action) => (
+              <button
+                key={action.operation}
+                type="button"
+                role="menuitem"
+                className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-foreground transition hover:bg-surface-elevated focus-visible:bg-surface-elevated focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={selectedNodeCount < action.minimumSelection}
+                onClick={() => {
+                  onArrange?.(action.operation);
+                  closeMenu(true);
+                }}
+              >
+                {action.icon}
+                {action.label}
+              </button>
+            ))}
+            {selectedNodeCount < 3 && (
+              <p className="px-2 py-1.5 text-[10px] leading-4 text-muted">
+                Select at least three components to distribute them.
+              </p>
+            )}
+          </div>,
+          document.body,
+        )
+      : null;
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        className={`${buttonClass} h-8 min-h-8 gap-1.5 px-2`}
+        disabled={!enabled}
+        aria-label="Arrange selected components"
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+        aria-controls={menuOpen ? "system-design-arrange-menu" : undefined}
+        title={
+          selectedNodeCount < 2
+            ? "Select at least two components to arrange them"
+            : "Arrange selected components"
+        }
+        onClick={() => {
+          if (menuOpen) closeMenu();
+          else openMenu();
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            openMenu();
+          } else if (event.key === "ArrowUp") {
+            event.preventDefault();
+            openMenu(true);
+          }
+        }}
+      >
+        <LayoutGrid className="h-4 w-4" aria-hidden="true" />
+        <span className="hidden 2xl:inline">Arrange</span>
+        <ChevronDown className="h-3 w-3" aria-hidden="true" />
+      </button>
+      {menu}
+    </>
   );
 }
 
@@ -102,6 +420,9 @@ export function SystemDesignToolbar({
   canSave,
   canMarkComplete,
   canExport = true,
+  showGrid = true,
+  snapToGrid = false,
+  selectedNodeCount = 0,
   onUndo,
   onRedo,
   onSave,
@@ -114,6 +435,9 @@ export function SystemDesignToolbar({
   onResetViewport,
   onZoomOut,
   onZoomIn,
+  onToggleGrid,
+  onToggleSnapToGrid,
+  onArrange,
   className = "",
 }: SystemDesignToolbarProps) {
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -200,6 +524,35 @@ export function SystemDesignToolbar({
               <Eye className="h-4 w-4" aria-hidden="true" />
               <span className="hidden xl:inline">Preview</span>
             </ToolbarButton>
+          </div>
+
+          <div className="h-6 w-px shrink-0 bg-border" aria-hidden="true" />
+
+          <div className="flex items-center gap-1">
+            <ToolbarButton
+              label={showGrid ? "Hide grid" : "Show grid"}
+              onClick={() => onToggleGrid?.()}
+              disabled={!onToggleGrid}
+              emphasized={showGrid}
+              pressed={showGrid}
+            >
+              <Grid3X3 className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden 2xl:inline">Grid</span>
+            </ToolbarButton>
+            <ToolbarButton
+              label={snapToGrid ? "Disable snap to grid" : "Enable snap to grid"}
+              onClick={() => onToggleSnapToGrid?.()}
+              disabled={!onToggleSnapToGrid}
+              emphasized={snapToGrid}
+              pressed={snapToGrid}
+            >
+              <Magnet className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden 2xl:inline">Snap</span>
+            </ToolbarButton>
+            <ArrangeMenu
+              selectedNodeCount={selectedNodeCount}
+              onArrange={onArrange}
+            />
           </div>
 
           <div className="h-6 w-px shrink-0 bg-border" aria-hidden="true" />

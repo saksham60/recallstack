@@ -7,6 +7,7 @@ export default defineConfig({
   testDir: './e2e',
   testIgnore: [
     '**/system-design-disabled.spec.ts',
+    '**/system-design-model.spec.ts',
     '**/system-design-state.spec.ts',
   ],
   fullyParallel: true,

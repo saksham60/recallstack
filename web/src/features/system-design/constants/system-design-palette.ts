@@ -31,6 +31,11 @@ export const SYSTEM_DESIGN_NODE_TYPE_ORDER = [
   "third_party_api",
   "payment_provider",
   "notification_provider",
+  "module",
+  "system_boundary",
+  "container",
+  "text",
+  "note",
 ] as const satisfies readonly SystemDesignNodeType[];
 
 export const SYSTEM_DESIGN_NODE_DEFINITIONS = {
@@ -259,6 +264,54 @@ export const SYSTEM_DESIGN_NODE_DEFINITIONS = {
     defaultWidth: 190,
     defaultHeight: 88,
   },
+  module: {
+    type: "module",
+    category: "architecture",
+    label: "Module",
+    tooltip:
+      "An expandable logical subsystem that can contain its own architecture diagram.",
+    iconKey: "boxes",
+    defaultWidth: 220,
+    defaultHeight: 120,
+  },
+  system_boundary: {
+    type: "system_boundary",
+    category: "architecture",
+    label: "System Boundary",
+    tooltip:
+      "A labeled trust, ownership, or deployment boundary around related components.",
+    iconKey: "box",
+    defaultWidth: 320,
+    defaultHeight: 220,
+  },
+  container: {
+    type: "container",
+    category: "architecture",
+    label: "Container",
+    tooltip:
+      "A visual container for services that share a runtime or deployment unit.",
+    iconKey: "boxes",
+    defaultWidth: 260,
+    defaultHeight: 180,
+  },
+  text: {
+    type: "text",
+    category: "annotations",
+    label: "Free Text",
+    tooltip: "A lightweight text annotation for explaining architectural decisions.",
+    iconKey: "box",
+    defaultWidth: 180,
+    defaultHeight: 72,
+  },
+  note: {
+    type: "note",
+    category: "annotations",
+    label: "Note",
+    tooltip: "A sticky note for assumptions, risks, and design trade-offs.",
+    iconKey: "box",
+    defaultWidth: 180,
+    defaultHeight: 120,
+  },
 } as const satisfies Record<SystemDesignNodeType, SystemDesignNodeDefinition>;
 
 const CATEGORY_ORDER = [
@@ -268,6 +321,8 @@ const CATEGORY_ORDER = [
   ["data", "Data"],
   ["messaging", "Messaging"],
   ["external", "External"],
+  ["architecture", "Architecture"],
+  ["annotations", "Annotations"],
 ] as const satisfies readonly (readonly [SystemDesignNodeCategory, string])[];
 
 export const SYSTEM_DESIGN_PALETTE_CATEGORIES: readonly SystemDesignPaletteCategory[] =

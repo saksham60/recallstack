@@ -9,6 +9,7 @@ import {
 import { useMemo, useState, type DragEvent } from "react";
 import { inputClass } from "@/features/admin/components/AdminPrimitives";
 import { SYSTEM_DESIGN_PALETTE_CATEGORIES } from "../constants/system-design-palette";
+import { getSystemDesignNodeVisual } from "../constants/system-design-visual-registry";
 import type { SystemDesignNodeType } from "../types/system-design.types";
 import { SystemDesignNodeIcon } from "./SystemDesignIcons";
 
@@ -94,46 +95,56 @@ export function SystemDesignPalette({
                   />
                 </summary>
                 <div className="space-y-1 pb-2">
-                  {category.items.map((item) => (
-                    <button
-                      key={item.type}
-                      type="button"
-                      draggable={!disabled}
-                      disabled={disabled}
-                      className="group/item flex w-full items-center gap-2 rounded-md border border-transparent px-2 py-2 text-left text-xs text-foreground transition hover:border-border hover:bg-surface-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50"
-                      title={item.tooltip}
-                      aria-label={`Add ${item.label}`}
-                      onClick={() => onAddNode(item.type)}
-                      onDragStart={(event) => {
-                        event.dataTransfer.effectAllowed = "copy";
-                        event.dataTransfer.setData(
-                          SYSTEM_DESIGN_NODE_DRAG_MIME,
-                          item.type,
-                        );
-                        event.dataTransfer.setData("text/plain", item.type);
-                        onDragStart?.(event, item.type);
-                      }}
-                      onDragEnd={(event) => onDragEnd?.(event, item.type)}
-                    >
-                      <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background text-accent transition group-hover/item:border-accent/50">
-                        <SystemDesignNodeIcon
-                          type={item.type}
-                          className="h-4 w-4"
+                  {category.items.map((item) => {
+                    const visual = getSystemDesignNodeVisual(item.type);
+                    return (
+                      <button
+                        key={item.type}
+                        type="button"
+                        draggable={!disabled}
+                        disabled={disabled}
+                        className="group/item flex w-full items-center gap-2 rounded-md border border-transparent px-2 py-2 text-left text-xs text-foreground transition hover:border-border hover:bg-surface-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50"
+                        title={item.tooltip}
+                        aria-label={`Add ${item.label}`}
+                        onClick={() => onAddNode(item.type)}
+                        onDragStart={(event) => {
+                          event.dataTransfer.effectAllowed = "copy";
+                          event.dataTransfer.setData(
+                            SYSTEM_DESIGN_NODE_DRAG_MIME,
+                            item.type,
+                          );
+                          event.dataTransfer.setData("text/plain", item.type);
+                          onDragStart?.(event, item.type);
+                        }}
+                        onDragEnd={(event) => onDragEnd?.(event, item.type)}
+                      >
+                        <span
+                          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border bg-background transition"
+                          style={{
+                            borderColor: `${visual.accent}66`,
+                            color: visual.accent,
+                            boxShadow: `inset 0 0 0 1px ${visual.softAccent}`,
+                          }}
+                        >
+                          <SystemDesignNodeIcon
+                            type={item.type}
+                            className="h-4 w-4"
+                          />
+                        </span>
+                        <span className="min-w-0 flex-1 truncate font-medium">
+                          {item.label}
+                        </span>
+                        <GripVertical
+                          className="h-3.5 w-3.5 shrink-0 text-muted opacity-60"
+                          aria-hidden="true"
                         />
-                      </span>
-                      <span className="min-w-0 flex-1 truncate font-medium">
-                        {item.label}
-                      </span>
-                      <GripVertical
-                        className="h-3.5 w-3.5 shrink-0 text-muted opacity-60"
-                        aria-hidden="true"
-                      />
-                      <Plus
-                        className="hidden h-3.5 w-3.5 shrink-0 text-accent group-hover/item:block"
-                        aria-hidden="true"
-                      />
-                    </button>
-                  ))}
+                        <Plus
+                          className="hidden h-3.5 w-3.5 shrink-0 text-accent group-hover/item:block"
+                          aria-hidden="true"
+                        />
+                      </button>
+                    );
+                  })}
                 </div>
               </details>
             ))}

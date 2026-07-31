@@ -24,6 +24,13 @@ export type SystemDesignEditorAction =
       persisted: boolean;
     }
   | { type: "load/failure"; message: string }
+  | { type: "diagram/activate"; diagramId: string }
+  | {
+      type: "module/open-or-create";
+      nodeId: string;
+      childDiagramId?: string;
+      at: string;
+    }
   | { type: "node/add"; node: SystemDesignNode; at: string }
   | {
       type: "node/update";
@@ -127,6 +134,22 @@ export const systemDesignEditorActions = {
   loadFailure: (message: string): SystemDesignEditorAction => ({
     type: "load/failure",
     message,
+  }),
+  activateDiagram: (diagramId: string): SystemDesignEditorAction => ({
+    type: "diagram/activate",
+    diagramId,
+  }),
+  openOrCreateModule: (
+    nodeId: string,
+    options: {
+      childDiagramId?: string;
+      at?: string;
+    } = {},
+  ): SystemDesignEditorAction => ({
+    type: "module/open-or-create",
+    nodeId,
+    childDiagramId: options.childDiagramId,
+    at: now(options.at),
   }),
   addNode: (
     node: SystemDesignNode,

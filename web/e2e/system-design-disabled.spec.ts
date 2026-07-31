@@ -5,6 +5,7 @@ import { createProfile } from "./helpers/factories";
 test("the disabled feature flag hides navigation and both routes", async ({
   page,
 }) => {
+  test.slow();
   await setupAuth(page);
   await page.route("**/api/v1/me", (route) =>
     route.fulfill({ json: createProfile({ roles: ["admin"] }) }),

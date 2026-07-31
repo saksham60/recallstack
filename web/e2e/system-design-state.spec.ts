@@ -7,8 +7,10 @@ import {
 } from "../src/features/system-design/state/system-design-editor-reducer";
 import {
   SYSTEM_DESIGN_SCHEMA_VERSION,
+  type SystemDesignDiagram,
   type SystemDesignDocument,
   type SystemDesignEdge,
+  type SystemDesignEditorState,
   type SystemDesignNode,
 } from "../src/features/system-design/types/system-design.types";
 import {
@@ -62,17 +64,47 @@ function createDocument(
   edges: SystemDesignEdge[] = [],
   updatedAt = timestamp(0),
 ): SystemDesignDocument {
+  const rootDiagramId = "diagram-url-shortener";
   return {
     schemaVersion: SYSTEM_DESIGN_SCHEMA_VERSION,
-    id: "diagram-url-shortener",
+    id: "document-url-shortener",
     problemId: "url-shortener",
     title: "URL Shortener",
     status: "in_progress",
-    nodes,
-    edges,
-    viewport: { x: 0, y: 0, zoom: 1 },
+    rootDiagramId,
+    diagrams: {
+      [rootDiagramId]: {
+        id: rootDiagramId,
+        name: "URL Shortener",
+        nodes,
+        edges,
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    },
     createdAt: timestamp(0),
     updatedAt,
+  };
+}
+
+function rootDiagram(document: SystemDesignDocument): SystemDesignDiagram {
+  return document.diagrams[document.rootDiagramId];
+}
+
+function activeDiagram(state: SystemDesignEditorState): SystemDesignDiagram {
+  return state.document.diagrams[state.activeDiagramId];
+}
+
+function withRootDiagram(
+  document: SystemDesignDocument,
+  changes: Partial<SystemDesignDiagram>,
+): SystemDesignDocument {
+  const diagram = rootDiagram(document);
+  return {
+    ...document,
+    diagrams: {
+      ...document.diagrams,
+      [document.rootDiagramId]: { ...diagram, ...changes },
+    },
   };
 }
 
@@ -124,7 +156,7 @@ test.describe("system-design editor reducer", () => {
       state,
       systemDesignEditorActions.addNode(api, timestamp(1)),
     );
-    expect(state.document.nodes).toHaveLength(1);
+    expect(activeDiagram(state).nodes).toHaveLength(1);
     expect(state.selectedNodeIds).toEqual(["node-api"]);
 
     state = systemDesignEditorReducer(
@@ -134,19 +166,33 @@ test.describe("system-design editor reducer", () => {
         timestamp(2),
       ),
     );
-    expect(state.document.nodes[0]).toMatchObject({ x: 180, y: 220 });
+    expect(activeDiagram(state).nodes[0]).toMatchObject({
+      x: 180,
+      y: 220,
+    });
 
     state = systemDesignEditorReducer(
       state,
       systemDesignEditorActions.updateNode(
         "node-api",
-        { label: "Gateway", technology: "Kong" },
+        {
+          label: "Gateway",
+          technology: {
+            id: "kong",
+            name: "Kong",
+            category: "networking",
+          },
+        },
         timestamp(3),
       ),
     );
-    expect(state.document.nodes[0]).toMatchObject({
+    expect(activeDiagram(state).nodes[0]).toMatchObject({
       label: "Gateway",
-      technology: "Kong",
+      technology: {
+        id: "kong",
+        name: "Kong",
+        category: "networking",
+      },
     });
 
     state = systemDesignEditorReducer(
@@ -168,7 +214,7 @@ test.describe("system-design editor reducer", () => {
         timestamp(6),
       ),
     );
-    expect(state.document.edges[0]).toMatchObject({
+    expect(activeDiagram(state).edges[0]).toMatchObject({
       type: "data",
       label: "Read/write",
       protocol: "SQL",
@@ -178,15 +224,17 @@ test.describe("system-design editor reducer", () => {
       state,
       systemDesignEditorActions.deleteNodes(["node-api"], timestamp(7)),
     );
-    expect(state.document.nodes.map((node) => node.id)).toEqual(["node-db"]);
-    expect(state.document.edges).toHaveLength(0);
+    expect(activeDiagram(state).nodes.map((node) => node.id)).toEqual([
+      "node-db",
+    ]);
+    expect(activeDiagram(state).edges).toHaveLength(0);
 
     state = systemDesignEditorReducer(
       state,
       systemDesignEditorActions.undo(),
     );
-    expect(state.document.nodes).toHaveLength(2);
-    expect(state.document.edges[0]).toMatchObject({
+    expect(activeDiagram(state).nodes).toHaveLength(2);
+    expect(activeDiagram(state).edges[0]).toMatchObject({
       id: "edge-api-db",
       type: "data",
     });
@@ -195,8 +243,10 @@ test.describe("system-design editor reducer", () => {
       state,
       systemDesignEditorActions.redo(),
     );
-    expect(state.document.nodes.map((node) => node.id)).toEqual(["node-db"]);
-    expect(state.document.edges).toHaveLength(0);
+    expect(activeDiagram(state).nodes.map((node) => node.id)).toEqual([
+      "node-db",
+    ]);
+    expect(activeDiagram(state).edges).toHaveLength(0);
   });
 
   test("caps meaningful undo history at fifty documents", () => {
@@ -216,7 +266,7 @@ test.describe("system-design editor reducer", () => {
     }
 
     expect(state.history).toHaveLength(50);
-    expect(state.document.nodes[0].label).toBe("Revision 59");
+    expect(activeDiagram(state).nodes[0].label).toBe("Revision 59");
 
     for (let index = 0; index < 50; index += 1) {
       state = systemDesignEditorReducer(
@@ -226,7 +276,7 @@ test.describe("system-design editor reducer", () => {
     }
     expect(state.history).toHaveLength(0);
     expect(state.future).toHaveLength(50);
-    expect(state.document.nodes[0].label).toBe("Revision 9");
+    expect(activeDiagram(state).nodes[0].label).toBe("Revision 9");
   });
 
   test("copies, pastes, and duplicates node groups with internal edges", () => {
@@ -263,16 +313,20 @@ test.describe("system-design editor reducer", () => {
         at: timestamp(1),
       }),
     );
-    expect(state.document.nodes).toHaveLength(4);
+    expect(activeDiagram(state).nodes).toHaveLength(4);
     expect(state.selectedNodeIds).toEqual([
       "node-client-copy",
       "node-api-copy",
     ]);
     expect(
-      state.document.nodes.find((node) => node.id === "node-client-copy"),
+      activeDiagram(state).nodes.find(
+        (node) => node.id === "node-client-copy",
+      ),
     ).toMatchObject({ x: 52, y: 62 });
     expect(
-      state.document.edges.find((candidate) => candidate.id === "edge-client-api-copy"),
+      activeDiagram(state).edges.find(
+        (candidate) => candidate.id === "edge-client-api-copy",
+      ),
     ).toMatchObject({
       sourceNodeId: "node-client-copy",
       targetNodeId: "node-api-copy",
@@ -292,16 +346,386 @@ test.describe("system-design editor reducer", () => {
         at: timestamp(2),
       }),
     );
-    expect(state.document.nodes).toHaveLength(6);
-    expect(state.document.edges).toHaveLength(3);
+    expect(activeDiagram(state).nodes).toHaveLength(6);
+    expect(activeDiagram(state).edges).toHaveLength(3);
     expect(
-      state.document.edges.find(
+      activeDiagram(state).edges.find(
         (candidate) => candidate.id === "edge-client-api-duplicate",
       ),
     ).toMatchObject({
       sourceNodeId: "node-client-duplicate",
       targetNodeId: "node-api-duplicate",
     });
+  });
+
+  test("copy/paste deep-clones a module's complete diagram hierarchy", () => {
+    const authenticationModule = {
+      ...createNode("node-auth", 80, 100, "Authentication"),
+      type: "module" as const,
+      width: 240,
+      height: 136,
+      isExpandable: true,
+    };
+    let state = createSystemDesignEditorState(createDocument());
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.addNode(
+        authenticationModule,
+        timestamp(1),
+      ),
+    );
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.openOrCreateModule(
+        authenticationModule.id,
+        { childDiagramId: "diagram-auth", at: timestamp(2) },
+      ),
+    );
+
+    const api = {
+      ...createNode("node-auth-api", 80, 100, "Auth API"),
+      parentModuleId: authenticationModule.id,
+    };
+    const notificationModule = {
+      ...createNode(
+        "node-notification-module",
+        320,
+        100,
+        "Notification",
+      ),
+      type: "module" as const,
+      isExpandable: true,
+      parentModuleId: authenticationModule.id,
+      layer: 1,
+    };
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.addNode(api, timestamp(3)),
+    );
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.addNode(
+        notificationModule,
+        timestamp(4),
+      ),
+    );
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.addEdge(
+        createEdge(
+          "edge-auth-notification",
+          api.id,
+          notificationModule.id,
+        ),
+        timestamp(5),
+      ),
+    );
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.openOrCreateModule(
+        notificationModule.id,
+        {
+          childDiagramId: "diagram-notification",
+          at: timestamp(6),
+        },
+      ),
+    );
+    const worker = {
+      ...createNode("node-email-worker", 100, 120, "Email Worker"),
+      parentModuleId: notificationModule.id,
+    };
+    const queue = {
+      ...createNode("node-email-queue", 340, 120, "Email Queue"),
+      type: "message_queue" as const,
+      parentModuleId: notificationModule.id,
+      layer: 1,
+    };
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.addNode(worker, timestamp(7)),
+    );
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.addNode(queue, timestamp(8)),
+    );
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.addEdge(
+        createEdge("edge-worker-queue", worker.id, queue.id),
+        timestamp(9),
+      ),
+    );
+
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.activateDiagram(
+        state.document.rootDiagramId,
+      ),
+    );
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.selectNodes(
+        [authenticationModule.id],
+        "replace",
+      ),
+    );
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.copySelection(),
+    );
+    const historyAfterCopy = state.history.length;
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.pasteClipboard({
+        nodeIdMap: { "node-auth": "node-auth-copy" },
+        at: timestamp(10),
+      }),
+    );
+
+    expect(state.history).toHaveLength(historyAfterCopy + 1);
+    const originalModule = rootDiagram(state.document).nodes.find(
+      (node) => node.id === authenticationModule.id,
+    )!;
+    const copiedModule = rootDiagram(state.document).nodes.find(
+      (node) => node.id === "node-auth-copy",
+    )!;
+    expect(copiedModule.childDiagramId).toBeTruthy();
+    expect(copiedModule.childDiagramId).not.toBe(
+      originalModule.childDiagramId,
+    );
+
+    const originalAuthDiagram =
+      state.document.diagrams[originalModule.childDiagramId!];
+    const copiedAuthDiagram =
+      state.document.diagrams[copiedModule.childDiagramId!];
+    expect(copiedAuthDiagram).not.toBe(originalAuthDiagram);
+    expect(copiedAuthDiagram).toMatchObject({
+      name: "Authentication",
+      parentNodeId: copiedModule.id,
+    });
+    expect(
+      copiedAuthDiagram.nodes.every(
+        (node) => node.parentModuleId === copiedModule.id,
+      ),
+    ).toBe(true);
+    const originalAuthNodeIds = new Set(
+      originalAuthDiagram.nodes.map((node) => node.id),
+    );
+    expect(
+      copiedAuthDiagram.nodes.every(
+        (node) => !originalAuthNodeIds.has(node.id),
+      ),
+    ).toBe(true);
+    expect(copiedAuthDiagram.edges).toHaveLength(1);
+    expect(copiedAuthDiagram.edges[0].id).not.toBe(
+      originalAuthDiagram.edges[0].id,
+    );
+    expect(
+      copiedAuthDiagram.nodes.some(
+        (node) =>
+          node.id === copiedAuthDiagram.edges[0].sourceNodeId,
+      ),
+    ).toBe(true);
+    expect(
+      copiedAuthDiagram.nodes.some(
+        (node) =>
+          node.id === copiedAuthDiagram.edges[0].targetNodeId,
+      ),
+    ).toBe(true);
+
+    const originalNestedModule = originalAuthDiagram.nodes.find(
+      (node) => node.label === "Notification",
+    )!;
+    const copiedNestedModule = copiedAuthDiagram.nodes.find(
+      (node) => node.label === "Notification",
+    )!;
+    expect(copiedNestedModule.childDiagramId).toBeTruthy();
+    expect(copiedNestedModule.childDiagramId).not.toBe(
+      originalNestedModule.childDiagramId,
+    );
+    const originalNestedDiagram =
+      state.document.diagrams[originalNestedModule.childDiagramId!];
+    const copiedNestedDiagram =
+      state.document.diagrams[copiedNestedModule.childDiagramId!];
+    expect(copiedNestedDiagram).not.toBe(originalNestedDiagram);
+    expect(copiedNestedDiagram.parentNodeId).toBe(
+      copiedNestedModule.id,
+    );
+    expect(
+      copiedNestedDiagram.nodes.every(
+        (node) => node.parentModuleId === copiedNestedModule.id,
+      ),
+    ).toBe(true);
+    expect(copiedNestedDiagram.edges[0].id).not.toBe(
+      originalNestedDiagram.edges[0].id,
+    );
+  });
+
+  test("renaming a module renames its breadcrumb diagram in one history entry", () => {
+    const moduleNode = {
+      ...createNode("node-search", 80, 100, "Search"),
+      type: "module" as const,
+      isExpandable: true,
+    };
+    let state = createSystemDesignEditorState(createDocument());
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.addNode(moduleNode, timestamp(1)),
+    );
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.openOrCreateModule(moduleNode.id, {
+        childDiagramId: "diagram-search",
+        at: timestamp(2),
+      }),
+    );
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.activateDiagram(
+        state.document.rootDiagramId,
+      ),
+    );
+    const historyBeforeRename = state.history.length;
+
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.updateNode(
+        moduleNode.id,
+        { label: "Discovery Platform" },
+        timestamp(3),
+      ),
+    );
+
+    expect(rootDiagram(state.document).nodes[0].label).toBe(
+      "Discovery Platform",
+    );
+    expect(state.document.diagrams["diagram-search"].name).toBe(
+      "Discovery Platform",
+    );
+    expect(state.history).toHaveLength(historyBeforeRename + 1);
+
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.undo(),
+    );
+    expect(rootDiagram(state.document).nodes[0].label).toBe("Search");
+    expect(state.document.diagrams["diagram-search"].name).toBe(
+      "Search",
+    );
+  });
+
+  test("creates, revisits, and recursively deletes nested module diagrams", () => {
+    const rootDiagramId = createDocument().rootDiagramId;
+    const authenticationModule = {
+      ...createNode("node-auth", 80, 100, "Authentication"),
+      type: "module" as const,
+      width: 240,
+      height: 136,
+      isExpandable: true,
+    };
+    let state = createSystemDesignEditorState(createDocument());
+
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.addNode(
+        authenticationModule,
+        timestamp(1),
+      ),
+    );
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.openOrCreateModule(
+        authenticationModule.id,
+        { childDiagramId: "diagram-auth", at: timestamp(2) },
+      ),
+    );
+
+    expect(state.activeDiagramId).toBe("diagram-auth");
+    expect(rootDiagram(state.document).nodes[0]).toMatchObject({
+      id: authenticationModule.id,
+      childDiagramId: "diagram-auth",
+      isExpandable: true,
+      isCollapsed: false,
+    });
+    expect(activeDiagram(state)).toMatchObject({
+      id: "diagram-auth",
+      name: "Authentication",
+      parentNodeId: authenticationModule.id,
+    });
+
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.addNode(
+        createNode("node-token-service", 100, 120, "Token Service"),
+        timestamp(3),
+      ),
+    );
+    const tokenModule = {
+      ...createNode("node-token-module", 340, 120, "Token Platform"),
+      type: "module" as const,
+      isExpandable: true,
+    };
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.addNode(tokenModule, timestamp(4)),
+    );
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.openOrCreateModule(tokenModule.id, {
+        childDiagramId: "diagram-token-platform",
+        at: timestamp(5),
+      }),
+    );
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.addNode(
+        createNode("node-signing-worker", 120, 100, "Signing Worker"),
+        timestamp(6),
+      ),
+    );
+
+    const nestedDocument = state.document;
+    const historyLength = state.history.length;
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.activateDiagram(rootDiagramId),
+    );
+    expect(state.document).toBe(nestedDocument);
+    expect(state.history).toHaveLength(historyLength);
+    expect(state.activeDiagramId).toBe(rootDiagramId);
+
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.activateDiagram("diagram-auth"),
+    );
+    expect(activeDiagram(state).nodes.map((node) => node.id)).toEqual([
+      "node-token-service",
+      "node-token-module",
+    ]);
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.openOrCreateModule(tokenModule.id, {
+        at: timestamp(7),
+      }),
+    );
+    expect(state.activeDiagramId).toBe("diagram-token-platform");
+    expect(activeDiagram(state).nodes[0].label).toBe("Signing Worker");
+    expect(state.document).toBe(nestedDocument);
+    expect(state.history).toHaveLength(historyLength);
+
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.activateDiagram(rootDiagramId),
+    );
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.deleteNodes(
+        [authenticationModule.id],
+        timestamp(8),
+      ),
+    );
+    expect(rootDiagram(state.document).nodes).toHaveLength(0);
+    expect(Object.keys(state.document.diagrams)).toEqual([rootDiagramId]);
   });
 
   test("blocks edits in preview while allowing viewport changes", () => {
@@ -347,7 +771,7 @@ test.describe("system-design editor reducer", () => {
         timestamp(5),
       ),
     );
-    expect(state.document.viewport).toEqual({
+    expect(activeDiagram(state).viewport).toEqual({
       x: -120,
       y: 80,
       zoom: 1.5,
@@ -386,8 +810,8 @@ test.describe("system-design editor reducer", () => {
       state,
       systemDesignEditorActions.undo(),
     );
-    expect(state.document.nodes).toHaveLength(0);
-    expect(state.document.viewport).toEqual({
+    expect(activeDiagram(state).nodes).toHaveLength(0);
+    expect(activeDiagram(state).viewport).toEqual({
       x: 140,
       y: -70,
       zoom: 1.4,
@@ -423,8 +847,8 @@ test.describe("system-design editor reducer", () => {
       state,
       systemDesignEditorActions.undo(),
     );
-    expect(state.document.nodes[0].label).toBe("node-api");
-    expect(state.document.viewport).toEqual({
+    expect(activeDiagram(state).nodes[0].label).toBe("node-api");
+    expect(activeDiagram(state).viewport).toEqual({
       x: 180,
       y: -90,
       zoom: 1.5,
@@ -441,8 +865,8 @@ test.describe("system-design editor reducer", () => {
       state,
       systemDesignEditorActions.redo(),
     );
-    expect(state.document.nodes[0].label).toBe("Renamed API");
-    expect(state.document.viewport).toEqual({
+    expect(activeDiagram(state).nodes[0].label).toBe("Renamed API");
+    expect(activeDiagram(state).viewport).toEqual({
       x: 220,
       y: -110,
       zoom: 1.6,
@@ -473,7 +897,7 @@ test.describe("system-design editor reducer", () => {
       ),
     );
 
-    expect(state.document.nodes[0]).toMatchObject({
+    expect(activeDiagram(state).nodes[0]).toMatchObject({
       label: "Locked API",
       x: lockedNode.x,
       y: lockedNode.y,
@@ -619,7 +1043,9 @@ test.describe("system-design import and validation", () => {
     );
 
     const json = serializeSystemDesignDocument(document);
-    expect(json).toContain('\n  "schemaVersion": 1');
+    expect(json).toContain(
+      `\n  "schemaVersion": ${SYSTEM_DESIGN_SCHEMA_VERSION}`,
+    );
     expect(
       parseSystemDesignDocumentJson(json, document.problemId),
     ).toEqual(document);
@@ -638,17 +1064,62 @@ test.describe("system-design import and validation", () => {
     );
     const invalidSchema = {
       ...createDocument(),
-      schemaVersion: 2,
+      schemaVersion: 999,
     };
     expect(validationIssuePaths(invalidSchema)).toContain("$.schemaVersion");
   });
 
-  test("rejects unsupported node types", () => {
-    const invalidType = {
-      ...createDocument(),
-      nodes: [{ ...createNode("node-api"), type: "unsupported_component" }],
+  test("migrates a schema-v1 document into a canonical multi-diagram document", () => {
+    const legacyNode = {
+      ...createNode("node-cache"),
+      type: "cache",
+      technology: "Redis",
     };
-    expect(validationIssuePaths(invalidType)).toContain("$.nodes[0].type");
+    const legacyDocument = {
+      schemaVersion: 1,
+      id: "legacy-root-diagram",
+      problemId: "url-shortener",
+      title: "URL Shortener",
+      status: "in_progress",
+      nodes: [legacyNode],
+      edges: [],
+      viewport: { x: 12, y: -8, zoom: 1.2 },
+      createdAt: timestamp(0),
+      updatedAt: timestamp(1),
+    };
+
+    const migrated = parseSystemDesignDocumentJson(
+      JSON.stringify(legacyDocument),
+      "url-shortener",
+    );
+
+    expect(migrated).not.toHaveProperty("nodes");
+    expect(migrated).not.toHaveProperty("edges");
+    expect(migrated).not.toHaveProperty("viewport");
+    expect(migrated.schemaVersion).toBe(SYSTEM_DESIGN_SCHEMA_VERSION);
+    expect(migrated.rootDiagramId).toBe("legacy-root-diagram");
+    expect(rootDiagram(migrated)).toMatchObject({
+      id: "legacy-root-diagram",
+      name: "URL Shortener",
+      viewport: { x: 12, y: -8, zoom: 1.2 },
+    });
+    expect(rootDiagram(migrated).nodes[0].technology).toEqual({
+      id: "redis",
+      name: "Redis",
+      category: "cache",
+    });
+  });
+
+  test("rejects unsupported node types", () => {
+    const document = createDocument();
+    const invalidType = withRootDiagram(document, {
+      nodes: [
+        { ...createNode("node-api"), type: "unsupported_component" },
+      ] as unknown as SystemDesignNode[],
+    });
+    expect(validationIssuePaths(invalidType)).toContain(
+      "$.diagrams.diagram-url-shortener.nodes[0].type",
+    );
   });
 
   test("rejects dangling and exact duplicate edges", () => {
@@ -660,13 +1131,15 @@ test.describe("system-design import and validation", () => {
       [{ ...edge, targetNodeId: "missing-node" }],
     );
     expect(validationIssuePaths(dangling)).toContain(
-      "$.edges[0].targetNodeId",
+      "$.diagrams.diagram-url-shortener.edges[0].targetNodeId",
     );
 
     const duplicate = createDocument(
       [source, target],
       [edge, { ...edge, id: "edge-request-duplicate" }],
     );
-    expect(validationIssuePaths(duplicate)).toContain("$.edges[1]");
+    expect(validationIssuePaths(duplicate)).toContain(
+      "$.diagrams.diagram-url-shortener.edges[1]",
+    );
   });
 });
