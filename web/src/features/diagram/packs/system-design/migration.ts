@@ -192,8 +192,10 @@ export function migrateSystemDesignDocumentToDiagram(
     schemaVersion: DIAGRAM_SCHEMA_VERSION,
     id: source.id,
     title: source.title,
+    revision: 0,
     enabledPackIds: ["generic", "system-design", "flowchart"],
     rootPageId: source.rootDiagramId,
+    pageOrder: [source.rootDiagramId],
     pages,
     metadata: {
       source: "system-design",

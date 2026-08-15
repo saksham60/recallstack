@@ -1,5 +1,5 @@
 import type { ComponentType, SVGProps } from "react";
-import { Bot, Box, Boxes, Circle, Cloud, Container, Database, Diamond, FileText, Frame, GitBranch, HardDrive, Hexagon, Keyboard, LogIn, Network, Orbit, PlayCircle, Route, Server, ServerCog, Shapes, Shield, ShieldCheck, Shuffle, Sparkles, Square, StickyNote, Triangle, Type, UserRound, Workflow, Wrench } from "lucide-react";
+import { Bot, Box, Boxes, Circle, CircleHelp, Cloud, Container, Database, Diamond, FileText, Frame, GitBranch, Group, HardDrive, Hexagon, Image, Key, KeyRound, Keyboard, LogIn, Network, Orbit, PlayCircle, Route, Server, ServerCog, Shield, ShieldCheck, Shuffle, Sparkles, Square, StickyNote, TableProperties, Triangle, Type, UserRound, Workflow, Wrench } from "lucide-react";
 
 type Icon = ComponentType<SVGProps<SVGSVGElement>>;
 
@@ -40,9 +40,14 @@ const ICONS: Record<string, Icon> = {
   "reverse-proxy": Shuffle,
   tool: Wrench,
   vector: HardDrive,
+  image: Image,
+  group: Group,
+  table: TableProperties,
+  key: Key,
+  "key-round": KeyRound,
 };
 
 export function DiagramIcon({ name, className = "h-5 w-5" }: { name: string; className?: string }) {
-  const IconComponent = ICONS[name] ?? Shapes;
-  return <IconComponent className={className} aria-hidden="true" />;
+  const IconComponent = ICONS[name];
+  return IconComponent ? <IconComponent className={className} aria-hidden="true" /> : <CircleHelp className={`${className} text-red-400`} aria-hidden="true" />;
 }

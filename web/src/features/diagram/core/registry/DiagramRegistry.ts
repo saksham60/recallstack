@@ -2,6 +2,8 @@ import type {
   DiagramPack,
   DiagramShapeDefinition,
   DiagramShapeRenderer,
+  DiagramInspectorControlRenderer,
+  DiagramConnectorElement,
 } from "../types";
 
 export class DiagramRegistryError extends Error {
@@ -21,6 +23,7 @@ export class DiagramRegistry {
   private readonly packs = new Map<string, DiagramPack>();
   private readonly shapes = new Map<string, DiagramShapeDefinition>();
   private readonly renderers = new Map<string, DiagramShapeRenderer>();
+  private readonly inspectorControls = new Map<string, DiagramInspectorControlRenderer>();
 
   registerPack(pack: DiagramPack): this {
     if (this.packs.has(pack.id)) {
@@ -53,11 +56,27 @@ export class DiagramRegistry {
         );
       }
     }
+    for (const [controlId, renderer] of Object.entries(pack.inspectorControls ?? {})) {
+      const existing = this.inspectorControls.get(controlId);
+      if (existing && existing !== renderer) {
+        throw new DiagramRegistryError(
+          `Inspector control "${controlId}" is already registered by another pack.`,
+        );
+      }
+      if (!controlId.startsWith(`${pack.id}.`)) {
+        throw new DiagramRegistryError(
+          `Inspector control "${controlId}" must use the "${pack.id}." namespace.`,
+        );
+      }
+    }
 
     this.packs.set(pack.id, pack);
     for (const shape of pack.shapes) this.shapes.set(shape.id, shape);
     for (const [rendererId, renderer] of Object.entries(pack.renderers ?? {})) {
       this.renderers.set(rendererId, renderer);
+    }
+    for (const [controlId, renderer] of Object.entries(pack.inspectorControls ?? {})) {
+      this.inspectorControls.set(controlId, renderer);
     }
     return this;
   }
@@ -102,6 +121,21 @@ export class DiagramRegistry {
       );
     }
     return renderer;
+  }
+
+  getInspectorControl(id: string): DiagramInspectorControlRenderer | undefined {
+    return this.inspectorControls.get(id);
+  }
+
+  decorateConnector(
+    connector: DiagramConnectorElement,
+    sourceShapeDefinitionId: string | undefined,
+    targetShapeDefinitionId: string | undefined,
+  ): DiagramConnectorElement {
+    const source = sourceShapeDefinitionId ? this.getShape(sourceShapeDefinitionId) : undefined;
+    const target = targetShapeDefinitionId ? this.getShape(targetShapeDefinitionId) : undefined;
+    if (!source || !target || source.packId !== target.packId) return connector;
+    return this.getPack(source.packId)?.decorateConnector?.(connector, source, target) ?? connector;
   }
 }
 

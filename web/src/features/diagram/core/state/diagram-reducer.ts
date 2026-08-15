@@ -24,6 +24,7 @@ import {
 import type {
   DiagramEditorAction,
   DiagramElementPatch,
+  DiagramElementTransform,
   DiagramLayerDirection,
 } from "./diagram-actions";
 
@@ -90,6 +91,149 @@ function bounds(elements: readonly DiagramPositionedElement[]) {
   return { x: left, y: top, width: right - left, height: bottom - top };
 }
 
+function validTransform(transform: DiagramElementTransform | undefined): transform is DiagramElementTransform {
+  return Boolean(
+    transform &&
+    Number.isFinite(transform.x) &&
+    Number.isFinite(transform.y) &&
+    Number.isFinite(transform.width) &&
+    Number.isFinite(transform.height) &&
+    Number.isFinite(transform.rotation) &&
+    transform.width > 0 &&
+    transform.height > 0,
+  );
+}
+
+function groupDescendantIds(
+  elements: readonly DiagramElement[],
+  groupId: string,
+): Set<string> {
+  const byId = new Map(elements.map((element) => [element.id, element]));
+  const descendants = new Set<string>();
+  const pending = [groupId];
+  while (pending.length) {
+    const current = byId.get(pending.pop()!);
+    if (current?.kind !== "group") continue;
+    for (const childId of current.childElementIds) {
+      if (descendants.has(childId)) continue;
+      descendants.add(childId);
+      if (byId.get(childId)?.kind === "group") pending.push(childId);
+    }
+  }
+  return descendants;
+}
+
+function rotateAround(point: DiagramPoint, center: DiagramPoint, degrees: number): DiagramPoint {
+  const radians = degrees * Math.PI / 180;
+  const cosine = Math.cos(radians);
+  const sine = Math.sin(radians);
+  const dx = point.x - center.x;
+  const dy = point.y - center.y;
+  return {
+    x: center.x + dx * cosine - dy * sine,
+    y: center.y + dx * sine + dy * cosine,
+  };
+}
+
+function transformPoint(
+  point: DiagramPoint,
+  before: DiagramPositionedElement,
+  after: DiagramElementTransform,
+): DiagramPoint {
+  const beforeCenter = { x: before.x + before.width / 2, y: before.y + before.height / 2 };
+  const afterCenter = { x: after.x + after.width / 2, y: after.y + after.height / 2 };
+  const local = rotateAround(point, beforeCenter, -before.rotation);
+  const scaled = {
+    x: afterCenter.x + (local.x - beforeCenter.x) * after.width / before.width,
+    y: afterCenter.y + (local.y - beforeCenter.y) * after.height / before.height,
+  };
+  return rotateAround(scaled, afterCenter, after.rotation);
+}
+
+function transformPositioned(
+  element: DiagramPositionedElement,
+  before: DiagramPositionedElement,
+  after: DiagramElementTransform,
+): DiagramPositionedElement {
+  const center = transformPoint(
+    { x: element.x + element.width / 2, y: element.y + element.height / 2 },
+    before,
+    after,
+  );
+  const scaleX = after.width / before.width;
+  const scaleY = after.height / before.height;
+  const width = element.width * Math.abs(scaleX);
+  const height = element.height * Math.abs(scaleY);
+  return {
+    ...element,
+    x: center.x - width / 2,
+    y: center.y - height / 2,
+    width,
+    height,
+    rotation: element.rotation + after.rotation - before.rotation,
+  };
+}
+
+function transformElements(
+  elements: readonly DiagramElement[],
+  transforms: Readonly<Record<string, DiagramElementTransform>>,
+): { elements: DiagramElement[]; changed: boolean } {
+  const byId = new Map(elements.map((element) => [element.id, element]));
+  const roots = Object.entries(transforms).flatMap(([id, transform]) => {
+    const element = byId.get(id);
+    if (!element || !isDiagramPositionedElement(element) || element.locked || !validTransform(transform)) return [];
+    if (element.parentGroupId && validTransform(transforms[element.parentGroupId])) return [];
+    if (element.kind === "group") {
+      const descendants = groupDescendantIds(elements, element.id);
+      if ([...descendants].some((childId) => byId.get(childId)?.locked)) return [];
+    }
+    return [{ element, transform }];
+  });
+  if (!roots.length) return { elements: [...elements], changed: false };
+
+  const replacements = new Map<string, DiagramElement>();
+  const transformedGroupChildren = new Set<string>();
+  const groupsNeedingBounds = new Set<string>();
+  for (const { element, transform } of roots) {
+    replacements.set(element.id, { ...element, ...transform });
+    if (element.parentGroupId) groupsNeedingBounds.add(element.parentGroupId);
+    if (element.kind !== "group") continue;
+    const descendants = groupDescendantIds(elements, element.id);
+    for (const childId of descendants) {
+      const child = byId.get(childId);
+      if (!child || !isDiagramPositionedElement(child)) continue;
+      replacements.set(childId, transformPositioned(child, element, transform));
+      transformedGroupChildren.add(childId);
+    }
+    const ownedEndpointIds = new Set([element.id, ...descendants]);
+    for (const connector of elements) {
+      if (
+        connector.kind === "connector" &&
+        connector.waypoints.length > 0 &&
+        ownedEndpointIds.has(connector.source.elementId) &&
+        ownedEndpointIds.has(connector.target.elementId)
+      ) {
+        replacements.set(connector.id, {
+          ...connector,
+          waypoints: connector.waypoints.map((point) => transformPoint(point, element, transform)),
+        });
+      }
+    }
+  }
+
+  let next = elements.map((element) => replacements.get(element.id) ?? element);
+  if (groupsNeedingBounds.size) {
+    next = next.map((element) => {
+      if (element.kind !== "group" || !groupsNeedingBounds.has(element.id) || transformedGroupChildren.has(element.id)) return element;
+      const children = next.filter((candidate): candidate is DiagramPositionedElement =>
+        element.childElementIds.includes(candidate.id) && isDiagramPositionedElement(candidate),
+      );
+      return children.length ? { ...element, ...bounds(children) } : element;
+    });
+  }
+  return { elements: next, changed: replacements.size > 0 };
+}
+
 function expandGroups(elements: readonly DiagramElement[], selectedIds: readonly string[]): Set<string> {
   const expanded = new Set(selectedIds);
   let changed = true;
@@ -124,6 +268,8 @@ function updateElement(element: DiagramElement, patch: DiagramElementPatch): Dia
       metadata: patch.metadata ?? element.metadata,
       data: patch.data ?? element.data,
       routing: patch.routing ?? element.routing,
+      source: patch.source ? { ...patch.source } : element.source,
+      target: patch.target ? { ...patch.target } : element.target,
       waypoints: patch.waypoints ? [...patch.waypoints] : element.waypoints,
       labels: patch.labels ? structuredClone(patch.labels) : element.labels,
       style: patch.connectorStyle ? { ...element.style, ...patch.connectorStyle } : element.style,
@@ -151,14 +297,52 @@ function updateElement(element: DiagramElement, patch: DiagramElementPatch): Dia
   return { ...positioned, kind: "group", childElementIds: [...element.childElementIds], label: patch.label ?? element.label };
 }
 
+function withoutGeometry(patch: DiagramElementPatch): DiagramElementPatch {
+  const rest = { ...patch };
+  delete rest.x;
+  delete rest.y;
+  delete rest.width;
+  delete rest.height;
+  delete rest.rotation;
+  return rest;
+}
+
+function patchTransform(
+  element: DiagramPositionedElement,
+  patch: DiagramElementPatch,
+): DiagramElementTransform | undefined {
+  if (
+    patch.x === undefined &&
+    patch.y === undefined &&
+    patch.width === undefined &&
+    patch.height === undefined &&
+    patch.rotation === undefined
+  ) return undefined;
+  return {
+    x: patch.x ?? element.x,
+    y: patch.y ?? element.y,
+    width: patch.width ?? element.width,
+    height: patch.height ?? element.height,
+    rotation: patch.rotation ?? element.rotation,
+  };
+}
+
 function removeElements(current: readonly DiagramElement[], ids: Set<string>): DiagramElement[] {
   const removed = new Set(ids);
-  for (const element of current) {
-    if (element.kind === "group" && removed.has(element.id)) {
-      for (const childId of element.childElementIds) removed.add(childId);
+  let expanded = true;
+  while (expanded) {
+    expanded = false;
+    for (const element of current) {
+      if (element.kind !== "group" || !removed.has(element.id)) continue;
+      for (const childId of element.childElementIds) {
+        if (!removed.has(childId)) {
+          removed.add(childId);
+          expanded = true;
+        }
+      }
     }
   }
-  return current
+  let next = current
     .filter((element) => {
       if (removed.has(element.id)) return false;
       if (element.kind === "connector") {
@@ -171,6 +355,27 @@ function removeElements(current: readonly DiagramElement[], ids: Set<string>): D
         ? { ...element, parentGroupId: undefined }
         : element,
     );
+  const dissolving = new Set(
+    next
+      .filter((element): element is DiagramGroupElement => element.kind === "group")
+      .filter((group) => group.childElementIds.filter((childId) => !removed.has(childId)).length < 2)
+      .map((group) => group.id),
+  );
+  next = next
+    .filter((element) => !dissolving.has(element.id))
+    .map((element) => {
+      if (element.kind === "group") {
+        const childElementIds = element.childElementIds.filter((childId) => !removed.has(childId));
+        const children = next.filter((candidate): candidate is DiagramPositionedElement =>
+          childElementIds.includes(candidate.id) && isDiagramPositionedElement(candidate),
+        );
+        return children.length ? { ...element, ...bounds(children), childElementIds } : element;
+      }
+      return element.parentGroupId && dissolving.has(element.parentGroupId)
+        ? { ...element, parentGroupId: undefined }
+        : element;
+    });
+  return next;
 }
 
 function reorder(
@@ -247,7 +452,7 @@ function pasteElements(state: DiagramEditorState, at?: string): DiagramEditorSta
       layer: startLayer + index,
     };
   });
-  const selected = pasted.filter((element) => element.kind !== "connector" && !element.parentGroupId).map((element) => element.id);
+  const selected = pasted.filter((element) => element.kind === "connector" || !element.parentGroupId).map((element) => element.id);
   const next = commit(
     state,
     withPage(state.document, { ...current, elements: [...current.elements, ...pasted] }),
@@ -258,6 +463,64 @@ function pasteElements(state: DiagramEditorState, at?: string): DiagramEditorSta
     ...next,
     clipboard: { ...state.clipboard, pasteCount: state.clipboard.pasteCount + 1 },
   };
+}
+
+function duplicatePageHierarchy(
+  document: DiagramDocument,
+  sourcePageId: string,
+  rootPageIdOverride?: string,
+): { pages: Record<string, DiagramPage>; rootPageId: string } | null {
+  const clonedPages: Record<string, DiagramPage> = {};
+  const visiting = new Set<string>();
+  const clonePage = (pageId: string, parentElementId?: string, idOverride?: string): string | null => {
+    const source = document.pages[pageId];
+    if (!source || visiting.has(pageId)) return null;
+    visiting.add(pageId);
+    const nextPageId = idOverride ?? createDiagramId("page");
+    const elementIdMap = new Map(source.elements.map((element) => [element.id, createDiagramId(element.kind)]));
+    const elements = source.elements.map((element): DiagramElement => {
+      const id = elementIdMap.get(element.id)!;
+      if (element.kind === "connector") return {
+        ...cloneDiagramElement(element),
+        id,
+        source: { ...element.source, elementId: elementIdMap.get(element.source.elementId) ?? element.source.elementId },
+        target: { ...element.target, elementId: elementIdMap.get(element.target.elementId) ?? element.target.elementId },
+      };
+      const parentGroupId = element.parentGroupId ? elementIdMap.get(element.parentGroupId) : undefined;
+      if (element.kind === "group") return { ...cloneDiagramElement(element), id, parentGroupId, childElementIds: element.childElementIds.map((childId) => elementIdMap.get(childId) ?? childId) };
+      if (element.kind === "shape") return { ...cloneDiagramElement(element), id, parentGroupId, childPageId: element.childPageId ? clonePage(element.childPageId, id) ?? undefined : undefined };
+      if (element.kind === "frame") return { ...cloneDiagramElement(element), id, parentGroupId, childPageId: element.childPageId ? clonePage(element.childPageId, id) ?? undefined : undefined };
+      if (element.kind === "text") return { ...cloneDiagramElement(element), id, parentGroupId };
+      return { ...cloneDiagramElement(element), id, parentGroupId };
+    });
+    clonedPages[nextPageId] = {
+      ...structuredClone(source),
+      id: nextPageId,
+      name: parentElementId ? source.name : `${source.name} Copy`,
+      parentElementId,
+      elements,
+    };
+    visiting.delete(pageId);
+    return nextPageId;
+  };
+  const rootPageId = clonePage(sourcePageId, undefined, rootPageIdOverride);
+  return rootPageId ? { pages: clonedPages, rootPageId } : null;
+}
+
+function pageDeletionSet(document: DiagramDocument, pageId: string): Set<string> {
+  const deleting = new Set([pageId]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    const ownerIds = new Set([...deleting].flatMap((id) => document.pages[id]?.elements.map((element) => element.id) ?? []));
+    for (const candidate of Object.values(document.pages)) {
+      if (candidate.parentElementId && ownerIds.has(candidate.parentElementId) && !deleting.has(candidate.id)) {
+        deleting.add(candidate.id);
+        changed = true;
+      }
+    }
+  }
+  return deleting;
 }
 
 export function diagramEditorReducer(
@@ -272,6 +535,11 @@ export function diagramEditorReducer(
       const element = action.type === "element/add" ? action.element : action.connector;
       const current = page(state);
       if (current.elements.some((candidate) => candidate.id === element.id)) return state;
+      if (element.kind === "connector") {
+        const source = current.elements.find((candidate) => candidate.id === element.source.elementId);
+        const target = current.elements.find((candidate) => candidate.id === element.target.elementId);
+        if (!source || !target || !isDiagramPositionedElement(source) || !isDiagramPositionedElement(target) || source.id === target.id) return state;
+      }
       const next = { ...cloneDiagramElement(element), layer: current.elements.length };
       return commit(state, withPage(state.document, { ...current, elements: [...current.elements, next] }), action.at, [next.id]);
     }
@@ -279,41 +547,65 @@ export function diagramEditorReducer(
     case "connector/update": {
       const id = action.type === "element/update" ? action.elementId : action.connectorId;
       const current = page(state);
-      let changed = false;
-      const elements = current.elements.map((element) => {
+      const original = current.elements.find((element) => element.id === id);
+      if (!original || (original.locked && action.changes.locked !== false)) return state;
+      if (original.kind === "connector" && (action.changes.source || action.changes.target)) {
+        const sourceId = action.changes.source?.elementId ?? original.source.elementId;
+        const targetId = action.changes.target?.elementId ?? original.target.elementId;
+        const source = current.elements.find((element) => element.id === sourceId);
+        const target = current.elements.find((element) => element.id === targetId);
+        if (!source || !target || !isDiagramPositionedElement(source) || !isDiagramPositionedElement(target) || sourceId === targetId) return state;
+      }
+      const transform = isDiagramPositionedElement(original)
+        ? patchTransform(original, action.changes)
+        : undefined;
+      const transformed = transform
+        ? transformElements(current.elements, { [id]: transform })
+        : { elements: [...current.elements], changed: false };
+      const contentPatch = transform ? withoutGeometry(action.changes) : action.changes;
+      const hasContentPatch = Object.keys(contentPatch).length > 0;
+      let changed = transformed.changed;
+      const elements = transformed.elements.map((element) => {
         if (element.id !== id || (element.locked && action.changes.locked !== false)) return element;
+        if (!hasContentPatch) return element;
         changed = true;
-        return updateElement(element, action.changes);
+        return updateElement(element, contentPatch);
       });
       return changed ? commit(state, withPage(state.document, { ...current, elements }), action.at) : state;
     }
     case "elements/move": {
       const current = page(state);
-      const groupDeltas = new Map<string, DiagramPoint>();
-      for (const element of current.elements) {
+      const transforms = Object.fromEntries(current.elements.flatMap((element) => {
         const position = action.positions[element.id];
-        if (element.kind === "group" && position) groupDeltas.set(element.id, { x: position.x - element.x, y: position.y - element.y });
-      }
-      let changed = false;
-      const elements = current.elements.map((element) => {
-        if (!isDiagramPositionedElement(element) || element.locked) return element;
-        const own = action.positions[element.id];
-        const delta = element.parentGroupId ? groupDeltas.get(element.parentGroupId) : undefined;
-        const position = own ?? (delta ? { x: element.x + delta.x, y: element.y + delta.y } : undefined);
-        if (!position) return element;
-        changed = true;
-        return { ...element, ...position };
-      });
-      return changed ? commit(state, withPage(state.document, { ...current, elements }), action.at) : state;
+        return position && isDiagramPositionedElement(element)
+          ? [[element.id, { ...position, width: element.width, height: element.height, rotation: element.rotation }]]
+          : [];
+      }));
+      const result = transformElements(current.elements, transforms);
+      return result.changed ? commit(state, withPage(state.document, { ...current, elements: result.elements }), action.at) : state;
+    }
+    case "elements/transform": {
+      const current = page(state);
+      const result = transformElements(current.elements, action.transforms);
+      return result.changed ? commit(state, withPage(state.document, { ...current, elements: result.elements }), action.at) : state;
     }
     case "elements/update-many": {
       const current = page(state);
-      let changed = false;
-      const elements = current.elements.map((element) => {
+      const transforms: Record<string, DiagramElementTransform> = {};
+      for (const element of current.elements) {
+        if (!isDiagramPositionedElement(element)) continue;
+        const transform = patchTransform(element, action.changes[element.id] ?? {});
+        if (transform) transforms[element.id] = transform;
+      }
+      const transformed = transformElements(current.elements, transforms);
+      let changed = transformed.changed;
+      const elements = transformed.elements.map((element) => {
         const changes = action.changes[element.id];
         if (!changes || (element.locked && changes.locked !== false)) return element;
+        const contentPatch = transforms[element.id] ? withoutGeometry(changes) : changes;
+        if (!Object.keys(contentPatch).length) return element;
         changed = true;
-        return updateElement(element, changes);
+        return updateElement(element, contentPatch);
       });
       return changed ? commit(state, withPage(state.document, { ...current, elements }), action.at) : state;
     }
@@ -321,29 +613,36 @@ export function diagramEditorReducer(
       const current = page(state);
       const target = current.elements.find((element) => element.id === action.elementId);
       if (!target || !isDiagramPositionedElement(target) || target.locked) return state;
-      const position = action.position ?? { x: target.x, y: target.y };
-      const scaleX = action.size.width / Math.max(1, target.width);
-      const scaleY = action.size.height / Math.max(1, target.height);
-      const elements = current.elements.map((element) => {
-        if (element.id === target.id) return { ...element, ...position, ...action.size };
-        if (target.kind === "group" && element.parentGroupId === target.id && isDiagramPositionedElement(element) && !element.locked) {
-          return {
-            ...element,
-            x: position.x + (element.x - target.x) * scaleX,
-            y: position.y + (element.y - target.y) * scaleY,
-            width: element.width * scaleX,
-            height: element.height * scaleY,
-          };
-        }
-        return element;
-      });
-      return commit(state, withPage(state.document, { ...current, elements }), action.at);
+      const transform = {
+        ...(action.position ?? { x: target.x, y: target.y }),
+        ...action.size,
+        rotation: target.rotation,
+      };
+      const result = transformElements(current.elements, { [target.id]: transform });
+      return result.changed ? commit(state, withPage(state.document, { ...current, elements: result.elements }), action.at) : state;
     }
-    case "element/rotate":
-      return diagramEditorReducer(state, { type: "element/update", elementId: action.elementId, changes: { rotation: action.rotation }, at: action.at });
+    case "element/rotate": {
+      const current = page(state);
+      const target = current.elements.find((element) => element.id === action.elementId);
+      if (!target || !isDiagramPositionedElement(target)) return state;
+      const result = transformElements(current.elements, {
+        [target.id]: { x: target.x, y: target.y, width: target.width, height: target.height, rotation: action.rotation },
+      });
+      return result.changed ? commit(state, withPage(state.document, { ...current, elements: result.elements }), action.at) : state;
+    }
     case "elements/delete": {
       const current = page(state);
-      const ids = new Set(action.elementIds ?? state.selectedElementIds);
+      const requested = new Set(action.elementIds ?? state.selectedElementIds);
+      const ids = new Set(
+        current.elements.flatMap((element) => {
+          if (!requested.has(element.id) || element.locked) return [];
+          if (element.kind === "group") {
+            const descendants = groupDescendantIds(current.elements, element.id);
+            if ([...descendants].some((childId) => current.elements.find((candidate) => candidate.id === childId)?.locked)) return [];
+          }
+          return [element.id];
+        }),
+      );
       if (!ids.size) return state;
       return commit(state, withPage(state.document, { ...current, elements: normalizeDiagramLayers(removeElements(current.elements, ids)) }), action.at, []);
     }
@@ -369,7 +668,7 @@ export function diagramEditorReducer(
       return pasteElements(state, action.at);
     case "elements/group": {
       const current = page(state);
-      const selected = current.elements.filter((element): element is DiagramPositionedElement => state.selectedElementIds.includes(element.id) && isDiagramPositionedElement(element) && element.kind !== "group" && !element.parentGroupId);
+      const selected = current.elements.filter((element): element is DiagramPositionedElement => state.selectedElementIds.includes(element.id) && isDiagramPositionedElement(element) && element.kind !== "group" && !element.parentGroupId && !element.locked);
       if (selected.length < 2) return state;
       const frame = bounds(selected);
       const groupId = action.groupId ?? createDiagramId("group");
@@ -380,7 +679,7 @@ export function diagramEditorReducer(
     }
     case "group/ungroup": {
       const current = page(state);
-      const groupIds = new Set(action.groupIds ?? state.selectedElementIds.filter((id) => current.elements.some((element) => element.id === id && element.kind === "group")));
+      const groupIds = new Set(action.groupIds ?? state.selectedElementIds.filter((id) => current.elements.some((element) => element.id === id && element.kind === "group" && !element.locked)));
       if (!groupIds.size) return state;
       const childIds: string[] = [];
       const elements = current.elements.flatMap((element) => {
@@ -398,14 +697,40 @@ export function diagramEditorReducer(
       return ids.size ? commit(state, withPage(state.document, { ...current, elements: reorder(current.elements, ids, action.direction) }), action.at) : state;
     }
     case "page/add": {
-      const nextPage = createDiagramPage(action.name ?? `Page ${Object.keys(state.document.pages).length + 1}`, action.pageId);
+      const nextPage = createDiagramPage(action.name ?? `Page ${state.document.pageOrder.length + 1}`, action.pageId);
       const next = commit(
         state,
-        { ...state.document, pages: { ...state.document.pages, [nextPage.id]: nextPage } },
+        { ...state.document, pageOrder: [...state.document.pageOrder, nextPage.id], pages: { ...state.document.pages, [nextPage.id]: nextPage } },
         action.at,
         [],
       );
       return { ...next, activePageId: nextPage.id };
+    }
+    case "page/rename": {
+      const target = state.document.pages[action.pageId];
+      const name = action.name.trim();
+      if (!target || !name || target.name === name) return state;
+      return commit(state, withPage(state.document, { ...target, name }), action.at);
+    }
+    case "page/duplicate": {
+      if (!state.document.pageOrder.includes(action.pageId)) return state;
+      const duplicate = duplicatePageHierarchy(state.document, action.pageId, action.pageIdOverride);
+      if (!duplicate) return state;
+      const sourceIndex = state.document.pageOrder.indexOf(action.pageId);
+      const pageOrder = [...state.document.pageOrder];
+      pageOrder.splice(sourceIndex + 1, 0, duplicate.rootPageId);
+      const document = { ...state.document, pageOrder, pages: { ...state.document.pages, ...duplicate.pages } };
+      return { ...commit(state, document, action.at, []), activePageId: duplicate.rootPageId };
+    }
+    case "page/reorder": {
+      const fromIndex = state.document.pageOrder.indexOf(action.pageId);
+      if (fromIndex <= 0) return state;
+      const toIndex = Math.max(1, Math.min(state.document.pageOrder.length - 1, Math.trunc(action.toIndex)));
+      if (fromIndex === toIndex) return state;
+      const pageOrder = [...state.document.pageOrder];
+      const [moved] = pageOrder.splice(fromIndex, 1);
+      pageOrder.splice(toIndex, 0, moved);
+      return commit(state, { ...state.document, pageOrder }, action.at);
     }
     case "page/create-child": {
       const current = page(state);
@@ -433,19 +758,20 @@ export function diagramEditorReducer(
       return state.document.pages[action.pageId] ? { ...state, activePageId: action.pageId, selectedElementIds: [] } : state;
     case "page/delete": {
       if (action.pageId === state.document.rootPageId || !state.document.pages[action.pageId]) return state;
-      const pages = { ...state.document.pages };
-      delete pages[action.pageId];
+      const deleting = pageDeletionSet(state.document, action.pageId);
+      const pages = Object.fromEntries(Object.entries(state.document.pages).filter(([pageId]) => !deleting.has(pageId)));
       for (const [pageId, candidate] of Object.entries(pages)) {
         pages[pageId] = {
           ...candidate,
           elements: candidate.elements.map((element) =>
-            (element.kind === "shape" || element.kind === "frame") && element.childPageId === action.pageId
+            (element.kind === "shape" || element.kind === "frame") && element.childPageId && deleting.has(element.childPageId)
               ? { ...element, childPageId: undefined }
               : element,
           ),
         };
       }
-      return { ...commit(state, { ...state.document, pages }, action.at, []), activePageId: state.document.rootPageId };
+      const pageOrder = state.document.pageOrder.filter((pageId) => !deleting.has(pageId));
+      return { ...commit(state, { ...state.document, pageOrder, pages }, action.at, []), activePageId: deleting.has(state.activePageId) ? state.document.rootPageId : state.activePageId };
     }
     case "viewport/set": {
       const pageId = action.pageId ?? state.activePageId;
@@ -464,6 +790,18 @@ export function diagramEditorReducer(
       return { ...state, document: cloneDiagramDocument(next), activePageId: next.pages[state.activePageId] ? state.activePageId : next.rootPageId, selectedElementIds: [], history: [...state.history, cloneDiagramDocument(state.document)].slice(-DIAGRAM_HISTORY_LIMIT), future: state.future.slice(1), isDirty: true };
     }
     case "document/mark-saved":
-      return { ...state, isDirty: false };
+      return {
+        ...state,
+        document: action.persistedDocument?.id === state.document.id
+          ? {
+              ...state.document,
+              revision: action.persistedDocument.revision,
+              title: action.persistedDocument.title,
+              createdAt: action.persistedDocument.createdAt,
+              updatedAt: action.persistedDocument.updatedAt,
+            }
+          : state.document,
+        isDirty: false,
+      };
   }
 }

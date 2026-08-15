@@ -5,6 +5,8 @@ export interface DiagramRepository {
   list(): Promise<DiagramDocumentSummary[]>;
   get(documentId: string): Promise<DiagramDocument | null>;
   save(document: DiagramDocument): Promise<DiagramDocument>;
+  rename(documentId: string, title: string): Promise<DiagramDocument>;
+  duplicate(documentId: string, title?: string): Promise<DiagramDocument>;
   remove(documentId: string): Promise<void>;
 }
 

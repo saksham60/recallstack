@@ -1,4 +1,4 @@
-import { createDiagramDocumentSummary } from "../core/state";
+import { createDiagramDocumentSummary, createDiagramTimestamp, duplicateDiagramDocument } from "../core/state";
 import type { DiagramDocument, DiagramDocumentSummary } from "../core/types";
 import { parseDiagramDocument, type DiagramMigrationProvider } from "../import-export/json";
 import { DiagramRepositoryError, type DiagramRepository } from "./DiagramRepository";
@@ -60,14 +60,21 @@ export class LocalDiagramRepository implements DiagramRepository {
     }
   }
 
+  async rename(documentId: string, title: string): Promise<DiagramDocument> {
+    const document = await this.get(documentId);
+    const nextTitle = title.trim();
+    if (!document) throw new DiagramRepositoryError(`Diagram "${documentId}" does not exist.`);
+    if (!nextTitle) throw new DiagramRepositoryError("A diagram title is required.");
+    return this.save({ ...document, title: nextTitle, updatedAt: createDiagramTimestamp(document.updatedAt) });
+  }
+
+  async duplicate(documentId: string, title?: string): Promise<DiagramDocument> {
+    const document = await this.get(documentId);
+    if (!document) throw new DiagramRepositoryError(`Diagram "${documentId}" does not exist.`);
+    return this.save(duplicateDiagramDocument(document, title?.trim() || undefined));
+  }
+
   async remove(documentId: string): Promise<void> {
     this.storage.removeItem(this.key(documentId));
   }
-}
-
-export function createBrowserDiagramRepository(
-  migrations: readonly DiagramMigrationProvider[] = [],
-): LocalDiagramRepository | null {
-  if (typeof window === "undefined") return null;
-  return new LocalDiagramRepository(window.localStorage, migrations);
 }

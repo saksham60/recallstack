@@ -1,5 +1,7 @@
-import type { ComponentType } from "react";
+import type { ComponentType, SVGProps } from "react";
 import type {
+  DiagramElement,
+  DiagramConnectorElement,
   DiagramElementStyle,
   DiagramJsonValue,
   DiagramPortSide,
@@ -22,7 +24,18 @@ export type DiagramInspectorControl =
   | "font-size"
   | "font-weight"
   | "alignment"
-  | "opacity";
+  | "opacity"
+  | `${string}.${string}`;
+
+export interface DiagramInspectorControlRendererProps {
+  field: DiagramInspectorFieldDefinition;
+  element: DiagramElement;
+  value: unknown;
+  onChange: (value: unknown) => void;
+}
+
+export type DiagramInspectorControlRenderer =
+  ComponentType<DiagramInspectorControlRendererProps>;
 
 export interface DiagramInspectorOption {
   value: string;
@@ -63,6 +76,10 @@ export interface DiagramShapeRendererProps {
 }
 
 export type DiagramShapeRenderer = ComponentType<DiagramShapeRendererProps>;
+export type DiagramShapeSvgRenderer = (
+  element: DiagramShapeElement,
+  definition: DiagramShapeDefinition,
+) => string;
 
 export interface DiagramShapeDefinition {
   id: string;
@@ -71,6 +88,7 @@ export interface DiagramShapeDefinition {
   category: string;
   keywords: readonly string[];
   icon: string;
+  iconComponent?: ComponentType<SVGProps<SVGSVGElement>>;
   rendererId: string;
   defaultSize: DiagramSize;
   minimumSize: DiagramSize;
@@ -81,8 +99,10 @@ export interface DiagramShapeDefinition {
   defaultTextStyle?: DiagramTextStyle;
   inspector: readonly DiagramInspectorFieldDefinition[];
   isFrame?: boolean;
+  rendersOwnLabel?: boolean;
   data?: Record<string, DiagramJsonValue>;
   validate?: (element: DiagramShapeElement) => readonly string[];
+  exportSvg?: DiagramShapeSvgRenderer;
 }
 
 export interface DiagramPackCategory {
@@ -99,4 +119,10 @@ export interface DiagramPack {
   categories: readonly DiagramPackCategory[];
   shapes: readonly DiagramShapeDefinition[];
   renderers?: Readonly<Record<string, DiagramShapeRenderer>>;
+  inspectorControls?: Readonly<Record<string, DiagramInspectorControlRenderer>>;
+  decorateConnector?: (
+    connector: DiagramConnectorElement,
+    source: DiagramShapeDefinition,
+    target: DiagramShapeDefinition,
+  ) => DiagramConnectorElement;
 }

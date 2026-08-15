@@ -33,6 +33,8 @@ from recallstack.modules.content.application.category_content_list import Catego
 from recallstack.modules.content.application.published_study_note import PublishedStudyNoteService
 from recallstack.modules.content.presentation.routes import router as content_router
 from recallstack.modules.content.presentation.study_note_routes import router as study_note_router
+from recallstack.modules.diagrams.application import DiagramService
+from recallstack.modules.diagrams.presentation.routes import router as diagram_router
 from recallstack.modules.identity.application.current_user_provider import (
     ApplicationCurrentUserProvider,
 )
@@ -136,6 +138,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             lambda: SqlAlchemyPublishedStudyNoteUnitOfWork(database.session_factory),
             SqlAlchemyActivityEventRecorder(database.session_factory, app.state.event_publisher),
         )
+        app.state.diagram_service = DiagramService(database.session_factory)
         verifier = SupabaseJwtVerifier(
             issuer=resolved.supabase_jwt_issuer,
             audience=resolved.supabase_jwt_audience,
@@ -183,6 +186,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(admin_user_router, prefix="/api/v1")
     app.include_router(admin_analytics_router, prefix="/api/v1")
     app.include_router(sync_router, prefix="/api/v1")
+    app.include_router(diagram_router, prefix="/api/v1")
     return app
 
 

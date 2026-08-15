@@ -4,6 +4,7 @@ import {
   DEFAULT_DIAGRAM_PORTS,
 } from "../../core/registry";
 import { GenericShapeRenderer } from "../generic";
+import { renderGenericShapeSvg } from "../generic/generic-svg";
 
 const flowStyle = {
   fill: "#18181b",
@@ -47,6 +48,7 @@ function flowShape(
       padding: 12,
     },
     inspector: COMMON_DIAGRAM_INSPECTOR_FIELDS,
+    exportSvg: renderGenericShapeSvg,
   };
 }
 

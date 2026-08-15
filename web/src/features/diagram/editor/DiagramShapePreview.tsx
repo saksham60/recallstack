@@ -1,3 +1,4 @@
+import { createElement } from "react";
 import { SystemDesignNodeIcon } from "@/features/system-design/components/SystemDesignIcons";
 import { SYSTEM_DESIGN_NODE_TYPE_ORDER } from "@/features/system-design/constants/system-design-palette";
 import type { DiagramShapeDefinition } from "../core/types";
@@ -28,6 +29,6 @@ export function DiagramShapePreview({ shape }: { shape: DiagramShapeDefinition }
   const isLegacySystemType = typeof semanticType === "string" && SYSTEM_DESIGN_NODE_TYPE_ORDER.includes(semanticType as PaletteSystemDesignNodeType);
   const color = shape.defaultStyle.stroke ?? "#a78bfa";
   return <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-current/20 bg-current/5" style={{ color }} aria-hidden="true">
-    {isLegacySystemType ? <SystemDesignNodeIcon type={semanticType as PaletteSystemDesignNodeType} className="h-[18px] w-[18px]" strokeWidth={1.8} /> : shape.packId === "system-design" ? <DiagramIcon name={shape.icon} className="h-[18px] w-[18px]" /> : <svg viewBox="0 0 32 32" className="h-[22px] w-[22px] overflow-visible"><GenericShapeGlyph rendererId={shape.rendererId} /></svg>}
+    {shape.iconComponent ? createElement(shape.iconComponent, { className: "h-[22px] w-[22px]" }) : isLegacySystemType ? <SystemDesignNodeIcon type={semanticType as PaletteSystemDesignNodeType} className="h-[18px] w-[18px]" strokeWidth={1.8} /> : shape.packId === "system-design" ? <DiagramIcon name={shape.icon} className="h-[18px] w-[18px]" /> : <svg viewBox="0 0 32 32" className="h-[22px] w-[22px] overflow-visible"><GenericShapeGlyph rendererId={shape.rendererId} /></svg>}
   </span>;
 }

@@ -1,5 +1,5 @@
-import { DiagramWorkspace } from "@/features/diagram/editor";
+import { DiagramLibrary } from "@/features/diagram/editor";
 
-export default function DiagramStudioPage() {
-  return <DiagramWorkspace />;
+export default function DiagramLibraryPage() {
+  return <DiagramLibrary />;
 }

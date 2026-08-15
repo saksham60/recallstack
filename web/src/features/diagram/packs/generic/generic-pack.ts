@@ -4,6 +4,7 @@ import {
   DEFAULT_DIAGRAM_PORTS,
 } from "../../core/registry";
 import { GenericShapeRenderer } from "./GenericShapeRenderer";
+import { renderGenericShapeSvg } from "./generic-svg";
 
 const defaultStyle = {
   fill: "#18181b",
@@ -46,6 +47,7 @@ function shape(
     isFrame: options.isFrame,
     data: options.data,
     validate: options.validate,
+    exportSvg: renderGenericShapeSvg,
   };
 }
 

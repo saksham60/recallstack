@@ -1,0 +1,1 @@
+"""Diagram HTTP presentation layer."""

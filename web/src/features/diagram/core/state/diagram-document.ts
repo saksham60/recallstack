@@ -5,10 +5,14 @@ import {
   type DiagramDocumentSummary,
   type DiagramElement,
   type DiagramElementStyle,
+  type DiagramFrameElement,
+  type DiagramImageAsset,
+  type DiagramImageElement,
   type DiagramPage,
   type DiagramPoint,
   type DiagramShapeElement,
   type DiagramTextStyle,
+  type DiagramTextElement,
   type DiagramViewport,
 } from "../types";
 import type { DiagramRegistry } from "../registry";
@@ -26,6 +30,10 @@ let sequence = 0;
 export function createDiagramId(prefix: string): string {
   sequence += 1;
   return `${prefix}_${Date.now().toString(36)}_${sequence.toString(36)}`;
+}
+
+export function createDiagramDocumentId(): string {
+  return globalThis.crypto.randomUUID();
 }
 
 export function createDiagramTimestamp(previous?: string): string {
@@ -49,7 +57,7 @@ export function createDiagramPage(
 export function createDiagramDocument(
   title: string,
   enabledPackIds: readonly string[] = ["generic", "system-design", "flowchart"],
-  id = createDiagramId("diagram"),
+  id = createDiagramDocumentId(),
 ): DiagramDocument {
   const page = createDiagramPage();
   const timestamp = createDiagramTimestamp();
@@ -57,8 +65,10 @@ export function createDiagramDocument(
     schemaVersion: DIAGRAM_SCHEMA_VERSION,
     id,
     title,
+    revision: 0,
     enabledPackIds: [...new Set(enabledPackIds)],
     rootPageId: page.id,
+    pageOrder: [page.id],
     pages: { [page.id]: page },
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -124,12 +134,59 @@ export function createDiagramConnector(
   };
 }
 
+export function createDiagramText(point: DiagramPoint, text = "Text"): DiagramTextElement {
+  return {
+    id: createDiagramId("text"), kind: "text", text,
+    x: point.x, y: point.y, width: 220, height: 72, rotation: 0,
+    style: { fill: "transparent", stroke: "transparent", opacity: 1 },
+    textStyle: { color: "#f4f4f5", fontFamily: "Inter", fontSize: 16, fontWeight: "normal", align: "left", verticalAlign: "top", lineHeight: 1.25, padding: 8 },
+    layer: 0, visible: true, locked: false,
+  };
+}
+
+export function createDiagramFrame(point: DiagramPoint, label = "Frame"): DiagramFrameElement {
+  return {
+    id: createDiagramId("frame"), kind: "frame", frameDefinitionId: "generic.frame", label,
+    x: point.x, y: point.y, width: 480, height: 320, rotation: 0,
+    style: { fill: "#18181b22", stroke: "#71717a", strokeWidth: 1.5, strokeStyle: "dashed", opacity: 1, cornerRadius: 8 },
+    textStyle: { color: "#d4d4d8", fontFamily: "Inter", fontSize: 13, fontWeight: "semibold", align: "left", verticalAlign: "top", padding: 12 },
+    layer: 0, visible: true, locked: false,
+  };
+}
+
+export function createDiagramImage(point: DiagramPoint, asset: DiagramImageAsset): DiagramImageElement {
+  const scale = Math.min(1, 420 / asset.intrinsicWidth, 300 / asset.intrinsicHeight);
+  return {
+    id: createDiagramId("image"), kind: "image", asset, label: asset.name,
+    x: point.x, y: point.y,
+    width: Math.max(64, Math.round(asset.intrinsicWidth * scale)),
+    height: Math.max(48, Math.round(asset.intrinsicHeight * scale)),
+    rotation: 0, style: { opacity: 1 }, layer: 0, visible: true, locked: false,
+  };
+}
+
 export function cloneDiagramElement<T extends DiagramElement>(element: T): T {
   return structuredClone(element);
 }
 
 export function cloneDiagramDocument(document: DiagramDocument): DiagramDocument {
   return structuredClone(document);
+}
+
+export function duplicateDiagramDocument(
+  document: DiagramDocument,
+  title = `${document.title} Copy`,
+  id = createDiagramDocumentId(),
+): DiagramDocument {
+  const timestamp = createDiagramTimestamp();
+  return {
+    ...cloneDiagramDocument(document),
+    id,
+    title,
+    revision: 0,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
 }
 
 export function getDiagramPage(
@@ -161,6 +218,7 @@ export function createDiagramDocumentSummary(document: DiagramDocument): Diagram
   return {
     id: document.id,
     title: document.title,
+    revision: document.revision,
     pageCount: Object.keys(document.pages).length,
     elementCount: Object.values(document.pages).reduce(
       (count, page) => count + page.elements.length,

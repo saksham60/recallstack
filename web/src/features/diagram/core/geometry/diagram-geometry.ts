@@ -44,6 +44,80 @@ export function resolvePortPoint(
   return port ? portPoint(element, port.side, port.offset) : elementCenter(element);
 }
 
+export function resolvePortSide(
+  element: DiagramPositionedElement,
+  portId: string,
+  registry: DiagramRegistry,
+): DiagramPortSide {
+  if (element.kind !== "shape") return "right";
+  const definition = registry.getShape(element.shapeDefinitionId);
+  return definition?.ports.find((candidate) => candidate.id === portId)?.side ?? definition?.ports[0]?.side ?? "right";
+}
+
+function compactOrthogonalPoints(points: readonly DiagramPoint[]): DiagramPoint[] {
+  return points.filter((point, index) => {
+    const previous = points[index - 1];
+    if (previous && previous.x === point.x && previous.y === point.y) return false;
+    const next = points[index + 1];
+    if (!previous || !next) return true;
+    return !(
+      (previous.x === point.x && point.x === next.x) ||
+      (previous.y === point.y && point.y === next.y)
+    );
+  });
+}
+
+/** Predictable port-aware router with short endpoint leads and room for future obstacle routing. */
+export function orthogonalConnectorPoints(
+  start: DiagramPoint,
+  end: DiagramPoint,
+  sourceSide: DiagramPortSide,
+  targetSide: DiagramPortSide,
+  lead = 28,
+): DiagramPoint[] {
+  const vector = (side: DiagramPortSide): DiagramPoint => side === "top"
+    ? { x: 0, y: -1 }
+    : side === "right"
+      ? { x: 1, y: 0 }
+      : side === "bottom"
+        ? { x: 0, y: 1 }
+        : { x: -1, y: 0 };
+  const sourceVector = vector(sourceSide);
+  const targetVector = vector(targetSide);
+  const sourceLead = { x: start.x + sourceVector.x * lead, y: start.y + sourceVector.y * lead };
+  const targetLead = { x: end.x + targetVector.x * lead, y: end.y + targetVector.y * lead };
+  const sourceHorizontal = sourceVector.x !== 0;
+  const targetHorizontal = targetVector.x !== 0;
+  const middle: DiagramPoint[] = [];
+
+  if (sourceHorizontal !== targetHorizontal) {
+    middle.push(sourceHorizontal
+      ? { x: targetLead.x, y: sourceLead.y }
+      : { x: sourceLead.x, y: targetLead.y });
+  } else if (sourceHorizontal) {
+    const facesForward = sourceVector.x > 0
+      ? targetLead.x >= sourceLead.x
+      : targetLead.x <= sourceLead.x;
+    const routeX = facesForward && sourceVector.x === -targetVector.x
+      ? (sourceLead.x + targetLead.x) / 2
+      : sourceVector.x > 0
+        ? Math.max(sourceLead.x, targetLead.x) + lead
+        : Math.min(sourceLead.x, targetLead.x) - lead;
+    middle.push({ x: routeX, y: sourceLead.y }, { x: routeX, y: targetLead.y });
+  } else {
+    const facesForward = sourceVector.y > 0
+      ? targetLead.y >= sourceLead.y
+      : targetLead.y <= sourceLead.y;
+    const routeY = facesForward && sourceVector.y === -targetVector.y
+      ? (sourceLead.y + targetLead.y) / 2
+      : sourceVector.y > 0
+        ? Math.max(sourceLead.y, targetLead.y) + lead
+        : Math.min(sourceLead.y, targetLead.y) - lead;
+    middle.push({ x: sourceLead.x, y: routeY }, { x: targetLead.x, y: routeY });
+  }
+  return compactOrthogonalPoints([start, sourceLead, ...middle, targetLead, end]);
+}
+
 export function connectorPoints(
   connector: DiagramConnectorElement,
   elements: ReadonlyMap<string, DiagramElement>,
@@ -63,8 +137,12 @@ export function connectorPoints(
     return [start, { x: (start.x + end.x) / 2 - dy / length * bend, y: (start.y + end.y) / 2 + dx / length * bend }, end];
   }
   if (connector.routing === "orthogonal") {
-    const midpoint = (start.x + end.x) / 2;
-    return [start, { x: midpoint, y: start.y }, { x: midpoint, y: end.y }, end];
+    return orthogonalConnectorPoints(
+      start,
+      end,
+      resolvePortSide(source, connector.source.portId, registry),
+      resolvePortSide(target, connector.target.portId, registry),
+    );
   }
   return [start, end];
 }

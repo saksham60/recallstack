@@ -3,6 +3,7 @@ import type {
   DiagramDocument,
   DiagramElement,
   DiagramElementStyle,
+  DiagramConnectorEndpoint,
   DiagramImageAsset,
   DiagramJsonValue,
   DiagramPoint,
@@ -34,6 +35,20 @@ export interface DiagramElementPatch {
   waypoints?: DiagramPoint[];
   labels?: DiagramConnectorElement["labels"];
   connectorStyle?: DiagramConnectorElement["style"];
+  source?: DiagramConnectorEndpoint;
+  target?: DiagramConnectorEndpoint;
+}
+
+/**
+ * The final, absolute transform reported by a canvas interaction. The reducer
+ * owns all compound semantics (groups, descendants, and routed connectors).
+ */
+export interface DiagramElementTransform {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
 }
 
 export type DiagramLayerDirection = "forward" | "backward" | "front" | "back";
@@ -43,6 +58,7 @@ export type DiagramEditorAction =
   | { type: "element/add"; element: DiagramElement; at?: string }
   | { type: "element/update"; elementId: string; changes: DiagramElementPatch; at?: string }
   | { type: "elements/move"; positions: Readonly<Record<string, DiagramPoint>>; at?: string }
+  | { type: "elements/transform"; transforms: Readonly<Record<string, DiagramElementTransform>>; at?: string }
   | { type: "elements/update-many"; changes: Readonly<Record<string, DiagramElementPatch>>; at?: string }
   | { type: "element/resize"; elementId: string; size: DiagramSize; position?: DiagramPoint; at?: string }
   | { type: "element/rotate"; elementId: string; rotation: number; at?: string }
@@ -59,19 +75,23 @@ export type DiagramEditorAction =
   | { type: "group/ungroup"; groupIds?: string[]; at?: string }
   | { type: "layer/reorder"; elementIds?: string[]; direction: DiagramLayerDirection; at?: string }
   | { type: "page/add"; pageId?: string; name?: string; at?: string }
+  | { type: "page/rename"; pageId: string; name: string; at?: string }
+  | { type: "page/duplicate"; pageId: string; pageIdOverride?: string; at?: string }
+  | { type: "page/reorder"; pageId: string; toIndex: number; at?: string }
   | { type: "page/create-child"; elementId: string; pageId?: string; name?: string; at?: string }
   | { type: "page/activate"; pageId: string }
   | { type: "page/delete"; pageId: string; at?: string }
   | { type: "viewport/set"; viewport: DiagramViewport; pageId?: string }
   | { type: "history/undo" }
   | { type: "history/redo" }
-  | { type: "document/mark-saved" };
+  | { type: "document/mark-saved"; persistedDocument?: DiagramDocument };
 
 export const diagramEditorActions = {
   replaceDocument: (document: DiagramDocument, persisted = false): DiagramEditorAction => ({ type: "document/replace", document, persisted }),
   addElement: (element: DiagramElement, at?: string): DiagramEditorAction => ({ type: "element/add", element, at }),
   updateElement: (elementId: string, changes: DiagramElementPatch, at?: string): DiagramEditorAction => ({ type: "element/update", elementId, changes, at }),
   moveElements: (positions: Readonly<Record<string, DiagramPoint>>, at?: string): DiagramEditorAction => ({ type: "elements/move", positions, at }),
+  transformElements: (transforms: Readonly<Record<string, DiagramElementTransform>>, at?: string): DiagramEditorAction => ({ type: "elements/transform", transforms, at }),
   updateElements: (changes: Readonly<Record<string, DiagramElementPatch>>, at?: string): DiagramEditorAction => ({ type: "elements/update-many", changes, at }),
   resizeElement: (elementId: string, size: DiagramSize, position?: DiagramPoint, at?: string): DiagramEditorAction => ({ type: "element/resize", elementId, size, position, at }),
   rotateElement: (elementId: string, rotation: number, at?: string): DiagramEditorAction => ({ type: "element/rotate", elementId, rotation, at }),
@@ -88,11 +108,14 @@ export const diagramEditorActions = {
   ungroup: (groupIds?: string[], at?: string): DiagramEditorAction => ({ type: "group/ungroup", groupIds, at }),
   reorder: (direction: DiagramLayerDirection, elementIds?: string[], at?: string): DiagramEditorAction => ({ type: "layer/reorder", elementIds, direction, at }),
   addPage: (name?: string, pageId?: string, at?: string): DiagramEditorAction => ({ type: "page/add", name, pageId, at }),
+  renamePage: (pageId: string, name: string, at?: string): DiagramEditorAction => ({ type: "page/rename", pageId, name, at }),
+  duplicatePage: (pageId: string, pageIdOverride?: string, at?: string): DiagramEditorAction => ({ type: "page/duplicate", pageId, pageIdOverride, at }),
+  reorderPage: (pageId: string, toIndex: number, at?: string): DiagramEditorAction => ({ type: "page/reorder", pageId, toIndex, at }),
   createChildPage: (elementId: string, name?: string, pageId?: string, at?: string): DiagramEditorAction => ({ type: "page/create-child", elementId, name, pageId, at }),
   activatePage: (pageId: string): DiagramEditorAction => ({ type: "page/activate", pageId }),
   deletePage: (pageId: string, at?: string): DiagramEditorAction => ({ type: "page/delete", pageId, at }),
   setViewport: (viewport: DiagramViewport, pageId?: string): DiagramEditorAction => ({ type: "viewport/set", viewport, pageId }),
   undo: (): DiagramEditorAction => ({ type: "history/undo" }),
   redo: (): DiagramEditorAction => ({ type: "history/redo" }),
-  markSaved: (): DiagramEditorAction => ({ type: "document/mark-saved" }),
+  markSaved: (persistedDocument?: DiagramDocument): DiagramEditorAction => ({ type: "document/mark-saved", persistedDocument }),
 };

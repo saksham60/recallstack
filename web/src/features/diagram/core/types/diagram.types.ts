@@ -1,4 +1,4 @@
-export const DIAGRAM_SCHEMA_VERSION = 1 as const;
+export const DIAGRAM_SCHEMA_VERSION = 2 as const;
 
 export type DiagramJsonPrimitive = string | number | boolean | null;
 export type DiagramJsonValue =
@@ -146,7 +146,9 @@ export type DiagramArrowhead =
   | "standard"
   | "open"
   | "diamond"
-  | "circle";
+  | "circle"
+  | "one"
+  | "many";
 
 export interface DiagramConnectorLabel {
   id: string;
@@ -198,8 +200,11 @@ export interface DiagramDocument {
   schemaVersion: typeof DIAGRAM_SCHEMA_VERSION;
   id: string;
   title: string;
+  revision: number;
   enabledPackIds: string[];
   rootPageId: string;
+  /** Ordered top-level pages only. Nested drill-down pages remain owner-linked. */
+  pageOrder: string[];
   pages: Record<string, DiagramPage>;
   metadata?: Record<string, string>;
   createdAt: string;
@@ -209,6 +214,7 @@ export interface DiagramDocument {
 export interface DiagramDocumentSummary {
   id: string;
   title: string;
+  revision: number;
   pageCount: number;
   elementCount: number;
   enabledPackIds: string[];

@@ -24,12 +24,14 @@ import type {
   SystemDesignNodeType,
 } from "@/features/system-design/types/system-design.types";
 import { SystemDesignPackRenderer } from "./SystemDesignPackRenderer";
+import { SystemDesignTechnologyField } from "./SystemDesignTechnologyField";
+import { renderSystemDesignShapeSvg } from "./system-design-svg";
 
 const technologyField: DiagramInspectorFieldDefinition = {
   id: "technology",
   label: "Technology",
   section: "content",
-  control: "select",
+  control: "system-design.technology",
   path: "data.technologyId",
   options: [
     { value: "", label: "None" },
@@ -116,6 +118,7 @@ const legacyShapes: DiagramShapeDefinition[] = SYSTEM_DESIGN_NODE_TYPE_ORDER.map
           : [...COMMON_DIAGRAM_INSPECTOR_FIELDS, technologyField],
       isFrame,
       data: { systemDesignType: type, semanticIcon: type },
+      exportSvg: renderSystemDesignShapeSvg,
     };
   },
 );
@@ -150,6 +153,7 @@ function extended(
     defaultTextStyle: { color: "#fafafa", fontSize: 14, fontWeight: "medium", align: "center", verticalAlign: "middle", padding: 12 },
     inspector: [...COMMON_DIAGRAM_INSPECTOR_FIELDS, technologyField],
     data: { systemDesignType: id, semanticIcon, semanticChrome },
+    exportSvg: renderSystemDesignShapeSvg,
   };
 }
 
@@ -186,6 +190,7 @@ export const systemDesignDiagramPack: DiagramPack = {
   })),
   shapes: SYSTEM_DESIGN_PACK_SHAPES,
   renderers: { "system-design.semantic": SystemDesignPackRenderer },
+  inspectorControls: { "system-design.technology": SystemDesignTechnologyField },
 };
 
 export function getSystemDesignPackShape(type: SystemDesignNodeType): DiagramShapeDefinition {

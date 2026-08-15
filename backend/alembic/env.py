@@ -10,6 +10,9 @@ from recallstack.modules.catalog.infrastructure import (
 from recallstack.modules.content.infrastructure import (
     sqlalchemy_models as content_models,  # noqa: F401
 )
+from recallstack.modules.diagrams.infrastructure import (
+    sqlalchemy_models as diagram_models,  # noqa: F401
+)
 from recallstack.modules.identity.infrastructure import (
     sqlalchemy_models as identity_models,  # noqa: F401
 )

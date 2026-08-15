@@ -19,8 +19,9 @@ interface Props {
   onDragStart: (group: Konva.Group) => void;
   onDragMove: (group: Konva.Group) => void;
   onDragEnd: (group: Konva.Group) => void;
-  onTransformEnd: (group: Konva.Group) => void;
-  onPortClick: (portId: string) => void;
+  highlightedPortId?: string;
+  onPortPointerDown: (portId: string, event: Konva.KonvaEventObject<PointerEvent>) => void;
+  onContextMenu: (event: Konva.KonvaEventObject<PointerEvent>) => void;
 }
 
 function useDiagramImage(element: DiagramImageElement): HTMLImageElement | null {
@@ -53,7 +54,7 @@ const ImageVisual = memo(function ImageVisual({ element }: { element: DiagramIma
   return image ? <KonvaImage image={image} width={element.width} height={element.height} /> : <Rect width={element.width} height={element.height} fill="#27272a" stroke="#52525b" />;
 });
 
-export const DiagramShapeRenderer = memo(forwardRef<Konva.Group, Props>(function DiagramShapeRenderer({ element, registry, selected, connecting, showPorts, onSelect, onOpenChildPage, onEditLabel, onDragStart, onDragMove, onDragEnd, onTransformEnd, onPortClick }, ref) {
+export const DiagramShapeRenderer = memo(forwardRef<Konva.Group, Props>(function DiagramShapeRenderer({ element, registry, selected, connecting, showPorts, onSelect, onOpenChildPage, onEditLabel, onDragStart, onDragMove, onDragEnd, highlightedPortId, onPortPointerDown, onContextMenu }, ref) {
   recordDiagramRender("shape");
   const [hovered, setHovered] = useState(false);
   if (!element.visible) return null;
@@ -77,10 +78,10 @@ export const DiagramShapeRenderer = memo(forwardRef<Konva.Group, Props>(function
       onTap={(event) => { event.cancelBubble = true; onSelect(false); }}
       onDblClick={(event) => { event.cancelBubble = true; if ((element.kind === "shape" || element.kind === "frame") && element.childPageId) onOpenChildPage(); else onEditLabel(); }}
       onDblTap={(event) => { event.cancelBubble = true; if ((element.kind === "shape" || element.kind === "frame") && element.childPageId) onOpenChildPage(); else onEditLabel(); }}
+      onContextMenu={(event) => { event.cancelBubble = true; onContextMenu(event); }}
       onDragStart={(event) => onDragStart(event.target as Konva.Group)}
       onDragMove={(event) => onDragMove(event.target as Konva.Group)}
       onDragEnd={(event) => onDragEnd(event.target as Konva.Group)}
-      onTransformEnd={(event) => onTransformEnd(event.target as Konva.Group)}
       onMouseEnter={(event) => { setHovered(true); const stage = event.target.getStage(); if (stage) stage.container().style.cursor = element.locked ? "default" : "move"; }}
       onMouseLeave={(event) => { setHovered(false); const stage = event.target.getStage(); if (stage) stage.container().style.cursor = "default"; }}
     >
@@ -89,13 +90,14 @@ export const DiagramShapeRenderer = memo(forwardRef<Konva.Group, Props>(function
         {element.kind === "shape" ? <ShapeVisual element={element} registry={registry} selected={selected} /> : null}
         {element.kind === "image" ? <ImageVisual element={element} /> : null}
         {element.kind === "frame" || element.kind === "group" ? <Rect width={element.width} height={element.height} fill={element.style?.fill ?? "transparent"} stroke={element.style?.stroke ?? "#71717a"} strokeWidth={element.style?.strokeWidth ?? 1.5} dash={[8, 5]} cornerRadius={element.style?.cornerRadius ?? 10} /> : null}
-        {label && element.kind !== "image" ? <Text x={labelPadding} y={labelPadding} width={Math.max(1, element.width - labelPadding * 2)} height={Math.max(1, element.height - labelPadding * 2)} text={label} fill={textStyle?.color ?? "#f4f4f5"} fontFamily={textStyle?.fontFamily ?? "Inter, Arial, sans-serif"} fontSize={textStyle?.fontSize ?? 13} fontStyle={`${textStyle?.fontWeight === "bold" || textStyle?.fontWeight === "semibold" ? "bold" : "normal"}${textStyle?.italic ? " italic" : ""}`} align={textStyle?.align ?? "center"} verticalAlign={textStyle?.verticalAlign ?? "middle"} lineHeight={textStyle?.lineHeight ?? 1.2} textDecoration={textStyle?.underline ? "underline" : undefined} listening={false} /> : null}
+        {label && element.kind !== "image" && !definition?.rendersOwnLabel ? <Text x={labelPadding} y={labelPadding} width={Math.max(1, element.width - labelPadding * 2)} height={Math.max(1, element.height - labelPadding * 2)} text={label} fill={textStyle?.color ?? "#f4f4f5"} fontFamily={textStyle?.fontFamily ?? "Inter, Arial, sans-serif"} fontSize={textStyle?.fontSize ?? 13} fontStyle={`${textStyle?.fontWeight === "bold" || textStyle?.fontWeight === "semibold" ? "bold" : "normal"}${textStyle?.italic ? " italic" : ""}`} align={textStyle?.align ?? "center"} verticalAlign={textStyle?.verticalAlign ?? "middle"} lineHeight={textStyle?.lineHeight ?? 1.2} textDecoration={textStyle?.underline ? "underline" : undefined} listening={false} /> : null}
         {hovered && !selected ? <Rect width={element.width} height={element.height} stroke="#a78bfa" strokeWidth={1} opacity={0.7} cornerRadius={element.style?.cornerRadius ?? 4} shadowColor="#a78bfa" shadowBlur={5} listening={false} /> : null}
         {selected ? <Rect width={element.width} height={element.height} stroke="#a78bfa" strokeWidth={1.5} dash={element.locked ? [4, 3] : undefined} cornerRadius={element.style?.cornerRadius ?? 4} listening={false} /> : null}
-        {showPorts ? ports.map((port) => {
+        {showPorts || hovered ? ports.map((port) => {
           const offset = port.offset ?? 0.5;
           const point = port.side === "top" ? { x: element.width * offset, y: 0 } : port.side === "right" ? { x: element.width, y: element.height * offset } : port.side === "bottom" ? { x: element.width * offset, y: element.height } : { x: 0, y: element.height * offset };
-          return <Circle key={port.id} x={point.x} y={point.y} radius={4} fill={connecting ? "#fbbf24" : "#fafafa"} stroke={connecting ? "#f59e0b" : "#8b5cf6"} strokeWidth={1.5} onClick={(event) => { event.cancelBubble = true; onPortClick(port.id); }} />;
+          const highlighted = highlightedPortId === port.id;
+          return <Circle key={port.id} x={point.x} y={point.y} radius={highlighted ? 6 : 4} fill={highlighted ? "#86efac" : connecting ? "#fef3c7" : "#fafafa"} stroke={highlighted ? "#22c55e" : connecting ? "#f59e0b" : "#8b5cf6"} strokeWidth={highlighted ? 2 : 1.5} onPointerDown={(event) => { event.cancelBubble = true; onPortPointerDown(port.id, event); }} onMouseEnter={(event) => { const stage = event.target.getStage(); if (stage) stage.container().style.cursor = "crosshair"; }} />;
         }) : null}
       </Group>
     </Group>
