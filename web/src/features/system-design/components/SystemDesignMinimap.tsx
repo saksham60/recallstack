@@ -27,7 +27,8 @@ const CATEGORY_COLORS: Record<string, string> = {
   module: "#c084fc",
   system_boundary: "#94a3b8",
   container: "#60a5fa",
-  architecture: "#c084fc",
+  modules: "#c084fc",
+  boundaries: "#94a3b8",
   annotations: "#fde047",
 };
 
@@ -146,8 +147,6 @@ function SystemDesignMinimapComponent({
           .filter((node) => node.visible)
           .map((node) => {
             const category = getSystemDesignNodeDefinition(node.type).category;
-            const colorKey =
-              category === "architecture" ? node.type : category;
             return (
               <rect
                 key={node.id}
@@ -156,7 +155,7 @@ function SystemDesignMinimapComponent({
                 width={node.width}
                 height={node.height}
                 rx={Math.min(node.width, node.height) * 0.12}
-                fill={CATEGORY_COLORS[colorKey] ?? "#a78bfa"}
+                fill={CATEGORY_COLORS[category] ?? "#a78bfa"}
                 opacity="0.82"
               />
             );

@@ -2,6 +2,7 @@
 
 import {
   useCallback,
+  useEffect,
   useMemo,
   useReducer,
   useRef,
@@ -15,8 +16,12 @@ import {
   Modal,
   buttonClass,
 } from "@/features/admin/components/AdminPrimitives";
-import { SYSTEM_DESIGN_NODE_TYPE_ORDER } from "../constants/system-design-palette";
+import {
+  SYSTEM_DESIGN_NODE_TYPE_ORDER,
+  isSystemDesignModuleNodeType,
+} from "../constants/system-design-palette";
 import { useSystemDesignKeyboardShortcuts } from "../hooks/use-system-design-keyboard-shortcuts";
+import { useSystemDesignClipboard } from "../hooks/use-system-design-clipboard";
 import { useSystemDesignPersistence } from "../hooks/use-system-design-persistence";
 import { createSystemDesignRepository } from "../repository/createSystemDesignRepository";
 import { systemDesignEditorActions } from "../state/system-design-editor-actions";
@@ -26,16 +31,19 @@ import {
 } from "../state/system-design-editor-reducer";
 import type {
   SystemDesignDocument,
+  SystemDesignEditorTool,
+  SystemDesignClipboardFragment,
   SystemDesignEdge,
   SystemDesignNode,
+  SystemDesignNodeAsset,
   SystemDesignNodeType,
   SystemDesignProblem,
   SystemDesignViewport,
 } from "../types/system-design.types";
 import {
-  downloadSystemDesignDocument,
   readSystemDesignImportFile,
 } from "../utils/diagram-import-export";
+import { downloadInteractiveSystemDesignHtml } from "../utils/interactive-html-export";
 import {
   DEFAULT_SYSTEM_DESIGN_VIEWPORT,
   countSystemDesignElements,
@@ -48,7 +56,10 @@ import {
 import {
   alignSystemDesignNodes,
   distributeSystemDesignNodes,
+  matchSystemDesignNodeSizes,
+  spaceSystemDesignNodesEvenly,
 } from "../utils/node-layout";
+import { fitSystemDesignAssetFrame } from "../utils/system-design-assets";
 import {
   SystemDesignCanvas,
   type SystemDesignCanvasHandle,
@@ -75,6 +86,15 @@ function isSystemDesignNodeType(
 ): value is SystemDesignNodeType {
   return (SYSTEM_DESIGN_NODE_TYPE_ORDER as readonly string[]).includes(value);
 }
+
+const SYSTEM_DESIGN_CREATION_TOOL_TYPES: Partial<
+  Record<SystemDesignEditorTool, SystemDesignNodeType>
+> = {
+  text: "text",
+  note: "note",
+  boundary: "system_boundary",
+  module: "module",
+};
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) return error.message;
@@ -125,6 +145,13 @@ export function SystemDesignWorkspace({
   const [previewBriefOpen, setPreviewBriefOpen] = useState(true);
   const [showGrid, setShowGrid] = useState(true);
   const [snapToGrid, setSnapToGrid] = useState(true);
+  const [snapToObjects, setSnapToObjects] = useState(true);
+  const [activeTool, setActiveTool] =
+    useState<SystemDesignEditorTool>("select");
+  const [animationsEnabled, setAnimationsEnabled] = useState(true);
+  const [pendingInlineEditNodeId, setPendingInlineEditNodeId] = useState<
+    string | null
+  >(null);
 
   const { save, retryLoad } = useSystemDesignPersistence({
     problemId: problem.id,
@@ -165,6 +192,15 @@ export function SystemDesignWorkspace({
       ),
     [activeDiagram.nodes, state.document.diagrams],
   );
+  const parentBreadcrumbSegment = breadcrumbSegments.at(-2);
+
+  const selectedNodes = useMemo(
+    () =>
+      activeDiagram.nodes.filter((node) =>
+        state.selectedNodeIds.includes(node.id),
+      ),
+    [activeDiagram.nodes, state.selectedNodeIds],
+  );
 
   const selectedNode =
     state.selectedNodeIds.length === 1
@@ -193,9 +229,8 @@ export function SystemDesignWorkspace({
             : "saved";
 
   const handleSave = useCallback(() => {
-    if (!state.isDirty && state.saveStatus !== "error") return;
     void save();
-  }, [save, state.isDirty, state.saveStatus]);
+  }, [save]);
 
   const handleDelete = useCallback(() => {
     dispatch(systemDesignEditorActions.deleteSelection());
@@ -205,12 +240,24 @@ export function SystemDesignWorkspace({
     dispatch(systemDesignEditorActions.duplicateNodes());
   }, []);
 
-  const handleCopy = useCallback(() => {
-    dispatch(systemDesignEditorActions.copySelection());
+  const handleSetSelectionLocked = useCallback((locked: boolean) => {
+    dispatch(systemDesignEditorActions.setNodesState({ locked }));
   }, []);
 
-  const handlePaste = useCallback(() => {
-    dispatch(systemDesignEditorActions.pasteClipboard());
+  const handleSetSelectionVisible = useCallback((visible: boolean) => {
+    dispatch(systemDesignEditorActions.setNodesState({ visible }));
+  }, []);
+
+  const handleGroupSelection = useCallback(() => {
+    dispatch(systemDesignEditorActions.groupNodes());
+  }, []);
+
+  const handleUngroupSelection = useCallback(() => {
+    dispatch(systemDesignEditorActions.ungroupNodes());
+  }, []);
+
+  const handleSelectAll = useCallback(() => {
+    dispatch(systemDesignEditorActions.selectAll());
   }, []);
 
   const handleClearSelection = useCallback(() => {
@@ -225,6 +272,141 @@ export function SystemDesignWorkspace({
     dispatch(systemDesignEditorActions.redo());
   }, []);
 
+  const handleOpenModule = useCallback((nodeId: string) => {
+    dispatch(systemDesignEditorActions.openOrCreateModule(nodeId));
+  }, []);
+
+  const handleNavigateDiagram = useCallback((diagramId: string) => {
+    dispatch(systemDesignEditorActions.activateDiagram(diagramId));
+  }, []);
+
+  const handleNavigateParent = useCallback(() => {
+    if (parentBreadcrumbSegment) {
+      dispatch(
+        systemDesignEditorActions.activateDiagram(
+          parentBreadcrumbSegment.diagramId,
+        ),
+      );
+    }
+  }, [parentBreadcrumbSegment]);
+
+  const handleOpenSelectedModule = useCallback(() => {
+    if (
+      selectedNode &&
+      isSystemDesignModuleNodeType(selectedNode.type) &&
+      selectedNode.isExpandable !== false
+    ) {
+      dispatch(systemDesignEditorActions.openOrCreateModule(selectedNode.id));
+    }
+  }, [selectedNode]);
+
+  const handleNativeCopy = useCallback(
+    (fragment: SystemDesignClipboardFragment) => {
+      dispatch(systemDesignEditorActions.copySelection(fragment));
+    },
+    [],
+  );
+
+  const handleNativeCut = useCallback(
+    (fragment?: SystemDesignClipboardFragment) => {
+      dispatch(systemDesignEditorActions.cutSelection(fragment));
+    },
+    [],
+  );
+
+  const handlePasteFragment = useCallback(
+    (fragment: SystemDesignClipboardFragment) => {
+      dispatch(systemDesignEditorActions.pasteFragment(fragment));
+    },
+    [],
+  );
+
+  const handlePasteText = useCallback(
+    (text: string) => {
+      const normalized = text.replace(/\r\n?/g, "\n");
+      if (!normalized.trim()) return;
+      const center = canvasRef.current?.getVisibleCenter() ?? {
+        x: 480,
+        y: 320,
+      };
+      const lines = normalized.split("\n");
+      const longestLine = Math.max(...lines.map((line) => line.length));
+      const width = Math.min(440, Math.max(220, longestLine * 8 + 32));
+      const height = Math.min(320, Math.max(96, lines.length * 22 + 32));
+      const node = createSystemDesignNode("text", center, {
+        label: normalized,
+        parentModuleId: activeDiagram.parentNodeId,
+      });
+      dispatch(
+        systemDesignEditorActions.addNode({
+          ...node,
+          x: center.x - width / 2,
+          y: center.y - height / 2,
+          width,
+          height,
+        }),
+      );
+      setInspectorTab("properties");
+      setPendingInlineEditNodeId(node.id);
+    },
+    [activeDiagram.parentNodeId],
+  );
+
+  const handlePasteAsset = useCallback(
+    (asset: SystemDesignNodeAsset) => {
+      const center = canvasRef.current?.getVisibleCenter() ?? {
+        x: 480,
+        y: 320,
+      };
+      const frame = fitSystemDesignAssetFrame(asset);
+      const node = createSystemDesignNode("image", center, {
+        label: asset.name ?? "Pasted image",
+        asset,
+        parentModuleId: activeDiagram.parentNodeId,
+      });
+      dispatch(
+        systemDesignEditorActions.addNode({
+          ...node,
+          x: center.x - frame.width / 2,
+          y: center.y - frame.height / 2,
+          ...frame,
+        }),
+      );
+      setInspectorTab("properties");
+    },
+    [activeDiagram.parentNodeId],
+  );
+
+  useEffect(() => {
+    if (
+      !pendingInlineEditNodeId ||
+      !activeDiagram.nodes.some((node) => node.id === pendingInlineEditNodeId)
+    ) {
+      return;
+    }
+    const frame = requestAnimationFrame(() => {
+      canvasRef.current?.startInlineEdit(pendingInlineEditNodeId);
+      setPendingInlineEditNodeId((current) =>
+        current === pendingInlineEditNodeId ? null : current,
+      );
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [activeDiagram.nodes, pendingInlineEditNodeId]);
+
+  useSystemDesignClipboard({
+    enabled: state.loadStatus === "ready" && !state.isPreviewMode,
+    document: state.document,
+    activeDiagramId: activeDiagram.id,
+    selectedNodeIds: state.selectedNodeIds,
+    hasSelection: selectedCount > 0,
+    onCopy: handleNativeCopy,
+    onCut: handleNativeCut,
+    onPasteFragment: handlePasteFragment,
+    onPasteText: handlePasteText,
+    onPasteAsset: handlePasteAsset,
+    onError: setUiError,
+  });
+
   useSystemDesignKeyboardShortcuts({
     enabled: state.loadStatus === "ready",
     canUndo: !state.isPreviewMode && state.history.length > 0,
@@ -232,12 +414,20 @@ export function SystemDesignWorkspace({
     hasSelection: !state.isPreviewMode && selectedCount > 0,
     onUndo: handleUndo,
     onRedo: handleRedo,
-    onCopy: handleCopy,
-    onPaste: handlePaste,
+    onSelectAll: handleSelectAll,
     onDuplicate: handleDuplicate,
     onDelete: handleDelete,
     onClearSelection: handleClearSelection,
     onSave: handleSave,
+    canNavigateParent: Boolean(parentBreadcrumbSegment),
+    onNavigateParent: handleNavigateParent,
+    canOpenSelectedModule:
+      Boolean(
+        selectedNode &&
+          isSystemDesignModuleNodeType(selectedNode.type) &&
+          selectedNode.isExpandable !== false,
+      ),
+    onOpenSelectedModule: handleOpenSelectedModule,
   });
 
   const addNode = useCallback(
@@ -249,7 +439,7 @@ export function SystemDesignWorkspace({
       const index = activeDiagram.nodes.length;
       const node = createSystemDesignNode(type, center, {
         parentModuleId: activeDiagram.parentNodeId,
-        isExpandable: type === "module" ? true : undefined,
+        isExpandable: isSystemDesignModuleNodeType(type) ? true : undefined,
       });
       const column = index % 3;
       const row = Math.floor(index / 3) % 3;
@@ -267,6 +457,7 @@ export function SystemDesignWorkspace({
         }),
       );
       setInspectorTab("properties");
+      return node.id;
     },
     [activeDiagram.nodes.length, activeDiagram.parentNodeId],
   );
@@ -286,6 +477,24 @@ export function SystemDesignWorkspace({
     (type: string, position: { x: number; y: number }) => {
       if (!isSystemDesignNodeType(type)) return;
       addNode(type, position, false);
+    },
+    [addNode],
+  );
+
+  const handleToolChange = useCallback(
+    (tool: SystemDesignEditorTool) => {
+      const nodeType = SYSTEM_DESIGN_CREATION_TOOL_TYPES[tool];
+      if (nodeType) {
+        const nodeId = addNode(
+          nodeType,
+          canvasRef.current?.getVisibleCenter() ?? { x: 480, y: 320 },
+          false,
+        );
+        if (tool === "text") setPendingInlineEditNodeId(nodeId);
+        setActiveTool("select");
+        return;
+      }
+      setActiveTool(tool);
     },
     [addNode],
   );
@@ -313,17 +522,21 @@ export function SystemDesignWorkspace({
   const handleExport = useCallback(() => {
     setUiError(null);
     try {
-      downloadSystemDesignDocument(state.document, problem.slug);
+      downloadInteractiveSystemDesignHtml(state.document, problem);
     } catch (error) {
       setUiError(
-        getErrorMessage(error, "The diagram could not be exported."),
+        getErrorMessage(
+          error,
+          "The interactive diagram could not be downloaded.",
+        ),
       );
     }
-  }, [problem.slug, state.document]);
+  }, [problem, state.document]);
 
   const togglePreview = useCallback(() => {
     const enabled = !state.isPreviewMode;
     setPreviewBriefOpen(true);
+    setActiveTool("select");
     dispatch(systemDesignEditorActions.setPreviewMode(enabled));
   }, [state.isPreviewMode]);
 
@@ -409,6 +622,17 @@ export function SystemDesignWorkspace({
     [],
   );
 
+  const handleSelectNodes = useCallback(
+    (
+      nodeIds: string[],
+      mode: "replace" | "add" | "toggle",
+    ) => {
+      dispatch(systemDesignEditorActions.selectNodes(nodeIds, mode));
+      setInspectorTab("properties");
+    },
+    [],
+  );
+
   const handleSelectEdge = useCallback(
     (edgeId: string, additive: boolean) => {
       dispatch(
@@ -457,24 +681,26 @@ export function SystemDesignWorkspace({
     [],
   );
 
-  const handleAddEdge = useCallback((edge: SystemDesignEdge) => {
-    dispatch(systemDesignEditorActions.addEdge(edge));
-  }, []);
+  const handleAddEdge = useCallback(
+    (edge: SystemDesignEdge) => {
+      dispatch(systemDesignEditorActions.addEdge(edge));
+      if (activeTool === "connect") setActiveTool("select");
+    },
+    [activeTool],
+  );
 
   const handleViewportChange = useCallback(
     (viewport: SystemDesignViewport) => {
-      dispatch(systemDesignEditorActions.setViewport(viewport));
+      dispatch(
+        systemDesignEditorActions.setViewport(
+          viewport,
+          undefined,
+          activeDiagram.id,
+        ),
+      );
     },
-    [],
+    [activeDiagram.id],
   );
-
-  const handleOpenModule = useCallback((nodeId: string) => {
-    dispatch(systemDesignEditorActions.openOrCreateModule(nodeId));
-  }, []);
-
-  const handleNavigateDiagram = useCallback((diagramId: string) => {
-    dispatch(systemDesignEditorActions.activateDiagram(diagramId));
-  }, []);
 
   const handleInlineLabelEdit = useCallback(
     (nodeId: string, label: string) => {
@@ -483,16 +709,35 @@ export function SystemDesignWorkspace({
     [],
   );
 
+  const handleInlineEdgeLabelEdit = useCallback(
+    (edgeId: string, label: string) => {
+      dispatch(systemDesignEditorActions.updateEdge(edgeId, { label }));
+    },
+    [],
+  );
+
   const handleArrange = useCallback(
     (operation: SystemDesignArrangeOperation) => {
-      const nodes: SystemDesignNode[] = activeDiagram.nodes.filter(
-        (node) => state.selectedNodeIds.includes(node.id),
-      );
+      const nodes: SystemDesignNode[] = selectedNodes;
+      if (operation === "match-width" || operation === "match-height") {
+        const frames = matchSystemDesignNodeSizes(
+          nodes,
+          operation === "match-width" ? "width" : "height",
+        );
+        if (Object.keys(frames).length > 0) {
+          dispatch(systemDesignEditorActions.arrangeNodes(frames));
+        }
+        return;
+      }
       const positions =
         operation === "distribute-horizontal"
           ? distributeSystemDesignNodes(nodes, "horizontal")
           : operation === "distribute-vertical"
             ? distributeSystemDesignNodes(nodes, "vertical")
+            : operation === "equal-horizontal-spacing"
+              ? spaceSystemDesignNodesEvenly(nodes, "horizontal")
+              : operation === "equal-vertical-spacing"
+                ? spaceSystemDesignNodesEvenly(nodes, "vertical")
             : alignSystemDesignNodes(
                 nodes,
                 operation.replace("align-", "") as
@@ -507,7 +752,7 @@ export function SystemDesignWorkspace({
         dispatch(systemDesignEditorActions.moveNodes(positions));
       }
     },
-    [activeDiagram.nodes, state.selectedNodeIds],
+    [selectedNodes],
   );
 
   const layersProps = {
@@ -559,6 +804,12 @@ export function SystemDesignWorkspace({
   const editor = (
     <div className="hidden h-[calc(100dvh-57px)] min-h-[38rem] flex-col overflow-hidden lg:flex">
       <SystemDesignToolbar
+        onBack={parentBreadcrumbSegment ? handleNavigateParent : undefined}
+        backLabel={
+          parentBreadcrumbSegment
+            ? `Back to ${parentBreadcrumbSegment.label}`
+            : "Back to system design problems"
+        }
         className="shrink-0 overflow-x-auto"
         problem={problem}
         saveState={saveState}
@@ -567,11 +818,16 @@ export function SystemDesignWorkspace({
         zoom={activeDiagram.viewport.zoom}
         canUndo={state.history.length > 0}
         canRedo={state.future.length > 0}
-        canSave={state.isDirty || state.saveStatus === "error"}
+        canSave={state.loadStatus === "ready"}
         canMarkComplete={documentCounts.nodeCount > 0}
         showGrid={showGrid}
         snapToGrid={snapToGrid}
+        snapToObjects={snapToObjects}
+        activeTool={activeTool}
         selectedNodeCount={state.selectedNodeIds.length}
+        selectedNodes={selectedNodes}
+        selectedEdge={selectedEdge}
+        animationsEnabled={animationsEnabled}
         onUndo={handleUndo}
         onRedo={handleRedo}
         onSave={handleSave}
@@ -586,7 +842,40 @@ export function SystemDesignWorkspace({
         onZoomIn={() => canvasRef.current?.zoomBy(1.15)}
         onToggleGrid={() => setShowGrid((visible) => !visible)}
         onToggleSnapToGrid={() => setSnapToGrid((enabled) => !enabled)}
+        onToggleSnapToObjects={() =>
+          setSnapToObjects((enabled) => !enabled)
+        }
+        onToolChange={handleToolChange}
         onArrange={handleArrange}
+        onDuplicateSelection={handleDuplicate}
+        onSetSelectionLocked={handleSetSelectionLocked}
+        onSetSelectionVisible={handleSetSelectionVisible}
+        onReorderSelection={(direction) =>
+          dispatch(
+            systemDesignEditorActions.reorderSelectedLayers(direction),
+          )
+        }
+        onGroupSelection={handleGroupSelection}
+        onUngroupSelection={handleUngroupSelection}
+        onDeleteSelection={handleDelete}
+        onUpdateSelectedNodeText={(textStyle) => {
+          if (!selectedNode) return;
+          dispatch(
+            systemDesignEditorActions.updateNode(selectedNode.id, {
+              textStyle,
+            }),
+          );
+        }}
+        onUpdateSelectedEdge={(patch) => {
+          if (selectedEdge) {
+            dispatch(
+              systemDesignEditorActions.updateEdge(selectedEdge.id, patch),
+            );
+          }
+        }}
+        onToggleAnimations={() =>
+          setAnimationsEnabled((enabled) => !enabled)
+        }
       />
 
       <div className="flex min-h-9 shrink-0 items-center border-b border-border bg-surface/80 px-3">
@@ -609,8 +898,12 @@ export function SystemDesignWorkspace({
             preview={state.isPreviewMode}
             showGrid={showGrid}
             snapToGrid={snapToGrid}
+            snapToObjects={snapToObjects}
+            activeTool={activeTool}
+            animationsEnabled={animationsEnabled}
             internalComponentCounts={internalComponentCounts}
             onSelectNode={handleSelectNode}
+            onSelectNodes={handleSelectNodes}
             onSelectEdge={handleSelectEdge}
             onClearSelection={handleClearSelection}
             onMoveNodes={handleMoveNodes}
@@ -620,6 +913,7 @@ export function SystemDesignWorkspace({
             onDropNodeType={addDroppedNode}
             onOpenModule={handleOpenModule}
             onEditNodeLabel={handleInlineLabelEdit}
+            onEditEdgeLabel={handleInlineEdgeLabelEdit}
           />
           <SystemDesignPerformancePanel />
 
@@ -673,6 +967,11 @@ export function SystemDesignWorkspace({
             selectedNode={selectedNode}
             selectedEdge={selectedEdge}
             selectedCount={selectedCount}
+            selectedNodeInternalComponentCount={
+              selectedNode
+                ? internalComponentCounts[selectedNode.id]
+                : undefined
+            }
             problem={problem}
             layersProps={layersProps}
             onUpdateNode={(nodeId, patch) =>
@@ -685,6 +984,7 @@ export function SystemDesignWorkspace({
                 systemDesignEditorActions.updateEdge(edgeId, patch),
               )
             }
+            onOpenModule={handleOpenModule}
           />
         )}
       </div>

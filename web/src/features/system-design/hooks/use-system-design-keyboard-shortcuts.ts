@@ -9,15 +9,20 @@ interface SystemDesignShortcutHandlers {
   hasSelection: boolean;
   onUndo: () => void;
   onRedo: () => void;
-  onCopy: () => void;
-  onPaste: () => void;
+  onSelectAll: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
   onClearSelection: () => void;
   onSave: () => void;
+  canNavigateParent?: boolean;
+  onNavigateParent?: () => void;
+  canOpenSelectedModule?: boolean;
+  onOpenSelectedModule?: () => void;
 }
 
-function isTypingTarget(target: EventTarget | null): boolean {
+export function isSystemDesignTypingTarget(
+  target: EventTarget | null,
+): boolean {
   if (!(target instanceof HTMLElement)) return false;
   return Boolean(
     target.closest(
@@ -33,21 +38,41 @@ export function useSystemDesignKeyboardShortcuts({
   hasSelection,
   onUndo,
   onRedo,
-  onCopy,
-  onPaste,
+  onSelectAll,
   onDuplicate,
   onDelete,
   onClearSelection,
   onSave,
+  canNavigateParent = false,
+  onNavigateParent,
+  canOpenSelectedModule = false,
+  onOpenSelectedModule,
 }: SystemDesignShortcutHandlers) {
   useEffect(() => {
     if (!enabled) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (isTypingTarget(event.target)) return;
+      if (isSystemDesignTypingTarget(event.target)) return;
 
       const command = event.metaKey || event.ctrlKey;
       const key = event.key.toLowerCase();
+
+      if (event.altKey && event.key === "ArrowLeft" && canNavigateParent) {
+        event.preventDefault();
+        onNavigateParent?.();
+        return;
+      }
+
+      if (
+        !command &&
+        !event.altKey &&
+        event.key === "Enter" &&
+        canOpenSelectedModule
+      ) {
+        event.preventDefault();
+        onOpenSelectedModule?.();
+        return;
+      }
 
       if (command && key === "z") {
         if (event.shiftKey && canRedo) {
@@ -66,15 +91,9 @@ export function useSystemDesignKeyboardShortcuts({
         return;
       }
 
-      if (command && key === "c" && hasSelection) {
+      if (command && key === "a") {
         event.preventDefault();
-        onCopy();
-        return;
-      }
-
-      if (command && key === "v") {
-        event.preventDefault();
-        onPaste();
+        onSelectAll();
         return;
       }
 
@@ -113,15 +132,18 @@ export function useSystemDesignKeyboardShortcuts({
   }, [
     canRedo,
     canUndo,
+    canNavigateParent,
+    canOpenSelectedModule,
     enabled,
     hasSelection,
     onClearSelection,
-    onCopy,
     onDelete,
     onDuplicate,
-    onPaste,
+    onNavigateParent,
+    onOpenSelectedModule,
     onRedo,
     onSave,
+    onSelectAll,
     onUndo,
   ]);
 }

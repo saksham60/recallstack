@@ -27,7 +27,8 @@ export default defineConfig({
   webServer: {
     command: "node node_modules/next/dist/bin/next dev --port 3001",
     url: "http://localhost:3001",
-    reuseExistingServer: false,
+    reuseExistingServer:
+      process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === "1",
     timeout: 120 * 1000,
     env: {
       E2E_BYPASS_AUTH: "1",

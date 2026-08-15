@@ -9,6 +9,8 @@ export default defineConfig({
     '**/system-design-disabled.spec.ts',
     '**/system-design-model.spec.ts',
     '**/system-design-state.spec.ts',
+    '**/system-design-export.spec.ts',
+    '**/diagram-engine.spec.ts',
   ],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
@@ -31,7 +33,7 @@ export default defineConfig({
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:3000',
-    reuseExistingServer: false,
+    reuseExistingServer: process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === '1',
     timeout: 120 * 1000,
     env: {
       E2E_BYPASS_AUTH: '1',

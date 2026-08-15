@@ -3,6 +3,7 @@ import { test as base, expect, type Page } from "@playwright/test";
 import { test } from "./fixtures/authenticated-test";
 import { createProfile } from "./helpers/factories";
 import { canAccessSystemDesign } from "../src/features/system-design/access";
+import { SYSTEM_DESIGN_PROBLEMS } from "../src/features/system-design/data/system-design-problems";
 import { LocalStorageSystemDesignRepository } from "../src/features/system-design/repository/LocalStorageSystemDesignRepository";
 import type {
   SystemDesignDocument,
@@ -518,6 +519,304 @@ test.describe("System Design problems dashboard", () => {
 });
 
 test.describe("System Design editor", () => {
+  test("shows the complete problem brief, quick help, and keyboard shortcuts when nothing is selected", async ({
+    authenticatedPage: page,
+  }) => {
+    await openEditor(page);
+    const problem = SYSTEM_DESIGN_PROBLEMS.find(
+      (candidate) => candidate.id === "url-shortener",
+    )!;
+    const inspector = page.getByTestId("system-design-empty-inspector");
+
+    await expect(
+      inspector.getByRole("heading", { name: problem.title }),
+    ).toBeVisible();
+    await expect(inspector).toContainText(problem.summary);
+
+    const requirements = inspector.getByRole("region", {
+      name: "Functional requirements",
+    });
+    await expect(requirements.getByRole("listitem")).toHaveCount(
+      problem.requirements.length,
+    );
+    for (const requirement of problem.requirements) {
+      await expect(requirements).toContainText(requirement);
+    }
+
+    const assumptions = inspector.getByRole("region", {
+      name: "Scale assumptions",
+    });
+    await expect(assumptions.getByRole("listitem")).toHaveCount(
+      problem.scaleAssumptions.length,
+    );
+    for (const assumption of problem.scaleAssumptions) {
+      await expect(assumptions).toContainText(assumption);
+    }
+
+    await expect(
+      inspector.getByRole("region", { name: "Quick help" }),
+    ).toContainText("Double-click an expandable module to drill down.");
+    const shortcuts = inspector.getByRole("region", {
+      name: "Keyboard shortcuts",
+    });
+    await expect(shortcuts).toContainText("Paste into focused canvas");
+    await expect(shortcuts).toContainText("Open selected module");
+    await expect(shortcuts).toContainText("Return to parent");
+    await expect(inspector).not.toContainText("Press ?");
+  });
+
+  test("uses the native clipboard for text, typed fragments, and safe image assets", async ({
+    authenticatedPage: page,
+  }) => {
+    await openEditor(page);
+    const canvas = page.getByTestId("system-design-canvas");
+    await canvas.focus();
+
+    await canvas.evaluate((element) => {
+      const data = new DataTransfer();
+      data.setData("text/plain", "First line\nSecond line");
+      element.dispatchEvent(
+        new ClipboardEvent("paste", {
+          bubbles: true,
+          cancelable: true,
+          clipboardData: data,
+        }),
+      );
+    });
+    const editor = page.getByTestId("system-design-inline-text-input");
+    await expect(editor).toHaveValue("First line\nSecond line");
+    await editor.press("Control+Enter");
+    await expectEditorCounts(page, {
+      nodes: 1,
+      connections: 0,
+      selected: 1,
+    });
+    const textFormatting = page.getByRole("toolbar", {
+      name: "Selected text formatting",
+    });
+    await expect(textFormatting).toBeVisible();
+    await textFormatting
+      .getByRole("combobox", { name: "Text font" })
+      .selectOption("Georgia");
+    await textFormatting
+      .getByRole("combobox", { name: "Text size" })
+      .selectOption("20");
+    await textFormatting.getByRole("button", { name: "Bold text" }).click();
+    await textFormatting
+      .getByRole("combobox", { name: "Text alignment" })
+      .selectOption("center");
+
+    const fragment = await canvas.evaluate((element) => {
+      const data = new DataTransfer();
+      element.dispatchEvent(
+        new ClipboardEvent("copy", {
+          bubbles: true,
+          cancelable: true,
+          clipboardData: data,
+        }),
+      );
+      return data.getData(
+        "application/x-recallstack-system-design-fragment+json",
+      );
+    });
+    expect(fragment).toContain("recallstack/system-design-fragment");
+    await canvas.evaluate((element, serialized) => {
+      const data = new DataTransfer();
+      data.setData(
+        "application/x-recallstack-system-design-fragment+json",
+        serialized,
+      );
+      element.dispatchEvent(
+        new ClipboardEvent("paste", {
+          bubbles: true,
+          cancelable: true,
+          clipboardData: data,
+        }),
+      );
+    }, fragment);
+    await expectEditorCounts(page, {
+      nodes: 2,
+      connections: 0,
+      selected: 1,
+    });
+
+    await canvas.focus();
+    await canvas.evaluate((element) => {
+      const data = new DataTransfer();
+      data.setData(
+        "text/plain",
+        '<svg viewBox="0 0 48 24"><script>alert(1)</script><rect width="48" height="24" fill="#a78bfa"/></svg>',
+      );
+      element.dispatchEvent(
+        new ClipboardEvent("paste", {
+          bubbles: true,
+          cancelable: true,
+          clipboardData: data,
+        }),
+      );
+    });
+    await expectEditorCounts(page, {
+      nodes: 3,
+      connections: 0,
+      selected: 1,
+    });
+    await saveFromToolbar(page);
+    const stored = await readStoredDocument(page);
+    const nodes = rootDiagram(stored)!.nodes;
+    expect(new Set(nodes.map((node) => node.id)).size).toBe(3);
+    const textNodes = nodes.filter((node) => node.type === "text");
+    expect(textNodes).toHaveLength(2);
+    expect(
+      textNodes.every(
+        (node) =>
+          node.textStyle?.fontFamily === "Georgia" &&
+          node.textStyle.fontSize === 20 &&
+          node.textStyle.fontWeight === "bold" &&
+          node.textStyle.align === "center",
+      ),
+    ).toBe(true);
+    const imageNode = nodes.find((node) => node.type === "image");
+    expect(imageNode?.asset).toMatchObject({
+      kind: "svg",
+      intrinsicWidth: 48,
+      intrinsicHeight: 24,
+    });
+    expect(imageNode?.asset?.kind === "svg" ? imageNode.asset.svg : "").not.toContain(
+      "script",
+    );
+  });
+
+  test("filters the palette, exposes component guidance, remembers recent use, and supports drag-to-canvas", async ({
+    authenticatedPage: page,
+  }) => {
+    await openEditor(page);
+    const palette = page.getByLabel("System design component palette");
+    const networking = page.getByTestId(
+      "system-design-palette-category-networking",
+    );
+    const compute = page.getByTestId("system-design-palette-category-compute");
+
+    await expect(networking).toHaveAttribute("open", "");
+    await expect(compute).not.toHaveAttribute("open", "");
+    await palette
+      .getByRole("searchbox", { name: "Search components" })
+      .fill("authentication and policies");
+
+    const gateway = networking.getByRole("button", {
+      name: "Add API Gateway",
+    });
+    await expect(gateway).toBeVisible();
+    await expect(gateway).toHaveAccessibleDescription(
+      /routing, authentication, and policies/i,
+    );
+    await expect(
+      palette.getByRole("button", { name: "Add Service", exact: true }),
+    ).toHaveCount(0);
+
+    await gateway.click();
+    const recent = palette.getByRole("region", {
+      name: "Recently used components",
+    });
+    await expect(recent).toBeVisible();
+    await expect(
+      recent.getByRole("button", { name: "Add API Gateway" }),
+    ).toBeVisible();
+    await expectEditorCounts(page, {
+      nodes: 1,
+      connections: 0,
+      selected: 1,
+    });
+
+    await palette
+      .getByRole("searchbox", { name: "Search components" })
+      .fill("");
+    await compute.locator("summary").click();
+    const service = compute.getByRole("button", {
+      name: "Add Service",
+      exact: true,
+    });
+    await service.dragTo(page.getByTestId("system-design-canvas"), {
+      targetPosition: { x: 420, y: 300 },
+    });
+    await expectEditorCounts(page, {
+      nodes: 2,
+      connections: 0,
+      selected: 1,
+    });
+    await expect(
+      recent.getByRole("button", { name: "Add Service", exact: true }),
+    ).toBeVisible();
+  });
+
+  test("uses focused tools, marquee selection, and grouped contextual actions", async ({
+    authenticatedPage: page,
+  }) => {
+    const document = createDocument({
+      problemId: "url-shortener",
+      title: "URL Shortener",
+      status: "in_progress",
+      nodeCount: 3,
+      withEdge: false,
+      updatedAt: "2026-07-28T09:00:00.000Z",
+    });
+    await seedDocuments(page, [document]);
+    await openEditor(page);
+    const toolbar = page.getByLabel("System design editor toolbar");
+    const canvas = page.getByTestId("system-design-canvas");
+
+    await expect(toolbar.getByRole("button", { name: "Select tool" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    const start = await canvasPoint(page, 45, 70);
+    const end = await canvasPoint(page, 475, 220);
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(end.x, end.y, { steps: 8 });
+    await page.mouse.up();
+    await expectEditorCounts(page, {
+      nodes: 3,
+      connections: 0,
+      selected: 2,
+    });
+
+    await toolbar
+      .getByRole("button", { name: "Actions for 2 selected components" })
+      .click();
+    await page.getByRole("menuitem", { name: "Group", exact: true }).click();
+    await canvas.click({ position: { x: 30, y: 30 } });
+    const first = rootDiagram(document)!.nodes[0];
+    const firstCenter = await canvasPoint(
+      page,
+      first.x + first.width / 2,
+      first.y + first.height / 2,
+    );
+    await page.mouse.click(firstCenter.x, firstCenter.y);
+    await expectEditorCounts(page, {
+      nodes: 3,
+      connections: 0,
+      selected: 2,
+    });
+
+    await toolbar.getByRole("button", { name: "Pan tool" }).click();
+    await expect(canvas).toHaveAttribute("data-active-tool", "pan");
+    await toolbar.getByRole("button", { name: "Select tool" }).click();
+    await toolbar.getByRole("button", { name: "Add note" }).click();
+    await expect(canvas).toHaveAttribute("data-active-tool", "select");
+    await expectEditorCounts(page, {
+      nodes: 4,
+      connections: 0,
+      selected: 1,
+    });
+
+    await saveFromToolbar(page);
+    const stored = rootDiagram(await readStoredDocument(page))!;
+    const grouped = stored.nodes.filter((node) => node.groupId);
+    expect(grouped).toHaveLength(2);
+    expect(grouped[0].groupId).toBe(grouped[1].groupId);
+    expect(stored.nodes.some((node) => node.type === "note")).toBe(true);
+  });
+
   test("adds, selects, renames, duplicates, deletes, and supports undo and redo", async ({
     authenticatedPage: page,
   }) => {
@@ -700,10 +999,27 @@ test.describe("System Design editor", () => {
       connections: 1,
       selected: 1,
     });
+
+    const edgeLabelPoint = await canvasPoint(
+      page,
+      (source.x + source.width + target.x) / 2,
+      (source.y + source.height / 2 + target.y + target.height / 2) / 2,
+    );
+    await page.mouse.dblclick(edgeLabelPoint.x, edgeLabelPoint.y);
+    const inlineEdgeLabel = page.getByTestId(
+      "system-design-inline-edge-label-input",
+    );
+    await expect(inlineEdgeLabel).toBeVisible();
+    await inlineEdgeLabel.fill("Inline queue");
+    await inlineEdgeLabel.press("Enter");
+    await expect(page.getByLabel("Label", { exact: true })).toHaveValue(
+      "Inline queue",
+    );
+
     await page
       .getByLabel("Diagram inspector")
       .getByRole("combobox", { name: "Connection type" })
-      .selectOption("async");
+      .selectOption("async_message");
     await page.getByLabel("Label", { exact: true }).fill("Work queue");
     await page.getByLabel("Protocol", { exact: true }).fill("Kafka");
     await saveFromToolbar(page);
@@ -718,7 +1034,7 @@ test.describe("System Design editor", () => {
         };
       })
       .toEqual({
-        type: "async",
+        type: "async_message",
         label: "Work queue",
         protocol: "Kafka",
       });
@@ -865,6 +1181,10 @@ test.describe("System Design editor", () => {
       connections: 150,
       selected: 1,
     });
+    const afterSelection = await page.evaluate(
+      () => window.__RECALLSTACK_SYSTEM_DESIGN_PERF__!,
+    );
+    expect(afterSelection.edgeRenders).toBe(beforeDrag.edgeRenders);
     await page.mouse.move(start.x, start.y);
     await page.mouse.down();
     await page.mouse.move(start.x + 72, start.y + 48, { steps: 8 });
@@ -998,7 +1318,7 @@ test.describe("System Design editor", () => {
       .toEqual({ nodes: 0, edges: 0, status: "in_progress" });
   });
 
-  test("exports valid JSON and reports an invalid import", async ({
+  test("downloads interactive HTML and reports an invalid JSON import", async ({
     authenticatedPage: page,
   }) => {
     const document = createDocument({
@@ -1013,25 +1333,39 @@ test.describe("System Design editor", () => {
 
     const downloadPromise = page.waitForEvent("download");
     await page
-      .getByRole("button", { name: "Export JSON", exact: true })
+      .getByRole("button", {
+        name: "Download Interactive HTML",
+        exact: true,
+      })
       .click();
     const download = await downloadPromise;
     expect(download.suggestedFilename()).toBe(
-      "url-shortener-system-design.json",
+      "url-shortener-system-design.html",
     );
     const downloadPath = await download.path();
     expect(downloadPath).not.toBeNull();
-    const exported = JSON.parse(
-      await readFile(downloadPath as string, "utf8"),
-    ) as SystemDesignDocument;
-    expect(exported).toMatchObject({
+    const exportedHtml = await readFile(downloadPath as string, "utf8");
+    expect(exportedHtml).toContain(
+      '<script type="application/json" id="system-design-data">',
+    );
+    expect(exportedHtml).not.toMatch(
+      /<(?:script|link|img)[^>]+(?:src|href)=["']https?:/i,
+    );
+    const embeddedPayload = exportedHtml.match(
+      /<script type="application\/json" id="system-design-data">([\s\S]*?)<\/script>/,
+    );
+    expect(embeddedPayload).not.toBeNull();
+    const exported = JSON.parse(embeddedPayload?.[1] ?? "{}") as {
+      document?: SystemDesignDocument;
+    };
+    expect(exported.document).toMatchObject({
       schemaVersion: SYSTEM_DESIGN_SCHEMA_VERSION,
       problemId: "url-shortener",
       title: "URL Shortener",
       status: "completed",
     });
-    expect(rootDiagram(exported)?.nodes).toHaveLength(2);
-    expect(rootDiagram(exported)?.edges).toHaveLength(1);
+    expect(rootDiagram(exported.document)?.nodes).toHaveLength(2);
+    expect(rootDiagram(exported.document)?.edges).toHaveLength(1);
 
     await page.locator('input[type="file"][accept*="json"]').setInputFiles({
       name: "invalid-diagram.json",

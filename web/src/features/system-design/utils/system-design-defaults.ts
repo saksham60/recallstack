@@ -1,4 +1,11 @@
-import { getSystemDesignNodeDefinition } from "../constants/system-design-palette";
+import {
+  getSystemDesignNodeDefinition,
+  isSystemDesignModuleNodeType,
+} from "../constants/system-design-palette";
+import {
+  SYSTEM_DESIGN_TECHNOLOGY_REGISTRY,
+  resolveSystemDesignTechnology,
+} from "../constants/system-design-visual-registry";
 import {
   SYSTEM_DESIGN_SCHEMA_VERSION,
   type ProblemStatus,
@@ -30,51 +37,6 @@ export const DEFAULT_SYSTEM_DESIGN_VIEWPORT: Readonly<SystemDesignViewport> = {
   zoom: 1,
 };
 
-const TECHNOLOGY_IDENTITIES: Readonly<
-  Record<
-    Exclude<TechnologyRegistryId, "custom">,
-    Omit<TechnologyIdentity, "id">
-  >
-> = {
-  postgresql: { name: "PostgreSQL", category: "database" },
-  mysql: { name: "MySQL", category: "database" },
-  mongodb: { name: "MongoDB", category: "database" },
-  redis: { name: "Redis", category: "cache" },
-  kafka: { name: "Apache Kafka", category: "messaging" },
-  rabbitmq: { name: "RabbitMQ", category: "messaging" },
-  elasticsearch: { name: "Elasticsearch", category: "search" },
-  kubernetes: { name: "Kubernetes", category: "container" },
-  docker: { name: "Docker", category: "container" },
-  aws_lambda: { name: "AWS Lambda", category: "compute" },
-  aws_s3: { name: "Amazon S3", category: "storage" },
-  aws_cloudfront: { name: "Amazon CloudFront", category: "networking" },
-  nginx: { name: "NGINX", category: "networking" },
-  kong: { name: "Kong Gateway", category: "networking" },
-  firebase: { name: "Firebase", category: "platform" },
-  supabase: { name: "Supabase", category: "platform" },
-  gcp_pubsub: {
-    name: "Google Cloud Pub/Sub",
-    category: "messaging",
-  },
-};
-
-const TECHNOLOGY_NAME_TO_ID = new Map<string, TechnologyRegistryId>(
-  Object.entries(TECHNOLOGY_IDENTITIES).flatMap(([id, identity]) => {
-    const aliases = [identity.name, id.replaceAll("_", " ")];
-    if (id === "aws_s3") aliases.push("S3");
-    if (id === "aws_cloudfront") aliases.push("CloudFront");
-    if (id === "gcp_pubsub") aliases.push("Google Cloud Pub/Sub");
-    return aliases.map((name) => [
-      normalizeTechnologyLookupName(name),
-      id as TechnologyRegistryId,
-    ]);
-  }),
-);
-
-function normalizeTechnologyLookupName(name: string): string {
-  return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
-}
-
 export function createTechnologyIdentity(
   id: TechnologyRegistryId,
   customName?: string,
@@ -86,7 +48,12 @@ export function createTechnologyIdentity(
       category: "custom",
     };
   }
-  return { id, ...TECHNOLOGY_IDENTITIES[id] };
+  const definition = SYSTEM_DESIGN_TECHNOLOGY_REGISTRY[id];
+  return {
+    id: definition.id,
+    name: definition.name,
+    category: definition.category,
+  };
 }
 
 /**
@@ -100,8 +67,10 @@ export function migrateLegacyTechnologyIdentity(
   if (typeof value !== "string") return { ...value };
   const name = value.trim();
   if (!name) return undefined;
-  const id = TECHNOLOGY_NAME_TO_ID.get(normalizeTechnologyLookupName(name));
-  return id ? createTechnologyIdentity(id) : createTechnologyIdentity("custom", name);
+  const definition = resolveSystemDesignTechnology(name);
+  return definition
+    ? createTechnologyIdentity(definition.id)
+    : createTechnologyIdentity("custom", name);
 }
 
 export function createNextSystemDesignTimestamp(
@@ -186,12 +155,18 @@ export function createSystemDesignNode(
       : undefined,
     description: overrides.description,
     childDiagramId: overrides.childDiagramId,
-    isExpandable: overrides.isExpandable,
+    isExpandable:
+      overrides.isExpandable ??
+      (isSystemDesignModuleNodeType(type) ? true : undefined),
     isCollapsed: overrides.isCollapsed,
     parentModuleId: overrides.parentModuleId,
+    groupId: overrides.groupId,
     layer: overrides.layer ?? 0,
     locked: overrides.locked ?? false,
     visible: overrides.visible ?? true,
+    asset: overrides.asset ? { ...overrides.asset } : undefined,
+    style: overrides.style ? { ...overrides.style } : undefined,
+    textStyle: overrides.textStyle ? { ...overrides.textStyle } : undefined,
     metadata: overrides.metadata ? { ...overrides.metadata } : undefined,
   };
 }
@@ -222,11 +197,27 @@ export function createSystemDesignEdge(
     targetNodeId,
     sourcePort,
     targetPort,
-    type: overrides.type ?? ("request" satisfies SystemDesignEdgeType),
+    type: overrides.type ?? ("http_request" satisfies SystemDesignEdgeType),
     label: overrides.label,
     protocol: overrides.protocol,
     description: overrides.description,
     routing: overrides.routing ?? "straight",
+    color: overrides.color,
+    opacity: overrides.opacity,
+    strokeWidth: overrides.strokeWidth,
+    lineStyle: overrides.lineStyle,
+    dashPattern: overrides.dashPattern
+      ? [...overrides.dashPattern]
+      : undefined,
+    startArrowhead: overrides.startArrowhead,
+    endArrowhead: overrides.endArrowhead,
+    labelIcon: overrides.labelIcon,
+    labelPosition: overrides.labelPosition,
+    labelBackground: overrides.labelBackground,
+    labelTextColor: overrides.labelTextColor,
+    animationMode: overrides.animationMode,
+    animationSpeed: overrides.animationSpeed,
+    animationDirection: overrides.animationDirection,
   };
 }
 
@@ -254,9 +245,15 @@ export function cloneSystemDesignDiagram(
     nodes: diagram.nodes.map((node) => ({
       ...node,
       technology: node.technology ? { ...node.technology } : undefined,
+      asset: node.asset ? { ...node.asset } : undefined,
+      style: node.style ? { ...node.style } : undefined,
+      textStyle: node.textStyle ? { ...node.textStyle } : undefined,
       metadata: node.metadata ? { ...node.metadata } : undefined,
     })),
-    edges: diagram.edges.map((edge) => ({ ...edge })),
+    edges: diagram.edges.map((edge) => ({
+      ...edge,
+      dashPattern: edge.dashPattern ? [...edge.dashPattern] : undefined,
+    })),
     viewport: { ...diagram.viewport },
   };
 }

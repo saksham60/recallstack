@@ -1,3 +1,4 @@
+import { isSystemDesignModuleNodeType } from "../constants/system-design-palette";
 import type {
   SystemDesignClipboard,
   SystemDesignDiagram,
@@ -24,6 +25,10 @@ import {
   createSystemDesignId,
   normalizeSystemDesignLayers,
 } from "../utils/system-design-defaults";
+import {
+  cloneSystemDesignClipboardFragment,
+  createSystemDesignClipboardFragment,
+} from "../utils/system-design-clipboard";
 import type {
   SystemDesignEditorAction,
   SystemDesignEdgePatch,
@@ -208,6 +213,41 @@ function applySelection(
   return [...toggled];
 }
 
+function expandGroupedNodeIds(
+  diagram: SystemDesignDiagram,
+  requestedNodeIds: readonly string[],
+): string[] {
+  const requested = new Set(requestedNodeIds);
+  const groupIds = new Set(
+    diagram.nodes.flatMap((node) =>
+      requested.has(node.id) && node.groupId ? [node.groupId] : [],
+    ),
+  );
+  return diagram.nodes
+    .filter(
+      (node) =>
+        requested.has(node.id) ||
+        (node.groupId !== undefined && groupIds.has(node.groupId)),
+    )
+    .map((node) => node.id);
+}
+
+function normalizeNodeGroups(
+  nodes: readonly SystemDesignNode[],
+): SystemDesignNode[] {
+  const counts = new Map<string, number>();
+  nodes.forEach((node) => {
+    if (node.groupId) {
+      counts.set(node.groupId, (counts.get(node.groupId) ?? 0) + 1);
+    }
+  });
+  return nodes.map((node) =>
+    node.groupId && (counts.get(node.groupId) ?? 0) < 2
+      ? { ...node, groupId: undefined }
+      : node,
+  );
+}
+
 function isValidEdge(
   edge: SystemDesignEdge,
   nodes: readonly SystemDesignNode[],
@@ -283,7 +323,9 @@ function removeNodes(
   diagrams[diagramId] = {
     ...diagram,
     nodes: normalizeSystemDesignLayers(
-      diagram.nodes.filter((node) => !removableIds.has(node.id)),
+      normalizeNodeGroups(
+        diagram.nodes.filter((node) => !removableIds.has(node.id)),
+      ),
     ),
     edges: diagram.edges.filter(
       (edge) =>
@@ -324,6 +366,14 @@ function allEdgeIds(document: SystemDesignDocument): Set<string> {
   );
 }
 
+function allGroupIds(document: SystemDesignDocument): Set<string> {
+  return new Set(
+    Object.values(document.diagrams).flatMap((diagram) =>
+      diagram.nodes.flatMap((node) => (node.groupId ? [node.groupId] : [])),
+    ),
+  );
+}
+
 function nextAvailableId(
   preferred: string | undefined,
   prefix: string,
@@ -335,10 +385,35 @@ function nextAvailableId(
   return id;
 }
 
+function createClonedGroupIds(
+  nodes: readonly SystemDesignNode[],
+  usedGroupIds: Set<string>,
+): Map<string, string> {
+  const counts = new Map<string, number>();
+  nodes.forEach((node) => {
+    if (node.groupId) {
+      counts.set(node.groupId, (counts.get(node.groupId) ?? 0) + 1);
+    }
+  });
+  return new Map(
+    [...counts.entries()].flatMap(([sourceGroupId, count]) =>
+      count >= 2
+        ? [
+            [
+              sourceGroupId,
+              nextAvailableId(undefined, "group", usedGroupIds),
+            ] as const,
+          ]
+        : [],
+    ),
+  );
+}
+
 function cloneNode(node: SystemDesignNode): SystemDesignNode {
   return {
     ...node,
     technology: node.technology ? { ...node.technology } : undefined,
+    asset: node.asset ? { ...node.asset } : undefined,
     metadata: node.metadata ? { ...node.metadata } : undefined,
   };
 }
@@ -346,15 +421,7 @@ function cloneNode(node: SystemDesignNode): SystemDesignNode {
 interface DuplicateResult {
   document: SystemDesignDocument;
   nodeIds: string[];
-}
-
-interface HierarchicalSystemDesignClipboard
-  extends SystemDesignClipboard {
-  /**
-   * Clipboard-only snapshots of module descendants. This never becomes part
-   * of the serialized SystemDesignDocument.
-   */
-  diagrams: Record<string, SystemDesignDiagram>;
+  edgeIds: string[];
 }
 
 function duplicateElementsWithHierarchy(
@@ -373,6 +440,7 @@ function duplicateElementsWithHierarchy(
 
   const usedNodeIds = allNodeIds(document);
   const usedEdgeIds = allEdgeIds(document);
+  const usedGroupIds = allGroupIds(document);
   const usedDiagramIds = new Set(Object.keys(document.diagrams));
   const diagramsToAdd: Record<string, SystemDesignDiagram> = {};
 
@@ -396,6 +464,10 @@ function duplicateElementsWithHierarchy(
         nextAvailableId(undefined, "node", usedNodeIds),
       );
     });
+    const clonedGroupIds = createClonedGroupIds(
+      sourceDiagram.nodes,
+      usedGroupIds,
+    );
     const clonedNodes = sourceDiagram.nodes.map((sourceNode) => {
       const clonedNodeId = nodeIds.get(sourceNode.id)!;
       const clonedChildDiagramId = sourceNode.childDiagramId
@@ -408,10 +480,15 @@ function duplicateElementsWithHierarchy(
       return {
         ...cloneNode(sourceNode),
         id: clonedNodeId,
+        groupId: sourceNode.groupId
+          ? clonedGroupIds.get(sourceNode.groupId)
+          : undefined,
         childDiagramId: clonedChildDiagramId,
         isExpandable:
-          sourceNode.type === "module"
-            ? true
+          isSystemDesignModuleNodeType(sourceNode.type)
+            ? clonedChildDiagramId
+              ? true
+              : sourceNode.isExpandable
             : sourceNode.isExpandable,
         parentModuleId: sourceNode.parentModuleId
           ? sourceNode.parentModuleId === sourceDiagram.parentNodeId
@@ -427,6 +504,9 @@ function duplicateElementsWithHierarchy(
       return [
         {
           ...sourceEdge,
+          dashPattern: sourceEdge.dashPattern
+            ? [...sourceEdge.dashPattern]
+            : undefined,
           id: nextAvailableId(undefined, "edge", usedEdgeIds),
           sourceNodeId,
           targetNodeId,
@@ -454,6 +534,7 @@ function duplicateElementsWithHierarchy(
   const startLayer =
     diagram.nodes.reduce((maximum, node) => Math.max(maximum, node.layer), -1) +
     1;
+  const clonedGroupIds = createClonedGroupIds(sourceNodes, usedGroupIds);
   const nodes = sourceNodes
     .slice()
     .sort((left, right) => left.layer - right.layer)
@@ -465,15 +546,22 @@ function duplicateElementsWithHierarchy(
       return {
         ...cloneNode(source),
         id,
+        groupId: source.groupId
+          ? clonedGroupIds.get(source.groupId)
+          : undefined,
         x: source.x + offset.x,
         y: source.y + offset.y,
         childDiagramId,
         isExpandable:
-          source.type === "module" ? true : source.isExpandable,
+          isSystemDesignModuleNodeType(source.type)
+            ? childDiagramId
+              ? true
+              : source.isExpandable
+            : source.isExpandable,
         parentModuleId: source.parentModuleId
           ? (selectedNodeIds.get(source.parentModuleId) ??
-            source.parentModuleId)
-          : undefined,
+            diagram.parentNodeId)
+          : diagram.parentNodeId,
         layer: startLayer + index,
       };
     });
@@ -484,6 +572,7 @@ function duplicateElementsWithHierarchy(
     return [
       {
         ...source,
+        dashPattern: source.dashPattern ? [...source.dashPattern] : undefined,
         id: nextAvailableId(
           edgeIdMap?.[source.id],
           "edge",
@@ -509,80 +598,64 @@ function duplicateElementsWithHierarchy(
       },
     },
     nodeIds: nodes.map((node) => node.id),
+    edgeIds: edges.map((edge) => edge.id),
   };
 }
 
 function copySelectedNodes(
   state: SystemDesignEditorState,
-): HierarchicalSystemDesignClipboard | null {
-  const diagram = activeDiagram(state);
-  const selected = new Set(state.selectedNodeIds);
-  const nodes = diagram.nodes
-    .filter((node) => selected.has(node.id))
-    .map(cloneNode);
-  if (nodes.length === 0) return null;
-  const diagrams: Record<string, SystemDesignDiagram> = {};
-  const copyDiagramTree = (
-    diagramId: string,
-    ancestors: ReadonlySet<string>,
-  ) => {
-    if (diagrams[diagramId] || ancestors.has(diagramId)) return;
-    const sourceDiagram = state.document.diagrams[diagramId];
-    if (!sourceDiagram) return;
-    const nextAncestors = new Set(ancestors).add(diagramId);
-    diagrams[diagramId] = {
-      ...sourceDiagram,
-      nodes: sourceDiagram.nodes.map(cloneNode),
-      edges: sourceDiagram.edges.map((edge) => ({ ...edge })),
-      viewport: { ...sourceDiagram.viewport },
-    };
-    sourceDiagram.nodes.forEach((node) => {
-      if (node.childDiagramId) {
-        copyDiagramTree(node.childDiagramId, nextAncestors);
-      }
-    });
-  };
-  nodes.forEach((node) => {
-    if (node.childDiagramId) {
-      copyDiagramTree(node.childDiagramId, new Set([diagram.id]));
-    }
-  });
-  return {
-    nodes,
-    edges: diagram.edges
-      .filter(
-        (edge) =>
-          selected.has(edge.sourceNodeId) &&
-          selected.has(edge.targetNodeId),
-      )
-      .map((edge) => ({ ...edge })),
-    diagrams,
-    pasteCount: 0,
-  };
+): SystemDesignClipboard | null {
+  const fragment = createSystemDesignClipboardFragment(
+    state.document,
+    state.activeDiagramId,
+    state.selectedNodeIds,
+  );
+  return fragment ? { ...fragment, pasteCount: 0 } : null;
 }
 
-function reorderNode(
+function reorderNodes(
   nodes: readonly SystemDesignNode[],
-  nodeId: string,
+  nodeIds: readonly string[],
   direction: SystemDesignLayerDirection,
 ): SystemDesignNode[] | null {
   const ordered = normalizeSystemDesignLayers(nodes);
-  const currentIndex = ordered.findIndex((node) => node.id === nodeId);
-  if (currentIndex < 0) return null;
-  let nextIndex = currentIndex;
+  const selected = new Set(nodeIds);
+  if (!ordered.some((node) => selected.has(node.id))) return null;
+  let next: SystemDesignNode[];
   if (direction === "forward") {
-    nextIndex = Math.min(ordered.length - 1, currentIndex + 1);
+    next = [...ordered];
+    for (let index = next.length - 2; index >= 0; index -= 1) {
+      if (
+        selected.has(next[index].id) &&
+        !selected.has(next[index + 1].id)
+      ) {
+        [next[index], next[index + 1]] = [next[index + 1], next[index]];
+      }
+    }
   } else if (direction === "backward") {
-    nextIndex = Math.max(0, currentIndex - 1);
+    next = [...ordered];
+    for (let index = 1; index < next.length; index += 1) {
+      if (
+        selected.has(next[index].id) &&
+        !selected.has(next[index - 1].id)
+      ) {
+        [next[index - 1], next[index]] = [next[index], next[index - 1]];
+      }
+    }
   } else if (direction === "front") {
-    nextIndex = ordered.length - 1;
+    next = [
+      ...ordered.filter((node) => !selected.has(node.id)),
+      ...ordered.filter((node) => selected.has(node.id)),
+    ];
   } else {
-    nextIndex = 0;
+    next = [
+      ...ordered.filter((node) => selected.has(node.id)),
+      ...ordered.filter((node) => !selected.has(node.id)),
+    ];
   }
-  if (nextIndex === currentIndex) return null;
-  const next = [...ordered];
-  const [node] = next.splice(currentIndex, 1);
-  next.splice(nextIndex, 0, node);
+  if (next.every((node, index) => node.id === ordered[index]?.id)) {
+    return null;
+  }
   return next.map((item, layer) => ({ ...item, layer }));
 }
 
@@ -591,20 +664,27 @@ function isBlockedInPreview(action: SystemDesignEditorAction): boolean {
     action.type === "node/add" ||
     action.type === "node/update" ||
     action.type === "nodes/move" ||
+    action.type === "nodes/arrange" ||
+    action.type === "nodes/set-state" ||
+    action.type === "nodes/group" ||
+    action.type === "nodes/ungroup" ||
     action.type === "node/resize" ||
     action.type === "nodes/delete" ||
     action.type === "edges/delete" ||
     action.type === "selection/delete" ||
     action.type === "nodes/duplicate" ||
+    action.type === "clipboard/cut" ||
     action.type === "edge/add" ||
     action.type === "edge/update" ||
     action.type === "clipboard/paste" ||
+    action.type === "clipboard/paste-fragment" ||
     action.type === "history/undo" ||
     action.type === "history/redo" ||
     action.type === "document/reset" ||
     action.type === "document/replace" ||
     action.type === "document/complete" ||
-    action.type === "layer/reorder"
+    action.type === "layer/reorder" ||
+    action.type === "layers/reorder-selection"
   );
 }
 
@@ -617,6 +697,7 @@ function sanitizeNodePatch(
   if (changes.technology) {
     sanitized.technology = { ...changes.technology };
   }
+  if (changes.asset) sanitized.asset = { ...changes.asset };
   if (changes.width === undefined) delete sanitized.width;
   else if (Number.isFinite(changes.width)) {
     sanitized.width = Math.max(MIN_NODE_WIDTH, changes.width);
@@ -741,7 +822,8 @@ export function systemDesignEditorReducer(
       );
       if (
         !moduleNode ||
-        (moduleNode.type !== "module" && !moduleNode.isExpandable)
+        (!isSystemDesignModuleNodeType(moduleNode.type) &&
+          !moduleNode.isExpandable)
       ) {
         return state;
       }
@@ -818,7 +900,7 @@ export function systemDesignEditorReducer(
           ? Math.max(MIN_NODE_HEIGHT, action.node.height)
           : MIN_NODE_HEIGHT,
         isExpandable:
-          action.node.type === "module"
+          isSystemDesignModuleNodeType(action.node.type)
             ? (action.node.isExpandable ?? true)
             : action.node.isExpandable,
         parentModuleId: action.node.parentModuleId,
@@ -854,7 +936,7 @@ export function systemDesignEditorReducer(
         changed = true;
         const updatedNode = { ...node, ...patch, id: node.id };
         if (
-          node.type === "module" &&
+          isSystemDesignModuleNodeType(node.type) &&
           typeof patch.label === "string" &&
           patch.label !== node.label &&
           updatedNode.childDiagramId &&
@@ -909,6 +991,132 @@ export function systemDesignEditorReducer(
         state,
         replaceDiagram(state.document, { ...diagram, nodes }),
         action.at,
+      );
+    }
+
+    case "nodes/arrange": {
+      const diagram = activeDiagram(state);
+      let changed = false;
+      const nodes = diagram.nodes.map((node) => {
+        const frame = action.frames[node.id];
+        if (
+          !frame ||
+          node.locked ||
+          !Number.isFinite(frame.x) ||
+          !Number.isFinite(frame.y) ||
+          !Number.isFinite(frame.width) ||
+          !Number.isFinite(frame.height)
+        ) {
+          return node;
+        }
+        const next = {
+          x: frame.x,
+          y: frame.y,
+          width: Math.max(MIN_NODE_WIDTH, frame.width),
+          height: Math.max(MIN_NODE_HEIGHT, frame.height),
+        };
+        if (
+          next.x === node.x &&
+          next.y === node.y &&
+          next.width === node.width &&
+          next.height === node.height
+        ) {
+          return node;
+        }
+        changed = true;
+        return { ...node, ...next };
+      });
+      return changed
+        ? commitDocument(
+            state,
+            replaceDiagram(state.document, { ...diagram, nodes }),
+            action.at,
+          )
+        : state;
+    }
+
+    case "nodes/set-state": {
+      if (action.locked === undefined && action.visible === undefined) {
+        return state;
+      }
+      const diagram = activeDiagram(state);
+      const nodeIds = new Set(
+        expandGroupedNodeIds(
+          diagram,
+          action.nodeIds ?? state.selectedNodeIds,
+        ),
+      );
+      let changed = false;
+      const nodes = diagram.nodes.map((node) => {
+        if (!nodeIds.has(node.id)) return node;
+        const locked = action.locked ?? node.locked;
+        const visible = action.visible ?? node.visible;
+        if (locked === node.locked && visible === node.visible) return node;
+        changed = true;
+        return { ...node, locked, visible };
+      });
+      if (!changed) return state;
+      return commitDocument(
+        state,
+        replaceDiagram(state.document, { ...diagram, nodes }),
+        action.at,
+        action.visible === false
+          ? {
+              selectedNodeIds: state.selectedNodeIds.filter(
+                (nodeId) => !nodeIds.has(nodeId),
+              ),
+            }
+          : undefined,
+      );
+    }
+
+    case "nodes/group": {
+      const diagram = activeDiagram(state);
+      const nodeIds = expandGroupedNodeIds(
+        diagram,
+        action.nodeIds ?? state.selectedNodeIds,
+      );
+      if (nodeIds.length < 2) return state;
+      const selected = new Set(nodeIds);
+      const groupId = nextAvailableId(
+        action.groupId,
+        "group",
+        allGroupIds(state.document),
+      );
+      const nodes = diagram.nodes.map((node) =>
+        selected.has(node.id) ? { ...node, groupId } : node,
+      );
+      return commitDocument(
+        state,
+        replaceDiagram(state.document, { ...diagram, nodes }),
+        action.at,
+        { selectedNodeIds: nodeIds, selectedEdgeIds: [] },
+      );
+    }
+
+    case "nodes/ungroup": {
+      const diagram = activeDiagram(state);
+      const selectedNodeIds = expandGroupedNodeIds(
+        diagram,
+        action.nodeIds ?? state.selectedNodeIds,
+      );
+      const selected = new Set(selectedNodeIds);
+      const groupIds = new Set(
+        diagram.nodes.flatMap((node) =>
+          selected.has(node.id) && node.groupId ? [node.groupId] : [],
+        ),
+      );
+      if (groupIds.size === 0) return state;
+      const nodes = diagram.nodes.map((node) =>
+        node.groupId && groupIds.has(node.groupId)
+          ? { ...node, groupId: undefined }
+          : node,
+      );
+      return commitDocument(
+        state,
+        replaceDiagram(state.document, { ...diagram, nodes }),
+        action.at,
+        { selectedNodeIds, selectedEdgeIds: [] },
       );
     }
 
@@ -1018,9 +1226,9 @@ export function systemDesignEditorReducer(
         action.edgeIdMap,
       );
       return result
-        ? commitDocument(state, result.document, action.at, {
+          ? commitDocument(state, result.document, action.at, {
             selectedNodeIds: result.nodeIds,
-            selectedEdgeIds: [],
+            selectedEdgeIds: result.edgeIds,
           })
         : state;
     }
@@ -1069,9 +1277,13 @@ export function systemDesignEditorReducer(
     case "selection/nodes": {
       const diagram = activeDiagram(state);
       const existing = new Set(diagram.nodes.map((node) => node.id));
+      const requested = expandGroupedNodeIds(
+        diagram,
+        action.nodeIds.filter((id) => existing.has(id)),
+      );
       const selectedNodeIds = applySelection(
         state.selectedNodeIds,
-        action.nodeIds.filter((id) => existing.has(id)),
+        requested,
         action.mode,
       );
       return {
@@ -1111,15 +1323,69 @@ export function systemDesignEditorReducer(
         selectedEdgeIds: [],
       };
 
+    case "selection/all": {
+      const diagram = activeDiagram(state);
+      const selectedNodeIds = diagram.nodes
+        .filter((node) => node.visible !== false)
+        .map((node) => node.id);
+      const selected = new Set(selectedNodeIds);
+      return {
+        ...state,
+        selectedNodeIds,
+        selectedEdgeIds: diagram.edges
+          .filter(
+            (edge) =>
+              selected.has(edge.sourceNodeId) &&
+              selected.has(edge.targetNodeId),
+          )
+          .map((edge) => edge.id),
+      };
+    }
+
     case "clipboard/copy": {
-      const clipboard = copySelectedNodes(state);
+      const clipboard = action.fragment
+        ? {
+            ...cloneSystemDesignClipboardFragment(action.fragment),
+            pasteCount: 0,
+          }
+        : copySelectedNodes(state);
       return clipboard ? { ...state, clipboard } : state;
+    }
+
+    case "clipboard/cut": {
+      const clipboard = action.fragment
+        ? {
+            ...cloneSystemDesignClipboardFragment(action.fragment),
+            pasteCount: 0,
+          }
+        : copySelectedNodes(state);
+      const withoutNodes = removeNodes(
+        state.document,
+        state.activeDiagramId,
+        state.selectedNodeIds,
+      );
+      const base = withoutNodes ?? state.document;
+      const withoutEdges = removeEdges(
+        base,
+        state.activeDiagramId,
+        state.selectedEdgeIds,
+      );
+      const document = withoutEdges ?? withoutNodes;
+      if (!document) return clipboard ? { ...state, clipboard } : state;
+      return {
+        ...commitDocument(
+          state,
+          document,
+          action.at,
+          { selectedNodeIds: [], selectedEdgeIds: [] },
+        ),
+        clipboard: clipboard ?? state.clipboard,
+      };
     }
 
     case "clipboard/paste": {
       if (!state.clipboard) return state;
-      const clipboard =
-        state.clipboard as HierarchicalSystemDesignClipboard;
+      const clipboard = state.clipboard;
       const multiplier = state.clipboard.pasteCount + 1;
       const offset = action.offset ?? {
         x: SYSTEM_DESIGN_PASTE_OFFSET * multiplier,
@@ -1133,18 +1399,51 @@ export function systemDesignEditorReducer(
         offset,
         action.nodeIdMap,
         action.edgeIdMap,
-        clipboard.diagrams ?? {},
+        clipboard.diagrams,
       );
       if (!result) return state;
       return {
         ...commitDocument(state, result.document, action.at, {
           selectedNodeIds: result.nodeIds,
-          selectedEdgeIds: [],
+          selectedEdgeIds: result.edgeIds,
         }),
         clipboard: {
           ...state.clipboard,
           pasteCount: multiplier,
         },
+      };
+    }
+
+    case "clipboard/paste-fragment": {
+      const sameFragment = state.clipboard?.id === action.fragment.id;
+      const clipboard: SystemDesignClipboard = sameFragment
+        ? state.clipboard!
+        : {
+            ...cloneSystemDesignClipboardFragment(action.fragment),
+            pasteCount: 0,
+          };
+      const multiplier = clipboard.pasteCount + 1;
+      const offset = action.offset ?? {
+        x: SYSTEM_DESIGN_PASTE_OFFSET * multiplier,
+        y: SYSTEM_DESIGN_PASTE_OFFSET * multiplier,
+      };
+      const result = duplicateElementsWithHierarchy(
+        state.document,
+        state.activeDiagramId,
+        clipboard.nodes,
+        clipboard.edges,
+        offset,
+        undefined,
+        undefined,
+        clipboard.diagrams,
+      );
+      if (!result) return state;
+      return {
+        ...commitDocument(state, result.document, action.at, {
+          selectedNodeIds: result.nodeIds,
+          selectedEdgeIds: result.edgeIds,
+        }),
+        clipboard: { ...clipboard, pasteCount: multiplier },
       };
     }
 
@@ -1198,7 +1497,10 @@ export function systemDesignEditorReducer(
     }
 
     case "viewport/set": {
-      const diagram = activeDiagram(state);
+      const diagram = action.diagramId
+        ? state.document.diagrams[action.diagramId]
+        : activeDiagram(state);
+      if (!diagram) return state;
       const viewport = clampViewport(action.viewport);
       if (
         viewport.x === diagram.viewport.x &&
@@ -1267,9 +1569,28 @@ export function systemDesignEditorReducer(
 
     case "layer/reorder": {
       const diagram = activeDiagram(state);
-      const nodes = reorderNode(
+      const nodes = reorderNodes(
         diagram.nodes,
-        action.nodeId,
+        expandGroupedNodeIds(diagram, [action.nodeId]),
+        action.direction,
+      );
+      return nodes
+        ? commitDocument(
+            state,
+            replaceDiagram(state.document, { ...diagram, nodes }),
+            action.at,
+          )
+        : state;
+    }
+
+    case "layers/reorder-selection": {
+      const diagram = activeDiagram(state);
+      const nodes = reorderNodes(
+        diagram.nodes,
+        expandGroupedNodeIds(
+          diagram,
+          action.nodeIds ?? state.selectedNodeIds,
+        ),
         action.direction,
       );
       return nodes

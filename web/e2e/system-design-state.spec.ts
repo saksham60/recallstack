@@ -358,6 +358,215 @@ test.describe("system-design editor reducer", () => {
     });
   });
 
+  test("groups nodes as one selection and remaps groups when duplicating", () => {
+    const first = createNode("node-first", 40, 60, "First");
+    const second = {
+      ...createNode("node-second", 260, 60, "Second"),
+      layer: 1,
+    };
+    const third = {
+      ...createNode("node-third", 480, 60, "Third"),
+      layer: 2,
+    };
+    let state = createSystemDesignEditorState(
+      createDocument([first, second, third]),
+    );
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.selectNodes(
+        [first.id, second.id],
+        "replace",
+      ),
+    );
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.groupNodes(undefined, {
+        groupId: "group-pair",
+        at: timestamp(1),
+      }),
+    );
+    expect(activeDiagram(state).nodes.slice(0, 2).map((node) => node.groupId)).toEqual([
+      "group-pair",
+      "group-pair",
+    ]);
+
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.clearSelection(),
+    );
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.selectNodes([first.id], "replace"),
+    );
+    expect(state.selectedNodeIds).toEqual([first.id, second.id]);
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.setNodesState(
+        { locked: true },
+        undefined,
+        timestamp(2),
+      ),
+    );
+    expect(activeDiagram(state).nodes.slice(0, 2).every((node) => node.locked)).toBe(true);
+
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.duplicateNodes(undefined, {
+        nodeIdMap: {
+          [first.id]: "node-first-copy",
+          [second.id]: "node-second-copy",
+        },
+        at: timestamp(3),
+      }),
+    );
+    const copies = activeDiagram(state).nodes.filter((node) =>
+      state.selectedNodeIds.includes(node.id),
+    );
+    expect(copies).toHaveLength(2);
+    expect(copies[0].groupId).toBeTruthy();
+    expect(copies[0].groupId).toBe(copies[1].groupId);
+    expect(copies[0].groupId).not.toBe("group-pair");
+
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.ungroupNodes(undefined, timestamp(4)),
+    );
+    expect(
+      activeDiagram(state).nodes
+        .filter((node) => state.selectedNodeIds.includes(node.id))
+        .every((node) => node.groupId === undefined),
+    ).toBe(true);
+    expect(
+      activeDiagram(state).nodes
+        .filter((node) => node.id === first.id || node.id === second.id)
+        .every((node) => node.groupId === "group-pair"),
+    ).toBe(true);
+  });
+
+  test("applies multi-selection visibility, frames, and layer ordering once", () => {
+    const first = createNode("node-first", 40, 60, "First");
+    const second = {
+      ...createNode("node-second", 260, 60, "Second"),
+      layer: 1,
+    };
+    const third = {
+      ...createNode("node-third", 480, 60, "Third"),
+      layer: 2,
+    };
+    const fourth = {
+      ...createNode("node-fourth", 700, 60, "Fourth"),
+      layer: 3,
+    };
+    let state = createSystemDesignEditorState(
+      createDocument([first, second, third, fourth]),
+    );
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.selectNodes(
+        [second.id, third.id],
+        "replace",
+      ),
+    );
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.arrangeNodes(
+        {
+          [second.id]: { x: 100, y: 120, width: 220, height: 96 },
+          [third.id]: { x: 360, y: 120, width: 220, height: 96 },
+        },
+        timestamp(1),
+      ),
+    );
+    expect(state.history).toHaveLength(1);
+    expect(activeDiagram(state).nodes[1]).toMatchObject({
+      x: 100,
+      y: 120,
+      width: 220,
+      height: 96,
+    });
+
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.reorderSelectedLayers(
+        "front",
+        undefined,
+        timestamp(2),
+      ),
+    );
+    expect(
+      [...activeDiagram(state).nodes]
+        .sort((left, right) => left.layer - right.layer)
+        .map((node) => node.id),
+    ).toEqual([first.id, fourth.id, second.id, third.id]);
+
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.setNodesState(
+        { visible: false },
+        undefined,
+        timestamp(3),
+      ),
+    );
+    expect(state.selectedNodeIds).toEqual([]);
+    expect(
+      activeDiagram(state).nodes
+        .filter((node) => node.id === second.id || node.id === third.id)
+        .every((node) => node.visible === false),
+    ).toBe(true);
+  });
+
+  test("preserves intentionally non-expandable modules when pasting and duplicating", () => {
+    const moduleNode = {
+      ...createNode("node-static-module", 80, 100, "Static boundary"),
+      type: "module" as const,
+      isExpandable: false,
+    };
+    let state = createSystemDesignEditorState(createDocument([moduleNode]));
+
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.selectNodes([moduleNode.id], "replace"),
+    );
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.copySelection(),
+    );
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.pasteClipboard({
+        nodeIdMap: { [moduleNode.id]: "node-static-module-copy" },
+        at: timestamp(1),
+      }),
+    );
+
+    const pastedModule = activeDiagram(state).nodes.find(
+      (node) => node.id === "node-static-module-copy",
+    );
+    expect(pastedModule).toMatchObject({
+      childDiagramId: undefined,
+      isExpandable: false,
+    });
+
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.duplicateNodes(undefined, {
+        nodeIdMap: {
+          "node-static-module-copy": "node-static-module-duplicate",
+        },
+        at: timestamp(2),
+      }),
+    );
+
+    expect(
+      activeDiagram(state).nodes.find(
+        (node) => node.id === "node-static-module-duplicate",
+      ),
+    ).toMatchObject({
+      childDiagramId: undefined,
+      isExpandable: false,
+    });
+  });
+
   test("copy/paste deep-clones a module's complete diagram hierarchy", () => {
     const authenticationModule = {
       ...createNode("node-auth", 80, 100, "Authentication"),
@@ -490,6 +699,7 @@ test.describe("system-design editor reducer", () => {
       (node) => node.id === "node-auth-copy",
     )!;
     expect(copiedModule.childDiagramId).toBeTruthy();
+    expect(copiedModule.isExpandable).toBe(true);
     expect(copiedModule.childDiagramId).not.toBe(
       originalModule.childDiagramId,
     );
@@ -540,6 +750,7 @@ test.describe("system-design editor reducer", () => {
       (node) => node.label === "Notification",
     )!;
     expect(copiedNestedModule.childDiagramId).toBeTruthy();
+    expect(copiedNestedModule.isExpandable).toBe(true);
     expect(copiedNestedModule.childDiagramId).not.toBe(
       originalNestedModule.childDiagramId,
     );
@@ -816,6 +1027,54 @@ test.describe("system-design editor reducer", () => {
       y: -70,
       zoom: 1.4,
     });
+  });
+
+  test("applies delayed viewport commits to their originating diagram", () => {
+    const moduleNode = {
+      ...createNode("node-module", 80, 100, "Payments"),
+      type: "module" as const,
+      isExpandable: true,
+    };
+    let state = createSystemDesignEditorState(
+      createDocument([moduleNode]),
+    );
+    const rootDiagramId = state.document.rootDiagramId;
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.openOrCreateModule(moduleNode.id, {
+        childDiagramId: "diagram-payments",
+        at: timestamp(1),
+      }),
+    );
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.setViewport(
+        { x: -40, y: 25, zoom: 1.1 },
+        timestamp(2),
+      ),
+    );
+
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.setViewport(
+        { x: 180, y: -90, zoom: 1.5 },
+        timestamp(3),
+        rootDiagramId,
+      ),
+    );
+
+    expect(state.activeDiagramId).toBe("diagram-payments");
+    expect(state.document.diagrams[rootDiagramId].viewport).toEqual({
+      x: 180,
+      y: -90,
+      zoom: 1.5,
+    });
+    expect(state.document.diagrams["diagram-payments"].viewport).toEqual({
+      x: -40,
+      y: 25,
+      zoom: 1.1,
+    });
+    expect(state.history).toHaveLength(1);
   });
 
   test("preserves the live viewport across content undo and redo", () => {

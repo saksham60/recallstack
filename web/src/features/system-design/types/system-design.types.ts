@@ -44,11 +44,34 @@ export type SystemDesignNodeType =
   | "third_party_api"
   | "payment_provider"
   | "notification_provider"
+  | "email_provider"
+  | "sms_provider"
+  | "identity_provider"
   | "module"
+  | "logical_module"
+  | "feature_module"
+  | "domain_module"
   | "system_boundary"
+  | "module_boundary"
+  | "vpc_boundary"
+  | "region_boundary"
+  | "availability_zone_boundary"
+  | "kubernetes_cluster_boundary"
+  | "deployment_group_boundary"
+  | "swimlane_boundary"
   | "container"
   | "text"
-  | "note";
+  | "note"
+  | "warning_note"
+  | "assumption_note"
+  | "rectangle"
+  | "rounded_rectangle"
+  | "ellipse"
+  | "diamond"
+  | "callout"
+  | "divider"
+  | "label"
+  | "image";
 
 export type SystemDesignNodeCategory =
   | "clients"
@@ -57,7 +80,8 @@ export type SystemDesignNodeCategory =
   | "data"
   | "messaging"
   | "external"
-  | "architecture"
+  | "modules"
+  | "boundaries"
   | "annotations";
 
 export type TechnologyRegistryId =
@@ -68,9 +92,11 @@ export type TechnologyRegistryId =
   | "kafka"
   | "rabbitmq"
   | "elasticsearch"
+  | "opensearch"
   | "kubernetes"
   | "docker"
   | "aws_lambda"
+  | "azure_functions"
   | "aws_s3"
   | "aws_cloudfront"
   | "nginx"
@@ -118,6 +144,70 @@ export interface SystemDesignSize {
 
 export interface SystemDesignRect extends SystemDesignPoint, SystemDesignSize {}
 
+export type SystemDesignRasterAssetMimeType =
+  | "image/png"
+  | "image/jpeg"
+  | "image/webp";
+
+interface SystemDesignNodeAssetBase {
+  intrinsicWidth: number;
+  intrinsicHeight: number;
+  name?: string;
+}
+
+export interface SystemDesignRasterNodeAsset
+  extends SystemDesignNodeAssetBase {
+  kind: "raster";
+  mimeType: SystemDesignRasterAssetMimeType;
+  dataUrl: string;
+}
+
+export interface SystemDesignSvgNodeAsset
+  extends SystemDesignNodeAssetBase {
+  kind: "svg";
+  mimeType: "image/svg+xml";
+  svg: string;
+}
+
+export type SystemDesignNodeAsset =
+  | SystemDesignRasterNodeAsset
+  | SystemDesignSvgNodeAsset;
+
+export type SystemDesignNodeBorderStyle = "solid" | "dashed" | "dotted";
+
+/** Serializable visual overrides applied on top of a semantic node preset. */
+export interface SystemDesignNodeStyle {
+  fill?: string;
+  stroke?: string;
+  strokeWidth?: number;
+  borderRadius?: number;
+  borderStyle?: SystemDesignNodeBorderStyle;
+  opacity?: number;
+}
+
+export type SystemDesignTextHorizontalAlign = "left" | "center" | "right";
+export type SystemDesignTextVerticalAlign = "top" | "middle" | "bottom";
+export type SystemDesignTextWeight = "normal" | "bold";
+export type SystemDesignTextFontStyle = "normal" | "italic";
+export type SystemDesignTextDecoration =
+  | "none"
+  | "underline"
+  | "line-through";
+
+/** Serializable typography overrides shared by labels and annotations. */
+export interface SystemDesignNodeTextStyle {
+  color?: string;
+  fontFamily?: string;
+  fontSize?: number;
+  lineHeight?: number;
+  padding?: number;
+  fontWeight?: SystemDesignTextWeight;
+  fontStyle?: SystemDesignTextFontStyle;
+  textDecoration?: SystemDesignTextDecoration;
+  align?: SystemDesignTextHorizontalAlign;
+  verticalAlign?: SystemDesignTextVerticalAlign;
+}
+
 export interface SystemDesignNode {
   id: string;
   type: SystemDesignNodeType;
@@ -133,13 +223,32 @@ export interface SystemDesignNode {
   isExpandable?: boolean;
   isCollapsed?: boolean;
   parentModuleId?: string;
+  /** Serializable identity shared by nodes that behave as one selection group. */
+  groupId?: string;
   layer: number;
   locked: boolean;
   visible: boolean;
+  asset?: SystemDesignNodeAsset;
+  style?: SystemDesignNodeStyle;
+  textStyle?: SystemDesignNodeTextStyle;
   metadata?: Record<string, string>;
 }
 
 export type SystemDesignEdgeType =
+  | "http_request"
+  | "http_response"
+  | "grpc"
+  | "websocket"
+  | "database_read"
+  | "database_write"
+  | "async_message"
+  | "event_publish"
+  | "event_stream"
+  | "batch_transfer"
+  | "failure_fallback"
+  | "custom"
+  // Schema-v2 documents created by the prototype use these identifiers.
+  // They remain valid aliases so locally saved diagrams continue to load.
   | "request"
   | "response"
   | "async"
@@ -150,7 +259,52 @@ export type SystemDesignEdgeType =
   | "write"
   | "stream";
 
-export type SystemDesignEdgeRouting = "straight" | "curved";
+export type SystemDesignEdgeRouting =
+  | "straight"
+  | "curved"
+  | "elbow"
+  | "orthogonal"
+  | "step"
+  | "bidirectional";
+
+export type SystemDesignEdgeLineStyle =
+  | "solid"
+  | "dashed"
+  | "dotted"
+  | "dash_dot";
+
+export type SystemDesignArrowhead =
+  | "none"
+  | "standard"
+  | "open"
+  | "filled_triangle"
+  | "circle"
+  | "diamond";
+
+export type SystemDesignEdgeLabelIcon =
+  | "none"
+  | "http"
+  | "grpc"
+  | "websocket"
+  | "database"
+  | "message"
+  | "event"
+  | "stream"
+  | "replication"
+  | "batch"
+  | "failure";
+
+export type SystemDesignEdgeAnimationMode =
+  | "none"
+  | "moving_dash"
+  | "moving_dots"
+  | "flow_pulse"
+  | "direction_pulse";
+
+export type SystemDesignEdgeAnimationDirection =
+  | "forward"
+  | "reverse"
+  | "alternate";
 
 export interface SystemDesignEdge {
   id: string;
@@ -163,6 +317,20 @@ export interface SystemDesignEdge {
   protocol?: string;
   description?: string;
   routing?: SystemDesignEdgeRouting;
+  color?: string;
+  opacity?: number;
+  strokeWidth?: number;
+  lineStyle?: SystemDesignEdgeLineStyle;
+  dashPattern?: number[];
+  startArrowhead?: SystemDesignArrowhead;
+  endArrowhead?: SystemDesignArrowhead;
+  labelIcon?: SystemDesignEdgeLabelIcon;
+  labelPosition?: number;
+  labelBackground?: string;
+  labelTextColor?: string;
+  animationMode?: SystemDesignEdgeAnimationMode;
+  animationSpeed?: number;
+  animationDirection?: SystemDesignEdgeAnimationDirection;
 }
 
 export interface SystemDesignViewport {
@@ -233,7 +401,35 @@ export type SystemDesignIconKey =
   | "broadcast"
   | "external-link"
   | "payment"
-  | "notification";
+  | "notification"
+  | "email"
+  | "sms"
+  | "identity-provider"
+  | "module"
+  | "logical-module"
+  | "feature-module"
+  | "domain-module"
+  | "boundary"
+  | "module-boundary"
+  | "vpc"
+  | "region"
+  | "availability-zone"
+  | "kubernetes-cluster"
+  | "deployment-group"
+  | "swimlane"
+  | "container"
+  | "text"
+  | "note"
+  | "warning-note"
+  | "assumption-note"
+  | "rectangle"
+  | "rounded-rectangle"
+  | "ellipse"
+  | "diamond"
+  | "callout"
+  | "divider"
+  | "label"
+  | "image";
 
 export interface SystemDesignNodeDefinition {
   type: SystemDesignNodeType;
@@ -253,9 +449,31 @@ export interface SystemDesignPaletteCategory {
 
 export type SystemDesignSelectionMode = "replace" | "add" | "toggle";
 
-export interface SystemDesignClipboard {
+export type SystemDesignEditorTool =
+  | "select"
+  | "pan"
+  | "connect"
+  | "text"
+  | "note"
+  | "boundary"
+  | "module";
+
+export const SYSTEM_DESIGN_CLIPBOARD_FRAGMENT_VERSION = 1 as const;
+export const SYSTEM_DESIGN_CLIPBOARD_FRAGMENT_KIND =
+  "recallstack/system-design-fragment" as const;
+
+export interface SystemDesignClipboardFragment {
+  kind: typeof SYSTEM_DESIGN_CLIPBOARD_FRAGMENT_KIND;
+  version: typeof SYSTEM_DESIGN_CLIPBOARD_FRAGMENT_VERSION;
+  id: string;
+  sourceDiagramId: string;
   nodes: SystemDesignNode[];
   edges: SystemDesignEdge[];
+  diagrams: Record<string, SystemDesignDiagram>;
+}
+
+export interface SystemDesignClipboard
+  extends SystemDesignClipboardFragment {
   pasteCount: number;
 }
 

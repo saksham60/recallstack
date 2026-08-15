@@ -70,12 +70,14 @@ function AdminShell({
 }) {
   const pathname = usePathname();
   const isSystemDesignEditor =
-    pathname.startsWith("/admin/system-design/") &&
-    pathname !== "/admin/system-design/";
+    (pathname.startsWith("/admin/system-design/") &&
+      pathname !== "/admin/system-design/") ||
+    pathname.startsWith("/admin/diagrams");
   const navigation = systemDesignEnabled
     ? [
         ...coreNavigation.slice(0, 3),
         { href: "/admin/system-design", label: "System Design" },
+        { href: "/admin/diagrams", label: "Diagram Studio" },
         ...coreNavigation.slice(3),
       ]
     : coreNavigation;

@@ -1,10 +1,12 @@
 import type {
+  SystemDesignClipboardFragment,
   SystemDesignDocument,
   SystemDesignEdge,
   SystemDesignEditorState,
   SystemDesignLayerDirection,
   SystemDesignNode,
   SystemDesignPoint,
+  SystemDesignRect,
   SystemDesignSelectionMode,
   SystemDesignSize,
   SystemDesignViewport,
@@ -44,6 +46,25 @@ export type SystemDesignEditorAction =
       at: string;
     }
   | {
+      type: "nodes/arrange";
+      frames: Readonly<Record<string, SystemDesignRect>>;
+      at: string;
+    }
+  | {
+      type: "nodes/set-state";
+      nodeIds?: string[];
+      locked?: boolean;
+      visible?: boolean;
+      at: string;
+    }
+  | {
+      type: "nodes/group";
+      nodeIds?: string[];
+      groupId?: string;
+      at: string;
+    }
+  | { type: "nodes/ungroup"; nodeIds?: string[]; at: string }
+  | {
       type: "node/resize";
       nodeId: string;
       size: SystemDesignSize;
@@ -79,7 +100,16 @@ export type SystemDesignEditorAction =
       mode: SystemDesignSelectionMode;
     }
   | { type: "selection/clear" }
-  | { type: "clipboard/copy" }
+  | { type: "selection/all" }
+  | {
+      type: "clipboard/copy";
+      fragment?: SystemDesignClipboardFragment;
+    }
+  | {
+      type: "clipboard/cut";
+      fragment?: SystemDesignClipboardFragment;
+      at: string;
+    }
   | {
       type: "clipboard/paste";
       offset?: SystemDesignPoint;
@@ -87,9 +117,20 @@ export type SystemDesignEditorAction =
       edgeIdMap?: Readonly<Record<string, string>>;
       at: string;
     }
+  | {
+      type: "clipboard/paste-fragment";
+      fragment: SystemDesignClipboardFragment;
+      offset?: SystemDesignPoint;
+      at: string;
+    }
   | { type: "history/undo" }
   | { type: "history/redo" }
-  | { type: "viewport/set"; viewport: SystemDesignViewport; at: string }
+  | {
+      type: "viewport/set";
+      diagramId?: string;
+      viewport: SystemDesignViewport;
+      at: string;
+    }
   | { type: "document/reset"; at: string }
   | {
       type: "document/replace";
@@ -100,6 +141,12 @@ export type SystemDesignEditorAction =
   | {
       type: "layer/reorder";
       nodeId: string;
+      direction: SystemDesignLayerDirection;
+      at: string;
+    }
+  | {
+      type: "layers/reorder-selection";
+      nodeIds?: string[];
       direction: SystemDesignLayerDirection;
       at: string;
     }
@@ -175,6 +222,42 @@ export const systemDesignEditorActions = {
   ): SystemDesignEditorAction => ({
     type: "nodes/move",
     positions,
+    at: now(at),
+  }),
+  arrangeNodes: (
+    frames: Readonly<Record<string, SystemDesignRect>>,
+    at?: string,
+  ): SystemDesignEditorAction => ({
+    type: "nodes/arrange",
+    frames,
+    at: now(at),
+  }),
+  setNodesState: (
+    changes: { locked?: boolean; visible?: boolean },
+    nodeIds?: string[],
+    at?: string,
+  ): SystemDesignEditorAction => ({
+    type: "nodes/set-state",
+    nodeIds,
+    locked: changes.locked,
+    visible: changes.visible,
+    at: now(at),
+  }),
+  groupNodes: (
+    nodeIds?: string[],
+    options: { groupId?: string; at?: string } = {},
+  ): SystemDesignEditorAction => ({
+    type: "nodes/group",
+    nodeIds,
+    groupId: options.groupId,
+    at: now(options.at),
+  }),
+  ungroupNodes: (
+    nodeIds?: string[],
+    at?: string,
+  ): SystemDesignEditorAction => ({
+    type: "nodes/ungroup",
+    nodeIds,
     at: now(at),
   }),
   resizeNode: (
@@ -262,8 +345,22 @@ export const systemDesignEditorActions = {
   clearSelection: (): SystemDesignEditorAction => ({
     type: "selection/clear",
   }),
-  copySelection: (): SystemDesignEditorAction => ({
+  selectAll: (): SystemDesignEditorAction => ({
+    type: "selection/all",
+  }),
+  copySelection: (
+    fragment?: SystemDesignClipboardFragment,
+  ): SystemDesignEditorAction => ({
     type: "clipboard/copy",
+    fragment,
+  }),
+  cutSelection: (
+    fragment?: SystemDesignClipboardFragment,
+    at?: string,
+  ): SystemDesignEditorAction => ({
+    type: "clipboard/cut",
+    fragment,
+    at: now(at),
   }),
   pasteClipboard: (
     options: {
@@ -279,13 +376,24 @@ export const systemDesignEditorActions = {
     edgeIdMap: options.edgeIdMap,
     at: now(options.at),
   }),
+  pasteFragment: (
+    fragment: SystemDesignClipboardFragment,
+    options: { offset?: SystemDesignPoint; at?: string } = {},
+  ): SystemDesignEditorAction => ({
+    type: "clipboard/paste-fragment",
+    fragment,
+    offset: options.offset,
+    at: now(options.at),
+  }),
   undo: (): SystemDesignEditorAction => ({ type: "history/undo" }),
   redo: (): SystemDesignEditorAction => ({ type: "history/redo" }),
   setViewport: (
     viewport: SystemDesignViewport,
     at?: string,
+    diagramId?: string,
   ): SystemDesignEditorAction => ({
     type: "viewport/set",
+    diagramId,
     viewport,
     at: now(at),
   }),
@@ -312,6 +420,16 @@ export const systemDesignEditorActions = {
   ): SystemDesignEditorAction => ({
     type: "layer/reorder",
     nodeId,
+    direction,
+    at: now(at),
+  }),
+  reorderSelectedLayers: (
+    direction: SystemDesignLayerDirection,
+    nodeIds?: string[],
+    at?: string,
+  ): SystemDesignEditorAction => ({
+    type: "layers/reorder-selection",
+    nodeIds,
     direction,
     at: now(at),
   }),

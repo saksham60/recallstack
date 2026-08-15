@@ -10,14 +10,25 @@ import {
   useState,
 } from "react";
 import type Konva from "konva";
-import { Arrow, Layer, Line, Stage, Text, Transformer } from "react-konva";
+import {
+  Arrow,
+  Layer,
+  Line,
+  Rect,
+  Stage,
+  Text,
+  Transformer,
+} from "react-konva";
 import type {
   SystemDesignDiagram,
   SystemDesignEdge,
+  SystemDesignEditorTool,
   SystemDesignNode,
   SystemDesignPort,
+  SystemDesignSelectionMode,
   SystemDesignViewport,
 } from "../types/system-design.types";
+import { isSystemDesignBoundaryNodeType } from "../constants/system-design-palette";
 import { useElementSize } from "../hooks/use-element-size";
 import {
   MAX_ZOOM,
@@ -26,6 +37,7 @@ import {
   MIN_ZOOM,
   createSystemDesignEdge,
 } from "../utils/system-design-defaults";
+import { snapSystemDesignNodeToObjects } from "../utils/node-layout";
 import {
   recordSystemDesignDragFrame,
   recordSystemDesignRender,
@@ -44,6 +56,16 @@ import {
 import { SystemDesignMinimap } from "./SystemDesignMinimap";
 
 const GRID_SIZE = 24;
+
+const MULTILINE_INLINE_EDIT_NODE_TYPES = new Set<
+  SystemDesignNode["type"]
+>([
+  "text",
+  "note",
+  "warning_note",
+  "assumption_note",
+  "callout",
+]);
 
 const DEFAULT_THEME: SystemDesignCanvasTheme = {
   background: "#09090b",
@@ -82,6 +104,7 @@ export interface SystemDesignCanvasHandle {
   resetViewport: () => void;
   zoomBy: (factor: number) => void;
   getVisibleCenter: () => { x: number; y: number };
+  startInlineEdit: (nodeId: string) => void;
 }
 
 interface SystemDesignCanvasProps {
@@ -91,8 +114,15 @@ interface SystemDesignCanvasProps {
   preview: boolean;
   showGrid?: boolean;
   snapToGrid?: boolean;
+  snapToObjects?: boolean;
+  activeTool?: SystemDesignEditorTool;
+  animationsEnabled?: boolean;
   internalComponentCounts?: Readonly<Record<string, number>>;
   onSelectNode: (nodeId: string, additive: boolean) => void;
+  onSelectNodes: (
+    nodeIds: string[],
+    mode: SystemDesignSelectionMode,
+  ) => void;
   onSelectEdge: (edgeId: string, additive: boolean) => void;
   onClearSelection: () => void;
   onMoveNodes: (changes: NodePositionChange[]) => void;
@@ -105,6 +135,7 @@ interface SystemDesignCanvasProps {
   ) => void;
   onOpenModule?: (nodeId: string) => void;
   onEditNodeLabel?: (nodeId: string, label: string) => void;
+  onEditEdgeLabel?: (edgeId: string, label: string) => void;
 }
 
 function clampZoom(value: number): number {
@@ -148,7 +179,7 @@ function worldPoint(
 }
 
 function isBoundaryNode(node: SystemDesignNode): boolean {
-  return node.type === "system_boundary" || node.type === "container";
+  return isSystemDesignBoundaryNodeType(node.type);
 }
 
 export const SystemDesignCanvas = forwardRef<
@@ -162,7 +193,11 @@ export const SystemDesignCanvas = forwardRef<
     preview,
     showGrid = true,
     snapToGrid = true,
+    snapToObjects = true,
+    activeTool = "select",
+    animationsEnabled = true,
     onSelectNode,
+    onSelectNodes,
     onSelectEdge,
     onClearSelection,
     onMoveNodes,
@@ -172,6 +207,7 @@ export const SystemDesignCanvas = forwardRef<
     onDropNodeType,
     onOpenModule,
     onEditNodeLabel,
+    onEditEdgeLabel,
     internalComponentCounts = {},
   },
   ref,
@@ -185,8 +221,12 @@ export const SystemDesignCanvas = forwardRef<
   const interactionLayerRef = useRef<Konva.Layer>(null);
   const verticalGuideRef = useRef<Konva.Line>(null);
   const horizontalGuideRef = useRef<Konva.Line>(null);
+  const marqueeRef = useRef<Konva.Rect>(null);
   const alignmentFrameRef = useRef<number | null>(null);
   const wheelCommitTimerRef = useRef<number | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const animationStartedAtRef = useRef(0);
+  const dragActiveRef = useRef(false);
   const pendingWheelViewportRef = useRef<SystemDesignViewport | null>(
     null,
   );
@@ -196,14 +236,39 @@ export const SystemDesignCanvas = forwardRef<
   const edgeRefs = useRef(
     new Map<string, SystemDesignEdgeRendererHandle>(),
   );
+  const edgeRefCallbacks = useRef(
+    new Map<
+      string,
+      (handle: SystemDesignEdgeRendererHandle | null) => void
+    >(),
+  );
   const connectionArrowRef = useRef<Konva.Arrow>(null);
   const dragSnapshot = useRef(new Map<string, { x: number; y: number }>());
   const [connection, setConnection] = useState<ConnectionDraft | null>(null);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [editingLabel, setEditingLabel] = useState("");
+  const [editingEdgeId, setEditingEdgeId] = useState<string | null>(null);
+  const [editingEdgeLabel, setEditingEdgeLabel] = useState("");
+  const beginInlineLabelEditRef = useRef<(nodeId: string) => void>(() => {});
   const connectionRef = useRef<ConnectionDraft | null>(null);
+  const marqueeDraftRef = useRef<{
+    start: { x: number; y: number };
+    end: { x: number; y: number };
+    additive: boolean;
+  } | null>(null);
   const [theme, setTheme] = useState(DEFAULT_THEME);
   const { viewport } = diagram;
+
+  const getEdgeRefCallback = useCallback((edgeId: string) => {
+    const existing = edgeRefCallbacks.current.get(edgeId);
+    if (existing) return existing;
+    const callback = (handle: SystemDesignEdgeRendererHandle | null) => {
+      if (handle) edgeRefs.current.set(edgeId, handle);
+      else edgeRefs.current.delete(edgeId);
+    };
+    edgeRefCallbacks.current.set(edgeId, callback);
+    return callback;
+  }, []);
 
   useEffect(() => {
     recordSystemDesignRender("canvas");
@@ -217,6 +282,17 @@ export const SystemDesignCanvas = forwardRef<
   useEffect(() => {
     setTheme(readCanvasTheme());
   }, []);
+
+  useEffect(() => {
+    const container = stageRef.current?.container();
+    if (!container) return;
+    container.style.cursor =
+      preview || activeTool === "pan"
+        ? "grab"
+        : activeTool === "connect"
+          ? "crosshair"
+          : "default";
+  }, [activeTool, preview]);
 
   useEffect(() => {
     const cancelActiveConnection = () => {
@@ -267,6 +343,68 @@ export const SystemDesignCanvas = forwardRef<
     () => new Map(diagram.edges.map((edge) => [edge.id, edge])),
     [diagram.edges],
   );
+
+  useEffect(() => {
+    const reducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    );
+
+    const stopAnimationFrame = () => {
+      if (animationFrameRef.current !== null) {
+        window.cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+    };
+
+    const updateAnimationState = () => {
+      stopAnimationFrame();
+      const animatedHandles = [...edgeRefs.current.values()].filter(
+        (handle) => handle.isAnimated(),
+      );
+      const active =
+        animationsEnabled &&
+        !reducedMotion.matches &&
+        document.visibilityState === "visible" &&
+        animatedHandles.length > 0;
+      edgeRefs.current.forEach((handle) =>
+        handle.setAnimationActive(active && handle.isAnimated()),
+      );
+      edgesLayerRef.current?.batchDraw();
+      if (!active) return;
+
+      animationStartedAtRef.current = performance.now();
+      const drawFrame = (now: number) => {
+        if (!dragActiveRef.current) {
+          const elapsed = now - animationStartedAtRef.current;
+          animatedHandles.forEach((handle) =>
+            handle.setAnimationFrame(elapsed),
+          );
+          edgesLayerRef.current?.batchDraw();
+        }
+        animationFrameRef.current = window.requestAnimationFrame(drawFrame);
+      };
+      animationFrameRef.current = window.requestAnimationFrame(drawFrame);
+    };
+
+    updateAnimationState();
+    document.addEventListener("visibilitychange", updateAnimationState);
+    reducedMotion.addEventListener("change", updateAnimationState);
+    return () => {
+      stopAnimationFrame();
+      document.removeEventListener("visibilitychange", updateAnimationState);
+      reducedMotion.removeEventListener("change", updateAnimationState);
+    };
+  }, [animationsEnabled, diagram.edges, diagram.id]);
+
+  useEffect(() => {
+    const activeEdgeIds = new Set(diagram.edges.map((edge) => edge.id));
+    edgeRefCallbacks.current.forEach((_, edgeId) => {
+      if (!activeEdgeIds.has(edgeId)) edgeRefCallbacks.current.delete(edgeId);
+    });
+    edgeRefs.current.forEach((_, edgeId) => {
+      if (!activeEdgeIds.has(edgeId)) edgeRefs.current.delete(edgeId);
+    });
+  }, [diagram.edges]);
 
   const updateConnectedEdgeGeometry = useCallback(
     (positions: ReadonlyMap<string, { x: number; y: number }>) => {
@@ -449,7 +587,13 @@ export const SystemDesignCanvas = forwardRef<
 
   useImperativeHandle(
     ref,
-    () => ({ fitToScreen, resetViewport, zoomBy, getVisibleCenter }),
+    () => ({
+      fitToScreen,
+      resetViewport,
+      zoomBy,
+      getVisibleCenter,
+      startInlineEdit: (nodeId) => beginInlineLabelEditRef.current(nodeId),
+    }),
     [fitToScreen, getVisibleCenter, resetViewport, zoomBy],
   );
 
@@ -503,6 +647,98 @@ export const SystemDesignCanvas = forwardRef<
     viewport.y,
     viewport.zoom,
   ]);
+
+  const beginMarqueeSelection = useCallback(
+    (stage: Konva.Stage, additive: boolean) => {
+      const pointer = stage.getPointerPosition();
+      if (!pointer) return;
+      const start = worldPoint(pointer, {
+        x: stage.x(),
+        y: stage.y(),
+        zoom: stage.scaleX(),
+      });
+      marqueeDraftRef.current = { start, end: start, additive };
+      marqueeRef.current?.position(start);
+      marqueeRef.current?.size({ width: 0, height: 0 });
+      marqueeRef.current?.visible(true);
+      interactionLayerRef.current?.batchDraw();
+    },
+    [],
+  );
+
+  const updateMarqueeSelection = useCallback((stage: Konva.Stage) => {
+    const draft = marqueeDraftRef.current;
+    const pointer = stage.getPointerPosition();
+    if (!draft || !pointer) return false;
+    const end = worldPoint(pointer, {
+      x: stage.x(),
+      y: stage.y(),
+      zoom: stage.scaleX(),
+    });
+    draft.end = end;
+    const x = Math.min(draft.start.x, end.x);
+    const y = Math.min(draft.start.y, end.y);
+    marqueeRef.current?.position({ x, y });
+    marqueeRef.current?.size({
+      width: Math.abs(end.x - draft.start.x),
+      height: Math.abs(end.y - draft.start.y),
+    });
+    interactionLayerRef.current?.batchDraw();
+    return true;
+  }, []);
+
+  const finishMarqueeSelection = useCallback(() => {
+    const draft = marqueeDraftRef.current;
+    if (!draft) return false;
+    marqueeDraftRef.current = null;
+    marqueeRef.current?.visible(false);
+    interactionLayerRef.current?.batchDraw();
+
+    const left = Math.min(draft.start.x, draft.end.x);
+    const top = Math.min(draft.start.y, draft.end.y);
+    const right = Math.max(draft.start.x, draft.end.x);
+    const bottom = Math.max(draft.start.y, draft.end.y);
+    const moved =
+      Math.hypot(
+        draft.end.x - draft.start.x,
+        draft.end.y - draft.start.y,
+      ) * viewport.zoom >=
+      4;
+    if (!moved) {
+      if (!draft.additive) onClearSelection();
+      return true;
+    }
+
+    const nodeIds = visibleNodes
+      .filter((node) => {
+        const nodeRight = node.x + node.width;
+        const nodeBottom = node.y + node.height;
+        if (isBoundaryNode(node)) {
+          return (
+            node.x >= left &&
+            node.y >= top &&
+            nodeRight <= right &&
+            nodeBottom <= bottom
+          );
+        }
+        return !(
+          nodeRight < left ||
+          node.x > right ||
+          nodeBottom < top ||
+          node.y > bottom
+        );
+      })
+      .map((node) => node.id);
+    onSelectNodes(nodeIds, draft.additive ? "add" : "replace");
+    return true;
+  }, [onClearSelection, onSelectNodes, viewport.zoom, visibleNodes]);
+
+  useEffect(() => {
+    if (activeTool === "select") return;
+    marqueeDraftRef.current = null;
+    marqueeRef.current?.visible(false);
+    interactionLayerRef.current?.batchDraw();
+  }, [activeTool]);
 
   const hideAlignmentGuides = useCallback(() => {
     verticalGuideRef.current?.visible(false);
@@ -653,8 +889,10 @@ export const SystemDesignCanvas = forwardRef<
     () => () => {
       if (wheelCommitTimerRef.current !== null) {
         window.clearTimeout(wheelCommitTimerRef.current);
+        wheelCommitTimerRef.current = null;
       }
       const pending = pendingWheelViewportRef.current;
+      pendingWheelViewportRef.current = null;
       if (pending) onViewportChange(pending);
     },
     [onViewportChange],
@@ -671,8 +909,30 @@ export const SystemDesignCanvas = forwardRef<
     [setViewport, size.height, size.width, viewport.zoom],
   );
 
+  const getObjectSnappedPosition = useCallback(
+    (
+      nodeId: string,
+      position: { x: number; y: number },
+    ): { x: number; y: number } => {
+      if (!snapToObjects) return position;
+      const dragged = nodeMap.get(nodeId);
+      if (!dragged) return position;
+      return snapSystemDesignNodeToObjects(
+        dragged,
+        position,
+        visibleNodes,
+        {
+          threshold: 6 / viewport.zoom,
+          ignoredNodeIds: new Set(dragSnapshot.current.keys()),
+        },
+      );
+    },
+    [nodeMap, snapToObjects, viewport.zoom, visibleNodes],
+  );
+
   const handleDragStart = useCallback(
     (nodeId: string) => {
+      dragActiveRef.current = true;
       const activeIds = selectedNodeIds.includes(nodeId)
         ? selectedNodeIds
         : [nodeId];
@@ -701,6 +961,12 @@ export const SystemDesignCanvas = forwardRef<
           y: Math.round(group.y() / GRID_SIZE) * GRID_SIZE,
         });
       }
+      group.position(
+        getObjectSnappedPosition(nodeId, {
+          x: group.x(),
+          y: group.y(),
+        }),
+      );
       const deltaX = group.x() - origin.x;
       const deltaY = group.y() - origin.y;
       const positions = new Map<string, { x: number; y: number }>();
@@ -716,13 +982,19 @@ export const SystemDesignCanvas = forwardRef<
       scheduleAlignmentGuides(nodeId, group);
       group.getLayer()?.batchDraw();
     },
-    [scheduleAlignmentGuides, snapToGrid, updateConnectedEdgeGeometry],
+    [
+      getObjectSnappedPosition,
+      scheduleAlignmentGuides,
+      snapToGrid,
+      updateConnectedEdgeGeometry,
+    ],
   );
 
   const handleDragEnd = useCallback(
     (nodeId: string, group: Konva.Group) => {
       const origin = dragSnapshot.current.get(nodeId);
       if (!origin) {
+        dragActiveRef.current = false;
         hideAlignmentGuides();
         restoreDragVisuals();
         onMoveNodes([{ id: nodeId, x: group.x(), y: group.y() }]);
@@ -739,6 +1011,7 @@ export const SystemDesignCanvas = forwardRef<
         }),
       );
       dragSnapshot.current.clear();
+      dragActiveRef.current = false;
       hideAlignmentGuides();
       restoreDragVisuals();
       onMoveNodes(changes);
@@ -849,18 +1122,24 @@ export const SystemDesignCanvas = forwardRef<
       const node = nodeMap.get(nodeId);
       if (!node || preview || !onEditNodeLabel) return;
       onSelectNode(nodeId, false);
+      setEditingEdgeId(null);
+      setEditingEdgeLabel("");
       setEditingNodeId(nodeId);
       setEditingLabel(node.label);
     },
     [nodeMap, onEditNodeLabel, onSelectNode, preview],
   );
+  beginInlineLabelEditRef.current = beginInlineLabelEdit;
 
   const finishInlineLabelEdit = useCallback(
     (commit: boolean) => {
       if (commit && editingNodeId && onEditNodeLabel) {
-        const label = editingLabel.trim();
         const current = nodeMap.get(editingNodeId);
-        if (label && current && label !== current.label) {
+        const label =
+          current && MULTILINE_INLINE_EDIT_NODE_TYPES.has(current.type)
+            ? editingLabel.replace(/\r\n?/g, "\n")
+            : editingLabel.trim();
+        if (label.trim() && current && label !== current.label) {
           onEditNodeLabel(editingNodeId, label);
         }
       }
@@ -880,15 +1159,85 @@ export const SystemDesignCanvas = forwardRef<
   const editingNode = editingNodeId
     ? nodeMap.get(editingNodeId) ?? null
     : null;
+  const usesMultilineInlineEditor =
+    editingNode !== null &&
+    MULTILINE_INLINE_EDIT_NODE_TYPES.has(editingNode.type);
+
+  const beginInlineEdgeLabelEdit = useCallback(
+    (edgeId: string) => {
+      const edge = edgeMap.get(edgeId);
+      if (!edge || preview || !onEditEdgeLabel) return;
+      onSelectEdge(edgeId, false);
+      setEditingNodeId(null);
+      setEditingLabel("");
+      setEditingEdgeId(edgeId);
+      setEditingEdgeLabel(edge.label ?? "");
+    },
+    [edgeMap, onEditEdgeLabel, onSelectEdge, preview],
+  );
+
+  const finishInlineEdgeLabelEdit = useCallback(
+    (commit: boolean) => {
+      if (commit && editingEdgeId && onEditEdgeLabel) {
+        const current = edgeMap.get(editingEdgeId);
+        const label = editingEdgeLabel.trim();
+        if (current && label !== (current.label ?? "")) {
+          onEditEdgeLabel(editingEdgeId, label);
+        }
+      }
+      setEditingEdgeId(null);
+      setEditingEdgeLabel("");
+    }, [edgeMap, editingEdgeId, editingEdgeLabel, onEditEdgeLabel]);
+
+  useEffect(() => {
+    if (editingEdgeId && !edgeMap.has(editingEdgeId)) {
+      setEditingEdgeId(null);
+      setEditingEdgeLabel("");
+    }
+  }, [edgeMap, editingEdgeId]);
+
+  const editingEdge = editingEdgeId
+    ? edgeMap.get(editingEdgeId) ?? null
+    : null;
+  const editingEdgeSource = editingEdge
+    ? nodeMap.get(editingEdge.sourceNodeId)
+    : undefined;
+  const editingEdgeTarget = editingEdge
+    ? nodeMap.get(editingEdge.targetNodeId)
+    : undefined;
+  const editingEdgePosition =
+    editingEdge && editingEdgeSource && editingEdgeTarget
+      ? (() => {
+          const start = getNodePortPosition(
+            editingEdgeSource,
+            editingEdge.sourcePort,
+          );
+          const end = getNodePortPosition(
+            editingEdgeTarget,
+            editingEdge.targetPort,
+          );
+          const position = editingEdge.labelPosition ?? 0.5;
+          return {
+            x: start.x + (end.x - start.x) * position,
+            y: start.y + (end.y - start.y) * position,
+          };
+        })()
+      : null;
 
   return (
     <div
       ref={containerRef}
       data-testid="system-design-canvas"
       className="relative h-full min-h-0 w-full overflow-hidden bg-background focus-within:outline-none focus-within:ring-2 focus-within:ring-inset focus-within:ring-accent"
+      data-active-tool={activeTool}
       role="application"
       aria-label="System design diagram canvas"
       tabIndex={0}
+      onPointerDownCapture={(event) => {
+        if (!preview && event.target instanceof HTMLElement) {
+          event.currentTarget.focus({ preventScroll: true });
+        }
+      }}
       onDragOver={(event) => {
         if (!preview) event.preventDefault();
       }}
@@ -928,22 +1277,42 @@ export const SystemDesignCanvas = forwardRef<
           y={viewport.y}
           scaleX={viewport.zoom}
           scaleY={viewport.zoom}
-          draggable={!connection}
+          draggable={preview || activeTool === "pan"}
           onWheel={handleWheel}
           onMouseDown={(event) => {
             const stage = event.target.getStage();
+            if (!stage) return;
             const isEmptyCanvas = event.target === stage;
-            stage?.draggable(isEmptyCanvas && !connection);
-            if (isEmptyCanvas) onClearSelection();
+            if (preview) {
+              stage.draggable(isEmptyCanvas && !connection);
+              return;
+            }
+            if (activeTool === "pan") {
+              stage.draggable(true);
+              return;
+            }
+            stage.draggable(false);
+            if (isEmptyCanvas && activeTool === "select") {
+              beginMarqueeSelection(stage, event.evt.shiftKey);
+            } else if (isEmptyCanvas) {
+              onClearSelection();
+            }
           }}
           onTouchStart={(event) => {
             const stage = event.target.getStage();
+            if (!stage) return;
             const isEmptyCanvas = event.target === stage;
-            stage?.draggable(isEmptyCanvas && !connection);
-            if (isEmptyCanvas) onClearSelection();
+            stage.draggable(
+              (preview || activeTool === "pan") &&
+                isEmptyCanvas &&
+                !connection,
+            );
+            if (isEmptyCanvas && activeTool !== "pan") onClearSelection();
           }}
           onMouseMove={(event) => {
-            const pointer = event.target.getStage()?.getPointerPosition();
+            const stage = event.target.getStage();
+            if (stage && updateMarqueeSelection(stage)) return;
+            const pointer = stage?.getPointerPosition();
             if (!pointer) return;
             updateConnectionPointer(pointer);
           }}
@@ -953,11 +1322,15 @@ export const SystemDesignCanvas = forwardRef<
             updateConnectionPointer(pointer);
           }}
           onMouseUp={(event) => {
-            event.target.getStage()?.draggable(true);
+            const stage = event.target.getStage();
+            finishMarqueeSelection();
+            stage?.draggable(preview || activeTool === "pan");
             if (connectionRef.current) clearConnection();
           }}
           onTouchEnd={(event) => {
-            event.target.getStage()?.draggable(true);
+            event.target
+              .getStage()
+              ?.draggable(preview || activeTool === "pan");
             if (connectionRef.current) clearConnection();
           }}
           onDragEnd={(event) => {
@@ -980,13 +1353,25 @@ export const SystemDesignCanvas = forwardRef<
               />
             ))}
           </Layer>
-          <Layer ref={boundaryLayerRef}>
+          <Layer
+            ref={boundaryLayerRef}
+            listening={preview || activeTool !== "pan"}
+          >
             {boundaryNodes.map((node) => (
               <SystemDesignNodeRenderer
                 key={node.id}
                 node={node}
                 selected={selectedNodeIds.includes(node.id)}
-                connecting={connection?.sourceNodeId === node.id}
+                transformerOwnsSelection={
+                  !preview &&
+                  selectedNodeIds.length === 1 &&
+                  selectedNodeIds[0] === node.id &&
+                  !node.locked
+                }
+                connecting={
+                  activeTool === "connect" ||
+                  connection?.sourceNodeId === node.id
+                }
                 preview={preview}
                 theme={theme}
                 registerRef={registerNodeRef}
@@ -1003,7 +1388,10 @@ export const SystemDesignCanvas = forwardRef<
               />
             ))}
           </Layer>
-          <Layer ref={edgesLayerRef}>
+          <Layer
+            ref={edgesLayerRef}
+            listening={preview || activeTool !== "pan"}
+          >
             {diagram.edges.map((edge) => {
               const source = nodeMap.get(edge.sourceNodeId);
               const target = nodeMap.get(edge.targetNodeId);
@@ -1011,10 +1399,7 @@ export const SystemDesignCanvas = forwardRef<
               return (
                 <SystemDesignEdgeRenderer
                   key={edge.id}
-                  ref={(handle) => {
-                    if (handle) edgeRefs.current.set(edge.id, handle);
-                    else edgeRefs.current.delete(edge.id);
-                  }}
+                  ref={getEdgeRefCallback(edge.id)}
                   edge={edge}
                   source={source}
                   target={target}
@@ -1022,17 +1407,30 @@ export const SystemDesignCanvas = forwardRef<
                   preview={preview}
                   theme={theme}
                   onSelect={onSelectEdge}
+                  onEditLabel={beginInlineEdgeLabelEdit}
                 />
               );
             })}
           </Layer>
-          <Layer ref={nodesLayerRef}>
+          <Layer
+            ref={nodesLayerRef}
+            listening={preview || activeTool !== "pan"}
+          >
             {foregroundNodes.map((node) => (
               <SystemDesignNodeRenderer
                 key={node.id}
                 node={node}
                 selected={selectedNodeIds.includes(node.id)}
-                connecting={connection?.sourceNodeId === node.id}
+                transformerOwnsSelection={
+                  !preview &&
+                  selectedNodeIds.length === 1 &&
+                  selectedNodeIds[0] === node.id &&
+                  !node.locked
+                }
+                connecting={
+                  activeTool === "connect" ||
+                  connection?.sourceNodeId === node.id
+                }
                 preview={preview}
                 theme={theme}
                 registerRef={registerNodeRef}
@@ -1085,11 +1483,24 @@ export const SystemDesignCanvas = forwardRef<
               strokeWidth={1}
               dash={[5, 5]}
             />
-            {!preview && (
+            <Rect
+              ref={marqueeRef}
+              visible={false}
+              fill={theme.accent}
+              opacity={0.12}
+              stroke={theme.accent}
+              strokeWidth={1}
+              strokeScaleEnabled={false}
+              listening={false}
+              perfectDrawEnabled={false}
+            />
+            {!preview && activeTool === "select" && (
               <Transformer
                 ref={transformerRef}
                 rotateEnabled={false}
-                keepRatio={false}
+                keepRatio={
+                  nodeMap.get(selectedNodeIds[0])?.type === "image"
+                }
                 flipEnabled={false}
                 borderStroke={theme.accent}
                 anchorFill={theme.surface}
@@ -1149,7 +1560,61 @@ export const SystemDesignCanvas = forwardRef<
             canvasSize={size}
             onNavigate={handleMinimapNavigate}
           />
-          {editingNode && (
+          {editingEdge && editingEdgePosition && (
+            <input
+              autoFocus
+              data-testid="system-design-inline-edge-label-input"
+              aria-label={`Edit connection label${editingEdge.label ? ` ${editingEdge.label}` : ""}`}
+              placeholder="Connection label"
+              className="absolute z-30 rounded border border-accent bg-surface px-2 text-center text-xs font-semibold text-foreground shadow-xl outline-none ring-2 ring-accent/30"
+              style={{
+                left: editingEdgePosition.x * viewport.zoom + viewport.x,
+                top: editingEdgePosition.y * viewport.zoom + viewport.y,
+                width: 200,
+                height: 34,
+                transform: "translate(-50%, -50%)",
+              }}
+              value={editingEdgeLabel}
+              onChange={(event) => setEditingEdgeLabel(event.target.value)}
+              onBlur={() => finishInlineEdgeLabelEdit(true)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  finishInlineEdgeLabelEdit(true);
+                } else if (event.key === "Escape") {
+                  event.preventDefault();
+                  finishInlineEdgeLabelEdit(false);
+                }
+              }}
+            />
+          )}
+          {editingNode && usesMultilineInlineEditor && (
+            <textarea
+              autoFocus
+              data-testid="system-design-inline-text-input"
+              aria-label={`Edit ${editingNode.label}`}
+              className="absolute z-30 resize-none rounded border border-accent bg-surface px-3 py-2 text-sm leading-5 text-foreground shadow-xl outline-none ring-2 ring-accent/30"
+              style={{
+                left: editingNode.x * viewport.zoom + viewport.x,
+                top: editingNode.y * viewport.zoom + viewport.y,
+                width: Math.max(160, editingNode.width * viewport.zoom),
+                height: Math.max(72, editingNode.height * viewport.zoom),
+              }}
+              value={editingLabel}
+              onChange={(event) => setEditingLabel(event.target.value)}
+              onBlur={() => finishInlineLabelEdit(true)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                  event.preventDefault();
+                  finishInlineLabelEdit(true);
+                } else if (event.key === "Escape") {
+                  event.preventDefault();
+                  finishInlineLabelEdit(false);
+                }
+              }}
+            />
+          )}
+          {editingNode && !usesMultilineInlineEditor && (
             <input
               autoFocus
               data-testid="system-design-inline-label-input"

@@ -5,11 +5,29 @@ import type {
   TechnologyIdentity,
   TechnologyRegistryId,
 } from "../types/system-design.types";
+import {
+  siApachekafka,
+  siDocker,
+  siElasticsearch,
+  siFirebase,
+  siGooglepubsub,
+  siKong,
+  siKubernetes,
+  siMongodb,
+  siMysql,
+  siNginx,
+  siOpensearch,
+  siPostgresql,
+  siRabbitmq,
+  siRedis,
+  siSupabase,
+} from "simple-icons";
 
 /**
- * Technology marks are intentionally bundled as small vector treatments instead
- * of loading remote logo URLs into Konva. Keeping this list closed makes imports
- * deterministic and prevents a saved diagram from becoming an image proxy.
+ * Technology marks are bundled vectors. Recognized vendor marks use the
+ * authoritative Simple Icons path data at build time; cloud-service symbols
+ * without a Simple Icons mark use our code-native service glyphs. No runtime
+ * request or user-provided URL can enter this closed registry.
  */
 export const SYSTEM_DESIGN_TECHNOLOGY_IDS = [
   "postgresql",
@@ -19,9 +37,11 @@ export const SYSTEM_DESIGN_TECHNOLOGY_IDS = [
   "kafka",
   "rabbitmq",
   "elasticsearch",
+  "opensearch",
   "kubernetes",
   "docker",
   "aws_lambda",
+  "azure_functions",
   "aws_s3",
   "aws_cloudfront",
   "nginx",
@@ -51,7 +71,7 @@ export const SYSTEM_DESIGN_TECHNOLOGY_REGISTRY = {
     name: "PostgreSQL",
     shortName: "Postgres",
     mark: "PG",
-    color: "#336791",
+    color: `#${siPostgresql.hex}`,
     onColor: "#ffffff",
     category: "database",
     aliases: ["postgres", "postgre sql"],
@@ -61,7 +81,7 @@ export const SYSTEM_DESIGN_TECHNOLOGY_REGISTRY = {
     name: "MySQL",
     shortName: "MySQL",
     mark: "MY",
-    color: "#4479a1",
+    color: `#${siMysql.hex}`,
     onColor: "#ffffff",
     category: "database",
     aliases: ["my sql"],
@@ -71,7 +91,7 @@ export const SYSTEM_DESIGN_TECHNOLOGY_REGISTRY = {
     name: "MongoDB",
     shortName: "Mongo",
     mark: "M",
-    color: "#47a248",
+    color: `#${siMongodb.hex}`,
     onColor: "#ffffff",
     category: "database",
     aliases: ["mongo"],
@@ -81,7 +101,7 @@ export const SYSTEM_DESIGN_TECHNOLOGY_REGISTRY = {
     name: "Redis",
     shortName: "Redis",
     mark: "R",
-    color: "#dc382d",
+    color: `#${siRedis.hex}`,
     onColor: "#ffffff",
     category: "cache",
     aliases: [],
@@ -91,7 +111,7 @@ export const SYSTEM_DESIGN_TECHNOLOGY_REGISTRY = {
     name: "Apache Kafka",
     shortName: "Kafka",
     mark: "K",
-    color: "#4b5563",
+    color: `#${siApachekafka.hex}`,
     onColor: "#ffffff",
     category: "messaging",
     aliases: ["apache kafka"],
@@ -101,7 +121,7 @@ export const SYSTEM_DESIGN_TECHNOLOGY_REGISTRY = {
     name: "RabbitMQ",
     shortName: "Rabbit",
     mark: "RM",
-    color: "#ff6600",
+    color: `#${siRabbitmq.hex}`,
     onColor: "#ffffff",
     category: "messaging",
     aliases: ["rabbit mq"],
@@ -111,17 +131,27 @@ export const SYSTEM_DESIGN_TECHNOLOGY_REGISTRY = {
     name: "Elasticsearch",
     shortName: "Elastic",
     mark: "ES",
-    color: "#00bfb3",
-    onColor: "#062e3b",
+    color: `#${siElasticsearch.hex}`,
+    onColor: "#ffffff",
     category: "search",
     aliases: ["elastic search", "elastic"],
+  },
+  opensearch: {
+    id: "opensearch",
+    name: "OpenSearch",
+    shortName: "OpenSearch",
+    mark: "OS",
+    color: `#${siOpensearch.hex}`,
+    onColor: "#ffffff",
+    category: "search",
+    aliases: ["open search", "amazon opensearch", "aws opensearch"],
   },
   kubernetes: {
     id: "kubernetes",
     name: "Kubernetes",
     shortName: "K8s",
     mark: "K8",
-    color: "#326ce5",
+    color: `#${siKubernetes.hex}`,
     onColor: "#ffffff",
     category: "container",
     aliases: ["k8s"],
@@ -131,7 +161,7 @@ export const SYSTEM_DESIGN_TECHNOLOGY_REGISTRY = {
     name: "Docker",
     shortName: "Docker",
     mark: "D",
-    color: "#2496ed",
+    color: `#${siDocker.hex}`,
     onColor: "#ffffff",
     category: "container",
     aliases: [],
@@ -145,6 +175,20 @@ export const SYSTEM_DESIGN_TECHNOLOGY_REGISTRY = {
     onColor: "#1f2937",
     category: "compute",
     aliases: ["lambda", "aws-lambda", "aws lambda"],
+  },
+  azure_functions: {
+    id: "azure_functions",
+    name: "Azure Functions",
+    shortName: "Functions",
+    mark: "AF",
+    color: "#0078d4",
+    onColor: "#ffffff",
+    category: "compute",
+    aliases: [
+      "azure function",
+      "microsoft azure functions",
+      "azure-functions",
+    ],
   },
   aws_s3: {
     id: "aws_s3",
@@ -171,7 +215,7 @@ export const SYSTEM_DESIGN_TECHNOLOGY_REGISTRY = {
     name: "NGINX",
     shortName: "NGINX",
     mark: "N",
-    color: "#009639",
+    color: `#${siNginx.hex}`,
     onColor: "#ffffff",
     category: "networking",
     aliases: [],
@@ -181,8 +225,8 @@ export const SYSTEM_DESIGN_TECHNOLOGY_REGISTRY = {
     name: "Kong Gateway",
     shortName: "Kong",
     mark: "KG",
-    color: "#00b5d8",
-    onColor: "#062e3b",
+    color: `#${siKong.hex}`,
+    onColor: "#ffffff",
     category: "networking",
     aliases: ["kong gateway", "kong api gateway"],
   },
@@ -191,8 +235,8 @@ export const SYSTEM_DESIGN_TECHNOLOGY_REGISTRY = {
     name: "Firebase",
     shortName: "Firebase",
     mark: "F",
-    color: "#ffca28",
-    onColor: "#422006",
+    color: `#${siFirebase.hex}`,
+    onColor: "#ffffff",
     category: "platform",
     aliases: [],
   },
@@ -201,7 +245,7 @@ export const SYSTEM_DESIGN_TECHNOLOGY_REGISTRY = {
     name: "Supabase",
     shortName: "Supabase",
     mark: "S",
-    color: "#3ecf8e",
+    color: `#${siSupabase.hex}`,
     onColor: "#052e25",
     category: "platform",
     aliases: [],
@@ -211,8 +255,8 @@ export const SYSTEM_DESIGN_TECHNOLOGY_REGISTRY = {
     name: "Google Cloud Pub/Sub",
     shortName: "GCP Pub/Sub",
     mark: "PS",
-    color: "#4285f4",
-    onColor: "#ffffff",
+    color: `#${siGooglepubsub.hex}`,
+    onColor: "#1f2937",
     category: "messaging",
     aliases: [
       "gcp pubsub",
@@ -238,44 +282,52 @@ export interface SystemDesignTechnologyBrandPath {
  */
 export const SYSTEM_DESIGN_TECHNOLOGY_BRAND_PATHS = {
   postgresql: {
-    path: "M6 4C3 6 3 12 5 16C6 19 9 21 12 19L13 15C15 16 18 16 20 14C22 12 21 7 18 5C15 3 9 2 6 4ZM8 7C9 6 11 6 12 8C13 6 16 6 17 8C18 10 17 12 15 13L13 12L12 17L10 18L10 12C7 12 6 9 8 7Z",
+    path: siPostgresql.path,
     style: "fill",
   },
   mysql: {
-    path: "M3 15C6 9 11 5 20 6C17 8 15 10 14 13C13 17 10 20 6 20C8 17 8 15 3 15ZM13 9C10 9 8 11 7 13C10 14 12 12 13 9Z",
+    path: siMysql.path,
     style: "fill",
   },
   mongodb: {
-    path: "M12 2C7 6 6 12 9 17C10 19 11 21 12 22C13 20 15 18 16 16C18 11 16 6 12 2ZM11.2 7H12.8V18H11.2Z",
+    path: siMongodb.path,
     style: "fill",
   },
   redis: {
-    path: "M12 2L22 7L12 12L2 7L12 2ZM2 11L12 16L22 11V14L12 19L2 14V11ZM2 16L12 21L22 16V19L12 24L2 19V16Z",
+    path: siRedis.path,
     style: "fill",
   },
   kafka: {
-    path: "M12 3V12M5 8L12 3L19 8M5 8V16L12 21M19 8V16L12 21M5 16L12 12L19 16",
-    style: "stroke",
+    path: siApachekafka.path,
+    style: "fill",
   },
   rabbitmq: {
-    path: "M7 3C7 1 10 1 10 4V8H14V4C14 1 17 1 17 3V9C20 11 21 15 19 19C17 23 7 23 5 19C3 15 4 11 7 9V3ZM8 14A1.5 1.5 0 1 0 8 17A1.5 1.5 0 0 0 8 14ZM16 14A1.5 1.5 0 1 0 16 17A1.5 1.5 0 0 0 16 14Z",
+    path: siRabbitmq.path,
     style: "fill",
   },
   elasticsearch: {
-    path: "M12 2A10 10 0 0 0 3 8H14L18 12L14 16H3A10 10 0 1 0 12 2ZM4 10H13L15 12L13 14H4A8 8 0 0 1 4 10Z",
+    path: siElasticsearch.path,
+    style: "fill",
+  },
+  opensearch: {
+    path: siOpensearch.path,
     style: "fill",
   },
   kubernetes: {
-    path: "M12 2L20 6V16L12 22L4 16V6L12 2ZM12 6A6 6 0 1 0 12 18A6 6 0 0 0 12 6ZM11 7H13V10.2L16 8.5L17 10.2L14 12L17 13.8L16 15.5L13 13.8V17H11V13.8L8 15.5L7 13.8L10 12L7 10.2L8 8.5L11 10.2V7Z",
+    path: siKubernetes.path,
     style: "fill",
   },
   docker: {
-    path: "M3 11H6V8H9V11H12V8H15V11H18V8H21V12H23C22 17 18 20 12 20C7 20 4 17 3 13H1V11H3ZM6 4H9V7H6V4ZM10 4H13V7H10V4ZM14 4H17V7H14V4Z",
+    path: siDocker.path,
     style: "fill",
   },
   aws_lambda: {
     path: "M8 2H13L21 21H16L12 11L8 21H3L10 6L8 2Z",
     style: "fill",
+  },
+  azure_functions: {
+    path: "M8 3L3 12L8 21M16 3L21 12L16 21M14 4L9 13H14L10 21",
+    style: "stroke",
   },
   aws_s3: {
     path: "M12 2L21 7V17L12 22L3 17V7L12 2ZM6 8V16L12 19V11L6 8ZM18 8L13 11V19L18 16V8ZM7 7L12 10L17 7L12 4L7 7Z",
@@ -286,24 +338,24 @@ export const SYSTEM_DESIGN_TECHNOLOGY_BRAND_PATHS = {
     style: "fill",
   },
   nginx: {
-    path: "M12 2L21 7V17L12 22L3 17V7L12 2ZM7 17V7H10L15 14V7H18V17H15L10 10V17H7Z",
+    path: siNginx.path,
     style: "fill",
   },
   kong: {
-    path: "M12 2L20 6V11H17V8L12 5L7 8V16L12 19L17 16V13H20V18L12 22L4 18V6L12 2ZM9 9H15V15H9V9Z",
+    path: siKong.path,
     style: "fill",
   },
   firebase: {
-    path: "M5 20L8 4L12 11L15 2L20 20L12 23L5 20ZM9 17L12 20L16 17L14 10L12 15L10 11L9 17Z",
+    path: siFirebase.path,
     style: "fill",
   },
   supabase: {
-    path: "M13 2L4 14H11L10 22L20 9H13V2ZM12 7V11H16L13 15L14 12H8L12 7Z",
+    path: siSupabase.path,
     style: "fill",
   },
   gcp_pubsub: {
-    path: "M12 3V9M6 15L10 10M18 15L14 10M8 18H16M12 2A3 3 0 1 0 12 8A3 3 0 0 0 12 2ZM5 15A3 3 0 1 0 5 21A3 3 0 0 0 5 15ZM19 15A3 3 0 1 0 19 21A3 3 0 0 0 19 15Z",
-    style: "stroke",
+    path: siGooglepubsub.path,
+    style: "fill",
   },
 } as const satisfies Record<
   SystemDesignTechnologyId,
@@ -348,19 +400,24 @@ export function resolveSystemDesignTechnology(
   }
 
   if (value && typeof value === "object") {
-    const candidate = value as { id?: unknown; name?: unknown };
+    const candidate = value as {
+      id?: unknown;
+      name?: unknown;
+      category?: unknown;
+    };
     if (typeof candidate.id === "string") {
-      const byId = TECHNOLOGY_BY_NORMALIZED_NAME.get(
+      if (candidate.id === "custom") return null;
+      const definition = TECHNOLOGY_BY_NORMALIZED_NAME.get(
         normalizeTechnologyName(candidate.id),
       );
-      if (byId) return byId;
-    }
-    if (typeof candidate.name === "string") {
-      return (
-        TECHNOLOGY_BY_NORMALIZED_NAME.get(
-          normalizeTechnologyName(candidate.name),
-        ) ?? null
-      );
+      if (
+        !definition ||
+        candidate.name !== definition.name ||
+        candidate.category !== definition.category
+      ) {
+        return null;
+      }
+      return definition;
     }
   }
 
@@ -391,11 +448,7 @@ export function createSystemDesignTechnologyIdentity(
   };
 }
 
-export type SystemDesignSemanticCategory =
-  | SystemDesignNodeCategory
-  | "modules"
-  | "containers"
-  | "annotations";
+export type SystemDesignSemanticCategory = SystemDesignNodeCategory;
 
 export type SystemDesignNodeChrome =
   | "identity"
@@ -410,9 +463,26 @@ export type SystemDesignNodeChrome =
   | "external"
   | "module"
   | "boundary"
+  | "module-boundary"
+  | "vpc-boundary"
+  | "region-boundary"
+  | "availability-zone-boundary"
+  | "cluster-boundary"
+  | "deployment-boundary"
+  | "swimlane"
   | "container"
   | "text"
-  | "note";
+  | "note"
+  | "warning-note"
+  | "assumption-note"
+  | "rectangle"
+  | "rounded-rectangle"
+  | "ellipse"
+  | "diamond"
+  | "callout"
+  | "divider"
+  | "label"
+  | "image";
 
 export interface SystemDesignNodeVisualDefinition {
   category: SystemDesignSemanticCategory;
@@ -421,7 +491,7 @@ export interface SystemDesignNodeVisualDefinition {
   softAccent: string;
 }
 
-const NODE_VISUALS: Record<string, SystemDesignNodeVisualDefinition> = {
+const NODE_VISUALS = {
   user: {
     category: "clients",
     chrome: "identity",
@@ -572,20 +642,98 @@ const NODE_VISUALS: Record<string, SystemDesignNodeVisualDefinition> = {
     accent: "#f472b6",
     softAccent: "#500724",
   },
+  email_provider: {
+    category: "external",
+    chrome: "external",
+    accent: "#f472b6",
+    softAccent: "#500724",
+  },
+  sms_provider: {
+    category: "external",
+    chrome: "external",
+    accent: "#fb7185",
+    softAccent: "#4c0519",
+  },
+  identity_provider: {
+    category: "external",
+    chrome: "external",
+    accent: "#a78bfa",
+    softAccent: "#2e2350",
+  },
   module: {
     category: "modules",
     chrome: "module",
     accent: "#c084fc",
     softAccent: "#3b0764",
   },
+  logical_module: {
+    category: "modules",
+    chrome: "module",
+    accent: "#a78bfa",
+    softAccent: "#312e81",
+  },
+  feature_module: {
+    category: "modules",
+    chrome: "module",
+    accent: "#f472b6",
+    softAccent: "#500724",
+  },
+  domain_module: {
+    category: "modules",
+    chrome: "module",
+    accent: "#fb923c",
+    softAccent: "#431407",
+  },
   system_boundary: {
-    category: "containers",
+    category: "boundaries",
     chrome: "boundary",
     accent: "#94a3b8",
     softAccent: "#1e293b",
   },
+  module_boundary: {
+    category: "boundaries",
+    chrome: "module-boundary",
+    accent: "#c084fc",
+    softAccent: "#3b0764",
+  },
+  vpc_boundary: {
+    category: "boundaries",
+    chrome: "vpc-boundary",
+    accent: "#38bdf8",
+    softAccent: "#082f49",
+  },
+  region_boundary: {
+    category: "boundaries",
+    chrome: "region-boundary",
+    accent: "#60a5fa",
+    softAccent: "#172554",
+  },
+  availability_zone_boundary: {
+    category: "boundaries",
+    chrome: "availability-zone-boundary",
+    accent: "#22d3ee",
+    softAccent: "#083344",
+  },
+  kubernetes_cluster_boundary: {
+    category: "boundaries",
+    chrome: "cluster-boundary",
+    accent: "#326ce5",
+    softAccent: "#172554",
+  },
+  deployment_group_boundary: {
+    category: "boundaries",
+    chrome: "deployment-boundary",
+    accent: "#34d399",
+    softAccent: "#052e2b",
+  },
+  swimlane_boundary: {
+    category: "boundaries",
+    chrome: "swimlane",
+    accent: "#f59e0b",
+    softAccent: "#451a03",
+  },
   container: {
-    category: "containers",
+    category: "boundaries",
     chrome: "container",
     accent: "#60a5fa",
     softAccent: "#172554",
@@ -602,17 +750,73 @@ const NODE_VISUALS: Record<string, SystemDesignNodeVisualDefinition> = {
     accent: "#facc15",
     softAccent: "#422006",
   },
-};
-
-const FALLBACK_NODE_VISUAL: SystemDesignNodeVisualDefinition = {
-  category: "compute",
-  chrome: "compute",
-  accent: "#818cf8",
-  softAccent: "#252553",
-};
+  warning_note: {
+    category: "annotations",
+    chrome: "warning-note",
+    accent: "#fb7185",
+    softAccent: "#4c0519",
+  },
+  assumption_note: {
+    category: "annotations",
+    chrome: "assumption-note",
+    accent: "#38bdf8",
+    softAccent: "#082f49",
+  },
+  rectangle: {
+    category: "annotations",
+    chrome: "rectangle",
+    accent: "#94a3b8",
+    softAccent: "#1e293b",
+  },
+  rounded_rectangle: {
+    category: "annotations",
+    chrome: "rounded-rectangle",
+    accent: "#a78bfa",
+    softAccent: "#2e2350",
+  },
+  ellipse: {
+    category: "annotations",
+    chrome: "ellipse",
+    accent: "#22d3ee",
+    softAccent: "#083344",
+  },
+  diamond: {
+    category: "annotations",
+    chrome: "diamond",
+    accent: "#f59e0b",
+    softAccent: "#451a03",
+  },
+  callout: {
+    category: "annotations",
+    chrome: "callout",
+    accent: "#f472b6",
+    softAccent: "#500724",
+  },
+  divider: {
+    category: "annotations",
+    chrome: "divider",
+    accent: "#64748b",
+    softAccent: "#1e293b",
+  },
+  label: {
+    category: "annotations",
+    chrome: "label",
+    accent: "#e2e8f0",
+    softAccent: "#1e293b",
+  },
+  image: {
+    category: "annotations",
+    chrome: "image",
+    accent: "#a78bfa",
+    softAccent: "#2e2350",
+  },
+} as const satisfies Record<
+  SystemDesignNodeType,
+  SystemDesignNodeVisualDefinition
+>;
 
 export function getSystemDesignNodeVisual(
-  type: SystemDesignNodeType | string,
+  type: SystemDesignNodeType,
 ): SystemDesignNodeVisualDefinition {
-  return NODE_VISUALS[type] ?? FALLBACK_NODE_VISUAL;
+  return NODE_VISUALS[type];
 }

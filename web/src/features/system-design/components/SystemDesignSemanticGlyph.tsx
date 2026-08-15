@@ -251,6 +251,7 @@ export function SystemDesignSemanticGlyph({
           </>
         );
       case "notification_provider":
+      case "email_provider":
         return (
           <>
             <Rect x={3} y={7} width={26} height={19} cornerRadius={3} {...stroke} />
@@ -259,7 +260,25 @@ export function SystemDesignSemanticGlyph({
             <Line points={[28, 24, 20, 16]} {...stroke} />
           </>
         );
+      case "sms_provider":
+        return (
+          <>
+            <Rect x={8} y={2} width={16} height={28} cornerRadius={4} {...stroke} />
+            <Line points={[11, 8, 21, 8, 21, 19, 16, 19, 12, 23, 13, 19, 11, 19, 11, 8]} {...stroke} />
+          </>
+        );
+      case "identity_provider":
+        return (
+          <>
+            <Line points={[16, 2, 27, 7, 25, 20, 16, 29, 7, 20, 5, 7, 16, 2]} closed {...stroke} />
+            <Circle x={16} y={12} radius={3} {...stroke} />
+            <Line points={[10, 21, 11, 18, 14, 16, 18, 16, 21, 18, 22, 21]} {...stroke} />
+          </>
+        );
       case "module":
+      case "logical_module":
+      case "feature_module":
+      case "domain_module":
         return (
           <>
             <Rect x={3} y={8} width={22} height={20} cornerRadius={3} {...stroke} />
@@ -268,10 +287,65 @@ export function SystemDesignSemanticGlyph({
           </>
         );
       case "system_boundary":
+      case "module_boundary":
         return (
           <>
             <Rect x={3} y={3} width={26} height={26} cornerRadius={3} dash={[4, 3]} {...stroke} />
             <Rect x={7} y={7} width={18} height={18} cornerRadius={2} {...stroke} />
+          </>
+        );
+      case "vpc_boundary":
+        return (
+          <>
+            <Line points={[7, 23, 25, 23, 28, 19, 26, 14, 21, 12, 18, 6, 10, 7, 8, 12, 4, 15, 4, 20, 7, 23]} closed {...stroke} />
+            <Line points={[10, 17, 14, 13, 18, 17, 22, 13]} {...stroke} />
+          </>
+        );
+      case "region_boundary":
+        return (
+          <>
+            <Circle x={16} y={16} radius={13} {...stroke} />
+            <Ellipse x={16} y={16} radiusX={6} radiusY={13} {...stroke} />
+            <Line points={[3, 16, 29, 16]} {...stroke} />
+          </>
+        );
+      case "availability_zone_boundary":
+        return (
+          <>
+            {[4, 12, 20].map((x) => (
+              <Rect key={x} x={x} y={6} width={8} height={20} cornerRadius={2} {...stroke} />
+            ))}
+            <Line points={[7, 11, 9, 11, 15, 11, 17, 11, 23, 11, 25, 11]} {...stroke} />
+          </>
+        );
+      case "kubernetes_cluster_boundary":
+        return (
+          <>
+            <Circle x={16} y={16} radius={12} {...stroke} />
+            <Circle x={16} y={16} radius={4} {...stroke} />
+            {[0, 45, 90, 135].map((angle) => {
+              const radians = (angle * Math.PI) / 180;
+              const dx = Math.cos(radians) * 10;
+              const dy = Math.sin(radians) * 10;
+              return <Line key={angle} points={[16 - dx, 16 - dy, 16 + dx, 16 + dy]} {...stroke} />;
+            })}
+          </>
+        );
+      case "deployment_group_boundary":
+        return (
+          <>
+            <Rect x={3} y={5} width={11} height={9} cornerRadius={2} {...stroke} />
+            <Rect x={18} y={5} width={11} height={9} cornerRadius={2} {...stroke} />
+            <Rect x={10.5} y={19} width={11} height={9} cornerRadius={2} {...stroke} />
+            <Line points={[9, 14, 13, 19, 23, 14, 19, 19]} {...stroke} />
+          </>
+        );
+      case "swimlane_boundary":
+        return (
+          <>
+            <Rect x={3} y={5} width={26} height={22} cornerRadius={2} {...stroke} />
+            <Line points={[10, 5, 10, 27]} {...stroke} />
+            <Line points={[10, 12, 29, 12, 10, 20, 29, 20]} {...stroke} />
           </>
         );
       case "container":

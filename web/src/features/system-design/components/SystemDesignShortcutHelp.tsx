@@ -3,15 +3,19 @@
 import { Keyboard } from "lucide-react";
 import { buttonClass } from "@/features/admin/components/AdminPrimitives";
 
-const shortcuts = [
-  ["Undo", "Ctrl/⌘ Z"],
-  ["Redo", "Ctrl/⌘ ⇧ Z or Ctrl/⌘ Y"],
-  ["Copy selection", "Ctrl/⌘ C"],
-  ["Paste", "Ctrl/⌘ V"],
-  ["Duplicate", "Ctrl/⌘ D"],
+export const SYSTEM_DESIGN_KEYBOARD_SHORTCUTS = [
+  ["Undo", "Ctrl/Cmd + Z"],
+  ["Redo", "Ctrl/Cmd + Shift + Z or Ctrl/Cmd + Y"],
+  ["Select all", "Ctrl/Cmd + A"],
+  ["Copy selection", "Ctrl/Cmd + C"],
+  ["Cut selection", "Ctrl/Cmd + X"],
+  ["Paste into focused canvas", "Ctrl/Cmd + V"],
+  ["Duplicate", "Ctrl/Cmd + D"],
   ["Delete selection", "Delete or Backspace"],
   ["Clear selection", "Escape"],
-  ["Save", "Ctrl/⌘ S"],
+  ["Open selected module", "Enter"],
+  ["Return to parent", "Alt + Left"],
+  ["Save", "Ctrl/Cmd + S"],
 ] as const;
 
 export interface SystemDesignShortcutHelpProps {
@@ -42,7 +46,7 @@ export function SystemDesignShortcutHelp({
           </h2>
         </div>
         <dl className="divide-y divide-border/70">
-          {shortcuts.map(([label, keys]) => (
+          {SYSTEM_DESIGN_KEYBOARD_SHORTCUTS.map(([label, keys]) => (
             <div
               key={label}
               className="flex items-center justify-between gap-4 py-2 text-xs"

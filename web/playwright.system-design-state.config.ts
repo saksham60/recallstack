@@ -5,6 +5,8 @@ export default defineConfig({
   testMatch: [
     "**/system-design-state.spec.ts",
     "**/system-design-model.spec.ts",
+    "**/system-design-export.spec.ts",
+    "**/diagram-engine.spec.ts",
   ],
   fullyParallel: false,
   forbidOnly: true,

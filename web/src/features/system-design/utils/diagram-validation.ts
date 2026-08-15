@@ -1,11 +1,29 @@
-import { SYSTEM_DESIGN_NODE_TYPE_ORDER } from "../constants/system-design-palette";
+import {
+  SYSTEM_DESIGN_NODE_DEFINITIONS,
+  isSystemDesignBoundaryNodeType,
+  isSystemDesignModuleNodeType,
+} from "../constants/system-design-palette";
 import { SYSTEM_DESIGN_TECHNOLOGY_REGISTRY } from "../constants/system-design-visual-registry";
+import {
+  SYSTEM_DESIGN_ARROWHEADS,
+  SYSTEM_DESIGN_EDGE_ANIMATION_DIRECTIONS,
+  SYSTEM_DESIGN_EDGE_ANIMATION_MODES,
+  SYSTEM_DESIGN_EDGE_LABEL_ICONS,
+  SYSTEM_DESIGN_EDGE_LINE_STYLES,
+  SYSTEM_DESIGN_EDGE_ROUTINGS,
+  SYSTEM_DESIGN_EDGE_SEMANTICS,
+} from "../constants/system-design-edge-registry";
 import {
   SYSTEM_DESIGN_LEGACY_SCHEMA_VERSION,
   SYSTEM_DESIGN_SCHEMA_VERSION,
   type SystemDesignDiagram,
   type SystemDesignDocument,
   type SystemDesignEdge,
+  type SystemDesignArrowhead,
+  type SystemDesignEdgeAnimationDirection,
+  type SystemDesignEdgeAnimationMode,
+  type SystemDesignEdgeLabelIcon,
+  type SystemDesignEdgeLineStyle,
   type SystemDesignEdgeRouting,
   type SystemDesignEdgeType,
   type SystemDesignNode,
@@ -23,26 +41,10 @@ import {
   cloneSystemDesignDocument,
   migrateLegacyTechnologyIdentity,
 } from "./system-design-defaults";
-
-const ARCHITECTURE_NODE_TYPES = [
-  "module",
-  "system_boundary",
-  "container",
-  "text",
-  "note",
-] as const satisfies readonly SystemDesignNodeType[];
-
-const EDGE_TYPES = [
-  "request",
-  "response",
-  "async",
-  "event",
-  "data",
-  "replication",
-  "read",
-  "write",
-  "stream",
-] as const satisfies readonly SystemDesignEdgeType[];
+import {
+  SystemDesignAssetError,
+  parseSystemDesignNodeAsset,
+} from "./system-design-assets";
 
 const PORTS = [
   "top",
@@ -51,18 +53,29 @@ const PORTS = [
   "left",
 ] as const satisfies readonly SystemDesignPort[];
 
-const EDGE_ROUTING = [
-  "straight",
-  "curved",
-] as const satisfies readonly SystemDesignEdgeRouting[];
-
-const NODE_TYPE_SET = new Set<string>([
-  ...SYSTEM_DESIGN_NODE_TYPE_ORDER,
-  ...ARCHITECTURE_NODE_TYPES,
-]);
-const EDGE_TYPE_SET = new Set<string>(EDGE_TYPES);
+const NODE_TYPE_SET = new Set<string>(
+  Object.keys(SYSTEM_DESIGN_NODE_DEFINITIONS),
+);
+const NODE_BORDER_STYLE_SET = new Set(["solid", "dashed", "dotted"]);
+const TEXT_WEIGHT_SET = new Set(["normal", "bold"]);
+const TEXT_FONT_STYLE_SET = new Set(["normal", "italic"]);
+const TEXT_DECORATION_SET = new Set(["none", "underline", "line-through"]);
+const TEXT_ALIGN_SET = new Set(["left", "center", "right"]);
+const TEXT_VERTICAL_ALIGN_SET = new Set(["top", "middle", "bottom"]);
+const EDGE_TYPE_SET = new Set<string>(
+  Object.keys(SYSTEM_DESIGN_EDGE_SEMANTICS),
+);
 const PORT_SET = new Set<string>(PORTS);
-const EDGE_ROUTING_SET = new Set<string>(EDGE_ROUTING);
+const EDGE_ROUTING_SET = new Set<string>(SYSTEM_DESIGN_EDGE_ROUTINGS);
+const EDGE_LINE_STYLE_SET = new Set<string>(SYSTEM_DESIGN_EDGE_LINE_STYLES);
+const EDGE_ARROWHEAD_SET = new Set<string>(SYSTEM_DESIGN_ARROWHEADS);
+const EDGE_LABEL_ICON_SET = new Set<string>(SYSTEM_DESIGN_EDGE_LABEL_ICONS);
+const EDGE_ANIMATION_MODE_SET = new Set<string>(
+  SYSTEM_DESIGN_EDGE_ANIMATION_MODES,
+);
+const EDGE_ANIMATION_DIRECTION_SET = new Set<string>(
+  SYSTEM_DESIGN_EDGE_ANIMATION_DIRECTIONS,
+);
 
 export interface SystemDesignValidationIssue {
   path: string;
@@ -117,6 +130,16 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
+function isSafeSystemDesignColor(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    (/^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(
+      value,
+    ) ||
+      /^var\(--[a-z0-9-]+\)$/i.test(value))
+  );
+}
+
 function isIsoTimestamp(value: unknown): value is string {
   return isNonEmptyString(value) && Number.isFinite(Date.parse(value));
 }
@@ -147,6 +170,203 @@ function validateMetadata(
       message: "Metadata must contain only string keys and string values.",
     });
   }
+}
+
+function validateNodeStyle(
+  value: unknown,
+  path: string,
+  issues: SystemDesignValidationIssue[],
+): SystemDesignNode["style"] {
+  if (value === undefined) return undefined;
+  if (!isRecord(value)) {
+    issues.push({ path, message: "Expected a node appearance object." });
+    return undefined;
+  }
+
+  for (const field of ["fill", "stroke"] as const) {
+    if (value[field] !== undefined && !isSafeSystemDesignColor(value[field])) {
+      issues.push({
+        path: `${path}.${field}`,
+        message: "Expected a safe hexadecimal or theme color.",
+      });
+    }
+  }
+  if (
+    value.strokeWidth !== undefined &&
+    (!isFiniteNumber(value.strokeWidth) ||
+      value.strokeWidth < 0 ||
+      value.strokeWidth > 12)
+  ) {
+    issues.push({
+      path: `${path}.strokeWidth`,
+      message: "Stroke width must be between 0 and 12.",
+    });
+  }
+  if (
+    value.borderRadius !== undefined &&
+    (!isFiniteNumber(value.borderRadius) ||
+      value.borderRadius < 0 ||
+      value.borderRadius > 100)
+  ) {
+    issues.push({
+      path: `${path}.borderRadius`,
+      message: "Border radius must be between 0 and 100.",
+    });
+  }
+  if (
+    value.borderStyle !== undefined &&
+    (typeof value.borderStyle !== "string" ||
+      !NODE_BORDER_STYLE_SET.has(value.borderStyle))
+  ) {
+    issues.push({
+      path: `${path}.borderStyle`,
+      message: "Unsupported node border style.",
+    });
+  }
+  if (
+    value.opacity !== undefined &&
+    (!isFiniteNumber(value.opacity) || value.opacity < 0 || value.opacity > 1)
+  ) {
+    issues.push({
+      path: `${path}.opacity`,
+      message: "Node opacity must be between 0 and 1.",
+    });
+  }
+
+  return {
+    ...(typeof value.fill === "string" ? { fill: value.fill } : {}),
+    ...(typeof value.stroke === "string" ? { stroke: value.stroke } : {}),
+    ...(typeof value.strokeWidth === "number"
+      ? { strokeWidth: value.strokeWidth }
+      : {}),
+    ...(typeof value.borderRadius === "number"
+      ? { borderRadius: value.borderRadius }
+      : {}),
+    ...(typeof value.borderStyle === "string"
+      ? {
+          borderStyle:
+            value.borderStyle as NonNullable<
+              SystemDesignNode["style"]
+            >["borderStyle"],
+        }
+      : {}),
+    ...(typeof value.opacity === "number" ? { opacity: value.opacity } : {}),
+  };
+}
+
+function validateNodeTextStyle(
+  value: unknown,
+  path: string,
+  issues: SystemDesignValidationIssue[],
+): SystemDesignNode["textStyle"] {
+  if (value === undefined) return undefined;
+  if (!isRecord(value)) {
+    issues.push({ path, message: "Expected a node text-style object." });
+    return undefined;
+  }
+
+  if (value.color !== undefined && !isSafeSystemDesignColor(value.color)) {
+    issues.push({
+      path: `${path}.color`,
+      message: "Expected a safe hexadecimal or theme color.",
+    });
+  }
+  if (
+    value.fontFamily !== undefined &&
+    (typeof value.fontFamily !== "string" ||
+      value.fontFamily.trim().length === 0 ||
+      value.fontFamily.length > 100 ||
+      /[\u0000-\u001f\u007f]/.test(value.fontFamily))
+  ) {
+    issues.push({
+      path: `${path}.fontFamily`,
+      message: "Font family must be a non-empty string of at most 100 characters.",
+    });
+  }
+  for (const [field, minimum, maximum, message] of [
+    ["fontSize", 8, 72, "Font size must be between 8 and 72."],
+    ["lineHeight", 0.8, 3, "Line height must be between 0.8 and 3."],
+    ["padding", 0, 64, "Text padding must be between 0 and 64."],
+  ] as const) {
+    if (
+      value[field] !== undefined &&
+      (!isFiniteNumber(value[field]) ||
+        value[field] < minimum ||
+        value[field] > maximum)
+    ) {
+      issues.push({ path: `${path}.${field}`, message });
+    }
+  }
+  for (const [field, allowed, message] of [
+    ["fontWeight", TEXT_WEIGHT_SET, "Unsupported text weight."],
+    ["fontStyle", TEXT_FONT_STYLE_SET, "Unsupported font style."],
+    ["textDecoration", TEXT_DECORATION_SET, "Unsupported text decoration."],
+    ["align", TEXT_ALIGN_SET, "Unsupported horizontal text alignment."],
+    [
+      "verticalAlign",
+      TEXT_VERTICAL_ALIGN_SET,
+      "Unsupported vertical text alignment.",
+    ],
+  ] as const) {
+    if (
+      value[field] !== undefined &&
+      (typeof value[field] !== "string" || !allowed.has(value[field] as never))
+    ) {
+      issues.push({ path: `${path}.${field}`, message });
+    }
+  }
+
+  return {
+    ...(typeof value.color === "string" ? { color: value.color } : {}),
+    ...(typeof value.fontFamily === "string"
+      ? { fontFamily: value.fontFamily }
+      : {}),
+    ...(typeof value.fontSize === "number" ? { fontSize: value.fontSize } : {}),
+    ...(typeof value.lineHeight === "number"
+      ? { lineHeight: value.lineHeight }
+      : {}),
+    ...(typeof value.padding === "number" ? { padding: value.padding } : {}),
+    ...(typeof value.fontWeight === "string"
+      ? {
+          fontWeight:
+            value.fontWeight as NonNullable<
+              SystemDesignNode["textStyle"]
+            >["fontWeight"],
+        }
+      : {}),
+    ...(typeof value.fontStyle === "string"
+      ? {
+          fontStyle:
+            value.fontStyle as NonNullable<
+              SystemDesignNode["textStyle"]
+            >["fontStyle"],
+        }
+      : {}),
+    ...(typeof value.textDecoration === "string"
+      ? {
+          textDecoration:
+            value.textDecoration as NonNullable<
+              SystemDesignNode["textStyle"]
+            >["textDecoration"],
+        }
+      : {}),
+    ...(typeof value.align === "string"
+      ? {
+          align:
+            value.align as NonNullable<
+              SystemDesignNode["textStyle"]
+            >["align"],
+        }
+      : {}),
+    ...(typeof value.verticalAlign === "string"
+      ? {
+          verticalAlign:
+            value.verticalAlign as NonNullable<
+              SystemDesignNode["textStyle"]
+            >["verticalAlign"],
+        }
+      : {}),
+  };
 }
 
 function migrateLegacyNode(value: unknown): unknown {
@@ -387,6 +607,34 @@ function validateDiagram(
         `${nodePath}.technology`,
         issues,
       );
+      let asset: SystemDesignNode["asset"];
+      if (candidate.asset !== undefined) {
+        try {
+          asset = parseSystemDesignNodeAsset(candidate.asset);
+        } catch (error) {
+          issue(
+            `${nodePath}.asset`,
+            error instanceof SystemDesignAssetError
+              ? error.message
+              : "Expected a safe embedded image asset.",
+          );
+        }
+      }
+      if (candidate.type === "image" && !asset) {
+        issue(`${nodePath}.asset`, "Image nodes require an embedded asset.");
+      } else if (candidate.type !== "image" && asset) {
+        issue(`${nodePath}.asset`, "Only image nodes can contain image assets.");
+      }
+      const style = validateNodeStyle(
+        candidate.style,
+        `${nodePath}.style`,
+        issues,
+      );
+      const textStyle = validateNodeTextStyle(
+        candidate.textStyle,
+        `${nodePath}.textStyle`,
+        issues,
+      );
       if (!isOptionalString(candidate.description)) {
         issue(`${nodePath}.description`, "Expected a string.");
       }
@@ -409,6 +657,14 @@ function validateDiagram(
       }
       if (!isOptionalString(candidate.parentModuleId)) {
         issue(`${nodePath}.parentModuleId`, "Expected a string.");
+      }
+      if (!isOptionalString(candidate.groupId)) {
+        issue(`${nodePath}.groupId`, "Expected a string.");
+      } else if (
+        typeof candidate.groupId === "string" &&
+        !isNonEmptyString(candidate.groupId)
+      ) {
+        issue(`${nodePath}.groupId`, "A group ID cannot be empty.");
       }
       if (
         typeof candidate.layer !== "number" ||
@@ -435,7 +691,12 @@ function validateDiagram(
           childDiagramId: candidate.childDiagramId,
           path: `${nodePath}.childDiagramId`,
         });
-        if (candidate.type !== "module") {
+        if (
+          typeof candidate.type !== "string" ||
+          !isSystemDesignModuleNodeType(
+            candidate.type as SystemDesignNodeType,
+          )
+        ) {
           issue(
             `${nodePath}.childDiagramId`,
             "Only module nodes can reference child diagrams.",
@@ -468,6 +729,9 @@ function validateDiagram(
           ? { subtitle: candidate.subtitle }
           : {}),
         ...(technology ? { technology } : {}),
+        ...(asset ? { asset } : {}),
+        ...(style ? { style } : {}),
+        ...(textStyle ? { textStyle } : {}),
         ...(typeof candidate.description === "string"
           ? { description: candidate.description }
           : {}),
@@ -482,6 +746,9 @@ function validateDiagram(
           : {}),
         ...(typeof candidate.parentModuleId === "string"
           ? { parentModuleId: candidate.parentModuleId }
+          : {}),
+        ...(typeof candidate.groupId === "string"
+          ? { groupId: candidate.groupId }
           : {}),
         layer: candidate.layer as number,
         locked: candidate.locked as boolean,
@@ -573,6 +840,108 @@ function validateDiagram(
       ) {
         issue(`${edgePath}.routing`, "Unsupported connection routing.");
       }
+      if (
+        candidate.color !== undefined &&
+        !isSafeSystemDesignColor(candidate.color)
+      ) {
+        issue(`${edgePath}.color`, "Expected a safe hexadecimal or theme color.");
+      }
+      if (
+        candidate.opacity !== undefined &&
+        (!isFiniteNumber(candidate.opacity) ||
+          candidate.opacity < 0.1 ||
+          candidate.opacity > 1)
+      ) {
+        issue(`${edgePath}.opacity`, "Opacity must be between 0.1 and 1.");
+      }
+      if (
+        candidate.strokeWidth !== undefined &&
+        (!isFiniteNumber(candidate.strokeWidth) ||
+          candidate.strokeWidth < 1 ||
+          candidate.strokeWidth > 12)
+      ) {
+        issue(`${edgePath}.strokeWidth`, "Thickness must be between 1 and 12.");
+      }
+      if (
+        candidate.lineStyle !== undefined &&
+        (typeof candidate.lineStyle !== "string" ||
+          !EDGE_LINE_STYLE_SET.has(candidate.lineStyle))
+      ) {
+        issue(`${edgePath}.lineStyle`, "Unsupported connection line style.");
+      }
+      if (
+        candidate.dashPattern !== undefined &&
+        (!Array.isArray(candidate.dashPattern) ||
+          candidate.dashPattern.length < 2 ||
+          candidate.dashPattern.length > 12 ||
+          candidate.dashPattern.some(
+            (entry) => !isFiniteNumber(entry) || entry <= 0 || entry > 100,
+          ))
+      ) {
+        issue(
+          `${edgePath}.dashPattern`,
+          "Dash patterns require 2 to 12 positive values no greater than 100.",
+        );
+      }
+      for (const [field, value] of [
+        ["startArrowhead", candidate.startArrowhead],
+        ["endArrowhead", candidate.endArrowhead],
+      ] as const) {
+        if (
+          value !== undefined &&
+          (typeof value !== "string" || !EDGE_ARROWHEAD_SET.has(value))
+        ) {
+          issue(`${edgePath}.${field}`, "Unsupported arrowhead style.");
+        }
+      }
+      if (
+        candidate.labelIcon !== undefined &&
+        (typeof candidate.labelIcon !== "string" ||
+          !EDGE_LABEL_ICON_SET.has(candidate.labelIcon))
+      ) {
+        issue(`${edgePath}.labelIcon`, "Unsupported connection label icon.");
+      }
+      if (
+        candidate.labelPosition !== undefined &&
+        (!isFiniteNumber(candidate.labelPosition) ||
+          candidate.labelPosition < 0 ||
+          candidate.labelPosition > 1)
+      ) {
+        issue(`${edgePath}.labelPosition`, "Label position must be between 0 and 1.");
+      }
+      for (const [field, value] of [
+        ["labelBackground", candidate.labelBackground],
+        ["labelTextColor", candidate.labelTextColor],
+      ] as const) {
+        if (value !== undefined && !isSafeSystemDesignColor(value)) {
+          issue(`${edgePath}.${field}`, "Expected a safe hexadecimal or theme color.");
+        }
+      }
+      if (
+        candidate.animationMode !== undefined &&
+        (typeof candidate.animationMode !== "string" ||
+          !EDGE_ANIMATION_MODE_SET.has(candidate.animationMode))
+      ) {
+        issue(`${edgePath}.animationMode`, "Unsupported connection animation mode.");
+      }
+      if (
+        candidate.animationSpeed !== undefined &&
+        (!isFiniteNumber(candidate.animationSpeed) ||
+          candidate.animationSpeed < 0.1 ||
+          candidate.animationSpeed > 5)
+      ) {
+        issue(`${edgePath}.animationSpeed`, "Animation speed must be between 0.1 and 5.");
+      }
+      if (
+        candidate.animationDirection !== undefined &&
+        (typeof candidate.animationDirection !== "string" ||
+          !EDGE_ANIMATION_DIRECTION_SET.has(candidate.animationDirection))
+      ) {
+        issue(
+          `${edgePath}.animationDirection`,
+          "Unsupported connection animation direction.",
+        );
+      }
 
       if (
         sourceNodeId &&
@@ -616,6 +985,54 @@ function validateDiagram(
           : {}),
         ...(typeof candidate.routing === "string"
           ? { routing: candidate.routing as SystemDesignEdgeRouting }
+          : {}),
+        ...(typeof candidate.color === "string"
+          ? { color: candidate.color }
+          : {}),
+        ...(typeof candidate.opacity === "number"
+          ? { opacity: candidate.opacity }
+          : {}),
+        ...(typeof candidate.strokeWidth === "number"
+          ? { strokeWidth: candidate.strokeWidth }
+          : {}),
+        ...(typeof candidate.lineStyle === "string"
+          ? { lineStyle: candidate.lineStyle as SystemDesignEdgeLineStyle }
+          : {}),
+        ...(Array.isArray(candidate.dashPattern)
+          ? { dashPattern: candidate.dashPattern as number[] }
+          : {}),
+        ...(typeof candidate.startArrowhead === "string"
+          ? { startArrowhead: candidate.startArrowhead as SystemDesignArrowhead }
+          : {}),
+        ...(typeof candidate.endArrowhead === "string"
+          ? { endArrowhead: candidate.endArrowhead as SystemDesignArrowhead }
+          : {}),
+        ...(typeof candidate.labelIcon === "string"
+          ? { labelIcon: candidate.labelIcon as SystemDesignEdgeLabelIcon }
+          : {}),
+        ...(typeof candidate.labelPosition === "number"
+          ? { labelPosition: candidate.labelPosition }
+          : {}),
+        ...(typeof candidate.labelBackground === "string"
+          ? { labelBackground: candidate.labelBackground }
+          : {}),
+        ...(typeof candidate.labelTextColor === "string"
+          ? { labelTextColor: candidate.labelTextColor }
+          : {}),
+        ...(typeof candidate.animationMode === "string"
+          ? {
+              animationMode:
+                candidate.animationMode as SystemDesignEdgeAnimationMode,
+            }
+          : {}),
+        ...(typeof candidate.animationSpeed === "number"
+          ? { animationSpeed: candidate.animationSpeed }
+          : {}),
+        ...(typeof candidate.animationDirection === "string"
+          ? {
+              animationDirection:
+                candidate.animationDirection as SystemDesignEdgeAnimationDirection,
+            }
           : {}),
       });
     });
@@ -672,7 +1089,8 @@ function validateDiagramHierarchy(
         (node) => node.id === reference.nodeId,
       );
       return (
-        parentNode?.type === "module" &&
+        parentNode !== undefined &&
+        isSystemDesignModuleNodeType(parentNode.type) &&
         Object.hasOwn(diagrams, reference.childDiagramId)
       );
     });
@@ -741,7 +1159,10 @@ function validateDiagramHierarchy(
     const parentNode = diagrams[parentDiagramId]?.nodes.find(
       (node) => node.id === diagram.parentNodeId,
     );
-    if (parentNode?.type !== "module") {
+    if (
+      !parentNode ||
+      !isSystemDesignModuleNodeType(parentNode.type)
+    ) {
       issue(parentPath, "A child diagram must be owned by a module node.");
     } else if (parentNode.childDiagramId !== diagramId) {
       issue(
@@ -926,13 +1347,12 @@ export function validateSystemDesignDocument(
         "The parent module must exist in this diagram or own this child diagram.",
       );
     } else if (
-      parentNode.type !== "module" &&
-      parentNode.type !== "container" &&
-      parentNode.type !== "system_boundary"
+      !isSystemDesignModuleNodeType(parentNode.type) &&
+      !isSystemDesignBoundaryNodeType(parentNode.type)
     ) {
       issue(
         reference.path,
-        "The parent must be a module, container, or system boundary.",
+        "The parent must be a module or structural boundary.",
       );
     }
   }

@@ -16,17 +16,23 @@ import {
   resolveSystemDesignTechnology,
   type SystemDesignNodeChrome,
 } from "../constants/system-design-visual-registry";
+import {
+  isSystemDesignBoundaryNodeType,
+  isSystemDesignModuleNodeType,
+} from "../constants/system-design-palette";
 import type {
   SystemDesignNode,
   SystemDesignPort,
 } from "../types/system-design.types";
 import {
+  MAX_ZOOM,
   MIN_NODE_HEIGHT,
   MIN_NODE_WIDTH,
 } from "../utils/system-design-defaults";
 import { recordSystemDesignRender } from "../utils/performance-instrumentation";
 import { SystemDesignSemanticGlyph } from "./SystemDesignSemanticGlyph";
 import { SystemDesignTechnologyMark } from "./SystemDesignTechnologyIcon";
+import { SystemDesignAssetImage } from "./SystemDesignAssetImage";
 
 export interface SystemDesignCanvasTheme {
   background: string;
@@ -45,6 +51,7 @@ export interface SystemDesignCanvasTheme {
 interface SystemDesignNodeRendererProps {
   node: SystemDesignNode;
   selected: boolean;
+  transformerOwnsSelection?: boolean;
   connecting: boolean;
   preview: boolean;
   theme: SystemDesignCanvasTheme;
@@ -116,6 +123,55 @@ function parseInternalComponentCount(node: SystemDesignNode): number {
   return 0;
 }
 
+function getBorderDash(
+  style: SystemDesignNode["style"],
+): number[] | undefined {
+  switch (style?.borderStyle) {
+    case "dashed":
+      return [8, 5];
+    case "dotted":
+      return [2, 4];
+    default:
+      return undefined;
+  }
+}
+
+function getKonvaFontStyle(node: SystemDesignNode): string {
+  const styles = [
+    node.textStyle?.fontWeight === "bold" ? "bold" : "",
+    node.textStyle?.fontStyle === "italic" ? "italic" : "",
+  ].filter(Boolean);
+  return styles.join(" ") || "normal";
+}
+
+function clampFinite(
+  value: number | undefined,
+  minimum: number,
+  maximum: number,
+  fallback: number,
+): number {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.min(maximum, Math.max(minimum, value))
+    : fallback;
+}
+
+const NOTE_NODE_TYPES = new Set<SystemDesignNode["type"]>([
+  "note",
+  "warning_note",
+  "assumption_note",
+]);
+
+const FREEFORM_TEXT_NODE_TYPES = new Set<SystemDesignNode["type"]>([
+  "text",
+  "rectangle",
+  "rounded_rectangle",
+  "ellipse",
+  "diamond",
+  "callout",
+  "divider",
+  "label",
+]);
+
 function SemanticSurface({
   chrome,
   node,
@@ -131,10 +187,20 @@ function SemanticSurface({
 }) {
   const width = node.width;
   const height = node.height;
+  const fill = node.style?.fill ?? theme.surface;
+  const borderStroke = node.style?.stroke ?? theme.border;
+  const semanticStroke = node.style?.stroke ?? accent;
+  const surfaceStrokeWidth = clampFinite(node.style?.strokeWidth, 0, 12, 1);
+  const cornerRadius =
+    node.style?.borderRadius === undefined
+      ? undefined
+      : clampFinite(node.style.borderRadius, 0, 100, 0);
+  const styleDash = getBorderDash(node.style);
   const common = {
-    fill: theme.surface,
-    stroke: theme.border,
-    strokeWidth: 1,
+    fill,
+    stroke: borderStroke,
+    strokeWidth: surfaceStrokeWidth,
+    dash: styleDash,
     perfectDrawEnabled: false,
   };
 
@@ -147,7 +213,7 @@ function SemanticSurface({
             y={4}
             width={width - 16}
             height={height - 8}
-            cornerRadius={Math.min(24, (height - 8) / 2)}
+            cornerRadius={cornerRadius ?? Math.min(24, (height - 8) / 2)}
             {...common}
           />
           <Circle
@@ -155,8 +221,8 @@ function SemanticSurface({
             y={height / 2}
             radius={21}
             fill={softAccent}
-            stroke={accent}
-            strokeWidth={1}
+            stroke={semanticStroke}
+            strokeWidth={surfaceStrokeWidth}
             perfectDrawEnabled={false}
           />
         </>
@@ -167,7 +233,7 @@ function SemanticSurface({
           <Rect
             width={width}
             height={height}
-            cornerRadius={14}
+            cornerRadius={cornerRadius ?? 14}
             {...common}
           />
           <Rect
@@ -175,9 +241,9 @@ function SemanticSurface({
             y={7}
             width={width - 14}
             height={height - 14}
-            cornerRadius={10}
-            stroke={accent}
-            strokeWidth={1}
+            cornerRadius={Math.max(0, (cornerRadius ?? 14) - 4)}
+            stroke={semanticStroke}
+            strokeWidth={surfaceStrokeWidth}
             opacity={0.42}
             perfectDrawEnabled={false}
           />
@@ -191,12 +257,12 @@ function SemanticSurface({
           <Rect
             width={width}
             height={height}
-            cornerRadius={Math.min(18, height / 3)}
+            cornerRadius={cornerRadius ?? Math.min(18, height / 3)}
             {...common}
           />
           <Line
             points={[8, height / 2, width - 8, height / 2]}
-            stroke={accent}
+            stroke={semanticStroke}
             strokeWidth={1}
             opacity={0.24}
             dash={[3, 5]}
@@ -222,9 +288,10 @@ function SemanticSurface({
             height / 2,
           ]}
           closed
-          fill={theme.surface}
-          stroke={accent}
-          strokeWidth={1.25}
+          fill={fill}
+          stroke={semanticStroke}
+          strokeWidth={surfaceStrokeWidth}
+          dash={styleDash}
           perfectDrawEnabled={false}
         />
       );
@@ -236,7 +303,7 @@ function SemanticSurface({
             y={10}
             width={width}
             height={Math.max(1, height - 20)}
-            fill={theme.surface}
+            fill={fill}
             perfectDrawEnabled={false}
           />
           <Ellipse
@@ -255,13 +322,13 @@ function SemanticSurface({
           />
           <Line
             points={[0, 10, 0, height - 10]}
-            stroke={theme.border}
+            stroke={borderStroke}
             strokeWidth={1}
             perfectDrawEnabled={false}
           />
           <Line
             points={[width, 10, width, height - 10]}
-            stroke={theme.border}
+            stroke={borderStroke}
             strokeWidth={1}
             perfectDrawEnabled={false}
           />
@@ -271,8 +338,8 @@ function SemanticSurface({
             radiusX={width / 2}
             radiusY={10}
             fill={softAccent}
-            stroke={accent}
-            strokeWidth={1}
+            stroke={semanticStroke}
+            strokeWidth={surfaceStrokeWidth}
             opacity={0.86}
             perfectDrawEnabled={false}
           />
@@ -286,14 +353,14 @@ function SemanticSurface({
             y={4}
             width={width - 8}
             height={height - 8}
-            cornerRadius={10}
+            cornerRadius={cornerRadius ?? 10}
             {...common}
           />
           {[12, 24, 36].map((y) => (
             <Line
               key={y}
               points={[0, y, 4, y, width - 4, y, width, y]}
-              stroke={accent}
+              stroke={semanticStroke}
               strokeWidth={1}
               opacity={0.55}
               perfectDrawEnabled={false}
@@ -317,9 +384,10 @@ function SemanticSurface({
           <Line
             points={[8, 7, width - 8, 7, width - 14, height - 5, 14, height - 5]}
             closed
-            fill={theme.surface}
-            stroke={theme.border}
-            strokeWidth={1}
+            fill={fill}
+            stroke={borderStroke}
+            strokeWidth={surfaceStrokeWidth}
+            dash={styleDash}
             perfectDrawEnabled={false}
           />
           <Ellipse
@@ -328,8 +396,8 @@ function SemanticSurface({
             radiusX={width / 2 - 8}
             radiusY={8}
             fill={softAccent}
-            stroke={accent}
-            strokeWidth={1}
+            stroke={semanticStroke}
+            strokeWidth={surfaceStrokeWidth}
             perfectDrawEnabled={false}
           />
         </>
@@ -340,7 +408,7 @@ function SemanticSurface({
           <Rect
             width={width}
             height={height}
-            cornerRadius={height / 2}
+            cornerRadius={cornerRadius ?? height / 2}
             {...common}
           />
           {[width - 38, width - 28, width - 18].map((x) => (
@@ -349,7 +417,7 @@ function SemanticSurface({
               x={x}
               y={height / 2}
               radius={2}
-              fill={accent}
+              fill={semanticStroke}
               opacity={0.72}
             />
           ))}
@@ -361,11 +429,11 @@ function SemanticSurface({
           <Rect
             width={width}
             height={height}
-            cornerRadius={10}
-            fill={theme.surface}
-            stroke={accent}
-            strokeWidth={1}
-            dash={[6, 4]}
+            cornerRadius={cornerRadius ?? 10}
+            fill={fill}
+            stroke={semanticStroke}
+            strokeWidth={surfaceStrokeWidth}
+            dash={styleDash ?? [6, 4]}
             perfectDrawEnabled={false}
           />
           <Rect
@@ -374,7 +442,7 @@ function SemanticSurface({
             width={width - 10}
             height={height - 10}
             cornerRadius={7}
-            stroke={accent}
+            stroke={semanticStroke}
             strokeWidth={1}
             opacity={0.2}
             perfectDrawEnabled={false}
@@ -389,18 +457,20 @@ function SemanticSurface({
             y={8}
             width={width}
             height={height - 8}
-            cornerRadius={10}
-            fill={theme.surface}
-            stroke={accent}
-            strokeWidth={1.25}
+            cornerRadius={cornerRadius ?? 10}
+            fill={fill}
+            stroke={semanticStroke}
+            strokeWidth={surfaceStrokeWidth}
+            dash={styleDash}
             perfectDrawEnabled={false}
           />
           <Line
             points={[12, 8, 22, 0, Math.min(74, width * 0.42), 0, Math.min(86, width * 0.49), 8]}
             closed
             fill={softAccent}
-            stroke={accent}
-            strokeWidth={1.25}
+            stroke={semanticStroke}
+            strokeWidth={surfaceStrokeWidth}
+            dash={styleDash}
             perfectDrawEnabled={false}
           />
           <Rect
@@ -421,11 +491,12 @@ function SemanticSurface({
           <Rect
             width={width}
             height={height}
-            cornerRadius={8}
-            fill={`${theme.surface}38`}
-            stroke={accent}
-            strokeWidth={1.25}
-            dash={[8, 5]}
+            cornerRadius={cornerRadius ?? 8}
+            fill={fill}
+            opacity={node.style?.fill ? 1 : 0.22}
+            stroke={semanticStroke}
+            strokeWidth={surfaceStrokeWidth}
+            dash={styleDash ?? [8, 5]}
             perfectDrawEnabled={false}
           />
           <Rect
@@ -433,10 +504,201 @@ function SemanticSurface({
             y={5}
             width={width - 10}
             height={height - 10}
-            cornerRadius={5}
-            stroke={accent}
-            strokeWidth={1}
+            cornerRadius={Math.max(0, (cornerRadius ?? 8) - 3)}
+            stroke={semanticStroke}
+            strokeWidth={Math.min(1, surfaceStrokeWidth)}
             opacity={0.35}
+            perfectDrawEnabled={false}
+          />
+        </>
+      );
+    case "module-boundary":
+      return (
+        <>
+          <Rect
+            width={width}
+            height={height}
+            cornerRadius={cornerRadius ?? 10}
+            fill={fill}
+            opacity={node.style?.fill ? 1 : 0.28}
+            stroke={semanticStroke}
+            strokeWidth={surfaceStrokeWidth}
+            dash={styleDash ?? [10, 4, 2, 4]}
+            perfectDrawEnabled={false}
+          />
+          <Rect
+            x={8}
+            y={8}
+            width={Math.max(48, width - 16)}
+            height={30}
+            cornerRadius={6}
+            fill={softAccent}
+            opacity={0.68}
+            listening={false}
+          />
+        </>
+      );
+    case "vpc-boundary":
+      return (
+        <>
+          <Rect
+            width={width}
+            height={height}
+            cornerRadius={cornerRadius ?? 18}
+            fill={fill}
+            opacity={node.style?.fill ? 1 : 0.2}
+            stroke={semanticStroke}
+            strokeWidth={surfaceStrokeWidth}
+            dash={styleDash ?? [12, 6]}
+            perfectDrawEnabled={false}
+          />
+          <Rect
+            x={8}
+            y={8}
+            width={width - 16}
+            height={height - 16}
+            cornerRadius={Math.max(0, (cornerRadius ?? 18) - 6)}
+            stroke={semanticStroke}
+            strokeWidth={1}
+            dash={[2, 6]}
+            opacity={0.42}
+            perfectDrawEnabled={false}
+          />
+        </>
+      );
+    case "region-boundary":
+      return (
+        <>
+          <Rect
+            width={width}
+            height={height}
+            cornerRadius={cornerRadius ?? 12}
+            fill={fill}
+            opacity={node.style?.fill ? 1 : 0.18}
+            stroke={semanticStroke}
+            strokeWidth={surfaceStrokeWidth}
+            dash={styleDash}
+            perfectDrawEnabled={false}
+          />
+          <Line
+            points={[0, 42, width, 42]}
+            stroke={semanticStroke}
+            strokeWidth={1}
+            opacity={0.45}
+            perfectDrawEnabled={false}
+          />
+          {[width - 56, width - 40, width - 24].map((x) => (
+            <Circle key={x} x={x} y={21} radius={3} fill={semanticStroke} opacity={0.7} />
+          ))}
+        </>
+      );
+    case "availability-zone-boundary":
+      return (
+        <>
+          <Rect
+            width={width}
+            height={height}
+            cornerRadius={cornerRadius ?? 10}
+            fill={fill}
+            opacity={node.style?.fill ? 1 : 0.18}
+            stroke={semanticStroke}
+            strokeWidth={surfaceStrokeWidth}
+            dash={styleDash ?? [5, 5]}
+            perfectDrawEnabled={false}
+          />
+          <Line
+            points={[12, 38, width - 12, 38]}
+            stroke={semanticStroke}
+            strokeWidth={1}
+            dash={[2, 4]}
+            opacity={0.55}
+            perfectDrawEnabled={false}
+          />
+        </>
+      );
+    case "cluster-boundary":
+      return (
+        <>
+          <Line
+            points={[18, 0, width - 18, 0, width, 18, width, height - 18, width - 18, height, 18, height, 0, height - 18, 0, 18]}
+            closed
+            fill={fill}
+            opacity={node.style?.fill ? 1 : 0.24}
+            stroke={semanticStroke}
+            strokeWidth={surfaceStrokeWidth}
+            dash={styleDash}
+            perfectDrawEnabled={false}
+          />
+          {[width - 46, width - 31, width - 16].map((x) => (
+            <Circle
+              key={x}
+              x={x}
+              y={18}
+              radius={4}
+              stroke={semanticStroke}
+              strokeWidth={1}
+              opacity={0.7}
+            />
+          ))}
+        </>
+      );
+    case "deployment-boundary":
+      return (
+        <>
+          <Rect
+            width={width}
+            height={height}
+            cornerRadius={cornerRadius ?? 8}
+            fill={fill}
+            opacity={node.style?.fill ? 1 : 0.22}
+            stroke={semanticStroke}
+            strokeWidth={surfaceStrokeWidth}
+            dash={styleDash ?? [6, 4]}
+            perfectDrawEnabled={false}
+          />
+          {[0, 1, 2].map((index) => (
+            <Rect
+              key={index}
+              x={width - 74 + index * 18}
+              y={12}
+              width={12}
+              height={12}
+              cornerRadius={3}
+              fill={softAccent}
+              stroke={semanticStroke}
+              strokeWidth={1}
+              opacity={0.78}
+            />
+          ))}
+        </>
+      );
+    case "swimlane":
+      return (
+        <>
+          <Rect
+            width={width}
+            height={height}
+            cornerRadius={cornerRadius ?? 6}
+            fill={fill}
+            opacity={node.style?.fill ? 1 : 0.2}
+            stroke={semanticStroke}
+            strokeWidth={surfaceStrokeWidth}
+            dash={styleDash}
+            perfectDrawEnabled={false}
+          />
+          <Rect
+            width={Math.min(46, width * 0.18)}
+            height={height}
+            cornerRadius={[cornerRadius ?? 6, 0, 0, cornerRadius ?? 6]}
+            fill={softAccent}
+            opacity={0.65}
+            listening={false}
+          />
+          <Line
+            points={[Math.min(46, width * 0.18), 0, Math.min(46, width * 0.18), height]}
+            stroke={semanticStroke}
+            strokeWidth={1}
+            opacity={0.65}
             perfectDrawEnabled={false}
           />
         </>
@@ -447,10 +709,12 @@ function SemanticSurface({
           <Rect
             width={width}
             height={height}
-            cornerRadius={8}
-            fill={`${theme.surface}70`}
-            stroke={accent}
-            strokeWidth={1.25}
+            cornerRadius={cornerRadius ?? 8}
+            fill={fill}
+            opacity={node.style?.fill ? 1 : 0.44}
+            stroke={semanticStroke}
+            strokeWidth={surfaceStrokeWidth}
+            dash={styleDash}
             perfectDrawEnabled={false}
           />
           <Rect
@@ -460,14 +724,14 @@ function SemanticSurface({
             height={24}
             cornerRadius={5}
             fill={softAccent}
-            stroke={accent}
+            stroke={semanticStroke}
             strokeWidth={1}
             opacity={0.78}
             perfectDrawEnabled={false}
           />
           <Line
             points={[11, height - 9, width - 11, height - 9]}
-            stroke={accent}
+            stroke={semanticStroke}
             strokeWidth={1}
             dash={[4, 4]}
             opacity={0.4}
@@ -481,10 +745,10 @@ function SemanticSurface({
           width={width}
           height={height}
           fill="transparent"
-          stroke={theme.border}
-          strokeWidth={1}
-          dash={[3, 5]}
-          opacity={0.3}
+          stroke={borderStroke}
+          strokeWidth={surfaceStrokeWidth}
+          dash={styleDash ?? [3, 5]}
+          opacity={node.style?.stroke ? 1 : 0.3}
           perfectDrawEnabled={false}
         />
       );
@@ -494,20 +758,164 @@ function SemanticSurface({
           <Line
             points={[0, 0, width - 18, 0, width, 18, width, height, 0, height]}
             closed
-            fill="#3d3610"
-            stroke={accent}
-            strokeWidth={1}
+            fill={node.style?.fill ?? "#3d3610"}
+            stroke={semanticStroke}
+            strokeWidth={surfaceStrokeWidth}
+            dash={styleDash}
             perfectDrawEnabled={false}
           />
           <Line
             points={[width - 18, 0, width - 18, 18, width, 18]}
             closed
-            fill="#6b5d12"
-            stroke={accent}
+            fill={node.style?.fill ?? "#6b5d12"}
+            stroke={semanticStroke}
+            strokeWidth={surfaceStrokeWidth}
+            perfectDrawEnabled={false}
+          />
+        </>
+      );
+    case "warning-note":
+      return (
+        <>
+          <Line
+            points={[0, 0, width - 18, 0, width, 18, width, height, 0, height]}
+            closed
+            fill={node.style?.fill ?? "#3f121d"}
+            stroke={semanticStroke}
+            strokeWidth={surfaceStrokeWidth}
+            dash={styleDash}
+            perfectDrawEnabled={false}
+          />
+          <Rect width={6} height={height} fill={semanticStroke} opacity={0.9} />
+          <Line
+            points={[width - 18, 0, width - 18, 18, width, 18]}
+            closed
+            fill={softAccent}
+            stroke={semanticStroke}
             strokeWidth={1}
             perfectDrawEnabled={false}
           />
         </>
+      );
+    case "assumption-note":
+      return (
+        <>
+          <Rect
+            width={width}
+            height={height}
+            cornerRadius={cornerRadius ?? 12}
+            fill={node.style?.fill ?? "#082f49"}
+            stroke={semanticStroke}
+            strokeWidth={surfaceStrokeWidth}
+            dash={styleDash ?? [5, 3]}
+            perfectDrawEnabled={false}
+          />
+          <Circle
+            x={22}
+            y={22}
+            radius={11}
+            fill={softAccent}
+            stroke={semanticStroke}
+            strokeWidth={1}
+          />
+        </>
+      );
+    case "rectangle":
+      return (
+        <Rect
+          width={width}
+          height={height}
+          cornerRadius={cornerRadius ?? 0}
+          {...common}
+        />
+      );
+    case "rounded-rectangle":
+      return (
+        <Rect
+          width={width}
+          height={height}
+          cornerRadius={cornerRadius ?? 18}
+          fill={node.style?.fill ?? softAccent}
+          stroke={semanticStroke}
+          strokeWidth={surfaceStrokeWidth}
+          dash={styleDash}
+          perfectDrawEnabled={false}
+        />
+      );
+    case "ellipse":
+      return (
+        <Ellipse
+          x={width / 2}
+          y={height / 2}
+          radiusX={width / 2}
+          radiusY={height / 2}
+          fill={fill}
+          stroke={semanticStroke}
+          strokeWidth={surfaceStrokeWidth}
+          dash={styleDash}
+          perfectDrawEnabled={false}
+        />
+      );
+    case "diamond":
+      return (
+        <Line
+          points={[width / 2, 0, width, height / 2, width / 2, height, 0, height / 2]}
+          closed
+          fill={fill}
+          stroke={semanticStroke}
+          strokeWidth={surfaceStrokeWidth}
+          dash={styleDash}
+          perfectDrawEnabled={false}
+        />
+      );
+    case "callout":
+      return (
+        <Line
+          points={[0, 0, width, 0, width, height - 20, 44, height - 20, 24, height, 28, height - 20, 0, height - 20]}
+          closed
+          fill={fill}
+          stroke={semanticStroke}
+          strokeWidth={surfaceStrokeWidth}
+          dash={styleDash}
+          perfectDrawEnabled={false}
+        />
+      );
+    case "divider":
+      return (
+        <Line
+          points={[0, height / 2, width, height / 2]}
+          stroke={semanticStroke}
+          strokeWidth={Math.max(1, surfaceStrokeWidth)}
+          dash={styleDash}
+          lineCap="round"
+          perfectDrawEnabled={false}
+        />
+      );
+    case "label":
+      return (
+        <Rect
+          width={width}
+          height={height}
+          cornerRadius={cornerRadius ?? Math.min(12, height / 2)}
+          fill={node.style?.fill ?? softAccent}
+          stroke={semanticStroke}
+          strokeWidth={surfaceStrokeWidth}
+          dash={styleDash}
+          perfectDrawEnabled={false}
+        />
+      );
+    case "image":
+      return (
+        <Rect
+          width={width}
+          height={height}
+          cornerRadius={cornerRadius ?? 10}
+          fill={fill}
+          stroke={semanticStroke}
+          strokeWidth={surfaceStrokeWidth}
+          dash={styleDash}
+          perfectDrawEnabled={false}
+        />
       );
     case "compute":
     default:
@@ -516,12 +924,12 @@ function SemanticSurface({
           <Rect
             width={width}
             height={height}
-            cornerRadius={10}
+            cornerRadius={cornerRadius ?? 10}
             {...common}
           />
           <Line
             points={[5, 13, 5, height - 13]}
-            stroke={accent}
+            stroke={semanticStroke}
             strokeWidth={4}
             lineCap="round"
             perfectDrawEnabled={false}
@@ -534,6 +942,7 @@ function SemanticSurface({
 function SystemDesignNodeRendererComponent({
   node,
   selected,
+  transformerOwnsSelection = false,
   connecting,
   preview,
   theme,
@@ -556,12 +965,11 @@ function SystemDesignNodeRendererComponent({
   const technology = resolveSystemDesignTechnology(node.technology);
   const technologyName = getSystemDesignTechnologyName(node.technology);
   const hierarchy = node as SystemDesignNode & HierarchicalNodeFields;
+  const isModule = isSystemDesignModuleNodeType(node.type);
   const isExpandable =
-    node.type === ("module" as SystemDesignNode["type"]) &&
-    hierarchy.isExpandable !== false;
+    isModule && hierarchy.isExpandable !== false;
   const isCollapsed =
-    node.type === ("module" as SystemDesignNode["type"]) &&
-    hierarchy.isCollapsed === true;
+    isModule && hierarchy.isCollapsed === true;
   const internalCount =
     typeof internalComponentCountOverride === "number"
       ? Math.max(0, Math.floor(internalComponentCountOverride))
@@ -569,10 +977,24 @@ function SystemDesignNodeRendererComponent({
   const status = node.metadata?.status ?? node.metadata?.state;
   const ports: SystemDesignPort[] = ["top", "right", "bottom", "left"];
   const isAnnotation = visual.category === "annotations";
-  const isConnectable =
-    !isAnnotation &&
-    node.type !== "system_boundary" &&
-    node.type !== "container";
+  const isStructuralContainer = isSystemDesignBoundaryNodeType(node.type);
+  const isConnectable = !isAnnotation && !isStructuralContainer;
+  const isNote = NOTE_NODE_TYPES.has(node.type);
+  const isFreeformText = FREEFORM_TEXT_NODE_TYPES.has(node.type);
+  const textColor = node.textStyle?.color ?? theme.foreground;
+  const fontFamily = node.textStyle?.fontFamily ?? "Arial";
+  const fontSize = clampFinite(node.textStyle?.fontSize, 8, 72, 14);
+  const lineHeight = clampFinite(node.textStyle?.lineHeight, 0.8, 3, 1.3);
+  const textPadding = clampFinite(node.textStyle?.padding, 0, 64, 8);
+  const nodeOpacity = clampFinite(node.style?.opacity, 0, 1, 1);
+  const fontStyle = getKonvaFontStyle(node);
+  const semanticLabelFontStyle =
+    node.textStyle?.fontWeight || node.textStyle?.fontStyle
+      ? fontStyle
+      : "bold";
+  const textDecoration = node.textStyle?.textDecoration ?? "none";
+  const textAlign = node.textStyle?.align ?? (isAnnotation ? "center" : "left");
+  const textVerticalAlign = node.textStyle?.verticalAlign ?? "middle";
   const contentX = isAnnotation ? 12 : 54;
   const contentWidth = Math.max(
     36,
@@ -587,27 +1009,24 @@ function SystemDesignNodeRendererComponent({
     const visualGroup = staticVisualRef.current;
     if (!visualGroup) return;
     visualGroup.clearCache();
-    visualGroup.cache({ pixelRatio: 1 });
+    const devicePixelRatio = Math.max(1, window.devicePixelRatio || 1);
+    visualGroup.cache({
+      pixelRatio: Math.min(3, devicePixelRatio * MAX_ZOOM),
+    });
     return () => {
       visualGroup.clearCache();
     };
   }, [
-    node.description,
     node.height,
-    node.isCollapsed,
-    node.isExpandable,
-    node.label,
-    node.metadata,
-    node.subtitle,
-    node.technology,
+    node.style?.borderRadius,
+    node.style?.borderStyle,
+    node.style?.fill,
+    node.style?.opacity,
+    node.style?.stroke,
+    node.style?.strokeWidth,
     node.type,
     node.width,
-    internalCount,
-    isCollapsed,
-    isExpandable,
     theme.border,
-    theme.foreground,
-    theme.muted,
     theme.surface,
     visual.accent,
     visual.chrome,
@@ -701,6 +1120,14 @@ function SystemDesignNodeRendererComponent({
         });
       }}
     >
+      <Rect
+        name="system-design-node-hit-target"
+        width={node.width}
+        height={node.height}
+        fill="transparent"
+        perfectDrawEnabled={false}
+      />
+
       {!isAnnotation && (
         <Rect
           x={3}
@@ -711,15 +1138,19 @@ function SystemDesignNodeRendererComponent({
           fill={theme.surface}
           opacity={0.01}
           shadowColor="#000000"
-          shadowBlur={dragging ? 0 : selected ? 16 : 7}
-          shadowOpacity={dragging ? 0 : selected ? 0.36 : 0.2}
+          shadowBlur={dragging ? 0 : 7}
+          shadowOpacity={dragging ? 0 : 0.2}
           shadowOffsetY={dragging ? 0 : 4}
           listening={false}
           perfectDrawEnabled={false}
         />
       )}
 
-      <Group ref={staticVisualRef}>
+      <Group
+        ref={staticVisualRef}
+        listening={false}
+        opacity={nodeOpacity}
+      >
         <SemanticSurface
           chrome={visual.chrome}
           node={node}
@@ -727,57 +1158,77 @@ function SystemDesignNodeRendererComponent({
           accent={visual.accent}
           softAccent={visual.softAccent}
         />
+      </Group>
 
-        {!isAnnotation && (
-          <SystemDesignSemanticGlyph
-            type={node.type}
-            x={14}
-            y={Math.max(12, node.height / 2 - 16)}
-            size={32}
-            color={visual.accent}
-          />
-        )}
+      <Group opacity={nodeOpacity}>
+      {!isAnnotation && (
+        <SystemDesignSemanticGlyph
+          type={node.type}
+          x={14}
+          y={isStructuralContainer ? 6 : Math.max(12, node.height / 2 - 16)}
+          size={32}
+          color={visual.accent}
+        />
+      )}
 
-        {node.type === ("text" as SystemDesignNode["type"]) ? (
+      {node.type === "image" ? null : isFreeformText ? (
           <Text
-            x={8}
-            y={8}
-            width={node.width - 16}
-            height={node.height - 16}
+            x={node.type === "diamond" ? 14 : 0}
+            y={0}
+            width={
+              node.width -
+              (node.type === "diamond" ? 28 : 0)
+            }
+            height={
+              node.height -
+              (node.type === "callout" ? 20 : 0)
+            }
             text={node.label}
-            fill={theme.foreground}
-            fontFamily="Arial"
-            fontSize={15}
-            lineHeight={1.35}
+            fill={textColor}
+            fontFamily={fontFamily}
+            fontSize={fontSize}
+            fontStyle={fontStyle}
+            textDecoration={textDecoration}
+            align={textAlign}
+            lineHeight={lineHeight}
+            padding={textPadding}
             wrap="word"
-            verticalAlign="middle"
+            verticalAlign={textVerticalAlign}
             listening={false}
           />
-        ) : node.type === ("note" as SystemDesignNode["type"]) ? (
+        ) : isNote ? (
           <>
             <Text
-              x={12}
+              x={node.type === "warning_note" ? 16 : 12}
               y={12}
-              width={node.width - 34}
+              width={node.width - (node.type === "warning_note" ? 40 : 34)}
               text={node.label}
-              fill="#fef3c7"
-              fontFamily="Arial"
-              fontSize={14}
-              fontStyle="bold"
+              fill={node.textStyle?.color ?? visual.accent}
+              fontFamily={fontFamily}
+              fontSize={fontSize}
+              fontStyle={semanticLabelFontStyle}
+              textDecoration={textDecoration}
+              align={node.textStyle?.align ?? "left"}
+              lineHeight={lineHeight}
               ellipsis
               wrap="none"
               listening={false}
             />
             <Text
-              x={12}
+              x={node.type === "warning_note" ? 16 : 12}
               y={36}
-              width={node.width - 24}
+              width={node.width - (node.type === "warning_note" ? 28 : 24)}
               height={Math.max(18, node.height - 46)}
               text={node.description ?? node.subtitle ?? ""}
-              fill="#fde68a"
-              fontFamily="Arial"
-              fontSize={11}
-              lineHeight={1.3}
+              fill={node.textStyle?.color ?? theme.foreground}
+              fontFamily={fontFamily}
+              fontSize={Math.max(9, fontSize - 2)}
+              fontStyle={fontStyle}
+              textDecoration={textDecoration}
+              align={node.textStyle?.align ?? "left"}
+              verticalAlign={textVerticalAlign}
+              lineHeight={lineHeight}
+              padding={Math.min(textPadding, 12)}
               wrap="word"
               ellipsis
               listening={false}
@@ -790,10 +1241,14 @@ function SystemDesignNodeRendererComponent({
               y={node.height > 78 ? 15 : 12}
               width={contentWidth}
               text={node.label}
-              fill={theme.foreground}
-              fontFamily="Arial"
-              fontSize={14}
-              fontStyle="bold"
+              fill={textColor}
+              fontFamily={fontFamily}
+              fontSize={fontSize}
+              fontStyle={semanticLabelFontStyle}
+              textDecoration={textDecoration}
+              align={textAlign}
+              lineHeight={lineHeight}
+              padding={Math.min(textPadding, 10)}
               ellipsis
               wrap="none"
               listening={false}
@@ -805,7 +1260,7 @@ function SystemDesignNodeRendererComponent({
                 width={contentWidth}
                 text={technologyName}
                 fill={technology?.color ?? visual.accent}
-                fontFamily="Arial"
+                fontFamily={fontFamily}
                 fontSize={10}
                 fontStyle={technology ? "bold" : "normal"}
                 ellipsis
@@ -820,7 +1275,7 @@ function SystemDesignNodeRendererComponent({
                 width={contentWidth}
                 text={node.subtitle}
                 fill={theme.muted}
-                fontFamily="Arial"
+                fontFamily={fontFamily}
                 fontSize={technologyName ? 9 : 11}
                 ellipsis
                 wrap="none"
@@ -831,19 +1286,19 @@ function SystemDesignNodeRendererComponent({
               <SystemDesignTechnologyMark
                 technology={node.technology}
                 x={node.width - 29}
-                y={12}
+                y={isModule ? 36 : 12}
                 size={20}
               />
             )}
           </>
         )}
 
-        {node.type === ("module" as SystemDesignNode["type"]) && (
+        {isModule && (
           <>
             {!isCollapsed && node.description && (
               <Text
                 x={contentX}
-                y={node.height - 27}
+                y={node.height - (status ? 43 : 27)}
                 width={Math.max(40, node.width - contentX - 42)}
                 text={node.description}
                 fill={theme.muted}
@@ -938,6 +1393,33 @@ function SystemDesignNodeRendererComponent({
           </>
         )}
 
+        {node.type === "image" && node.asset && (
+          <>
+            <SystemDesignAssetImage
+              asset={node.asset}
+              x={8}
+              y={8}
+              width={Math.max(1, node.width - 16)}
+              height={Math.max(1, node.height - (node.label ? 34 : 16))}
+            />
+            {node.label && (
+              <Text
+                x={10}
+                y={node.height - 22}
+                width={node.width - 20}
+                text={node.label}
+                align="center"
+                fill={theme.foreground}
+                fontFamily="Arial"
+                fontSize={10}
+                ellipsis
+                wrap="none"
+                listening={false}
+              />
+            )}
+          </>
+        )}
+
         {status && !isAnnotation && (
           <>
             <Circle
@@ -956,7 +1438,10 @@ function SystemDesignNodeRendererComponent({
             <Text
               x={contentX + 10}
               y={node.height - 16}
-              width={Math.max(30, node.width - contentX - 18)}
+              width={Math.max(
+                30,
+                node.width - contentX - (isModule ? 52 : 18),
+              )}
               text={status}
               fill={theme.muted}
               fontFamily="Arial"
@@ -969,7 +1454,38 @@ function SystemDesignNodeRendererComponent({
         )}
       </Group>
 
-      {(selected || hovered) && (
+      {hovered && isExpandable && !dragging && (
+        <Group x={10} y={-34} listening={false}>
+          <Rect
+            width={126}
+            height={26}
+            cornerRadius={7}
+            fill={theme.surface}
+            stroke={theme.border}
+            strokeWidth={1}
+            shadowColor="#000000"
+            shadowBlur={6}
+            shadowOpacity={0.2}
+            shadowOffsetY={2}
+            perfectDrawEnabled={false}
+          />
+          <Text
+            x={8}
+            y={7}
+            width={110}
+            text="Double-click to open"
+            align="center"
+            fill={visual.accent}
+            fontFamily="Arial"
+            fontSize={10}
+            fontStyle="bold"
+            listening={false}
+          />
+        </Group>
+      )}
+
+      {((hovered && !selected) ||
+        (selected && !transformerOwnsSelection)) && (
         <Rect
           x={-3}
           y={-3}
@@ -979,7 +1495,8 @@ function SystemDesignNodeRendererComponent({
           stroke={selected ? theme.accent : visual.accent}
           strokeWidth={selected ? 2 : 1}
           opacity={selected ? 1 : 0.55}
-          dash={visual.chrome === "boundary" ? [7, 4] : undefined}
+          dash={isStructuralContainer ? [7, 4] : undefined}
+          strokeScaleEnabled={false}
           listening={false}
           perfectDrawEnabled={false}
         />
@@ -1014,6 +1531,7 @@ function SystemDesignNodeRendererComponent({
               fill={theme.background}
               stroke={selected || hovered ? theme.accent : theme.muted}
               strokeWidth={2}
+              strokeScaleEnabled={false}
               hitStrokeWidth={12}
               onMouseDown={(event) => {
                 event.cancelBubble = true;
