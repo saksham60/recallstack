@@ -3,6 +3,7 @@ import type {
   SystemDesignNodeAsset,
   SystemDesignRasterAssetMimeType,
 } from "../types/system-design.types";
+import { MIN_NODE_HEIGHT, MIN_NODE_WIDTH } from "./system-design-defaults";
 
 export const SYSTEM_DESIGN_MAX_RASTER_BYTES = 2 * 1024 * 1024;
 export const SYSTEM_DESIGN_MAX_SVG_BYTES = 512 * 1024;
@@ -301,13 +302,21 @@ export function fitSystemDesignAssetFrame(asset: SystemDesignNodeAsset): {
 } {
   const maximumWidth = 360;
   const maximumHeight = 260;
-  const scale = Math.min(
-    1,
+  const maximumScale = Math.min(
     maximumWidth / asset.intrinsicWidth,
     maximumHeight / asset.intrinsicHeight,
   );
+  const naturalScale = Math.min(1, maximumScale);
+  const minimumUsableScale = Math.max(
+    MIN_NODE_WIDTH / asset.intrinsicWidth,
+    MIN_NODE_HEIGHT / asset.intrinsicHeight,
+  );
+  const scale = Math.min(
+    maximumScale,
+    Math.max(naturalScale, minimumUsableScale),
+  );
   return {
-    width: Math.max(120, Math.round(asset.intrinsicWidth * scale)),
-    height: Math.max(72, Math.round(asset.intrinsicHeight * scale)),
+    width: Math.max(1, Math.round(asset.intrinsicWidth * scale)),
+    height: Math.max(1, Math.round(asset.intrinsicHeight * scale)),
   };
 }

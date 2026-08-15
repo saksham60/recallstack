@@ -34,6 +34,63 @@ test.describe("generic Diagram Studio", () => {
     await expect(page.getByLabel("PostgreSQL", { exact: true })).toBeVisible();
   });
 
+  test("uses a compact shape drag preview instead of ghosting the palette", async ({ authenticatedPage: page }) => {
+    await page.evaluate(() => {
+      const original = DataTransfer.prototype.setDragImage;
+      DataTransfer.prototype.setDragImage = function setDragImage(image, x, y) {
+        document.documentElement.dataset.diagramDragPreview = JSON.stringify({
+          width: image.getBoundingClientRect().width,
+          text: image.textContent?.trim() ?? "",
+          x,
+          y,
+        });
+        original.call(this, image, x, y);
+      };
+    });
+
+    await page.getByRole("button", { name: "Rectangle", exact: true }).dragTo(page.getByTestId("diagram-canvas"), {
+      targetPosition: { x: 420, y: 240 },
+    });
+
+    const preview = await page.evaluate(() => JSON.parse(document.documentElement.dataset.diagramDragPreview ?? "{}") as { width?: number; text?: string });
+    expect(preview.width).toBeLessThanOrEqual(172);
+    expect(preview.text).toBe("Rectangle");
+    await expect(page.getByText(/1 objects · 0 connectors/)).toBeVisible();
+  });
+
+  test("connects general rectangles by dragging between their ports", async ({ authenticatedPage: page }) => {
+    const canvas = page.getByTestId("diagram-canvas");
+    const rectangle = page.getByRole("button", { name: "Rectangle", exact: true });
+    await rectangle.dragTo(canvas, { targetPosition: { x: 220, y: 180 } });
+    await rectangle.first().dragTo(canvas, { targetPosition: { x: 540, y: 180 } });
+    await expect(page.getByText(/2 objects · 0 connectors/)).toBeVisible();
+
+    await expect.poll(async () => page.evaluate(() => {
+      const raw = localStorage.getItem("recallstack:diagram:e2e-studio");
+      if (!raw) return 0;
+      const document = JSON.parse(raw) as { rootPageId: string; pages: Record<string, { elements: unknown[] }> };
+      return document.pages[document.rootPageId]?.elements.length ?? 0;
+    })).toBe(2);
+    const shapes = await page.evaluate(() => {
+      const document = JSON.parse(localStorage.getItem("recallstack:diagram:e2e-studio") ?? "{}") as { rootPageId: string; pages: Record<string, { elements: Array<{ kind: string; x: number; y: number; width: number; height: number }> }> };
+      return document.pages[document.rootPageId].elements.filter((element) => element.kind === "shape");
+    });
+    expect(shapes[0]).toMatchObject({ x: 220, y: 180 });
+    expect(shapes[1]).toMatchObject({ x: 540, y: 180 });
+
+    await page.getByRole("button", { name: "Connect" }).click();
+    const bounds = await canvas.boundingBox();
+    expect(bounds).not.toBeNull();
+    if (!bounds) return;
+    await page.mouse.move(bounds.x + shapes[0].x + shapes[0].width, bounds.y + shapes[0].y + shapes[0].height / 2);
+    await page.mouse.down();
+    await expect(page.getByText(/Drag to a highlighted port/)).toBeVisible();
+    await page.mouse.move(bounds.x + shapes[1].x, bounds.y + shapes[1].y + shapes[1].height / 2, { steps: 8 });
+    await page.mouse.up();
+
+    await expect(page.getByText(/2 objects · 1 connectors/)).toBeVisible();
+  });
+
   test("supports text, frames, layers, and nested page navigation", async ({ authenticatedPage: page }) => {
     await page.locator('button[title^="Text ·"]').click();
     await page.getByTestId("diagram-canvas").click({ position: { x: 380, y: 180 } });

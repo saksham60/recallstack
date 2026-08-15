@@ -155,12 +155,15 @@ export function createDiagramFrame(point: DiagramPoint, label = "Frame"): Diagra
 }
 
 export function createDiagramImage(point: DiagramPoint, asset: DiagramImageAsset): DiagramImageElement {
-  const scale = Math.min(1, 420 / asset.intrinsicWidth, 300 / asset.intrinsicHeight);
+  const maximumScale = Math.min(420 / asset.intrinsicWidth, 300 / asset.intrinsicHeight);
+  const naturalScale = Math.min(1, maximumScale);
+  const minimumUsableScale = 48 / Math.min(asset.intrinsicWidth, asset.intrinsicHeight);
+  const scale = Math.min(maximumScale, Math.max(naturalScale, minimumUsableScale));
   return {
-    id: createDiagramId("image"), kind: "image", asset, label: asset.name,
+    id: createDiagramId("image"), kind: "image", asset,
     x: point.x, y: point.y,
-    width: Math.max(64, Math.round(asset.intrinsicWidth * scale)),
-    height: Math.max(48, Math.round(asset.intrinsicHeight * scale)),
+    width: Math.max(1, Math.round(asset.intrinsicWidth * scale)),
+    height: Math.max(1, Math.round(asset.intrinsicHeight * scale)),
     rotation: 0, style: { opacity: 1 }, layer: 0, visible: true, locked: false,
   };
 }

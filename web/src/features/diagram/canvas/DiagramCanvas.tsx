@@ -119,6 +119,14 @@ function diagramPoint(stage: Konva.Stage): DiagramPoint {
   return { x: (pointer.x - stage.x()) / stage.scaleX(), y: (pointer.y - stage.y()) / stage.scaleY() };
 }
 
+function clientDiagramPoint(stage: Konva.Stage, clientX: number, clientY: number): DiagramPoint {
+  const bounds = stage.container().getBoundingClientRect();
+  return {
+    x: (clientX - bounds.left - stage.x()) / stage.scaleX(),
+    y: (clientY - bounds.top - stage.y()) / stage.scaleY(),
+  };
+}
+
 function pointerInStage(stage: Konva.Stage | null): DiagramPoint {
   return stage ? diagramPoint(stage) : { x: 0, y: 0 };
 }
@@ -464,7 +472,7 @@ export function DiagramCanvas({ page, registry, selectedElementIds, tool = "sele
   const selectionForFit = useMemo(() => positioned.filter((element) => selected.has(element.id)), [positioned, selected]);
 
   return (
-    <div ref={containerRef} className="relative h-full min-h-[420px] w-full overflow-hidden bg-[#09090b]" tabIndex={0} data-testid="diagram-canvas" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const stage = stageRef.current; if (!stage) return; const point = diagramPoint(stage); const shapeId = event.dataTransfer.getData(DIAGRAM_SHAPE_MIME); if (shapeId) onAddShape(shapeId, point); else if (event.dataTransfer.files.length) onDropImageFiles?.([...event.dataTransfer.files], point); }} onContextMenu={(event) => event.preventDefault()}>
+    <div ref={containerRef} className="relative h-full min-h-[420px] w-full overflow-hidden bg-[#09090b]" tabIndex={0} data-testid="diagram-canvas" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const stage = stageRef.current; if (!stage) return; const point = clientDiagramPoint(stage, event.clientX, event.clientY); const shapeId = event.dataTransfer.getData(DIAGRAM_SHAPE_MIME); if (shapeId) onAddShape(shapeId, point); else if (event.dataTransfer.files.length) onDropImageFiles?.([...event.dataTransfer.files], point); }} onContextMenu={(event) => event.preventDefault()}>
       <Stage ref={stageRef} width={size.width} height={size.height} x={page.viewport.x} y={page.viewport.y} scaleX={page.viewport.zoom} scaleY={page.viewport.zoom} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerLeave={handlePointerUp} onWheel={handleWheel} onContextMenu={(event) => { event.evt.preventDefault(); const stage = event.target.getStage(); if (stage && event.target === stage) onRequestContextMenu?.(undefined, { x: event.evt.clientX, y: event.evt.clientY }, diagramPoint(stage)); }}>
         <Layer listening={false}>{gridLines.map((line) => <Line key={line.key} points={line.points} stroke="#27272a" strokeWidth={1 / page.viewport.zoom} />)}</Layer>
         <Layer>{connectors.map((connector) => <DiagramConnectorRenderer
@@ -495,7 +503,7 @@ export function DiagramCanvas({ page, registry, selectedElementIds, tool = "sele
             ref={transformerRef}
             rotateEnabled={selectedElementIds.length === 1 && (!transformDefinition || transformDefinition.rotatable !== false)}
             enabledAnchors={enabledAnchors}
-            keepRatio={Boolean(transformDefinition?.resize.preserveAspectRatio)}
+            keepRatio={transformTarget?.kind === "image" || Boolean(transformDefinition?.resize.preserveAspectRatio)}
             flipEnabled={false}
             padding={3}
             borderStroke="#8b5cf6"

@@ -355,7 +355,8 @@ test.describe("interactive system-design HTML export", () => {
     expect(exported.html).toContain("analytics-diagram");
     expect(exported.html).toContain("openModule");
     expect(exported.html).toContain("renderMinimap");
-    expect(exported.html).toContain("edge-animation-moving_dash");
+    expect(exported.html).toContain("tickAnimations");
+    expect(exported.html).toContain("travelling-particle");
     expect(exported.html).toContain("Content-Security-Policy");
     expect(exported.html).toContain("connect-src 'none'");
     expect(exported.html).not.toContain(
@@ -475,12 +476,23 @@ test.describe("interactive system-design HTML export", () => {
       '.node[data-id="production-vpc"] > rect:first-child',
     );
     await expect(boundarySurface).toHaveCSS("pointer-events", "stroke");
-    await expect(
-      page.locator('.node[data-id="architecture-image"] image'),
-    ).toHaveAttribute("data-asset-kind", "svg");
-    await expect(
-      page.locator('.node[data-id="architecture-image"] image'),
-    ).toHaveAttribute("preserveAspectRatio", "xMidYMid meet");
+    const architectureImage = page.locator(
+      '.node[data-id="architecture-image"]',
+    );
+    await expect(architectureImage.locator("image")).toHaveAttribute(
+      "data-asset-kind",
+      "svg",
+    );
+    await expect(architectureImage.locator("image")).toHaveAttribute(
+      "preserveAspectRatio",
+      "xMidYMid meet",
+    );
+    await expect(architectureImage.locator("image")).toHaveAttribute("x", "0");
+    await expect(architectureImage.locator("image")).toHaveAttribute("y", "0");
+    await expect(architectureImage.locator("image")).toHaveAttribute("width", "180");
+    await expect(architectureImage.locator("image")).toHaveAttribute("height", "96");
+    await expect(architectureImage.locator("text")).toHaveCount(0);
+    await expect(architectureImage.locator("rect:not(.selection)")).toHaveCount(0);
 
     const streamEdge = page.locator('.edge[data-id="publish-events"]');
     await expect(streamEdge).toHaveAttribute("data-routing", "orthogonal");
@@ -488,6 +500,14 @@ test.describe("interactive system-design HTML export", () => {
     await expect(streamEdge).toHaveAttribute("data-animation", "moving_dash");
     await expect(streamEdge).toHaveAttribute("data-label-position", "0");
     await expect(streamEdge.locator(".edge-path")).toHaveAttribute(
+      "stroke-dasharray",
+      "12 4 2 4",
+    );
+    await expect(streamEdge.locator(".edge-motion")).toHaveAttribute(
+      "data-motion-kind",
+      "moving_dash",
+    );
+    await expect(streamEdge.locator(".edge-motion")).toHaveAttribute(
       "stroke-dasharray",
       "12 4 2 4",
     );
@@ -503,6 +523,16 @@ test.describe("interactive system-design HTML export", () => {
       "fill",
       "#ecfeff",
     );
+    const pulseEdge = page.locator('.edge[data-id="module-to-image"]');
+    await expect(pulseEdge.locator(".edge-motion")).toHaveAttribute(
+      "data-motion-kind",
+      "flow_pulse",
+    );
+    await expect(pulseEdge.locator(".edge-motion")).toHaveAttribute(
+      "stroke-dasharray",
+      "",
+    );
+    await expect(page.locator("#empty")).toBeHidden();
 
     const payloadBefore = await page
       .locator("#system-design-data")
@@ -588,8 +618,34 @@ test.describe("interactive system-design HTML export", () => {
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "no-preference" });
+    const designDocument = createDocument();
+    designDocument.diagrams.root.edges.push(
+      {
+        id: "moving-dots",
+        sourceNodeId: "gateway",
+        targetNodeId: "architecture-image",
+        sourcePort: "bottom",
+        targetPort: "top",
+        type: "custom",
+        animationMode: "moving_dots",
+        animationSpeed: 1.2,
+        animationDirection: "reverse",
+      },
+      {
+        id: "direction-pulse",
+        sourceNodeId: "gateway",
+        targetNodeId: "analytics",
+        sourcePort: "top",
+        targetPort: "bottom",
+        type: "custom",
+        routing: "curved",
+        animationMode: "direction_pulse",
+        animationSpeed: 1.4,
+        animationDirection: "alternate",
+      },
+    );
     const exported = prepareInteractiveSystemDesignHtml(
-      createDocument(),
+      designDocument,
       problem,
     );
     await page.setContent(exported.html, { waitUntil: "load" });
@@ -625,10 +681,34 @@ test.describe("interactive system-design HTML export", () => {
     await page.getByRole("button", { name: "Map", exact: true }).click();
     await expect(map).toBeVisible();
 
-    const animatedPath = page.locator(
-      '.edge[data-id="publish-events"] .edge-path',
+    const animatedOverlay = page.locator(
+      '.edge[data-id="publish-events"] .edge-motion',
     );
-    await expect(animatedPath).toHaveCSS("animation-name", "edge-flow");
+    const dashOffsetBefore = await animatedOverlay.getAttribute(
+      "stroke-dashoffset",
+    );
+    await page.waitForTimeout(100);
+    await expect(animatedOverlay).not.toHaveAttribute(
+      "stroke-dashoffset",
+      dashOffsetBefore ?? "",
+    );
+    await expect(
+      page.locator('.edge[data-id="moving-dots"] .edge-motion'),
+    ).toHaveAttribute("stroke-dasharray", "1 11");
+    const travellingParticle = page.locator(
+      '.edge[data-id="direction-pulse"] [data-motion-kind="travelling-particle"]',
+    );
+    await expect(travellingParticle).toHaveCount(1);
+    const particlePositionBefore = await travellingParticle.evaluate(
+      (element) => [element.getAttribute("cx"), element.getAttribute("cy")],
+    );
+    await page.waitForTimeout(100);
+    expect(
+      await travellingParticle.evaluate((element) => [
+        element.getAttribute("cx"),
+        element.getAttribute("cy"),
+      ]),
+    ).not.toEqual(particlePositionBefore);
     const hiddenClassApplied = await page.evaluate(() => {
       try {
         Object.defineProperty(document, "hidden", {
@@ -642,15 +722,16 @@ test.describe("interactive system-design HTML export", () => {
       }
     });
     expect(hiddenClassApplied).toBe(true);
-    await expect(animatedPath).toHaveCSS("animation-play-state", "paused");
+    await expect(animatedOverlay).toBeHidden();
     await page.getByRole("button", { name: "Flow", exact: true }).click();
     await expect(page.locator("body")).toHaveClass(/animations-off/);
+    await expect(animatedOverlay).toBeHidden();
     await expect(
       page.getByRole("button", { name: "Flow", exact: true }),
     ).toHaveAttribute("aria-pressed", "false");
 
     await page.getByRole("button", { name: "Flow", exact: true }).click();
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await expect(animatedPath).toHaveCSS("animation-name", "none");
+    await expect(animatedOverlay).toBeHidden();
   });
 });

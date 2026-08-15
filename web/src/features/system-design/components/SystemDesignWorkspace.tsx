@@ -360,7 +360,7 @@ export function SystemDesignWorkspace({
       };
       const frame = fitSystemDesignAssetFrame(asset);
       const node = createSystemDesignNode("image", center, {
-        label: asset.name ?? "Pasted image",
+        label: "",
         asset,
         parentModuleId: activeDiagram.parentNodeId,
       });

@@ -51,7 +51,14 @@ const ShapeVisual = memo(function ShapeVisual({ element, registry, selected }: {
 
 const ImageVisual = memo(function ImageVisual({ element }: { element: DiagramImageElement }) {
   const image = useDiagramImage(element);
-  return image ? <KonvaImage image={image} width={element.width} height={element.height} /> : <Rect width={element.width} height={element.height} fill="#27272a" stroke="#52525b" />;
+  if (!image) return <Rect width={element.width} height={element.height} fill="transparent" />;
+  const scale = Math.min(
+    element.width / element.asset.intrinsicWidth,
+    element.height / element.asset.intrinsicHeight,
+  );
+  const width = element.asset.intrinsicWidth * scale;
+  const height = element.asset.intrinsicHeight * scale;
+  return <KonvaImage image={image} x={(element.width - width) / 2} y={(element.height - height) / 2} width={width} height={height} />;
 });
 
 export const DiagramShapeRenderer = memo(forwardRef<Konva.Group, Props>(function DiagramShapeRenderer({ element, registry, selected, connecting, showPorts, onSelect, onOpenChildPage, onEditLabel, onDragStart, onDragMove, onDragEnd, highlightedPortId, onPortPointerDown, onContextMenu }, ref) {
@@ -97,7 +104,7 @@ export const DiagramShapeRenderer = memo(forwardRef<Konva.Group, Props>(function
           const offset = port.offset ?? 0.5;
           const point = port.side === "top" ? { x: element.width * offset, y: 0 } : port.side === "right" ? { x: element.width, y: element.height * offset } : port.side === "bottom" ? { x: element.width * offset, y: element.height } : { x: 0, y: element.height * offset };
           const highlighted = highlightedPortId === port.id;
-          return <Circle key={port.id} x={point.x} y={point.y} radius={highlighted ? 6 : 4} fill={highlighted ? "#86efac" : connecting ? "#fef3c7" : "#fafafa"} stroke={highlighted ? "#22c55e" : connecting ? "#f59e0b" : "#8b5cf6"} strokeWidth={highlighted ? 2 : 1.5} onPointerDown={(event) => { event.cancelBubble = true; onPortPointerDown(port.id, event); }} onMouseEnter={(event) => { const stage = event.target.getStage(); if (stage) stage.container().style.cursor = "crosshair"; }} />;
+          return <Circle key={port.id} x={point.x} y={point.y} radius={highlighted ? 6 : 4} fill={highlighted ? "#86efac" : connecting ? "#fef3c7" : "#fafafa"} stroke={highlighted ? "#22c55e" : connecting ? "#f59e0b" : "#8b5cf6"} strokeWidth={highlighted ? 2 : 1.5} hitStrokeWidth={14} onPointerDown={(event) => { event.cancelBubble = true; onPortPointerDown(port.id, event); }} onMouseEnter={(event) => { event.cancelBubble = true; const stage = event.target.getStage(); if (stage) stage.container().style.cursor = "crosshair"; }} onMouseLeave={(event) => { event.cancelBubble = true; const stage = event.target.getStage(); if (stage) stage.container().style.cursor = "default"; }} />;
         }) : null}
       </Group>
     </Group>

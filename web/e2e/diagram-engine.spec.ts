@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { arrangeDiagramElements, connectorPoints, orthogonalConnectorPoints, portPoint } from "../src/features/diagram/core/geometry";
 import { createDiagramRegistry, DEFAULT_DIAGRAM_PORTS } from "../src/features/diagram/core/registry";
-import { createDiagramDocument, createDiagramEditorState, createDiagramShape, createDiagramConnector, diagramEditorActions, diagramEditorReducer } from "../src/features/diagram/core/state";
+import { createDiagramDocument, createDiagramEditorState, createDiagramShape, createDiagramConnector, createDiagramImage, diagramEditorActions, diagramEditorReducer } from "../src/features/diagram/core/state";
 import { createDiagramSvg, createDrawioXml, createDiagramSvgAsset, parseDiagramDocumentJson, sanitizeDiagramSvg, serializeDiagramDocument } from "../src/features/diagram/import-export";
 import { systemDesignDiagramMigration } from "../src/features/diagram/packs/system-design/migration";
 import { ApiDiagramRepository, DiagramRevisionConflictError, LocalDiagramRepository, type DiagramStorageAdapter } from "../src/features/diagram/persistence";
@@ -322,6 +322,15 @@ test.describe("generic diagram engine", () => {
   test("sanitizes embedded SVG assets and rejects active or external content", () => {
     const safe = createDiagramSvgAsset('<svg viewBox="0 0 24 24"><path d="M1 1h22v22H1z"/></svg>', "safe.svg");
     expect(safe).toMatchObject({ kind: "svg", intrinsicWidth: 24, intrinsicHeight: 24 });
+    const logo = createDiagramSvgAsset('<svg viewBox="0 0 48 24"><path d="M0 0h48v24H0z"/></svg>', "logo.svg");
+    const image = createDiagramImage({ x: 10, y: 20 }, logo);
+    expect(image).toMatchObject({
+      x: 10,
+      y: 20,
+      width: 96,
+      height: 48,
+    });
+    expect(image.label).toBeUndefined();
     expect(() => sanitizeDiagramSvg('<svg onload="alert(1)"><script>alert(1)</script></svg>')).toThrow("active");
     expect(() => sanitizeDiagramSvg('<svg><image href="https://example.com/tracker.png"/></svg>')).toThrow("external");
     expect(() => sanitizeDiagramSvg('<svg><foreignObject><div>unsafe</div></foreignObject></svg>')).toThrow("active");

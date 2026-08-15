@@ -681,6 +681,7 @@ test.describe("System Design editor", () => {
       intrinsicWidth: 48,
       intrinsicHeight: 24,
     });
+    expect(imageNode).toMatchObject({ label: "", width: 144, height: 72 });
     expect(imageNode?.asset?.kind === "svg" ? imageNode.asset.svg : "").not.toContain(
       "script",
     );

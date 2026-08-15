@@ -905,18 +905,7 @@ function SemanticSurface({
         />
       );
     case "image":
-      return (
-        <Rect
-          width={width}
-          height={height}
-          cornerRadius={cornerRadius ?? 10}
-          fill={fill}
-          stroke={semanticStroke}
-          strokeWidth={surfaceStrokeWidth}
-          dash={styleDash}
-          perfectDrawEnabled={false}
-        />
-      );
+      return null;
     case "compute":
     default:
       return (
@@ -1146,19 +1135,21 @@ function SystemDesignNodeRendererComponent({
         />
       )}
 
-      <Group
-        ref={staticVisualRef}
-        listening={false}
-        opacity={nodeOpacity}
-      >
-        <SemanticSurface
-          chrome={visual.chrome}
-          node={node}
-          theme={theme}
-          accent={visual.accent}
-          softAccent={visual.softAccent}
-        />
-      </Group>
+      {node.type !== "image" && (
+        <Group
+          ref={staticVisualRef}
+          listening={false}
+          opacity={nodeOpacity}
+        >
+          <SemanticSurface
+            chrome={visual.chrome}
+            node={node}
+            theme={theme}
+            accent={visual.accent}
+            softAccent={visual.softAccent}
+          />
+        </Group>
+      )}
 
       <Group opacity={nodeOpacity}>
       {!isAnnotation && (
@@ -1394,30 +1385,13 @@ function SystemDesignNodeRendererComponent({
         )}
 
         {node.type === "image" && node.asset && (
-          <>
-            <SystemDesignAssetImage
-              asset={node.asset}
-              x={8}
-              y={8}
-              width={Math.max(1, node.width - 16)}
-              height={Math.max(1, node.height - (node.label ? 34 : 16))}
-            />
-            {node.label && (
-              <Text
-                x={10}
-                y={node.height - 22}
-                width={node.width - 20}
-                text={node.label}
-                align="center"
-                fill={theme.foreground}
-                fontFamily="Arial"
-                fontSize={10}
-                ellipsis
-                wrap="none"
-                listening={false}
-              />
-            )}
-          </>
+          <SystemDesignAssetImage
+            asset={node.asset}
+            x={0}
+            y={0}
+            width={node.width}
+            height={node.height}
+          />
         )}
 
         {status && !isAnnotation && (

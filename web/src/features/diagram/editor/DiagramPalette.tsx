@@ -1,11 +1,36 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type DragEvent } from "react";
 import { Search, X } from "lucide-react";
 import type { DiagramRegistry } from "../core/registry";
 import type { DiagramShapeDefinition } from "../core/types";
 import { DIAGRAM_SHAPE_MIME } from "../canvas";
 import { DiagramShapePreview } from "./DiagramShapePreview";
+
+function setCompactDragImage(event: DragEvent<HTMLButtonElement>): void {
+  const preview = event.currentTarget.cloneNode(true) as HTMLButtonElement;
+  preview.removeAttribute("title");
+  preview.setAttribute("aria-hidden", "true");
+  Object.assign(preview.style, {
+    position: "fixed",
+    left: "-1000px",
+    top: "-1000px",
+    width: "172px",
+    minHeight: "42px",
+    padding: "8px 10px",
+    gap: "10px",
+    color: "#f4f4f5",
+    background: "#18181b",
+    border: "1px solid rgba(167, 139, 250, 0.8)",
+    borderRadius: "8px",
+    boxShadow: "0 12px 30px rgba(0, 0, 0, 0.45)",
+    pointerEvents: "none",
+    zIndex: "2147483647",
+  });
+  document.body.appendChild(preview);
+  event.dataTransfer.setDragImage(preview, 22, 21);
+  requestAnimationFrame(() => preview.remove());
+}
 
 interface Props {
   registry: DiagramRegistry;
@@ -24,7 +49,7 @@ export function DiagramPalette({ registry, enabledPackIds, recentShapeIds, onAdd
   const displayed = normalized ? shapes : shapes.filter((shape) => shape.packId === activePack?.id);
   const recent = recentShapeIds.map((id) => registry.getShape(id)).filter((shape): shape is DiagramShapeDefinition => Boolean(shape));
   const categories = activePack ? [...activePack.categories].sort((a, b) => a.order - b.order) : [];
-  const item = (shape: DiagramShapeDefinition) => <button key={shape.id} type="button" draggable onDragStart={(event) => { event.dataTransfer.setData(DIAGRAM_SHAPE_MIME, shape.id); event.dataTransfer.effectAllowed = "copy"; }} onClick={() => onAdd(shape.id)} title={`${shape.label} — ${shape.keywords.join(", ")}`} className="group flex min-h-12 items-center gap-2 rounded-md border border-transparent bg-surface-elevated/45 px-2 py-1.5 text-left text-[10px] leading-tight text-muted transition hover:border-accent/70 hover:bg-surface-elevated hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"><DiagramShapePreview shape={shape} /><span className="min-w-0 break-normal">{shape.label}</span></button>;
+  const item = (shape: DiagramShapeDefinition) => <button key={shape.id} type="button" draggable onDragStart={(event) => { event.dataTransfer.setData(DIAGRAM_SHAPE_MIME, shape.id); event.dataTransfer.effectAllowed = "copy"; setCompactDragImage(event); }} onClick={() => onAdd(shape.id)} title={`${shape.label} — ${shape.keywords.join(", ")}`} className="group flex min-h-12 items-center gap-2 rounded-md border border-transparent bg-surface-elevated/45 px-2 py-1.5 text-left text-[10px] leading-tight text-muted transition hover:border-accent/70 hover:bg-surface-elevated hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"><DiagramShapePreview shape={shape} /><span className="min-w-0 break-normal">{shape.label}</span></button>;
 
   return <aside className="flex h-full min-h-0 w-[244px] shrink-0 flex-col border-r border-border bg-surface/80" aria-label="Diagram palette">
     <div className="border-b border-border p-2.5">
