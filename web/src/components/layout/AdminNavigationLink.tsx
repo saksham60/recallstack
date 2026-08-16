@@ -10,12 +10,13 @@ export function AdminNavigationLink({
   systemDesignEnabled: boolean;
 }) {
   const { data } = useProfile();
-  if (!data?.roles.includes("admin")) return null;
+  const isAdmin = data?.roles.includes("admin") ?? false;
+
   return (
     <>
       {systemDesignEnabled && (
         <Link
-          href="/admin/system-design"
+          href="/system-design"
           aria-label="System Design"
           className="flex items-center text-sm font-medium text-accent transition-colors hover:text-foreground"
         >
@@ -26,12 +27,14 @@ export function AdminNavigationLink({
           <span className="hidden sm:inline">System Design</span>
         </Link>
       )}
-      <Link
-        href="/admin"
-        className="text-sm font-medium text-warning transition-colors hover:text-foreground"
-      >
-        Admin
-      </Link>
+      {isAdmin && (
+        <Link
+          href="/admin"
+          className="text-sm font-medium text-warning transition-colors hover:text-foreground"
+        >
+          Admin
+        </Link>
+      )}
     </>
   );
 }

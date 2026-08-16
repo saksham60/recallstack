@@ -1008,7 +1008,7 @@ function difficultyVariant(
 }
 
 export function SystemDesignToolbar({
-  backHref = "/admin/system-design",
+  backHref = "/system-design",
   onBack,
   backLabel = "Back to system design problems",
   problem,

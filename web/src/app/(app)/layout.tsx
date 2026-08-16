@@ -1,6 +1,6 @@
 import React from "react";
 import { AppShell } from "@/components/layout/AppShell";
-import { isSystemDesignAdminEnabled } from "@/lib/config/server";
+import { isSystemDesignEnabled } from "@/lib/config/server";
 
 export default function AppLayout({
   children,
@@ -9,7 +9,7 @@ export default function AppLayout({
 }) {
   return (
     <AppShell
-      systemDesignEnabled={isSystemDesignAdminEnabled()}
+      systemDesignEnabled={isSystemDesignEnabled()}
     >
       {children}
     </AppShell>

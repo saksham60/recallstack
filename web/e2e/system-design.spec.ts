@@ -195,7 +195,7 @@ async function seedDocuments(
 
 async function openDashboard(page: Page, roles: string[] = ["admin"]) {
   await mockProfile(page, roles);
-  await page.goto("/admin/system-design");
+  await page.goto("/system-design");
 }
 
 async function openEditor(
@@ -204,7 +204,7 @@ async function openEditor(
   roles: string[] = ["admin"],
 ) {
   await mockProfile(page, roles);
-  await page.goto(`/admin/system-design/${problemId}`);
+  await page.goto(`/system-design/${problemId}`);
   await expect(page.getByTestId("system-design-canvas")).toBeVisible();
 }
 
@@ -275,13 +275,13 @@ test.describe("System Design access", () => {
   base("redirects unauthenticated visitors away from both feature routes", async ({
     page,
   }) => {
-    await page.goto("/admin/system-design");
+    await page.goto("/system-design");
     await expect(page).toHaveURL(/\/login(?:[/?#]|$)/);
     await expect(
       page.getByRole("heading", { name: "System Design Problems" }),
     ).toHaveCount(0);
 
-    await page.goto("/admin/system-design/url-shortener");
+    await page.goto("/system-design/url-shortener");
     await expect(page).toHaveURL(/\/login(?:[/?#]|$)/);
     await expect(page.getByTestId("system-design-canvas")).toHaveCount(0);
     await expect(
@@ -289,12 +289,12 @@ test.describe("System Design access", () => {
     ).toHaveCount(0);
   });
 
-  test("requires both an admin role and the enabled feature policy", () => {
+  test("uses the feature policy without restricting user roles", () => {
     expect(canAccessSystemDesign(["admin"], true)).toBe(true);
     expect(canAccessSystemDesign(["admin"], false)).toBe(false);
-    expect(canAccessSystemDesign([], true)).toBe(false);
-    expect(canAccessSystemDesign(["learner"], true)).toBe(false);
-    expect(canAccessSystemDesign(undefined, true)).toBe(false);
+    expect(canAccessSystemDesign([], true)).toBe(true);
+    expect(canAccessSystemDesign(["learner"], true)).toBe(true);
+    expect(canAccessSystemDesign(undefined, true)).toBe(true);
   });
 
   test("shows enabled navigation and dashboard to an admin", async ({
@@ -309,7 +309,7 @@ test.describe("System Design access", () => {
     await expect(globalSystemDesignLink).toBeVisible();
     await expect(globalSystemDesignLink).toHaveAttribute(
       "href",
-      "/admin/system-design",
+      "/system-design",
     );
 
     await openDashboard(page);
@@ -318,55 +318,42 @@ test.describe("System Design access", () => {
       page.getByRole("heading", { name: "System Design Problems" }),
     ).toBeVisible();
     await expect(
-      page
-        .getByRole("navigation", { name: "Admin navigation" })
-        .getByRole("link", { name: "System Design", exact: true }),
-    ).toBeVisible();
-    await expect(
       page.getByText(
-        "Create and validate system-design exercises before releasing them to learners.",
+        "Practice designing scalable systems with an architecture-aware diagram editor.",
       ),
     ).toBeVisible();
   });
 
-  test("hides navigation and blocks both routes for a non-admin without rendering content", async ({
+  test("shows navigation, problems, and the editor to a non-admin learner", async ({
     authenticatedPage: page,
   }) => {
-    await mockProfile(page, []);
+    await mockProfile(page, ["learner"]);
 
     await page.goto("/dsa");
+    const link = page.getByRole("link", {
+      name: "System Design",
+      exact: true,
+    });
+    await expect(link).toBeVisible();
+    await expect(link).toHaveAttribute("href", "/system-design");
     await expect(
-      page.getByRole("link", { name: "System Design", exact: true }),
+      page.getByRole("link", { name: "Admin", exact: true }),
     ).toHaveCount(0);
 
-    await page.goto("/admin/system-design");
-    await expect(
-      page.getByRole("heading", {
-        name: "Administrator access is required",
-      }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("link", { name: "System Design", exact: true }),
-    ).toHaveCount(0);
+    await link.click();
+    await expect(page).toHaveURL(/\/system-design$/);
     await expect(
       page.getByRole("heading", { name: "System Design Problems" }),
-    ).toHaveCount(0);
-    await expect(
-      page.getByRole("link", { name: "Open Editor" }),
-    ).toHaveCount(0);
-
-    await page.goto("/admin/system-design/url-shortener");
-    await expect(
-      page.getByRole("heading", {
-        name: "Administrator access is required",
-      }),
     ).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "URL Shortener" }),
-    ).toHaveCount(0);
+      page.getByRole("link", { name: "Open Editor" }).first(),
+    ).toBeVisible();
+
+    await page.goto("/system-design/url-shortener");
+    await expect(page.getByTestId("system-design-canvas")).toBeVisible();
     await expect(
-      page.getByTestId("system-design-canvas"),
-    ).toHaveCount(0);
+      page.getByRole("heading", { name: "URL Shortener" }),
+    ).toBeVisible();
   });
 });
 
@@ -455,7 +442,7 @@ test.describe("System Design problems dashboard", () => {
       metrics.getByText("Total problems", { exact: true }).locator(".."),
     ).toContainText("15");
     await expect(
-      metrics.getByText("Draft problems", { exact: true }).locator(".."),
+      metrics.getByText("Practice problems", { exact: true }).locator(".."),
     ).toContainText("15");
     await expect(
       metrics.getByText("Diagrams started", { exact: true }).locator(".."),
@@ -507,7 +494,7 @@ test.describe("System Design problems dashboard", () => {
     authenticatedPage: page,
   }) => {
     await mockProfile(page);
-    await page.goto("/admin/system-design/not-a-real-problem");
+    await page.goto("/system-design/not-a-real-problem");
 
     await expect(
       page.getByText("This page could not be found.", { exact: true }),
@@ -1143,7 +1130,7 @@ test.describe("System Design editor", () => {
     const fixture = createPerformanceFixture();
     await seedDocuments(page, [fixture]);
     await mockProfile(page);
-    await page.goto("/admin/system-design/url-shortener?sdPerf=1");
+    await page.goto("/system-design/url-shortener?sdPerf=1");
     await expect(page.getByTestId("system-design-canvas")).toBeVisible();
 
     await expectEditorCounts(page, {

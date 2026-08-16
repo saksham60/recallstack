@@ -1,4 +1,7 @@
+"use client";
+
 import React from "react";
+import { usePathname } from "next/navigation";
 import { TopNavigation } from "./TopNavigation";
 
 export function AppShell({
@@ -8,10 +11,20 @@ export function AppShell({
   children: React.ReactNode;
   systemDesignEnabled: boolean;
 }) {
+  const pathname = usePathname();
+  const isSystemDesignEditor =
+    pathname.startsWith("/system-design/") && pathname !== "/system-design/";
+
   return (
     <div className="flex flex-col min-h-screen">
       <TopNavigation systemDesignEnabled={systemDesignEnabled} />
-      <main className="flex-1 max-w-7xl mx-auto w-full p-4 sm:p-6 lg:p-8">
+      <main
+        className={
+          isSystemDesignEditor
+            ? "min-h-0 w-full flex-1"
+            : "mx-auto w-full max-w-7xl flex-1 p-4 sm:p-6 lg:p-8"
+        }
+      >
         {children}
       </main>
     </div>

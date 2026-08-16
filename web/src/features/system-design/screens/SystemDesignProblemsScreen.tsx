@@ -160,7 +160,7 @@ export function SystemDesignProblemsScreen() {
     <div className="space-y-6">
       <PageHeader
         title="System Design Problems"
-        description="Create and validate system-design exercises before releasing them to learners."
+        description="Practice designing scalable systems with an architecture-aware diagram editor."
       />
 
       <section
@@ -173,9 +173,9 @@ export function SystemDesignProblemsScreen() {
           hint="Placeholder exercise catalog"
         />
         <MetricCard
-          label="Draft problems"
+          label="Practice problems"
           value={SYSTEM_DESIGN_PROBLEMS.length}
-          hint="Admin-only exercises"
+          hint="Available to all learners"
         />
         <MetricCard
           label="Diagrams started"

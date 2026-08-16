@@ -7,6 +7,9 @@ export function isE2EAuthBypassEnabled(): boolean {
   );
 }
 
-export function isSystemDesignAdminEnabled(): boolean {
-  return process.env.SYSTEM_DESIGN_ADMIN_ENABLED === "1";
+export function isSystemDesignEnabled(): boolean {
+  return (
+    process.env.SYSTEM_DESIGN_ENABLED ??
+    process.env.SYSTEM_DESIGN_ADMIN_ENABLED
+  ) === "1";
 }

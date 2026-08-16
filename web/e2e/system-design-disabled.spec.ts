@@ -26,7 +26,7 @@ test("the disabled feature flag hides navigation and both routes", async ({
       .getByRole("link", { name: "System Design", exact: true }),
   ).toHaveCount(0);
 
-  await page.goto("/admin/system-design");
+  await page.goto("/system-design");
   await expect(
     page.getByText("This page could not be found.", { exact: true }),
   ).toBeVisible();
@@ -34,7 +34,7 @@ test("the disabled feature flag hides navigation and both routes", async ({
     page.getByRole("heading", { name: "System Design Problems" }),
   ).toHaveCount(0);
 
-  await page.goto("/admin/system-design/url-shortener");
+  await page.goto("/system-design/url-shortener");
   await expect(
     page.getByText("This page could not be found.", { exact: true }),
   ).toBeVisible();

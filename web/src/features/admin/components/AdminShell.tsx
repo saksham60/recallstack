@@ -76,7 +76,7 @@ function AdminShell({
   const navigation = systemDesignEnabled
     ? [
         ...coreNavigation.slice(0, 3),
-        { href: "/admin/system-design", label: "System Design" },
+        { href: "/system-design", label: "System Design" },
         { href: "/admin/diagrams", label: "Diagram Studio" },
         ...coreNavigation.slice(3),
       ]
@@ -114,7 +114,7 @@ function AdminShell({
                   item.href === "/admin"
                     ? pathname === item.href
                     : pathname.startsWith(item.href);
-                const isSystemDesign = item.href === "/admin/system-design";
+                const isSystemDesign = item.href === "/system-design";
                 return (
                   <Link
                     key={item.href}

@@ -7,8 +7,7 @@ export default function SystemDesignLayout({
 }: {
   children: ReactNode;
 }) {
-  const enabled = isSystemDesignEnabled();
-  if (!enabled) notFound();
+  if (!isSystemDesignEnabled()) notFound();
 
   return children;
 }

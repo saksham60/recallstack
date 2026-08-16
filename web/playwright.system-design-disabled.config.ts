@@ -32,7 +32,7 @@ export default defineConfig({
     timeout: 120 * 1000,
     env: {
       E2E_BYPASS_AUTH: "1",
-      SYSTEM_DESIGN_ADMIN_ENABLED: "0",
+      SYSTEM_DESIGN_ENABLED: "0",
     },
   },
 });

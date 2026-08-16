@@ -97,7 +97,7 @@ export function SystemDesignProblemCard({
       </dl>
 
       <Link
-        href={`/admin/system-design/${problem.id}`}
+        href={`/system-design/${problem.id}`}
         className="mt-5 inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-accent/50 bg-accent/10 px-4 text-sm font-medium text-accent transition hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       >
         Open Editor
