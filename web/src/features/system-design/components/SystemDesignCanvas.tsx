@@ -30,6 +30,7 @@ import type {
 } from "../types/system-design.types";
 import { isSystemDesignBoundaryNodeType } from "../constants/system-design-palette";
 import { useElementSize } from "../hooks/use-element-size";
+import { isSystemDesignTypingTarget } from "../hooks/use-system-design-keyboard-shortcuts";
 import {
   MAX_ZOOM,
   MIN_NODE_HEIGHT,
@@ -227,6 +228,8 @@ export const SystemDesignCanvas = forwardRef<
   const animationFrameRef = useRef<number | null>(null);
   const animationStartedAtRef = useRef(0);
   const dragActiveRef = useRef(false);
+  const pointerOverCanvasRef = useRef(false);
+  const spacePanningRef = useRef(false);
   const pendingWheelViewportRef = useRef<SystemDesignViewport | null>(
     null,
   );
@@ -249,6 +252,7 @@ export const SystemDesignCanvas = forwardRef<
   const [editingLabel, setEditingLabel] = useState("");
   const [editingEdgeId, setEditingEdgeId] = useState<string | null>(null);
   const [editingEdgeLabel, setEditingEdgeLabel] = useState("");
+  const [spacePanning, setSpacePanning] = useState(false);
   const beginInlineLabelEditRef = useRef<(nodeId: string) => void>(() => {});
   const connectionRef = useRef<ConnectionDraft | null>(null);
   const marqueeDraftRef = useRef<{
@@ -287,12 +291,70 @@ export const SystemDesignCanvas = forwardRef<
     const container = stageRef.current?.container();
     if (!container) return;
     container.style.cursor =
-      preview || activeTool === "pan"
+      preview || activeTool === "pan" || spacePanning
         ? "grab"
         : activeTool === "connect"
           ? "crosshair"
           : "default";
-  }, [activeTool, preview]);
+  }, [activeTool, preview, spacePanning]);
+
+  useEffect(() => {
+    const restorePersistentTool = () => {
+      if (!spacePanningRef.current) return;
+      spacePanningRef.current = false;
+      setSpacePanning(false);
+      const stage = stageRef.current;
+      if (stage && !stage.isDragging()) {
+        stage.draggable(preview || activeTool === "pan");
+      }
+      const elementListening = preview || activeTool !== "pan";
+      boundaryLayerRef.current?.listening(elementListening);
+      edgesLayerRef.current?.listening(elementListening);
+      nodesLayerRef.current?.listening(elementListening);
+      interactionLayerRef.current?.listening(true);
+      stage?.batchDraw();
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.code !== "Space" || isSystemDesignTypingTarget(event.target)) {
+        return;
+      }
+      const container = containerRef.current;
+      const canvasIsActive =
+        pointerOverCanvasRef.current ||
+        Boolean(container?.contains(document.activeElement));
+      if (!canvasIsActive) return;
+
+      event.preventDefault();
+      if (spacePanningRef.current) return;
+      spacePanningRef.current = true;
+      setSpacePanning(true);
+      clearConnection();
+      marqueeDraftRef.current = null;
+      marqueeRef.current?.visible(false);
+      interactionLayerRef.current?.batchDraw();
+      stageRef.current?.draggable(true);
+      boundaryLayerRef.current?.listening(false);
+      edgesLayerRef.current?.listening(false);
+      nodesLayerRef.current?.listening(false);
+      interactionLayerRef.current?.listening(false);
+    };
+
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.code !== "Space" || !spacePanningRef.current) return;
+      event.preventDefault();
+      restorePersistentTool();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", restorePersistentTool);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", restorePersistentTool);
+    };
+  }, [activeTool, clearConnection, containerRef, preview]);
 
   useEffect(() => {
     const cancelActiveConnection = () => {
@@ -1230,9 +1292,18 @@ export const SystemDesignCanvas = forwardRef<
       data-testid="system-design-canvas"
       className="relative h-full min-h-0 w-full overflow-hidden bg-background focus-within:outline-none focus-within:ring-2 focus-within:ring-inset focus-within:ring-accent"
       data-active-tool={activeTool}
+      data-space-panning={spacePanning ? "true" : "false"}
+      data-viewport-x={viewport.x}
+      data-viewport-y={viewport.y}
       role="application"
       aria-label="System design diagram canvas"
       tabIndex={0}
+      onPointerEnter={() => {
+        pointerOverCanvasRef.current = true;
+      }}
+      onPointerLeave={() => {
+        pointerOverCanvasRef.current = false;
+      }}
       onPointerDownCapture={(event) => {
         if (!preview && event.target instanceof HTMLElement) {
           event.currentTarget.focus({ preventScroll: true });
@@ -1265,7 +1336,8 @@ export const SystemDesignCanvas = forwardRef<
     >
       <span className="sr-only">
         Use the component palette and inspector to edit the diagram. Keyboard
-        shortcuts are available from the Help button.
+        shortcuts are available from the Help button. Hold Space and drag to
+        pan the canvas temporarily.
       </span>
       {size.width > 0 && size.height > 0 && (
         <>
@@ -1277,12 +1349,21 @@ export const SystemDesignCanvas = forwardRef<
           y={viewport.y}
           scaleX={viewport.zoom}
           scaleY={viewport.zoom}
-          draggable={preview || activeTool === "pan"}
+          draggable={preview || activeTool === "pan" || spacePanning}
           onWheel={handleWheel}
+          onDragStart={(event) => {
+            if (event.target !== event.target.getStage()) return;
+            const container = stageRef.current?.container();
+            if (container) container.style.cursor = "grabbing";
+          }}
           onMouseDown={(event) => {
             const stage = event.target.getStage();
             if (!stage) return;
             const isEmptyCanvas = event.target === stage;
+            if (spacePanningRef.current) {
+              stage.draggable(true);
+              return;
+            }
             if (preview) {
               stage.draggable(isEmptyCanvas && !connection);
               return;
@@ -1310,6 +1391,7 @@ export const SystemDesignCanvas = forwardRef<
             if (isEmptyCanvas && activeTool !== "pan") onClearSelection();
           }}
           onMouseMove={(event) => {
+            if (spacePanningRef.current) return;
             const stage = event.target.getStage();
             if (stage && updateMarqueeSelection(stage)) return;
             const pointer = stage?.getPointerPosition();
@@ -1323,8 +1405,10 @@ export const SystemDesignCanvas = forwardRef<
           }}
           onMouseUp={(event) => {
             const stage = event.target.getStage();
-            finishMarqueeSelection();
-            stage?.draggable(preview || activeTool === "pan");
+            if (!spacePanningRef.current) finishMarqueeSelection();
+            stage?.draggable(
+              preview || activeTool === "pan" || spacePanningRef.current,
+            );
             if (connectionRef.current) clearConnection();
           }}
           onTouchEnd={(event) => {
@@ -1335,6 +1419,18 @@ export const SystemDesignCanvas = forwardRef<
           }}
           onDragEnd={(event) => {
             if (event.target !== event.target.getStage()) return;
+            const container = stageRef.current?.container();
+            if (container) {
+              container.style.cursor =
+                preview || activeTool === "pan" || spacePanningRef.current
+                  ? "grab"
+                  : activeTool === "connect"
+                    ? "crosshair"
+                    : "default";
+            }
+            event.target.draggable(
+              preview || activeTool === "pan" || spacePanningRef.current,
+            );
             setViewport({
               x: event.target.x(),
               y: event.target.y(),
@@ -1355,7 +1451,9 @@ export const SystemDesignCanvas = forwardRef<
           </Layer>
           <Layer
             ref={boundaryLayerRef}
-            listening={preview || activeTool !== "pan"}
+            listening={
+              !spacePanning && (preview || activeTool !== "pan")
+            }
           >
             {boundaryNodes.map((node) => (
               <SystemDesignNodeRenderer
@@ -1369,8 +1467,10 @@ export const SystemDesignCanvas = forwardRef<
                   !node.locked
                 }
                 connecting={
-                  activeTool === "connect" ||
+                  !spacePanning &&
+                  (activeTool === "connect" ||
                   connection?.sourceNodeId === node.id
+                  )
                 }
                 preview={preview}
                 theme={theme}
@@ -1390,7 +1490,9 @@ export const SystemDesignCanvas = forwardRef<
           </Layer>
           <Layer
             ref={edgesLayerRef}
-            listening={preview || activeTool !== "pan"}
+            listening={
+              !spacePanning && (preview || activeTool !== "pan")
+            }
           >
             {diagram.edges.map((edge) => {
               const source = nodeMap.get(edge.sourceNodeId);
@@ -1414,7 +1516,9 @@ export const SystemDesignCanvas = forwardRef<
           </Layer>
           <Layer
             ref={nodesLayerRef}
-            listening={preview || activeTool !== "pan"}
+            listening={
+              !spacePanning && (preview || activeTool !== "pan")
+            }
           >
             {foregroundNodes.map((node) => (
               <SystemDesignNodeRenderer
@@ -1428,8 +1532,10 @@ export const SystemDesignCanvas = forwardRef<
                   !node.locked
                 }
                 connecting={
-                  activeTool === "connect" ||
+                  !spacePanning &&
+                  (activeTool === "connect" ||
                   connection?.sourceNodeId === node.id
+                  )
                 }
                 preview={preview}
                 theme={theme}
@@ -1447,7 +1553,7 @@ export const SystemDesignCanvas = forwardRef<
               />
             ))}
           </Layer>
-          <Layer ref={interactionLayerRef}>
+          <Layer ref={interactionLayerRef} listening={!spacePanning}>
             {connection && (
               <Arrow
                 ref={connectionArrowRef}
@@ -1494,7 +1600,7 @@ export const SystemDesignCanvas = forwardRef<
               listening={false}
               perfectDrawEnabled={false}
             />
-            {!preview && activeTool === "select" && (
+            {!preview && activeTool === "select" && !spacePanning && (
               <Transformer
                 ref={transformerRef}
                 rotateEnabled={false}

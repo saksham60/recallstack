@@ -547,6 +547,7 @@ test.describe("System Design editor", () => {
       name: "Keyboard shortcuts",
     });
     await expect(shortcuts).toContainText("Paste into focused canvas");
+    await expect(shortcuts).toContainText("Hold Space + drag");
     await expect(shortcuts).toContainText("Open selected module");
     await expect(shortcuts).toContainText("Return to parent");
     await expect(inspector).not.toContainText("Press ?");
@@ -780,6 +781,29 @@ test.describe("System Design editor", () => {
       first.y + first.height / 2,
     );
     await page.mouse.click(firstCenter.x, firstCenter.y);
+    await expectEditorCounts(page, {
+      nodes: 3,
+      connections: 0,
+      selected: 2,
+    });
+
+    const viewportXBefore = Number(
+      await canvas.getAttribute("data-viewport-x"),
+    );
+    await page.keyboard.down("Space");
+    await expect(canvas).toHaveAttribute("data-space-panning", "true");
+    await expect(canvas).toHaveAttribute("data-active-tool", "select");
+    await page.mouse.move(firstCenter.x, firstCenter.y);
+    await page.mouse.down();
+    await page.mouse.move(firstCenter.x + 90, firstCenter.y + 60, {
+      steps: 6,
+    });
+    await page.mouse.up();
+    await page.keyboard.up("Space");
+    await expect(canvas).toHaveAttribute("data-space-panning", "false");
+    await expect
+      .poll(async () => Number(await canvas.getAttribute("data-viewport-x")))
+      .toBeGreaterThan(viewportXBefore + 50);
     await expectEditorCounts(page, {
       nodes: 3,
       connections: 0,

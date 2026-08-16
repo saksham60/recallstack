@@ -4,6 +4,7 @@ import { Keyboard } from "lucide-react";
 import { buttonClass } from "@/features/admin/components/AdminPrimitives";
 
 export const SYSTEM_DESIGN_KEYBOARD_SHORTCUTS = [
+  ["Temporarily pan canvas", "Hold Space + drag"],
   ["Undo", "Ctrl/Cmd + Z"],
   ["Redo", "Ctrl/Cmd + Shift + Z or Ctrl/Cmd + Y"],
   ["Select all", "Ctrl/Cmd + A"],
