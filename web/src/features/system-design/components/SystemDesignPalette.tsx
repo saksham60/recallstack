@@ -28,6 +28,42 @@ export const SYSTEM_DESIGN_NODE_DRAG_MIME =
   "application/x-recallstack-system-design-node";
 
 const RECENT_COMPONENT_LIMIT = 4;
+const DRAG_PREVIEW_WIDTH = 188;
+
+function setComponentDragPreview(
+  event: DragEvent<HTMLButtonElement>,
+): void {
+  const preview = event.currentTarget.cloneNode(true) as HTMLButtonElement;
+  preview.removeAttribute("id");
+  preview.removeAttribute("title");
+  preview.removeAttribute("aria-describedby");
+  preview.setAttribute("aria-hidden", "true");
+  preview.querySelectorAll("[id]").forEach((element) => {
+    element.removeAttribute("id");
+  });
+  preview.querySelectorAll(".sr-only, [data-drag-decoration]").forEach(
+    (element) => element.remove(),
+  );
+  Object.assign(preview.style, {
+    position: "fixed",
+    left: "-1000px",
+    top: "-1000px",
+    width: `${DRAG_PREVIEW_WIDTH}px`,
+    minHeight: "46px",
+    padding: "7px 9px",
+    gap: "9px",
+    color: "#fafafa",
+    background: "#18181b",
+    border: "1px solid rgba(167, 139, 250, 0.82)",
+    borderRadius: "8px",
+    boxShadow: "0 12px 30px rgba(0, 0, 0, 0.48)",
+    pointerEvents: "none",
+    zIndex: "2147483647",
+  });
+  document.body.appendChild(preview);
+  event.dataTransfer.setDragImage(preview, 24, 23);
+  requestAnimationFrame(() => preview.remove());
+}
 
 function normalizePaletteSearch(value: string): string {
   return value
@@ -115,11 +151,13 @@ function PaletteItemButton({
       </span>
       <GripVertical
         className="h-3.5 w-3.5 shrink-0 text-muted opacity-60"
+        data-drag-decoration
         aria-hidden="true"
       />
       {!compact && (
         <Plus
           className="hidden h-3.5 w-3.5 shrink-0 text-accent group-hover/item:block"
+          data-drag-decoration
           aria-hidden="true"
         />
       )}
@@ -196,6 +234,7 @@ export function SystemDesignPalette({
       event.dataTransfer.effectAllowed = "copy";
       event.dataTransfer.setData(SYSTEM_DESIGN_NODE_DRAG_MIME, type);
       event.dataTransfer.setData("text/plain", type);
+      setComponentDragPreview(event);
       onDragStart?.(event, type);
     },
     [onDragStart, rememberType],

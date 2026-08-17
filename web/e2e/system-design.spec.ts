@@ -724,9 +724,41 @@ test.describe("System Design editor", () => {
       name: "Add Service",
       exact: true,
     });
+    await page.evaluate(() => {
+      const original = DataTransfer.prototype.setDragImage;
+      DataTransfer.prototype.setDragImage = function setDragImage(
+        image,
+        x,
+        y,
+      ) {
+        const bounds = image.getBoundingClientRect();
+        document.documentElement.dataset.systemDesignDragPreview =
+          JSON.stringify({
+            width: bounds.width,
+            height: bounds.height,
+            text: image.textContent?.trim() ?? "",
+            x,
+            y,
+          });
+        original.call(this, image, x, y);
+      };
+    });
     await service.dragTo(page.getByTestId("system-design-canvas"), {
       targetPosition: { x: 420, y: 300 },
     });
+    const dragPreview = await page.evaluate(
+      () =>
+        JSON.parse(
+          document.documentElement.dataset.systemDesignDragPreview ?? "{}",
+        ) as {
+          width?: number;
+          height?: number;
+          text?: string;
+        },
+    );
+    expect(dragPreview.width).toBe(188);
+    expect(dragPreview.height).toBeLessThanOrEqual(50);
+    expect(dragPreview.text).toBe("Service");
     await expectEditorCounts(page, {
       nodes: 2,
       connections: 0,
