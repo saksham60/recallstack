@@ -22,12 +22,18 @@ import { createSystemDesignRepository } from "../repository/createSystemDesignRe
 import type { SystemDesignRepository } from "../repository/SystemDesignRepository";
 import type {
   ProblemStatus,
+  SystemDesignDifficulty,
   SystemDesignDocumentSummary,
 } from "../types/system-design.types";
 import {
   getSystemDesignProblemStatus,
   SystemDesignProblemCard,
 } from "../components/SystemDesignProblemCard";
+import {
+  formatSystemDesignProblemTag,
+  getSystemDesignProblemTags,
+  matchesSystemDesignProblemFilters,
+} from "../utils/problem-discovery";
 
 const difficultyOptions = ["easy", "medium", "hard"] as const;
 const statusOptions: ReadonlyArray<{ value: ProblemStatus; label: string }> = [
@@ -48,7 +54,10 @@ export function SystemDesignProblemsScreen() {
   const [loadError, setLoadError] = useState<unknown>();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
-  const [difficulty, setDifficulty] = useState("");
+  const [difficulty, setDifficulty] = useState<"" | SystemDesignDifficulty>(
+    "",
+  );
+  const [tag, setTag] = useState("");
   const [status, setStatus] = useState("");
 
   const loadDocumentSummaries = useCallback(async () => {
@@ -101,33 +110,26 @@ export function SystemDesignProblemsScreen() {
       ).sort((left, right) => left.localeCompare(right)),
     [],
   );
+  const tags = useMemo(
+    () => getSystemDesignProblemTags(SYSTEM_DESIGN_PROBLEMS),
+    [],
+  );
 
   const filteredProblems = useMemo(() => {
-    const normalizedSearch = search.trim().toLocaleLowerCase();
-
     return SYSTEM_DESIGN_PROBLEMS.filter((problem) => {
       const summary = summariesByProblemId.get(problem.id);
       const problemStatus = getSystemDesignProblemStatus(summary);
-      const matchesSearch =
-        normalizedSearch.length === 0 ||
-        [
-          problem.title,
-          problem.summary,
-          problem.category,
-          ...problem.tags,
-          ...problem.requirements,
-        ].some((value) =>
-          value.toLocaleLowerCase().includes(normalizedSearch),
-        );
-
       return (
-        matchesSearch &&
-        (!category || problem.category === category) &&
-        (!difficulty || problem.difficulty === difficulty) &&
+        matchesSystemDesignProblemFilters(problem, {
+          search,
+          category,
+          difficulty,
+          tag,
+        }) &&
         (!status || problemStatus === status)
       );
     });
-  }, [category, difficulty, search, status, summariesByProblemId]);
+  }, [category, difficulty, search, status, summariesByProblemId, tag]);
 
   const startedCount = useMemo(
     () =>
@@ -147,12 +149,13 @@ export function SystemDesignProblemsScreen() {
       ).length,
     [documentSummaries],
   );
-  const hasFilters = Boolean(search || category || difficulty || status);
+  const hasFilters = Boolean(search || category || difficulty || status || tag);
 
   const resetFilters = () => {
     setSearch("");
     setCategory("");
     setDifficulty("");
+    setTag("");
     setStatus("");
   };
 
@@ -191,7 +194,7 @@ export function SystemDesignProblemsScreen() {
 
       <section
         aria-label="Problem filters"
-        className="grid gap-3 rounded-lg border border-border bg-surface p-4 md:grid-cols-2 xl:grid-cols-[minmax(16rem,2fr)_1fr_1fr_1fr_auto]"
+        className="grid gap-3 rounded-lg border border-border bg-surface p-4 md:grid-cols-2 xl:grid-cols-[minmax(16rem,2fr)_1fr_1fr_1fr_1fr_auto]"
       >
         <label className="text-xs text-muted">
           Search
@@ -230,13 +233,32 @@ export function SystemDesignProblemsScreen() {
           <select
             className={`${inputClass} mt-1`}
             value={difficulty}
-            onChange={(event) => setDifficulty(event.target.value)}
+            onChange={(event) =>
+              setDifficulty(event.target.value as "" | SystemDesignDifficulty)
+            }
           >
             <option value="">All difficulties</option>
             {difficultyOptions.map((value) => (
               <option key={value} value={value}>
                 {value[0].toUpperCase()}
                 {value.slice(1)}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="text-xs text-muted">
+          Tag
+          <select
+            aria-label="Tag"
+            className={`${inputClass} mt-1`}
+            value={tag}
+            onChange={(event) => setTag(event.target.value)}
+          >
+            <option value="">All tags</option>
+            {tags.map((value) => (
+              <option key={value} value={value}>
+                {formatSystemDesignProblemTag(value)}
               </option>
             ))}
           </select>
