@@ -7,6 +7,23 @@ export interface SystemDesignProblemPanelProps {
   className?: string;
 }
 
+/**
+ * Tags are content, not a closed visual registry. Normalize authoring mistakes
+ * without requiring a code change for each new tag that content introduces.
+ */
+export function normalizeSystemDesignProblemTags(
+  tags: readonly string[],
+): string[] {
+  const seen = new Set<string>();
+  return tags.flatMap((tag) => {
+    const normalized = tag.trim();
+    const identity = normalized.toLocaleLowerCase();
+    if (!normalized || seen.has(identity)) return [];
+    seen.add(identity);
+    return [normalized];
+  });
+}
+
 function difficultyVariant(
   difficulty: SystemDesignProblem["difficulty"],
 ): "success" | "warning" | "danger" {
@@ -19,6 +36,9 @@ export function SystemDesignProblemPanel({
   problem,
   className = "",
 }: SystemDesignProblemPanelProps) {
+  const tags = normalizeSystemDesignProblemTags(problem.tags);
+  const statement = problem.problemStatement?.trim() || problem.summary;
+
   return (
     <div className={`space-y-5 ${className}`}>
       <section>
@@ -32,9 +52,57 @@ export function SystemDesignProblemPanel({
           </span>
         </div>
         <p className="mt-3 text-sm leading-relaxed text-muted">
-          {problem.summary}
+          {statement}
         </p>
       </section>
+
+      {problem.concepts && problem.concepts.length > 0 && (
+        <section aria-labelledby="system-design-concepts-heading">
+          <h3
+            id="system-design-concepts-heading"
+            className="text-xs font-semibold uppercase tracking-wider text-foreground"
+          >
+            Concepts
+          </h3>
+          <ul className="mt-2 flex flex-wrap gap-1.5">
+            {problem.concepts.map((concept) => (
+              <li key={concept}>
+                <Badge variant="outline">{concept}</Badge>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {problem.followUpQuestions && problem.followUpQuestions.length > 0 && (
+        <section aria-labelledby="system-design-follow-ups-heading">
+          <h3
+            id="system-design-follow-ups-heading"
+            className="text-xs font-semibold uppercase tracking-wider text-foreground"
+          >
+            Follow-up questions
+          </h3>
+          <ol className="mt-2 list-decimal space-y-2 pl-4 text-xs leading-relaxed text-muted">
+            {problem.followUpQuestions.map((question) => (
+              <li key={question}>{question}</li>
+            ))}
+          </ol>
+        </section>
+      )}
+
+      {problem.notes?.trim() && (
+        <section aria-labelledby="system-design-notes-heading">
+          <h3
+            id="system-design-notes-heading"
+            className="text-xs font-semibold uppercase tracking-wider text-foreground"
+          >
+            Notes
+          </h3>
+          <p className="mt-2 whitespace-pre-wrap break-words text-xs leading-relaxed text-muted">
+            {problem.notes}
+          </p>
+        </section>
+      )}
 
       <section aria-labelledby="system-design-requirements-heading">
         <h3
@@ -84,7 +152,7 @@ export function SystemDesignProblemPanel({
           Tags
         </h3>
         <div className="mt-2 flex flex-wrap gap-1.5">
-          {problem.tags.map((tag) => (
+          {tags.map((tag) => (
             <Badge key={tag} variant="secondary">
               {tag}
             </Badge>

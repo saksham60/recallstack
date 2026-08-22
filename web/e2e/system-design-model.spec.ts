@@ -18,6 +18,15 @@ import {
   SYSTEM_DESIGN_TECHNOLOGY_REGISTRY,
 } from "../src/features/system-design/constants/system-design-visual-registry";
 import { resolveSystemDesignEdgeStyle } from "../src/features/system-design/constants/system-design-edge-registry";
+import { normalizeSystemDesignProblemTags } from "../src/features/system-design/components/SystemDesignProblemPanel";
+import {
+  APPLIED_SOLUTIONS_ARCHITECT_PROBLEMS,
+  SYSTEM_DESIGN_PROBLEMS,
+} from "../src/features/system-design/data/system-design-problems";
+import {
+  getSystemDesignProblemTags,
+  matchesSystemDesignProblemFilters,
+} from "../src/features/system-design/utils/problem-discovery";
 import {
   SYSTEM_DESIGN_SCHEMA_VERSION,
   type SystemDesignDiagram,
@@ -156,6 +165,64 @@ class MemoryStorage implements Storage {
 }
 
 test.describe("system-design schema v2", () => {
+  test("discovers and filters the complete Applied Solutions Architect set generically", () => {
+    expect(APPLIED_SOLUTIONS_ARCHITECT_PROBLEMS).toHaveLength(15);
+    expect(
+      new Set(SYSTEM_DESIGN_PROBLEMS.map((problem) => problem.id)).size,
+    ).toBe(SYSTEM_DESIGN_PROBLEMS.length);
+    expect(
+      new Set(SYSTEM_DESIGN_PROBLEMS.map((problem) => problem.slug)).size,
+    ).toBe(SYSTEM_DESIGN_PROBLEMS.length);
+    expect(
+      APPLIED_SOLUTIONS_ARCHITECT_PROBLEMS.every(
+        (problem) => problem.tags.includes("agentic"),
+      ),
+    ).toBe(true);
+    expect(getSystemDesignProblemTags(SYSTEM_DESIGN_PROBLEMS)).toContain(
+      "agentic",
+    );
+    expect(
+      SYSTEM_DESIGN_PROBLEMS.filter((problem) =>
+        matchesSystemDesignProblemFilters(problem, { tag: "agentic" }),
+      ),
+    ).toHaveLength(15);
+  });
+
+  test("searches rich problem text, concepts, and tags", () => {
+    const searches = [
+      "RAG",
+      "Agentic",
+      "Spanner",
+      "Pub/Sub",
+      "Financial",
+      "LLM",
+      "Security",
+      "Multi Tenant",
+      "Hybrid Cloud",
+      "Distributed Systems",
+    ];
+    for (const search of searches) {
+      expect(
+        SYSTEM_DESIGN_PROBLEMS.some((problem) =>
+          matchesSystemDesignProblemFilters(problem, { search }),
+        ),
+        `Expected search results for ${search}`,
+      ).toBe(true);
+    }
+  });
+
+  test("treats problem tags as open data and normalizes authoring noise", () => {
+    expect(
+      normalizeSystemDesignProblemTags([
+        " caching ",
+        "NOVEL-TOPIC",
+        "novel-topic",
+        "",
+        "new-unknown-tag",
+      ]),
+    ).toEqual(["caching", "NOVEL-TOPIC", "new-unknown-tag"]);
+  });
+
   test("keeps component and technology registries controlled and complete", () => {
     for (const type of Object.keys(
       SYSTEM_DESIGN_NODE_DEFINITIONS,

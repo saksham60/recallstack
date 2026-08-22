@@ -16,6 +16,11 @@ export interface SystemDesignProblem {
   requirements: string[];
   scaleAssumptions: string[];
   tags: string[];
+  /** Optional richer brief fields; kept outside the canvas document model. */
+  problemStatement?: string;
+  concepts?: string[];
+  followUpQuestions?: string[];
+  notes?: string;
 }
 
 export type SystemDesignNodeType =
