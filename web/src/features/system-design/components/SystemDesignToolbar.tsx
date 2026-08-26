@@ -778,24 +778,30 @@ function ToolControls({
       role="toolbar"
       aria-label="Canvas tools"
     >
-      {TOOL_ACTIONS.map((action) => (
-        <button
-          key={action.tool}
-          type="button"
-          className={`${buttonClass} h-7 min-h-7 w-7 px-0 ${
-            activeTool === action.tool
-              ? "border-accent bg-accent text-accent-foreground"
-              : ""
-          }`}
-          aria-label={action.label}
-          title={action.label}
-          aria-pressed={activeTool === action.tool}
-          disabled={!onToolChange}
-          onClick={() => onToolChange?.(action.tool)}
-        >
-          {action.icon}
-        </button>
-      ))}
+      {TOOL_ACTIONS.map((action) => {
+        const isDrawTool = action.tool === "draw";
+        return (
+          <button
+            key={action.tool}
+            type="button"
+            className={`${buttonClass} h-7 min-h-7 ${
+              isDrawTool ? "w-auto gap-1.5 px-2" : "w-7 px-0"
+            } ${
+              activeTool === action.tool
+                ? "border-accent bg-accent text-accent-foreground"
+                : ""
+            }`}
+            aria-label={action.label}
+            title={action.label}
+            aria-pressed={activeTool === action.tool}
+            disabled={!onToolChange}
+            onClick={() => onToolChange?.(action.tool)}
+          >
+            {action.icon}
+            {isDrawTool && <span>Draw</span>}
+          </button>
+        );
+      })}
     </div>
   );
 }

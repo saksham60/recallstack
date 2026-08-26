@@ -553,6 +553,9 @@ test.describe("Standalone System Design Canvas", () => {
       page.getByLabel("System design component palette"),
     ).toBeVisible();
     await expect(page.getByRole("button", { name: "Draw tool" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Draw tool" }),
+    ).toContainText("Draw");
     await expect(page.getByRole("button", { name: "Add User" })).toBeVisible();
     await expect(page.getByRole("tab", { name: "Problem" })).toHaveCount(0);
     await expect(page.getByText("Functional requirements")).toHaveCount(0);
