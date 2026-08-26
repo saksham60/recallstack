@@ -1152,17 +1152,35 @@ function SystemDesignNodeRendererComponent({
       )}
 
       {node.type === "freehand" && node.drawing && (
-        <Line
-          points={node.drawing.points}
-          stroke={node.drawing.stroke}
-          strokeWidth={node.drawing.strokeWidth}
-          opacity={node.drawing.opacity ?? 1}
-          lineCap="round"
-          lineJoin="round"
-          tension={0.35}
-          listening={false}
-          perfectDrawEnabled={false}
-        />
+        <>
+          <Line
+            points={node.drawing.points}
+            stroke={node.drawing.stroke}
+            strokeWidth={node.drawing.strokeWidth}
+            opacity={node.drawing.opacity ?? 1}
+            lineCap="round"
+            lineJoin="round"
+            tension={0.35}
+            listening={false}
+            perfectDrawEnabled={false}
+          />
+          <Line
+            name="system-design-freehand-motion"
+            points={node.drawing.points}
+            stroke={node.drawing.stroke}
+            strokeWidth={node.drawing.strokeWidth + 1}
+            opacity={0.85 * (node.drawing.opacity ?? 1)}
+            dash={[
+              node.drawing.strokeWidth * 5,
+              node.drawing.strokeWidth * 3,
+            ]}
+            lineCap="round"
+            lineJoin="round"
+            tension={0.35}
+            listening={false}
+            perfectDrawEnabled={false}
+          />
+        </>
       )}
 
       <Group opacity={nodeOpacity} visible={node.type !== "freehand"}>

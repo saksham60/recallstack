@@ -278,6 +278,11 @@ export function SystemDesignWorkspace({
     dispatch(systemDesignEditorActions.clearSelection());
   }, []);
 
+  const handleEscape = useCallback(() => {
+    setActiveTool("select");
+    dispatch(systemDesignEditorActions.clearSelection());
+  }, []);
+
   const handleUndo = useCallback(() => {
     dispatch(systemDesignEditorActions.undo());
   }, []);
@@ -431,7 +436,7 @@ export function SystemDesignWorkspace({
     onSelectAll: handleSelectAll,
     onDuplicate: handleDuplicate,
     onDelete: handleDelete,
-    onClearSelection: handleClearSelection,
+    onClearSelection: handleEscape,
     onSave: handleSave,
     canNavigateParent: Boolean(parentBreadcrumbSegment),
     onNavigateParent: handleNavigateParent,
@@ -508,6 +513,10 @@ export function SystemDesignWorkspace({
 
   const handleToolChange = useCallback(
     (tool: SystemDesignEditorTool) => {
+      if (tool === "draw" && activeTool === "draw") {
+        setActiveTool("select");
+        return;
+      }
       const nodeType = SYSTEM_DESIGN_CREATION_TOOL_TYPES[tool];
       if (nodeType) {
         const nodeId = addNode(
@@ -521,7 +530,7 @@ export function SystemDesignWorkspace({
       }
       setActiveTool(tool);
     },
-    [addNode],
+    [activeTool, addNode],
   );
 
   const handleImport = useCallback(

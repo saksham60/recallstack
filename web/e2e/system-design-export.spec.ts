@@ -390,6 +390,15 @@ test.describe("interactive system-design HTML export", () => {
     await expect(
       page.locator('.node[data-id="ink-stroke"] polyline[data-freehand="true"]'),
     ).toBeVisible();
+    const freehandMotion = page.locator(
+      '.node[data-id="ink-stroke"] polyline.freehand-motion',
+    );
+    await expect(freehandMotion).toBeVisible();
+    await expect
+      .poll(async () =>
+        Number((await freehandMotion.getAttribute("stroke-dashoffset")) ?? 0),
+      )
+      .not.toBe(0);
     await expect(page.locator('.edge[data-animation="moving_dash"]')).toBeVisible();
     await page.locator('.node[data-id="analytics"]').dblclick();
     await expect(page.locator('.node[data-id="reporting"]')).toBeVisible();

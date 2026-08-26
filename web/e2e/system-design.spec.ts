@@ -556,6 +556,15 @@ test.describe("Standalone System Design Canvas", () => {
     await expect(
       page.getByRole("button", { name: "Draw tool" }),
     ).toContainText("Draw");
+    const drawTool = page.getByRole("button", { name: "Draw tool" });
+    const selectTool = page.getByRole("button", { name: "Select tool" });
+    await drawTool.click();
+    await expect(drawTool).toHaveAttribute("aria-pressed", "true");
+    await drawTool.click();
+    await expect(selectTool).toHaveAttribute("aria-pressed", "true");
+    await drawTool.click();
+    await page.keyboard.press("Escape");
+    await expect(selectTool).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByRole("button", { name: "Add User" })).toBeVisible();
     await expect(page.getByRole("tab", { name: "Problem" })).toHaveCount(0);
     await expect(page.getByText("Functional requirements")).toHaveCount(0);

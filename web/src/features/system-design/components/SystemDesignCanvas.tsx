@@ -431,15 +431,27 @@ export const SystemDesignCanvas = forwardRef<
       const animatedHandles = [...edgeRefs.current.values()].filter(
         (handle) => handle.isAnimated(),
       );
+      const animatedFreehandLines = diagram.nodes.flatMap((node) => {
+        if (node.type !== "freehand" || node.visible === false) return [];
+        const line = nodeRefs.current
+          .get(node.id)
+          ?.findOne<Konva.Line>(".system-design-freehand-motion");
+        return line ? [line] : [];
+      });
       const active =
         animationsEnabled &&
         !reducedMotion.matches &&
         document.visibilityState === "visible" &&
-        animatedHandles.length > 0;
+        (animatedHandles.length > 0 || animatedFreehandLines.length > 0);
       edgeRefs.current.forEach((handle) =>
         handle.setAnimationActive(active && handle.isAnimated()),
       );
+      animatedFreehandLines.forEach((line) => {
+        line.visible(active);
+        if (!active) line.dashOffset(0);
+      });
       edgesLayerRef.current?.batchDraw();
+      nodesLayerRef.current?.batchDraw();
       if (!active) return;
 
       animationStartedAtRef.current = performance.now();
@@ -449,7 +461,11 @@ export const SystemDesignCanvas = forwardRef<
           animatedHandles.forEach((handle) =>
             handle.setAnimationFrame(elapsed),
           );
+          animatedFreehandLines.forEach((line) =>
+            line.dashOffset(-elapsed / 35),
+          );
           edgesLayerRef.current?.batchDraw();
+          nodesLayerRef.current?.batchDraw();
         }
         animationFrameRef.current = window.requestAnimationFrame(drawFrame);
       };
@@ -464,7 +480,7 @@ export const SystemDesignCanvas = forwardRef<
       document.removeEventListener("visibilitychange", updateAnimationState);
       reducedMotion.removeEventListener("change", updateAnimationState);
     };
-  }, [animationsEnabled, diagram.edges, diagram.id]);
+  }, [animationsEnabled, diagram.edges, diagram.id, diagram.nodes]);
 
   useEffect(() => {
     const activeEdgeIds = new Set(diagram.edges.map((edge) => edge.id));
