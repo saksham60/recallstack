@@ -2,7 +2,6 @@
 
 import dynamic from "next/dynamic";
 import { LoadingSkeleton } from "@/features/admin/components/AdminPrimitives";
-import type { SystemDesignProblem } from "../types/system-design.types";
 
 const SystemDesignWorkspace = dynamic(
   () =>
@@ -19,10 +18,6 @@ const SystemDesignWorkspace = dynamic(
   },
 );
 
-export function SystemDesignEditorScreen({
-  problem,
-}: {
-  problem: SystemDesignProblem;
-}) {
-  return <SystemDesignWorkspace mode={{ kind: "problem", problem }} />;
+export function StandaloneSystemDesignCanvasScreen() {
+  return <SystemDesignWorkspace mode={{ kind: "standalone", title: "Canvas" }} />;
 }

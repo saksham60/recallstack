@@ -15,6 +15,7 @@ import {
 } from "../constants/system-design-edge-registry";
 import {
   SYSTEM_DESIGN_LEGACY_SCHEMA_VERSION,
+  SYSTEM_DESIGN_PREVIOUS_SCHEMA_VERSION,
   SYSTEM_DESIGN_SCHEMA_VERSION,
   type SystemDesignDiagram,
   type SystemDesignDocument,
@@ -170,6 +171,68 @@ function validateMetadata(
       message: "Metadata must contain only string keys and string values.",
     });
   }
+}
+
+function validateFreehandData(
+  value: unknown,
+  path: string,
+  issues: SystemDesignValidationIssue[],
+): SystemDesignNode["drawing"] {
+  if (value === undefined) return undefined;
+  if (!isRecord(value)) {
+    issues.push({ path, message: "Expected typed freehand drawing data." });
+    return undefined;
+  }
+  const points = value.points;
+  if (
+    !Array.isArray(points) ||
+    points.length < 4 ||
+    points.length % 2 !== 0 ||
+    points.some((coordinate) => !isFiniteNumber(coordinate))
+  ) {
+    issues.push({
+      path: `${path}.points`,
+      message: "Freehand points must be an even array of at least two finite coordinates.",
+    });
+  }
+  if (!isSafeSystemDesignColor(value.stroke)) {
+    issues.push({
+      path: `${path}.stroke`,
+      message: "Expected a safe hexadecimal or theme color.",
+    });
+  }
+  if (
+    !isFiniteNumber(value.strokeWidth) ||
+    value.strokeWidth <= 0 ||
+    value.strokeWidth > 32
+  ) {
+    issues.push({
+      path: `${path}.strokeWidth`,
+      message: "Stroke width must be greater than 0 and at most 32.",
+    });
+  }
+  if (
+    value.opacity !== undefined &&
+    (!isFiniteNumber(value.opacity) || value.opacity < 0 || value.opacity > 1)
+  ) {
+    issues.push({
+      path: `${path}.opacity`,
+      message: "Opacity must be between 0 and 1.",
+    });
+  }
+  if (
+    !Array.isArray(points) ||
+    typeof value.stroke !== "string" ||
+    typeof value.strokeWidth !== "number"
+  ) {
+    return undefined;
+  }
+  return {
+    points: [...points] as number[],
+    stroke: value.stroke,
+    strokeWidth: value.strokeWidth,
+    ...(typeof value.opacity === "number" ? { opacity: value.opacity } : {}),
+  };
 }
 
 function validateNodeStyle(
@@ -383,10 +446,16 @@ function migrateLegacyNode(value: unknown): unknown {
 }
 
 /**
- * Converts a schema-v1, single-diagram document to the canonical schema-v2
+ * Converts a schema-v1, single-diagram document to the canonical schema-v3
  * shape. Non-v1 values are returned unchanged and validated by the caller.
  */
 export function migrateSystemDesignDocument(value: unknown): unknown {
+  if (
+    isRecord(value) &&
+    value.schemaVersion === SYSTEM_DESIGN_PREVIOUS_SCHEMA_VERSION
+  ) {
+    return { ...value, schemaVersion: SYSTEM_DESIGN_SCHEMA_VERSION };
+  }
   if (
     !isRecord(value) ||
     value.schemaVersion !== SYSTEM_DESIGN_LEGACY_SCHEMA_VERSION
@@ -578,22 +647,18 @@ function validateDiagram(
       if (!isFiniteNumber(candidate.y)) {
         issue(`${nodePath}.y`, "Expected a finite number.");
       }
-      if (
-        !isFiniteNumber(candidate.width) ||
-        candidate.width < MIN_NODE_WIDTH
-      ) {
+      const minimumWidth = candidate.type === "freehand" ? 1 : MIN_NODE_WIDTH;
+      const minimumHeight = candidate.type === "freehand" ? 1 : MIN_NODE_HEIGHT;
+      if (!isFiniteNumber(candidate.width) || candidate.width < minimumWidth) {
         issue(
           `${nodePath}.width`,
-          `Width must be at least ${MIN_NODE_WIDTH} pixels.`,
+          `Width must be at least ${minimumWidth} pixel${minimumWidth === 1 ? "" : "s"}.`,
         );
       }
-      if (
-        !isFiniteNumber(candidate.height) ||
-        candidate.height < MIN_NODE_HEIGHT
-      ) {
+      if (!isFiniteNumber(candidate.height) || candidate.height < minimumHeight) {
         issue(
           `${nodePath}.height`,
-          `Height must be at least ${MIN_NODE_HEIGHT} pixels.`,
+          `Height must be at least ${minimumHeight} pixel${minimumHeight === 1 ? "" : "s"}.`,
         );
       }
       if (typeof candidate.label !== "string") {
@@ -624,6 +689,16 @@ function validateDiagram(
         issue(`${nodePath}.asset`, "Image nodes require an embedded asset.");
       } else if (candidate.type !== "image" && asset) {
         issue(`${nodePath}.asset`, "Only image nodes can contain image assets.");
+      }
+      const drawing = validateFreehandData(
+        candidate.drawing,
+        `${nodePath}.drawing`,
+        issues,
+      );
+      if (candidate.type === "freehand" && !drawing) {
+        issue(`${nodePath}.drawing`, "Freehand nodes require drawing data.");
+      } else if (candidate.type !== "freehand" && drawing) {
+        issue(`${nodePath}.drawing`, "Only freehand nodes can contain drawing data.");
       }
       const style = validateNodeStyle(
         candidate.style,
@@ -730,6 +805,7 @@ function validateDiagram(
           : {}),
         ...(technology ? { technology } : {}),
         ...(asset ? { asset } : {}),
+        ...(drawing ? { drawing } : {}),
         ...(style ? { style } : {}),
         ...(textStyle ? { textStyle } : {}),
         ...(typeof candidate.description === "string"
@@ -1234,7 +1310,8 @@ export function validateSystemDesignDocument(
 ): SystemDesignValidationResult {
   const migrated =
     isRecord(input) &&
-    input.schemaVersion === SYSTEM_DESIGN_LEGACY_SCHEMA_VERSION;
+    (input.schemaVersion === SYSTEM_DESIGN_LEGACY_SCHEMA_VERSION ||
+      input.schemaVersion === SYSTEM_DESIGN_PREVIOUS_SCHEMA_VERSION);
   const value = migrateSystemDesignDocument(input);
   const issues: SystemDesignValidationIssue[] = [];
   const issue = (path: string, message: string) => {
@@ -1252,12 +1329,15 @@ export function validateSystemDesignDocument(
   if (value.schemaVersion !== SYSTEM_DESIGN_SCHEMA_VERSION) {
     issue(
       "$.schemaVersion",
-      `Expected schema version ${SYSTEM_DESIGN_SCHEMA_VERSION} (schema version ${SYSTEM_DESIGN_LEGACY_SCHEMA_VERSION} is migrated automatically).`,
+      `Expected schema version ${SYSTEM_DESIGN_SCHEMA_VERSION} (schema versions ${SYSTEM_DESIGN_LEGACY_SCHEMA_VERSION} and ${SYSTEM_DESIGN_PREVIOUS_SCHEMA_VERSION} are migrated automatically).`,
     );
   }
   if (!isNonEmptyString(value.id)) issue("$.id", "A document ID is required.");
-  if (!isNonEmptyString(value.problemId)) {
-    issue("$.problemId", "A problem ID is required.");
+  if (
+    value.problemId !== undefined &&
+    !isNonEmptyString(value.problemId)
+  ) {
+    issue("$.problemId", "A problem ID cannot be empty.");
   }
   if (!isNonEmptyString(value.title)) {
     issue("$.title", "A document title is required.");
@@ -1372,7 +1452,9 @@ export function validateSystemDesignDocument(
   const document: SystemDesignDocument = {
     schemaVersion: SYSTEM_DESIGN_SCHEMA_VERSION,
     id: value.id as string,
-    problemId: value.problemId as string,
+    ...(typeof value.problemId === "string"
+      ? { problemId: value.problemId }
+      : {}),
     title: value.title as string,
     status: value.status as SystemDesignDocument["status"],
     rootDiagramId: value.rootDiagramId as string,

@@ -16,7 +16,8 @@ import {
 } from "../utils/performance-instrumentation";
 
 interface UseSystemDesignPersistenceOptions {
-  problemId: string;
+  enabled?: boolean;
+  problemId?: string;
   fallbackDocument: SystemDesignDocument;
   document: SystemDesignDocument;
   isDirty: boolean;
@@ -38,6 +39,7 @@ function errorMessage(error: unknown, fallback: string): string {
 }
 
 export function useSystemDesignPersistence({
+  enabled = true,
   problemId,
   fallbackDocument,
   document,
@@ -63,6 +65,10 @@ export function useSystemDesignPersistence({
   useEffect(() => {
     const loadId = activeLoad.current + 1;
     activeLoad.current = loadId;
+    if (!enabled || !problemId) {
+      dispatch(systemDesignEditorActions.loadSuccess(fallbackDocument, false));
+      return;
+    }
     dispatch(systemDesignEditorActions.loadStart());
 
     void repository
@@ -91,10 +97,11 @@ export function useSystemDesignPersistence({
     return () => {
       if (activeLoad.current === loadId) activeLoad.current += 1;
     };
-  }, [dispatch, fallbackDocument, problemId, reloadVersion, repository]);
+  }, [dispatch, enabled, fallbackDocument, problemId, reloadVersion, repository]);
 
   const save = useCallback(
     async (snapshot = document) => {
+      if (!enabled || !snapshot.problemId) return;
       const documentUpdatedAt = snapshot.updatedAt;
       dispatch(systemDesignEditorActions.saveStarted(documentUpdatedAt));
       try {
@@ -115,20 +122,21 @@ export function useSystemDesignPersistence({
         );
       }
     },
-    [dispatch, document, repository],
+    [dispatch, document, enabled, repository],
   );
 
   useEffect(() => {
-    if (loadStatus !== "ready" || !isDirty) return;
+    if (!enabled || loadStatus !== "ready" || !isDirty) return;
     const snapshot = document;
     const timer = window.setTimeout(() => {
       void save(snapshot);
     }, autoSaveDelay);
     return () => window.clearTimeout(timer);
-  }, [autoSaveDelay, document, isDirty, loadStatus, save]);
+  }, [autoSaveDelay, document, enabled, isDirty, loadStatus, save]);
 
   useEffect(() => {
     const flushLatestDocument = () => {
+      if (!enabled) return;
       const current = latest.current;
       if (current.loadStatus !== "ready" || !current.isDirty) return;
       // The local repository writes synchronously before its promise resolves,
@@ -154,7 +162,7 @@ export function useSystemDesignPersistence({
       window.removeEventListener("popstate", flushLatestDocument);
       window.document.removeEventListener("click", flushForLink, true);
     };
-  }, [repository]);
+  }, [enabled, repository]);
 
   const retryLoad = useCallback(() => {
     setReloadVersion((version) => version + 1);

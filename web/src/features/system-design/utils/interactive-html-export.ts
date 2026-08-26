@@ -19,7 +19,8 @@ export interface InteractiveSystemDesignHtmlExport {
 
 interface InteractiveViewerPayload {
   document: SystemDesignDocument;
-  problem: Pick<
+  mode: "full" | "diagram-only";
+  problem?: Pick<
     SystemDesignProblem,
     | "title"
     | "summary"
@@ -36,6 +37,20 @@ interface InteractiveViewerPayload {
   >;
   edgeSemantics: typeof SYSTEM_DESIGN_EDGE_SEMANTICS;
 }
+
+type InteractiveProblem = Pick<
+  SystemDesignProblem,
+  | "slug"
+  | "title"
+  | "summary"
+  | "requirements"
+  | "scaleAssumptions"
+  | "difficulty"
+>;
+
+export type InteractiveSystemDesignHtmlOptions =
+  | { mode: "full"; problem: InteractiveProblem }
+  | { mode: "diagram-only"; title?: string; filename?: string };
 
 interface SystemDesignSemanticGlyphPath {
   path: string;
@@ -145,6 +160,7 @@ function serializeForHtml(value: unknown): string {
 }
 
 const VIEWER_STYLES = String.raw`
+g[data-type="freehand"]>:not(polyline):not(.selection){display:none}
 :root{color-scheme:dark;--bg:#09090b;--surface:#18181b;--raised:#27272a;--border:#3f3f46;--fg:#fafafa;--muted:#a1a1aa;--accent:#a78bfa;--accent-soft:#2e2350;--success:#22c55e;--warning:#f59e0b;--danger:#ef4444;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 *{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;overflow:hidden;background:var(--bg);color:var(--fg)}button,input{font:inherit}button{min-height:34px;padding:0 10px;border:1px solid var(--border);border-radius:7px;background:var(--raised);color:var(--fg);cursor:pointer}button:hover{border-color:#6d5d87;background:#302b38}button:focus-visible,input:focus-visible,svg:focus-visible{outline:2px solid var(--accent);outline-offset:2px}button[aria-pressed=true]{border-color:var(--accent);background:var(--accent-soft);color:#ddd6fe}.app{display:grid;grid-template-rows:auto auto 1fr;height:100%}.topbar{display:flex;align-items:center;gap:8px;min-height:52px;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--surface)}.brand{min-width:220px}.brand strong{display:block;font-size:14px}.brand span{display:block;margin-top:2px;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08em}.tools{display:flex;align-items:center;gap:6px;margin-left:auto}.tools .zoom{min-width:54px;text-align:center;color:var(--muted);font-size:12px}.search{width:min(250px,24vw);height:34px;padding:0 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg);color:var(--fg)}.breadcrumbs{display:flex;align-items:center;gap:4px;min-height:38px;padding:5px 12px;border-bottom:1px solid var(--border);background:rgba(24,24,27,.94);font-size:12px}.breadcrumbs button{min-height:26px;padding:0 7px;border-color:transparent;background:transparent;color:var(--muted)}.breadcrumbs button:last-of-type{color:var(--fg);font-weight:600}.crumb-separator{color:#52525b}.workspace{display:grid;grid-template-columns:minmax(0,1fr) 310px;min-height:0}.canvas-wrap{position:relative;min-width:0;min-height:0;overflow:hidden;background-color:var(--bg);background-image:radial-gradient(circle at 1px 1px,rgba(161,161,170,.17) 1px,transparent 0);background-size:24px 24px;touch-action:none}.canvas{display:block;width:100%;height:100%;user-select:none}.canvas .node,.canvas .edge{cursor:pointer}.canvas .module{cursor:zoom-in}.canvas .boundary-node>:not(.selection){pointer-events:none}.canvas .boundary-node>rect:first-child,.canvas .boundary-node>path:first-child{pointer-events:stroke}.canvas .selected>.selection{display:block}.selection{display:none;fill:none;stroke:var(--accent);stroke-width:2;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 4px rgba(167,139,250,.55));pointer-events:none}.node-title{font-size:14px;font-weight:650;fill:var(--fg);pointer-events:none}.node-subtitle{font-size:10px;fill:var(--muted);pointer-events:none}.node-meta{font-size:9px;fill:var(--muted);pointer-events:none}.edge-label{font-size:10px;pointer-events:none}.edge.selected .edge-path{filter:drop-shadow(0 0 3px rgba(167,139,250,.7))}.edge-motion{pointer-events:none}.edge-direction-pulse{filter:drop-shadow(0 0 5px currentColor)}.animations-off .edge-motion,.document-hidden .edge-motion{display:none}@media(prefers-reduced-motion:reduce){.edge-motion{display:none}}.inspector{min-height:0;overflow:auto;border-left:1px solid var(--border);background:var(--surface)}.inspector-header{position:sticky;top:0;z-index:2;padding:14px;border-bottom:1px solid var(--border);background:rgba(24,24,27,.97)}.inspector-header h2{margin:0;font-size:13px}.inspector-header p{margin:4px 0 0;color:var(--muted);font-size:11px}.details{padding:14px}.detail-row{padding:9px 0;border-bottom:1px solid rgba(63,63,70,.65)}.detail-row dt{margin-bottom:4px;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.08em}.detail-row dd{margin:0;font-size:12px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}.brief h3{margin:16px 0 6px;color:#c4b5fd;font-size:11px;text-transform:uppercase;letter-spacing:.08em}.brief p,.brief li{color:var(--muted);font-size:12px;line-height:1.55}.brief ul{margin:6px 0;padding-left:18px}.hint{position:absolute;left:14px;bottom:14px;padding:7px 9px;border:1px solid var(--border);border-radius:7px;background:rgba(24,24,27,.9);color:var(--muted);font-size:10px;pointer-events:none}.empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-size:13px;pointer-events:none}.empty[hidden],.minimap[hidden],.search-results[hidden]{display:none}.minimap{position:absolute;right:14px;bottom:14px;width:190px;height:120px;border:1px solid var(--border);border-radius:9px;background:rgba(9,9,11,.92);box-shadow:0 14px 35px rgba(0,0,0,.35);cursor:crosshair}.search-results{position:absolute;right:14px;top:14px;z-index:4;width:250px;max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:9px;background:rgba(24,24,27,.98);box-shadow:0 16px 40px rgba(0,0,0,.45)}.search-result{display:block;width:100%;padding:9px 11px;border:0;border-bottom:1px solid var(--border);border-radius:0;background:transparent;text-align:left}.search-result small{display:block;margin-top:2px;color:var(--muted)}.search-empty{padding:12px;color:var(--muted);font-size:11px}.badge{display:inline-flex;align-items:center;min-height:20px;padding:0 7px;border:1px solid #6d5d87;border-radius:999px;background:var(--accent-soft);color:#ddd6fe;font-size:9px;text-transform:uppercase;letter-spacing:.06em}@media(max-width:900px){.workspace{grid-template-columns:1fr}.inspector{position:absolute;right:0;top:91px;bottom:0;width:min(310px,86vw);box-shadow:-14px 0 30px rgba(0,0,0,.35)}.brand{min-width:140px}.tools button span{display:none}.search{width:150px}}`;
 
@@ -204,6 +220,7 @@ const VIEWER_SCRIPT = String.raw`
   function tickAnimations(now){if(animationLastTime===null)animationLastTime=now;var active=animationsEnabled&&!document.hidden&&!(reduceMotion&&reduceMotion.matches);if(active){animationElapsed+=Math.min(64,Math.max(0,now-animationLastTime));renderAnimationFrame(animationElapsed);}animationLastTime=now;requestAnimationFrame(tickAnimations);}
 
   function surface(group,node,visual){var w=node.width,h=node.height,style=node.style||{},accent=visual.accent||'#a78bfa',soft=visual.softAccent||'#2e2350',fill=style.fill||'#18181b',stroke=style.stroke||accent,sw=number(style.strokeWidth,1),radius=number(style.borderRadius,10),chrome=visual.chrome,dashes=borderDash(node,''),common={fill:fill,stroke:stroke,'stroke-width':sw,'stroke-dasharray':dashes};
+    if(node.type==='freehand'&&node.drawing){var ink=node.drawing,coordinates=[];for(var pointIndex=0;pointIndex<ink.points.length;pointIndex+=2){coordinates.push(ink.points[pointIndex]+','+ink.points[pointIndex+1]);}el('polyline',{points:coordinates.join(' '),fill:'none',stroke:ink.stroke,'stroke-width':ink.strokeWidth,'stroke-opacity':ink.opacity===undefined?1:ink.opacity,'stroke-linecap':'round','stroke-linejoin':'round','data-freehand':'true'},group);return;}
     if(chrome==='identity'){el('rect',Object.assign({x:8,y:4,width:w-16,height:h-8,rx:Math.min(24,(h-8)/2)},common),group);el('circle',{cx:30,cy:h/2,r:20,fill:soft,stroke:stroke,'stroke-width':sw},group);return;}
     if(chrome==='client'){el('rect',Object.assign({x:0,y:0,width:w,height:h,rx:radius},common),group);el('rect',{x:7,y:7,width:w-14,height:h-14,rx:Math.max(0,radius-4),fill:'none',stroke:stroke,'stroke-opacity':.4},group);el('circle',{cx:14,cy:14,r:2,fill:accent},group);return;}
     if(chrome==='network'){el('rect',Object.assign({x:0,y:0,width:w,height:h,rx:radius},common),group);el('line',{x1:8,y1:h/2,x2:w-8,y2:h/2,stroke:accent,'stroke-opacity':.3,'stroke-dasharray':'3 5'},group);return;}
@@ -235,7 +252,7 @@ const VIEWER_SCRIPT = String.raw`
   function clearDetails(){while(inspector.firstChild)inspector.removeChild(inspector.firstChild);}
   function detail(label,value){if(value===undefined||value===null||value==='')return;var row=document.createElement('div'),term=document.createElement('dt'),description=document.createElement('dd');row.className='detail-row';term.textContent=label;description.textContent=String(value);row.appendChild(term);row.appendChild(description);inspector.appendChild(row);}
   function metadataDetails(metadata){if(!metadata)return;Object.keys(metadata).sort().forEach(function(key){detail('Metadata / '+key,metadata[key]);});}
-  function renderProblem(){var problem=payload.problem,brief=document.createElement('div'),badge=document.createElement('span');brief.className='brief';badge.className='badge';badge.textContent=problem.difficulty;brief.appendChild(badge);[['Problem',[problem.summary]],['Functional requirements',problem.requirements||[]],['Scale assumptions',problem.scaleAssumptions||[]]].forEach(function(section){var heading=document.createElement('h3');heading.textContent=section[0];brief.appendChild(heading);if(section[1].length===1&&section[0]==='Problem'){var paragraph=document.createElement('p');paragraph.textContent=section[1][0];brief.appendChild(paragraph);}else{var list=document.createElement('ul');section[1].forEach(function(value){var item=document.createElement('li');item.textContent=value;list.appendChild(item);});brief.appendChild(list);}});inspector.appendChild(brief);}
+  function renderProblem(){var problem=payload.problem;if(payload.mode==='diagram-only'||!problem)return;var brief=document.createElement('div'),badge=document.createElement('span');brief.className='brief';badge.className='badge';badge.textContent=problem.difficulty;brief.appendChild(badge);[['Problem',[problem.summary]],['Functional requirements',problem.requirements||[]],['Scale assumptions',problem.scaleAssumptions||[]]].forEach(function(section){var heading=document.createElement('h3');heading.textContent=section[0];brief.appendChild(heading);if(section[1].length===1&&section[0]==='Problem'){var paragraph=document.createElement('p');paragraph.textContent=section[1][0];brief.appendChild(paragraph);}else{var list=document.createElement('ul');section[1].forEach(function(value){var item=document.createElement('li');item.textContent=value;list.appendChild(item);});brief.appendChild(list);}});inspector.appendChild(brief);}
   function renderDetails(){clearDetails();var diagram=activeDiagram();if(selected&&selected.kind==='node'){var node=diagram.nodes.find(function(item){return item.id===selected.id;});if(node){var child=node.childDiagramId&&doc.diagrams[node.childDiagramId];detail('Type',node.type.replace(/_/g,' '));detail('Label',node.label);detail('Subtitle',node.subtitle);detail('Technology',node.technology&&node.technology.name);detail('Technology category',node.technology&&node.technology.category);detail('Description',node.description);detail('Position',node.x+', '+node.y);detail('Size',node.width+' x '+node.height);detail('Layer',node.layer);detail('Locked in source',node.locked?'Yes':'No');detail('Collapsed in source',node.isCollapsed===undefined?undefined:(node.isCollapsed?'Yes':'No'));detail('Internal components',child&&child.nodes.length);detail('Asset',node.asset&&node.asset.mimeType);detail('Fill',node.style&&node.style.fill);detail('Stroke',node.style&&node.style.stroke);detail('Stroke width',node.style&&node.style.strokeWidth);detail('Border radius',node.style&&node.style.borderRadius);detail('Border style',node.style&&node.style.borderStyle);detail('Opacity',node.style&&node.style.opacity);detail('Text color',node.textStyle&&node.textStyle.color);detail('Font family',node.textStyle&&node.textStyle.fontFamily);detail('Font size',node.textStyle&&node.textStyle.fontSize);detail('Font weight',node.textStyle&&node.textStyle.fontWeight);detail('Font style',node.textStyle&&node.textStyle.fontStyle);detail('Text decoration',node.textStyle&&node.textStyle.textDecoration);detail('Line height',node.textStyle&&node.textStyle.lineHeight);detail('Text padding',node.textStyle&&node.textStyle.padding);detail('Text alignment',node.textStyle&&node.textStyle.align);detail('Vertical alignment',node.textStyle&&node.textStyle.verticalAlign);metadataDetails(node.metadata);return;}}
     if(selected&&selected.kind==='edge'){var edge=diagram.edges.find(function(item){return item.id===selected.id;});if(edge){var resolved=resolvedEdge(edge),source=diagram.nodes.find(function(node){return node.id===edge.sourceNodeId;}),target=diagram.nodes.find(function(node){return node.id===edge.targetNodeId;});detail('Semantic type',resolved.definition.label);detail('Label',edge.label);detail('Protocol',edge.protocol);detail('Description',edge.description);detail('Source',source&&source.label);detail('Target',target&&target.label);detail('Source port',edge.sourcePort);detail('Target port',edge.targetPort);detail('Routing',resolved.routing);detail('Line style',resolved.lineStyle);detail('Stroke width',resolved.strokeWidth);detail('Opacity',resolved.opacity);detail('Start arrowhead',resolved.startArrowhead);detail('End arrowhead',resolved.endArrowhead);detail('Label icon',resolved.labelIcon);detail('Label position',resolved.labelPosition);detail('Label background',edge.labelBackground);detail('Label text color',edge.labelTextColor);detail('Animation',resolved.animationMode);detail('Animation speed',resolved.animationSpeed);detail('Animation direction',resolved.animationDirection);return;}}renderProblem();}
 
@@ -258,20 +275,17 @@ const VIEWER_SCRIPT = String.raw`
 
 export function prepareInteractiveSystemDesignHtml(
   document: SystemDesignDocument,
-  problem: Pick<
-    SystemDesignProblem,
-    | "slug"
-    | "title"
-    | "summary"
-    | "requirements"
-    | "scaleAssumptions"
-    | "difficulty"
-  >,
+  optionsOrProblem: InteractiveSystemDesignHtmlOptions | InteractiveProblem,
 ): InteractiveSystemDesignHtmlExport {
+  const options: InteractiveSystemDesignHtmlOptions =
+    "mode" in optionsOrProblem
+      ? optionsOrProblem
+      : { mode: "full", problem: optionsOrProblem };
   const parsedDocument = parseSystemDesignDocument(document);
   const payload: InteractiveViewerPayload = {
     document: parsedDocument,
-    problem,
+    mode: options.mode,
+    ...(options.mode === "full" ? { problem: options.problem } : {}),
     visuals: Object.fromEntries(
       Object.values(SYSTEM_DESIGN_NODE_DEFINITIONS).map((definition) => [
         definition.type,
@@ -291,22 +305,15 @@ export function prepareInteractiveSystemDesignHtml(
     ),
     edgeSemantics: SYSTEM_DESIGN_EDGE_SEMANTICS,
   };
-  const title = `${problem.title} - Recall Stack System Design`;
-  const html = `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="color-scheme" content="dark">
-  <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'">
-  <title>${escapeHtml(title)}</title>
-  <style>${VIEWER_STYLES}</style>
-</head>
-<body data-read-only="true">
-  <main class="app">
+  const viewerTitle =
+    options.mode === "full"
+      ? `${options.problem.title} - Recall Stack System Design`
+      : options.title ?? parsedDocument.title;
+  const viewerBody =
+    options.mode === "full"
+      ? `<main class="app">
     <header class="topbar">
-      <div class="brand"><strong>${escapeHtml(problem.title)}</strong><span>Recall Stack / read-only architecture</span></div>
+      <div class="brand"><strong>${escapeHtml(options.problem.title)}</strong><span>Recall Stack / read-only architecture</span></div>
       <input id="search" class="search" type="search" placeholder="Search components..." aria-label="Search components">
       <div class="tools">
         <button id="back" type="button" title="Back to parent diagram">&larr; <span>Back</span></button>
@@ -335,33 +342,72 @@ export function prepareInteractiveSystemDesignHtml(
         <dl id="details" class="details"></dl>
       </aside>
     </section>
-  </main>
+  </main>`
+      : `<main data-export-mode="diagram-only" style="position:relative;width:100%;height:100%">
+    <section class="workspace" style="display:block;width:100%;height:100%">
+      <div class="canvas-wrap" style="width:100%;height:100%">
+        <svg id="canvas" class="canvas" role="application" aria-label="Interactive read-only system design diagram">
+          <defs id="defs"></defs>
+          <rect id="world-background" width="100%" height="100%" fill="transparent"></rect>
+          <g id="world"></g>
+        </svg>
+        <div id="empty" class="empty" hidden>This diagram has no visible components.</div>
+        <svg id="minimap" class="minimap" viewBox="0 0 190 120" role="button" tabindex="0" aria-label="Diagram minimap"></svg>
+        <div class="hint">Wheel to zoom / drag to pan / double-click a module to open it</div>
+      </div>
+    </section>
+    <nav id="breadcrumbs" class="breadcrumbs" aria-label="Diagram breadcrumb" style="position:absolute;left:12px;top:12px;z-index:5;width:auto;border:1px solid var(--border);border-radius:8px"></nav>
+    <div class="tools" aria-label="Diagram viewer controls" style="position:absolute;right:12px;top:12px;z-index:6;padding:6px;border:1px solid var(--border);border-radius:8px;background:rgba(24,24,27,.94)">
+      <button id="back" type="button" title="Back to parent diagram">&larr; <span>Back</span></button>
+      <button id="animations" type="button" aria-pressed="true" title="Toggle configured connection animations">Flow</button>
+      <button id="minimap-toggle" type="button" aria-pressed="true" title="Toggle minimap">Map</button>
+      <button id="fit" type="button" title="Fit to screen">Fit</button>
+      <button id="reset" type="button" title="Reset to saved viewport">Reset</button>
+      <button id="zoom-out" type="button" aria-label="Zoom out">&minus;</button><output id="zoom-output" class="zoom">100%</output><button id="zoom-in" type="button" aria-label="Zoom in">+</button>
+    </div>
+    <div hidden>
+      <input id="search" type="search" aria-label="Search components">
+      <div id="search-results"></div>
+      <dl id="details"></dl>
+    </div>
+  </main>`;
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>${escapeHtml(viewerTitle)}</title>
+  <style>${VIEWER_STYLES}</style>
+</head>
+<body data-read-only="true">
+  ${viewerBody}
   <script type="application/json" id="system-design-data">${serializeForHtml(payload)}</script>
   <script>${VIEWER_SCRIPT}</script>
 </body>
 </html>`;
   return {
-    filename: `${safeFilename(problem.slug)}-system-design.html`,
+    filename:
+      options.mode === "full"
+        ? `${safeFilename(options.problem.slug)}-system-design.html`
+        : `${safeFilename(options.filename ?? viewerTitle)}-system-design.html`,
     html,
   };
 }
 
 export function downloadInteractiveSystemDesignHtml(
   documentValue: SystemDesignDocument,
-  problem: Pick<
-    SystemDesignProblem,
-    | "slug"
-    | "title"
-    | "summary"
-    | "requirements"
-    | "scaleAssumptions"
-    | "difficulty"
-  >,
+  optionsOrProblem: InteractiveSystemDesignHtmlOptions | InteractiveProblem,
 ): void {
   if (typeof window === "undefined" || typeof document === "undefined") {
     throw new Error("Diagram downloads are only available in a browser.");
   }
-  const exported = prepareInteractiveSystemDesignHtml(documentValue, problem);
+  const exported = prepareInteractiveSystemDesignHtml(
+    documentValue,
+    optionsOrProblem,
+  );
   const url = URL.createObjectURL(
     new Blob([exported.html], { type: "text/html;charset=utf-8" }),
   );

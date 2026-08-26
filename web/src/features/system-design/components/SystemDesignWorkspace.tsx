@@ -37,6 +37,7 @@ import type {
   SystemDesignNode,
   SystemDesignNodeAsset,
   SystemDesignNodeType,
+  SystemDesignPoint,
   SystemDesignProblem,
   SystemDesignViewport,
 } from "../types/system-design.types";
@@ -48,8 +49,10 @@ import {
   DEFAULT_SYSTEM_DESIGN_VIEWPORT,
   countSystemDesignElements,
   createEmptySystemDesignDocument,
+  createEmptyStandaloneSystemDesignDocument,
   createNextSystemDesignTimestamp,
   createSystemDesignNode,
+  createSystemDesignFreehandNode,
   getSystemDesignDiagramBreadcrumbs,
   normalizeSystemDesignLayers,
 } from "../utils/system-design-defaults";
@@ -81,6 +84,10 @@ import {
   type SystemDesignArrangeOperation,
 } from "./SystemDesignToolbar";
 
+export type SystemDesignWorkspaceMode =
+  | { kind: "problem"; problem: SystemDesignProblem }
+  | { kind: "standalone"; title?: string };
+
 function isSystemDesignNodeType(
   value: string,
 ): value is SystemDesignNodeType {
@@ -101,18 +108,18 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
-function DesktopUnavailableMessage() {
+function SmallScreenUnavailableMessage() {
   return (
-    <div className="flex min-h-[calc(100vh-57px)] items-center justify-center p-6 lg:hidden">
+    <div className="flex min-h-[calc(100vh-57px)] items-center justify-center p-6 md:hidden">
       <div className="max-w-md rounded-xl border border-border bg-surface p-8 text-center">
         <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-accent/30 bg-accent/10 text-accent">
           <MonitorUp className="h-6 w-6" aria-hidden="true" />
         </span>
         <h1 className="mt-4 text-xl font-semibold">
-          The system-design editor is currently available on desktop screens.
+          The system-design editor needs a tablet-sized screen.
         </h1>
         <p className="mt-2 text-sm leading-6 text-muted">
-          Use a screen at least 1024 pixels wide to build and edit diagrams.
+          Use a tablet or desktop screen at least 768 pixels wide.
         </p>
       </div>
     </div>
@@ -120,13 +127,19 @@ function DesktopUnavailableMessage() {
 }
 
 export function SystemDesignWorkspace({
-  problem,
+  mode,
 }: {
-  problem: SystemDesignProblem;
+  mode: SystemDesignWorkspaceMode;
 }) {
+  const problem = mode.kind === "problem" ? mode.problem : undefined;
+  const workspaceTitle =
+    mode.kind === "problem" ? mode.problem.title : mode.title ?? "Canvas";
   const fallbackDocument = useMemo(
-    () => createEmptySystemDesignDocument(problem),
-    [problem],
+    () =>
+      problem
+        ? createEmptySystemDesignDocument(problem)
+        : createEmptyStandaloneSystemDesignDocument(workspaceTitle),
+    [problem, workspaceTitle],
   );
   const repository = useMemo(() => createSystemDesignRepository(), []);
   const [state, dispatch] = useReducer(
@@ -154,7 +167,8 @@ export function SystemDesignWorkspace({
   >(null);
 
   const { save, retryLoad } = useSystemDesignPersistence({
-    problemId: problem.id,
+    enabled: Boolean(problem),
+    problemId: problem?.id,
     fallbackDocument,
     document: state.document,
     isDirty: state.isDirty,
@@ -481,6 +495,17 @@ export function SystemDesignWorkspace({
     [addNode],
   );
 
+  const addFreehandStroke = useCallback(
+    (points: readonly SystemDesignPoint[]) => {
+      const node = createSystemDesignFreehandNode(points, {
+        parentModuleId: activeDiagram.parentNodeId,
+      });
+      if (!node) return;
+      dispatch(systemDesignEditorActions.addNode(node));
+    },
+    [activeDiagram.parentNodeId],
+  );
+
   const handleToolChange = useCallback(
     (tool: SystemDesignEditorTool) => {
       const nodeType = SYSTEM_DESIGN_CREATION_TOOL_TYPES[tool];
@@ -504,7 +529,7 @@ export function SystemDesignWorkspace({
       setUiError(null);
       try {
         setPendingImport(
-          await readSystemDesignImportFile(file, problem.id),
+          await readSystemDesignImportFile(file, problem?.id),
         );
       } catch (error) {
         setPendingImport(null);
@@ -516,13 +541,18 @@ export function SystemDesignWorkspace({
         );
       }
     },
-    [problem.id],
+    [problem],
   );
 
   const handleExport = useCallback(() => {
     setUiError(null);
     try {
-      downloadInteractiveSystemDesignHtml(state.document, problem);
+      downloadInteractiveSystemDesignHtml(
+        state.document,
+        problem
+          ? { mode: "full", problem }
+          : { mode: "diagram-only" },
+      );
     } catch (error) {
       setUiError(
         getErrorMessage(
@@ -589,6 +619,7 @@ export function SystemDesignWorkspace({
     );
     const importedDocument: SystemDesignDocument = {
       ...pendingImport,
+      ...(problem ? { problemId: problem.id } : {}),
       diagrams: Object.fromEntries(
         Object.entries(pendingImport.diagrams).map(
           ([diagramId, diagram]) => [
@@ -602,12 +633,13 @@ export function SystemDesignWorkspace({
       ),
       updatedAt: at,
     };
+    if (!problem) delete importedDocument.problemId;
     dispatch(
       systemDesignEditorActions.replaceDocument(importedDocument, at),
     );
     setPendingImport(null);
     void save(importedDocument);
-  }, [pendingImport, save, state.document.updatedAt]);
+  }, [pendingImport, problem, save, state.document.updatedAt]);
 
   const handleSelectNode = useCallback(
     (nodeId: string, additive: boolean) => {
@@ -802,16 +834,20 @@ export function SystemDesignWorkspace({
   };
 
   const editor = (
-    <div className="hidden h-[calc(100dvh-57px)] min-h-[38rem] flex-col overflow-hidden lg:flex">
+    <div className="hidden h-[calc(100dvh-57px)] min-h-[38rem] flex-col overflow-hidden md:flex">
       <SystemDesignToolbar
         onBack={parentBreadcrumbSegment ? handleNavigateParent : undefined}
         backLabel={
           parentBreadcrumbSegment
             ? `Back to ${parentBreadcrumbSegment.label}`
-            : "Back to system design problems"
+            : mode.kind === "standalone"
+              ? "Back to system design"
+              : "Back to system design problems"
         }
         className="shrink-0 overflow-x-auto"
-        problem={problem}
+        title={workspaceTitle}
+        difficulty={problem?.difficulty}
+        showLearningActions={Boolean(problem)}
         saveState={saveState}
         isCompleted={state.document.status === "completed"}
         isPreviewMode={state.isPreviewMode}
@@ -909,6 +945,7 @@ export function SystemDesignWorkspace({
             onMoveNodes={handleMoveNodes}
             onResizeNode={handleResizeNode}
             onAddEdge={handleAddEdge}
+            onAddFreehand={addFreehandStroke}
             onViewportChange={handleViewportChange}
             onDropNodeType={addDroppedNode}
             onOpenModule={handleOpenModule}
@@ -917,7 +954,7 @@ export function SystemDesignWorkspace({
           />
           <SystemDesignPerformancePanel />
 
-          {state.isPreviewMode && (
+          {state.isPreviewMode && problem && (
             <details
               open={previewBriefOpen}
               onToggle={(event) =>
@@ -997,19 +1034,20 @@ export function SystemDesignWorkspace({
         saveState={saveState}
         lastSavedAt={state.lastSavedAt}
         saveError={state.saveError}
+        isPersistent={Boolean(problem)}
       />
     </div>
   );
 
   return (
     <>
-      <DesktopUnavailableMessage />
+      <SmallScreenUnavailableMessage />
       {state.loadStatus === "loading" || state.loadStatus === "idle" ? (
-        <div className="hidden min-h-[calc(100vh-57px)] p-6 lg:block">
+        <div className="hidden min-h-[calc(100vh-57px)] p-6 md:block">
           <LoadingSkeleton rows={9} />
         </div>
       ) : state.loadStatus === "error" ? (
-        <div className="hidden min-h-[calc(100vh-57px)] p-6 lg:block">
+        <div className="hidden min-h-[calc(100vh-57px)] p-6 md:block">
           <ErrorState
             title="Could not load the locally saved diagram"
             description={

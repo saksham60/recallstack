@@ -173,6 +173,7 @@ function migrateEdge(edge: SystemDesignEdge, layer: number): DiagramConnectorEle
 
 export function migrateSystemDesignDocumentToDiagram(
   source: SystemDesignDocument,
+  sourceSchemaVersion: number = source.schemaVersion,
 ): DiagramDocument {
   const pages: Record<string, DiagramPage> = {};
   for (const diagram of Object.values(source.diagrams)) {
@@ -199,8 +200,8 @@ export function migrateSystemDesignDocumentToDiagram(
     pages,
     metadata: {
       source: "system-design",
-      sourceSchemaVersion: String(source.schemaVersion),
-      problemId: source.problemId,
+      sourceSchemaVersion: String(sourceSchemaVersion),
+      ...(source.problemId ? { problemId: source.problemId } : {}),
       status: source.status,
       ...(source.metadata ?? {}),
     },
@@ -213,11 +214,14 @@ export function systemDesignDiagramMigration(value: unknown): DiagramDocument | 
   if (
     typeof value !== "object" ||
     value === null ||
-    !("problemId" in value) ||
     !("schemaVersion" in value)
   ) return null;
   try {
-    return migrateSystemDesignDocumentToDiagram(parseSystemDesignDocument(value));
+    const sourceSchemaVersion = Number(value.schemaVersion);
+    return migrateSystemDesignDocumentToDiagram(
+      parseSystemDesignDocument(value),
+      sourceSchemaVersion,
+    );
   } catch {
     return null;
   }

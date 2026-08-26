@@ -20,6 +20,10 @@ import {
   serializeSystemDesignDocument,
 } from "../src/features/system-design/utils/diagram-import-export";
 import { validateSystemDesignDocument } from "../src/features/system-design/utils/diagram-validation";
+import {
+  createEmptyStandaloneSystemDesignDocument,
+  createSystemDesignFreehandNode,
+} from "../src/features/system-design/utils/system-design-defaults";
 
 const timestamp = (step: number) =>
   new Date(Date.UTC(2026, 6, 29, 0, 0, step)).toISOString();
@@ -143,6 +147,34 @@ function validationIssuePaths(value: unknown): string[] {
 }
 
 test.describe("system-design editor reducer", () => {
+  test("commits one complete freehand stroke as one undoable node", () => {
+    let state = createSystemDesignEditorState(createDocument());
+    const stroke = createSystemDesignFreehandNode([
+      { x: 140, y: 90 },
+      { x: 148, y: 102 },
+      { x: 164, y: 111 },
+    ]);
+    expect(stroke).not.toBeNull();
+
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.addNode(stroke!, timestamp(1)),
+    );
+    expect(rootDiagram(state.document).nodes).toHaveLength(1);
+    expect(state.history).toHaveLength(1);
+
+    state = systemDesignEditorReducer(state, systemDesignEditorActions.undo());
+    expect(rootDiagram(state.document).nodes).toHaveLength(0);
+    state = systemDesignEditorReducer(state, systemDesignEditorActions.redo());
+    expect(rootDiagram(state.document).nodes[0]).toMatchObject({
+      type: "freehand",
+      drawing: {
+        stroke: "#fafafa",
+        strokeWidth: 3,
+      },
+    });
+  });
+
   test("adds, moves, updates, connects, deletes, undoes, and redoes", () => {
     let state = createSystemDesignEditorState(createDocument());
     const api = createNode("node-api", 100, 120, "API");
@@ -1246,6 +1278,20 @@ test.describe("system-design editor reducer", () => {
 });
 
 test.describe("local system-design repository", () => {
+  test("loads and rewrites an existing schema-v2 problem document", async () => {
+    const storage = new MemoryStorage();
+    const schemaV2 = { ...createDocument(), schemaVersion: 2 };
+    const key = "recallstack:admin:system-design:url-shortener";
+    storage.setItem(key, JSON.stringify(schemaV2));
+    const repository = createSystemDesignRepository(storage);
+
+    const loaded = await repository.getDocument("url-shortener");
+    expect(loaded?.schemaVersion).toBe(SYSTEM_DESIGN_SCHEMA_VERSION);
+    expect(JSON.parse(storage.getItem(key) ?? "{}").schemaVersion).toBe(
+      SYSTEM_DESIGN_SCHEMA_VERSION,
+    );
+  });
+
   test("saves, loads, lists, summarizes, and deletes documents", async () => {
     const storage = new MemoryStorage();
     const repository = createSystemDesignRepository(storage);
@@ -1261,7 +1307,7 @@ test.describe("local system-design repository", () => {
     await repository.saveDocument(empty);
     await repository.saveDocument(started);
 
-    await expect(repository.getDocument(started.problemId)).resolves.toEqual(
+    await expect(repository.getDocument(started.problemId!)).resolves.toEqual(
       started,
     );
     await expect(repository.listDocumentSummaries()).resolves.toEqual([
@@ -1285,13 +1331,46 @@ test.describe("local system-design repository", () => {
       },
     ]);
 
-    await repository.deleteDocument(started.problemId);
-    await expect(repository.getDocument(started.problemId)).resolves.toBeNull();
+    await repository.deleteDocument(started.problemId!);
+    await expect(repository.getDocument(started.problemId!)).resolves.toBeNull();
     await expect(repository.listDocumentSummaries()).resolves.toHaveLength(1);
   });
 });
 
 test.describe("system-design import and validation", () => {
+  test("validates standalone documents and round-trips typed freehand data", () => {
+    const document = createEmptyStandaloneSystemDesignDocument(
+      "Canvas",
+      timestamp(0),
+    );
+    const stroke = createSystemDesignFreehandNode(
+      [
+        { x: -40, y: 18 },
+        { x: -12, y: 42 },
+        { x: 25, y: 10 },
+      ],
+      { stroke: "#22d3ee", strokeWidth: 4, opacity: 0.75 },
+    );
+    expect(stroke).not.toBeNull();
+    document.diagrams[document.rootDiagramId].nodes.push(stroke!);
+
+    const parsed = parseSystemDesignDocumentJson(
+      serializeSystemDesignDocument(document),
+    );
+    expect(parsed).not.toHaveProperty("problemId");
+    expect(rootDiagram(parsed).nodes[0].drawing).toEqual(stroke?.drawing);
+  });
+
+  test("migrates an existing schema-v2 document to the current schema", () => {
+    const schemaV2 = {
+      ...createDocument(),
+      schemaVersion: 2,
+    };
+    const migrated = parseSystemDesignDocumentJson(JSON.stringify(schemaV2));
+    expect(migrated.schemaVersion).toBe(SYSTEM_DESIGN_SCHEMA_VERSION);
+    expect(rootDiagram(migrated).nodes).toEqual(rootDiagram(createDocument()).nodes);
+  });
+
   test("round-trips a valid document as formatted JSON", () => {
     const client = createNode("node-client", 20, 40, "Client");
     const api = { ...createNode("node-api", 300, 40, "API"), layer: 1 };

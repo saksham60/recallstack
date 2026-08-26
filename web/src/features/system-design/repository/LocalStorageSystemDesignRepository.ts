@@ -1,5 +1,6 @@
 import {
   SYSTEM_DESIGN_LEGACY_SCHEMA_VERSION,
+  SYSTEM_DESIGN_PREVIOUS_SCHEMA_VERSION,
   type SystemDesignDocument,
   type SystemDesignDocumentSummary,
 } from "../types/system-design.types";
@@ -57,6 +58,11 @@ export class LocalStorageSystemDesignRepository
   async saveDocument(document: SystemDesignDocument): Promise<void> {
     return this.run("save", () => {
       const validated = parseSystemDesignDocument(document);
+      if (!validated.problemId) {
+        throw new Error(
+          "Standalone canvases are not stored in the problem repository.",
+        );
+      }
       this.getStorage().setItem(
         LocalStorageSystemDesignRepository.storageKey(validated.problemId),
         JSON.stringify(validated),
@@ -122,7 +128,8 @@ export class LocalStorageSystemDesignRepository
       typeof original === "object" &&
       original !== null &&
       "schemaVersion" in original &&
-      original.schemaVersion === SYSTEM_DESIGN_LEGACY_SCHEMA_VERSION
+      (original.schemaVersion === SYSTEM_DESIGN_LEGACY_SCHEMA_VERSION ||
+        original.schemaVersion === SYSTEM_DESIGN_PREVIOUS_SCHEMA_VERSION)
     ) {
       this.getStorage().setItem(key, JSON.stringify(migrated));
     }

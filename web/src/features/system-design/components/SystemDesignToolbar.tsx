@@ -45,6 +45,7 @@ import {
   Maximize2,
   MousePointer2,
   Network,
+  Pencil,
   Redo2,
   RotateCcw,
   Save,
@@ -93,7 +94,9 @@ export interface SystemDesignToolbarProps {
   backHref?: string;
   onBack?: () => void;
   backLabel?: string;
-  problem: Pick<SystemDesignProblem, "title" | "difficulty">;
+  title: string;
+  difficulty?: SystemDesignProblem["difficulty"];
+  showLearningActions?: boolean;
   saveState: SystemDesignSaveState;
   isCompleted: boolean;
   isPreviewMode: boolean;
@@ -736,6 +739,11 @@ const TOOL_ACTIONS: ReadonlyArray<{
     icon: <Network className="h-4 w-4" aria-hidden="true" />,
   },
   {
+    tool: "draw",
+    label: "Draw tool",
+    icon: <Pencil className="h-4 w-4" aria-hidden="true" />,
+  },
+  {
     tool: "text",
     label: "Add text",
     icon: <Type className="h-4 w-4" aria-hidden="true" />,
@@ -1011,7 +1019,9 @@ export function SystemDesignToolbar({
   backHref = "/system-design",
   onBack,
   backLabel = "Back to system design problems",
-  problem,
+  title,
+  difficulty,
+  showLearningActions = true,
   saveState,
   isCompleted,
   isPreviewMode,
@@ -1108,15 +1118,17 @@ export function SystemDesignToolbar({
         )}
         <div className="min-w-0 max-w-52">
           <p className="truncate text-xs font-semibold text-foreground">
-            {problem.title}
+            {title}
           </p>
           <p className="text-[10px] text-muted">
             {isPreviewMode ? "Read-only preview" : "Diagram editor"}
           </p>
         </div>
-        <Badge variant={difficultyVariant(problem.difficulty)}>
-          {problem.difficulty}
-        </Badge>
+        {difficulty && (
+          <Badge variant={difficultyVariant(difficulty)}>
+            {difficulty}
+          </Badge>
+        )}
       </div>
 
       <div className="mx-1 h-6 w-px shrink-0 bg-border" aria-hidden="true" />
@@ -1171,27 +1183,31 @@ export function SystemDesignToolbar({
           <div className="h-6 w-px shrink-0 bg-border" aria-hidden="true" />
 
           <div className="flex items-center gap-1">
-            <ToolbarButton
-              label={saveActionLabel}
-              onClick={onSave}
-              disabled={!canSave || saveState === "saving"}
-              emphasized={saveState === "unsaved" || saveState === "error"}
-            >
-              <Save className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden xl:inline" aria-hidden="true">
-                {saveStatusLabel}
-              </span>
-            </ToolbarButton>
-            <ToolbarButton
-              label={isCompleted ? "Diagram complete" : "Mark complete"}
-              onClick={onMarkComplete}
-              disabled={!canMarkComplete || isCompleted}
-            >
-              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden 2xl:inline">
-                {isCompleted ? "Complete" : "Mark complete"}
-              </span>
-            </ToolbarButton>
+            {showLearningActions && (
+              <>
+                <ToolbarButton
+                  label={saveActionLabel}
+                  onClick={onSave}
+                  disabled={!canSave || saveState === "saving"}
+                  emphasized={saveState === "unsaved" || saveState === "error"}
+                >
+                  <Save className="h-4 w-4" aria-hidden="true" />
+                  <span className="hidden xl:inline" aria-hidden="true">
+                    {saveStatusLabel}
+                  </span>
+                </ToolbarButton>
+                <ToolbarButton
+                  label={isCompleted ? "Diagram complete" : "Mark complete"}
+                  onClick={onMarkComplete}
+                  disabled={!canMarkComplete || isCompleted}
+                >
+                  <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                  <span className="hidden 2xl:inline">
+                    {isCompleted ? "Complete" : "Mark complete"}
+                  </span>
+                </ToolbarButton>
+              </>
+            )}
             <ToolbarButton label="Preview diagram" onClick={onTogglePreview}>
               <Eye className="h-4 w-4" aria-hidden="true" />
               <span className="hidden xl:inline">Preview</span>

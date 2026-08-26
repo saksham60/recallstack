@@ -103,7 +103,7 @@ export interface SystemDesignInspectorProps {
   selectedEdge?: SystemDesignEdge | null;
   selectedCount: number;
   selectedNodeInternalComponentCount?: number;
-  problem: SystemDesignProblem;
+  problem?: SystemDesignProblem;
   layersProps: SystemDesignLayersPanelProps;
   onUpdateNode: (
     nodeId: string,
@@ -248,7 +248,7 @@ function EmptyProperties({
   problem,
 }: {
   selectedCount: number;
-  problem: SystemDesignProblem;
+  problem?: SystemDesignProblem;
 }) {
   const sectionId = useId();
 
@@ -276,7 +276,7 @@ function EmptyProperties({
 
   return (
     <div className="space-y-3" data-testid="system-design-empty-inspector">
-      <section
+      {problem && <section
         className="rounded-md border border-border bg-background/40 p-3"
         aria-labelledby={`${sectionId}-problem-heading`}
       >
@@ -289,9 +289,9 @@ function EmptyProperties({
         <p className="mt-1 text-[11px] leading-relaxed text-muted">
           {problem.summary}
         </p>
-      </section>
+      </section>}
 
-      <section
+      {problem && <section
         className="rounded-md border border-border bg-background/40 p-3"
         aria-labelledby={`${sectionId}-requirements-heading`}
       >
@@ -306,9 +306,9 @@ function EmptyProperties({
             <li key={requirement}>{requirement}</li>
           ))}
         </ul>
-      </section>
+      </section>}
 
-      <section
+      {problem && <section
         className="rounded-md border border-border bg-background/40 p-3"
         aria-labelledby={`${sectionId}-scale-heading`}
       >
@@ -323,7 +323,7 @@ function EmptyProperties({
             <li key={assumption}>{assumption}</li>
           ))}
         </ul>
-      </section>
+      </section>}
 
       <section
         className="rounded-md border border-dashed border-border p-3 text-[11px] leading-relaxed text-muted"
@@ -919,7 +919,7 @@ function NodeProperties({
               }}
             />
           </FieldLabel>
-          <FieldLabel label="Width">
+          {node.type !== "freehand" && <FieldLabel label="Width">
             <input
               className={inputClass}
               type="number"
@@ -934,8 +934,8 @@ function NodeProperties({
                 }
               }}
             />
-          </FieldLabel>
-          <FieldLabel label="Height">
+          </FieldLabel>}
+          {node.type !== "freehand" && <FieldLabel label="Height">
             <input
               className={inputClass}
               type="number"
@@ -952,7 +952,7 @@ function NodeProperties({
                 }
               }}
             />
-          </FieldLabel>
+          </FieldLabel>}
         </div>
       </fieldset>
 
@@ -1418,14 +1418,20 @@ export function SystemDesignInspector({
   className = "",
 }: SystemDesignInspectorProps) {
   const baseId = useId();
+  const visibleTabs = problem
+    ? tabs
+    : tabs.filter((tab) => tab.id !== "problem");
 
   return (
     <aside
       className={`flex min-h-0 w-80 shrink-0 flex-col border-l border-border bg-surface ${className}`}
       aria-label="Diagram inspector"
     >
-      <div className="grid grid-cols-3 border-b border-border" role="tablist">
-        {tabs.map((tab) => {
+      <div
+        className={`grid ${problem ? "grid-cols-3" : "grid-cols-2"} border-b border-border`}
+        role="tablist"
+      >
+        {visibleTabs.map((tab) => {
           const active = activeTab === tab.id;
           return (
             <button
@@ -1472,7 +1478,7 @@ export function SystemDesignInspector({
           ) : (
             <EmptyProperties selectedCount={selectedCount} problem={problem} />
           ))}
-        {activeTab === "problem" && (
+        {activeTab === "problem" && problem && (
           <SystemDesignProblemPanel problem={problem} />
         )}
         {activeTab === "layers" && (

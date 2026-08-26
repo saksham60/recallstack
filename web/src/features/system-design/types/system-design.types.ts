@@ -1,4 +1,5 @@
-export const SYSTEM_DESIGN_SCHEMA_VERSION = 2 as const;
+export const SYSTEM_DESIGN_SCHEMA_VERSION = 3 as const;
+export const SYSTEM_DESIGN_PREVIOUS_SCHEMA_VERSION = 2 as const;
 export const SYSTEM_DESIGN_LEGACY_SCHEMA_VERSION = 1 as const;
 
 export type SystemDesignDifficulty = "easy" | "medium" | "hard";
@@ -76,7 +77,8 @@ export type SystemDesignNodeType =
   | "callout"
   | "divider"
   | "label"
-  | "image";
+  | "image"
+  | "freehand";
 
 export type SystemDesignNodeCategory =
   | "clients"
@@ -213,6 +215,15 @@ export interface SystemDesignNodeTextStyle {
   verticalAlign?: SystemDesignTextVerticalAlign;
 }
 
+/** Serializable ink captured by the single freehand Draw tool. */
+export interface SystemDesignFreehandData {
+  /** Alternating x/y coordinates relative to the owning node's origin. */
+  points: number[];
+  stroke: string;
+  strokeWidth: number;
+  opacity?: number;
+}
+
 export interface SystemDesignNode {
   id: string;
   type: SystemDesignNodeType;
@@ -234,6 +245,7 @@ export interface SystemDesignNode {
   locked: boolean;
   visible: boolean;
   asset?: SystemDesignNodeAsset;
+  drawing?: SystemDesignFreehandData;
   style?: SystemDesignNodeStyle;
   textStyle?: SystemDesignNodeTextStyle;
   metadata?: Record<string, string>;
@@ -361,7 +373,8 @@ export interface SystemDesignDiagram {
 export interface SystemDesignDocument {
   schemaVersion: typeof SYSTEM_DESIGN_SCHEMA_VERSION;
   id: string;
-  problemId: string;
+  /** Present for learning-problem documents; absent for standalone canvases. */
+  problemId?: string;
   title: string;
   status: SystemDesignDocumentStatus;
   rootDiagramId: string;
@@ -458,6 +471,7 @@ export type SystemDesignEditorTool =
   | "select"
   | "pan"
   | "connect"
+  | "draw"
   | "text"
   | "note"
   | "boundary"
@@ -496,7 +510,7 @@ export type SystemDesignSaveStatus =
   | "error";
 
 export interface SystemDesignEditorState {
-  problemId: string;
+  problemId?: string;
   document: SystemDesignDocument;
   activeDiagramId: string;
   selectedNodeIds: string[];

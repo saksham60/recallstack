@@ -14,6 +14,7 @@ import {
   type SystemDesignDocumentSummary,
   type SystemDesignEdge,
   type SystemDesignEdgeType,
+  type SystemDesignFreehandData,
   type SystemDesignNode,
   type SystemDesignNodeType,
   type SystemDesignPoint,
@@ -111,6 +112,23 @@ export function createEmptySystemDesignDocument(
   };
 }
 
+export function createEmptyStandaloneSystemDesignDocument(
+  title = "Canvas",
+  now = new Date().toISOString(),
+): SystemDesignDocument {
+  const rootDiagram = createEmptySystemDesignDiagram(title);
+  return {
+    schemaVersion: SYSTEM_DESIGN_SCHEMA_VERSION,
+    id: createSystemDesignId("document"),
+    title,
+    status: "in_progress",
+    rootDiagramId: rootDiagram.id,
+    diagrams: { [rootDiagram.id]: rootDiagram },
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
 export function createEmptySystemDesignDiagram(
   name: string,
   overrides: Partial<
@@ -165,10 +183,46 @@ export function createSystemDesignNode(
     locked: overrides.locked ?? false,
     visible: overrides.visible ?? true,
     asset: overrides.asset ? { ...overrides.asset } : undefined,
+    drawing: overrides.drawing
+      ? { ...overrides.drawing, points: [...overrides.drawing.points] }
+      : undefined,
     style: overrides.style ? { ...overrides.style } : undefined,
     textStyle: overrides.textStyle ? { ...overrides.textStyle } : undefined,
     metadata: overrides.metadata ? { ...overrides.metadata } : undefined,
   };
+}
+
+export function createSystemDesignFreehandNode(
+  points: readonly SystemDesignPoint[],
+  options: {
+    stroke?: string;
+    strokeWidth?: number;
+    opacity?: number;
+    parentModuleId?: string;
+  } = {},
+): SystemDesignNode | null {
+  if (points.length < 2) return null;
+  const xs = points.map((point) => point.x);
+  const ys = points.map((point) => point.y);
+  const strokeWidth = options.strokeWidth ?? 3;
+  const padding = Math.max(2, strokeWidth);
+  const left = Math.min(...xs) - padding;
+  const top = Math.min(...ys) - padding;
+  const right = Math.max(...xs) + padding;
+  const bottom = Math.max(...ys) + padding;
+  const drawing: SystemDesignFreehandData = {
+    points: points.flatMap((point) => [point.x - left, point.y - top]),
+    stroke: options.stroke ?? "#fafafa",
+    strokeWidth,
+    ...(options.opacity === undefined ? {} : { opacity: options.opacity }),
+  };
+  return createSystemDesignNode("freehand", { x: left, y: top }, {
+    label: "Freehand drawing",
+    width: Math.max(1, right - left),
+    height: Math.max(1, bottom - top),
+    parentModuleId: options.parentModuleId,
+    drawing,
+  });
 }
 
 type EdgeOverrides = Partial<
@@ -246,6 +300,9 @@ export function cloneSystemDesignDiagram(
       ...node,
       technology: node.technology ? { ...node.technology } : undefined,
       asset: node.asset ? { ...node.asset } : undefined,
+      drawing: node.drawing
+        ? { ...node.drawing, points: [...node.drawing.points] }
+        : undefined,
       style: node.style ? { ...node.style } : undefined,
       textStyle: node.textStyle ? { ...node.textStyle } : undefined,
       metadata: node.metadata ? { ...node.metadata } : undefined,
@@ -348,7 +405,7 @@ export function createSystemDesignDocumentSummary(
 ): SystemDesignDocumentSummary {
   const { nodeCount, edgeCount } = countSystemDesignElements(document);
   return {
-    problemId: document.problemId,
+    problemId: document.problemId ?? document.id,
     title: document.title,
     status: deriveSystemDesignProblemStatus(document),
     nodeCount,

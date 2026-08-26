@@ -7,7 +7,8 @@ import {
   useRef,
   useState,
 } from "react";
-import { RotateCcw, Search } from "lucide-react";
+import { PencilRuler, RotateCcw, Search } from "lucide-react";
+import Link from "next/link";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import {
@@ -164,6 +165,12 @@ export function SystemDesignProblemsScreen() {
       <PageHeader
         title="System Design Problems"
         description="Practice designing scalable systems with an architecture-aware diagram editor."
+        actions={
+          <Link className={`${buttonClass} gap-2`} href="/system-design/canvas">
+            <PencilRuler aria-hidden="true" className="h-4 w-4" />
+            Canvas
+          </Link>
+        }
       />
 
       <section

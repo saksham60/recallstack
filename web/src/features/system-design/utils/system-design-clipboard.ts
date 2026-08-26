@@ -8,6 +8,7 @@ import type {
 import {
   SYSTEM_DESIGN_CLIPBOARD_FRAGMENT_KIND,
   SYSTEM_DESIGN_CLIPBOARD_FRAGMENT_VERSION,
+  SYSTEM_DESIGN_SCHEMA_VERSION,
 } from "../types/system-design.types";
 import {
   cloneSystemDesignDiagram,
@@ -33,6 +34,9 @@ function cloneNode(node: SystemDesignNode): SystemDesignNode {
     ...node,
     technology: node.technology ? { ...node.technology } : undefined,
     asset: node.asset ? { ...node.asset } : undefined,
+    drawing: node.drawing
+      ? { ...node.drawing, points: [...node.drawing.points] }
+      : undefined,
     metadata: node.metadata ? { ...node.metadata } : undefined,
   };
 }
@@ -160,7 +164,7 @@ function buildValidatedFragmentDocument(
     return {
       rootDiagramId,
       document: parseSystemDesignDocument({
-        schemaVersion: 2,
+        schemaVersion: SYSTEM_DESIGN_SCHEMA_VERSION,
         id: `clipboard-document-${String(value.id)}`,
         problemId: "clipboard-fragment",
         title: "Clipboard fragment",

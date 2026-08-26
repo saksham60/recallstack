@@ -1135,7 +1135,7 @@ function SystemDesignNodeRendererComponent({
         />
       )}
 
-      {node.type !== "image" && (
+      {node.type !== "image" && node.type !== "freehand" && (
         <Group
           ref={staticVisualRef}
           listening={false}
@@ -1151,7 +1151,21 @@ function SystemDesignNodeRendererComponent({
         </Group>
       )}
 
-      <Group opacity={nodeOpacity}>
+      {node.type === "freehand" && node.drawing && (
+        <Line
+          points={node.drawing.points}
+          stroke={node.drawing.stroke}
+          strokeWidth={node.drawing.strokeWidth}
+          opacity={node.drawing.opacity ?? 1}
+          lineCap="round"
+          lineJoin="round"
+          tension={0.35}
+          listening={false}
+          perfectDrawEnabled={false}
+        />
+      )}
+
+      <Group opacity={nodeOpacity} visible={node.type !== "freehand"}>
       {!isAnnotation && (
         <SystemDesignSemanticGlyph
           type={node.type}

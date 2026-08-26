@@ -810,6 +810,12 @@ const NODE_VISUALS = {
     accent: "#a78bfa",
     softAccent: "#2e2350",
   },
+  freehand: {
+    category: "annotations",
+    chrome: "text",
+    accent: "#fafafa",
+    softAccent: "#27272a",
+  },
 } as const satisfies Record<
   SystemDesignNodeType,
   SystemDesignNodeVisualDefinition

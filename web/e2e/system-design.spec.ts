@@ -182,7 +182,7 @@ async function seedDocuments(
   documents: readonly SystemDesignDocument[] = savedDocuments,
 ) {
   const entries = documents.map((document) => ({
-    key: LocalStorageSystemDesignRepository.storageKey(document.problemId),
+    key: LocalStorageSystemDesignRepository.storageKey(document.problemId!),
     value: JSON.stringify(document),
   }));
 
@@ -266,9 +266,13 @@ function problemFilters(page: Page) {
   return page.getByRole("region", { name: "Problem filters" });
 }
 
+const problemCount = SYSTEM_DESIGN_PROBLEMS.length;
+
 async function clearFilters(page: Page) {
   await page.getByRole("button", { name: "Clear", exact: true }).click();
-  await expect(page.getByText("Showing 15 of 15 problems")).toBeVisible();
+  await expect(
+    page.getByText(`Showing ${problemCount} of ${problemCount} problems`),
+  ).toBeVisible();
 }
 
 test.describe("System Design access", () => {
@@ -358,17 +362,27 @@ test.describe("System Design access", () => {
 });
 
 test.describe("System Design problems dashboard", () => {
-  test("renders exactly fifteen problems and editor actions", async ({
+  test("offers the standalone Canvas entry", async ({
+    authenticatedPage: page,
+  }) => {
+    await openDashboard(page);
+    const canvasLink = page.getByRole("link", { name: "Canvas", exact: true });
+    await expect(canvasLink).toHaveAttribute("href", "/system-design/canvas");
+  });
+
+  test("renders the complete problem catalog and editor actions", async ({
     authenticatedPage: page,
   }) => {
     await openDashboard(page);
 
     const problems = problemsRegion(page);
-    await expect(problems.getByRole("article")).toHaveCount(15);
+    await expect(problems.getByRole("article")).toHaveCount(problemCount);
     await expect(
       problems.getByRole("link", { name: "Open Editor" }),
-    ).toHaveCount(15);
-    await expect(page.getByText("Showing 15 of 15 problems")).toBeVisible();
+    ).toHaveCount(problemCount);
+    await expect(
+      page.getByText(`Showing ${problemCount} of ${problemCount} problems`),
+    ).toBeVisible();
   });
 
   test("filters by search, category, difficulty, and saved status", async ({
@@ -381,7 +395,9 @@ test.describe("System Design problems dashboard", () => {
     await filters
       .getByRole("textbox", { name: "Search", exact: true })
       .fill("autocomplete");
-    await expect(page.getByText("Showing 1 of 15 problems")).toBeVisible();
+    await expect(
+      page.getByText(`Showing 1 of ${problemCount} problems`),
+    ).toBeVisible();
     await expect(problemsRegion(page).getByRole("article")).toHaveCount(1);
     await expect(
       page.getByRole("heading", { name: "Search Autocomplete" }),
@@ -391,7 +407,9 @@ test.describe("System Design problems dashboard", () => {
     await filters.getByRole("combobox", { name: "Category" }).selectOption(
       "Infrastructure",
     );
-    await expect(page.getByText("Showing 3 of 15 problems")).toBeVisible();
+    await expect(
+      page.getByText(`Showing 3 of ${problemCount} problems`),
+    ).toBeVisible();
     await expect(problemsRegion(page).getByRole("article")).toHaveCount(3);
     await expect(
       page.getByRole("heading", { name: "Distributed Rate Limiter" }),
@@ -407,26 +425,41 @@ test.describe("System Design problems dashboard", () => {
     await filters
       .getByRole("combobox", { name: "Difficulty" })
       .selectOption("medium");
-    await expect(page.getByText("Showing 4 of 15 problems")).toBeVisible();
-    await expect(problemsRegion(page).getByRole("article")).toHaveCount(4);
+    const mediumCount = SYSTEM_DESIGN_PROBLEMS.filter(
+      (problem) => problem.difficulty === "medium",
+    ).length;
+    await expect(
+      page.getByText(`Showing ${mediumCount} of ${problemCount} problems`),
+    ).toBeVisible();
+    await expect(problemsRegion(page).getByRole("article")).toHaveCount(
+      mediumCount,
+    );
 
     await clearFilters(page);
     const statusFilter = filters.getByRole("combobox", { name: "Status" });
     await statusFilter.selectOption("completed");
-    await expect(page.getByText("Showing 1 of 15 problems")).toBeVisible();
+    await expect(
+      page.getByText(`Showing 1 of ${problemCount} problems`),
+    ).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "URL Shortener" }),
     ).toBeVisible();
 
     await statusFilter.selectOption("in_progress");
-    await expect(page.getByText("Showing 1 of 15 problems")).toBeVisible();
+    await expect(
+      page.getByText(`Showing 1 of ${problemCount} problems`),
+    ).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "Distributed Rate Limiter" }),
     ).toBeVisible();
 
     await statusFilter.selectOption("not_started");
-    await expect(page.getByText("Showing 13 of 15 problems")).toBeVisible();
-    await expect(problemsRegion(page).getByRole("article")).toHaveCount(13);
+    await expect(
+      page.getByText(`Showing ${problemCount - 2} of ${problemCount} problems`),
+    ).toBeVisible();
+    await expect(problemsRegion(page).getByRole("article")).toHaveCount(
+      problemCount - 2,
+    );
   });
 
   test("derives metrics, statuses, and node counts from locally saved documents", async ({
@@ -440,10 +473,10 @@ test.describe("System Design problems dashboard", () => {
     });
     await expect(
       metrics.getByText("Total problems", { exact: true }).locator(".."),
-    ).toContainText("15");
+    ).toContainText(String(problemCount));
     await expect(
       metrics.getByText("Practice problems", { exact: true }).locator(".."),
-    ).toContainText("15");
+    ).toContainText(String(problemCount));
     await expect(
       metrics.getByText("Diagrams started", { exact: true }).locator(".."),
     ).toContainText("2");
@@ -487,7 +520,7 @@ test.describe("System Design problems dashboard", () => {
       .getByRole("link", { name: "Open Editor" })
       .click();
 
-    await expect(page).toHaveURL(/\/admin\/system-design\/url-shortener$/);
+    await expect(page).toHaveURL(/\/system-design\/url-shortener$/);
   });
 
   test("renders the normal 404 experience for an unknown problem", async ({
@@ -502,6 +535,109 @@ test.describe("System Design problems dashboard", () => {
     await expect(
       page.getByTestId("system-design-canvas"),
     ).toHaveCount(0);
+  });
+});
+
+test.describe("Standalone System Design Canvas", () => {
+  test("loads the shared editor without learning-problem UI", async ({
+    authenticatedPage: page,
+  }) => {
+    await mockProfile(page);
+    await page.goto("/system-design/canvas");
+
+    await expect(page.getByTestId("system-design-canvas")).toBeVisible();
+    await expect(
+      page.getByLabel("System design editor toolbar"),
+    ).toBeVisible();
+    await expect(
+      page.getByLabel("System design component palette"),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Draw tool" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Add User" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Problem" })).toHaveCount(0);
+    await expect(page.getByText("Functional requirements")).toHaveCount(0);
+    await expect(page.getByText("Scale assumptions")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Save" })).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Mark complete" }),
+    ).toHaveCount(0);
+  });
+
+  test("draws after pan and zoom as one undoable node", async ({
+    authenticatedPage: page,
+  }) => {
+    await mockProfile(page);
+    await page.goto("/system-design/canvas");
+    const canvas = page.getByTestId("system-design-canvas");
+    await expect(canvas).toBeVisible();
+    const bounds = await canvas.boundingBox();
+    if (!bounds) throw new Error("Standalone canvas is not visible.");
+
+    await page.getByRole("button", { name: "Pan tool" }).click();
+    await page.mouse.move(bounds.x + 180, bounds.y + 180);
+    await page.mouse.down();
+    await page.mouse.move(bounds.x + 260, bounds.y + 230, { steps: 5 });
+    await page.mouse.up();
+    await page.getByRole("button", { name: "Zoom in" }).click();
+
+    const viewport = {
+      x: Number(await canvas.getAttribute("data-viewport-x")),
+      y: Number(await canvas.getAttribute("data-viewport-y")),
+      zoom: Number(await canvas.getAttribute("data-viewport-zoom")),
+    };
+    await page.getByRole("button", { name: "Draw tool" }).click();
+    await expect(canvas).toHaveAttribute("data-active-tool", "draw");
+    const start = { x: bounds.x + 150, y: bounds.y + 170 };
+    const end = { x: bounds.x + 270, y: bounds.y + 245 };
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(end.x, end.y, { steps: 12 });
+    await page.mouse.up();
+
+    await expectEditorCounts(page, {
+      nodes: 1,
+      connections: 0,
+      selected: 1,
+    });
+    const expectedX = Math.round((150 - viewport.x) / viewport.zoom - 3);
+    const expectedY = Math.round((170 - viewport.y) / viewport.zoom - 3);
+    await expect(page.getByLabel("X", { exact: true })).toHaveValue(
+      String(expectedX),
+    );
+    await expect(page.getByLabel("Y", { exact: true })).toHaveValue(
+      String(expectedY),
+    );
+
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expectEditorCounts(page, {
+      nodes: 0,
+      connections: 0,
+      selected: 0,
+    });
+    await page.getByRole("button", { name: "Redo" }).click();
+    await expectEditorCounts(page, {
+      nodes: 1,
+      connections: 0,
+      selected: 0,
+    });
+    await page.getByRole("button", { name: "Add User" }).click();
+    await expectEditorCounts(page, {
+      nodes: 2,
+      connections: 0,
+      selected: 1,
+    });
+  });
+
+  test("keeps the editor available at an iPad-sized viewport", async ({
+    authenticatedPage: page,
+  }) => {
+    await page.setViewportSize({ width: 820, height: 1180 });
+    await mockProfile(page);
+    await page.goto("/system-design/canvas");
+    await expect(page.getByTestId("system-design-canvas")).toBeVisible();
+    await expect(
+      page.getByText("The system-design editor needs a tablet-sized screen."),
+    ).not.toBeVisible();
   });
 });
 
@@ -789,6 +925,9 @@ test.describe("System Design editor", () => {
       "aria-pressed",
       "true",
     );
+    await expect(
+      toolbar.getByRole("button", { name: "Draw tool" }),
+    ).toBeVisible();
     const start = await canvasPoint(page, 45, 70);
     const end = await canvasPoint(page, 475, 220);
     await page.mouse.move(start.x, start.y);

@@ -541,6 +541,15 @@ export const SYSTEM_DESIGN_NODE_DEFINITIONS = {
     defaultWidth: 240,
     defaultHeight: 160,
   },
+  freehand: {
+    type: "freehand",
+    category: "annotations",
+    label: "Freehand drawing",
+    tooltip: "Ink created with the Draw tool.",
+    iconKey: "text",
+    defaultWidth: 120,
+    defaultHeight: 72,
+  },
 } as const satisfies Record<SystemDesignNodeType, SystemDesignNodeDefinition>;
 
 const CATEGORY_ORDER = [

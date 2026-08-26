@@ -414,6 +414,11 @@ function cloneNode(node: SystemDesignNode): SystemDesignNode {
     ...node,
     technology: node.technology ? { ...node.technology } : undefined,
     asset: node.asset ? { ...node.asset } : undefined,
+    drawing: node.drawing
+      ? { ...node.drawing, points: [...node.drawing.points] }
+      : undefined,
+    style: node.style ? { ...node.style } : undefined,
+    textStyle: node.textStyle ? { ...node.textStyle } : undefined,
     metadata: node.metadata ? { ...node.metadata } : undefined,
   };
 }
@@ -698,6 +703,12 @@ function sanitizeNodePatch(
     sanitized.technology = { ...changes.technology };
   }
   if (changes.asset) sanitized.asset = { ...changes.asset };
+  if (changes.drawing) {
+    sanitized.drawing = {
+      ...changes.drawing,
+      points: [...changes.drawing.points],
+    };
+  }
   if (changes.width === undefined) delete sanitized.width;
   else if (Number.isFinite(changes.width)) {
     sanitized.width = Math.max(MIN_NODE_WIDTH, changes.width);
@@ -894,10 +905,16 @@ export function systemDesignEditorReducer(
         x: Number.isFinite(action.node.x) ? action.node.x : 0,
         y: Number.isFinite(action.node.y) ? action.node.y : 0,
         width: Number.isFinite(action.node.width)
-          ? Math.max(MIN_NODE_WIDTH, action.node.width)
+          ? Math.max(
+              action.node.type === "freehand" ? 1 : MIN_NODE_WIDTH,
+              action.node.width,
+            )
           : MIN_NODE_WIDTH,
         height: Number.isFinite(action.node.height)
-          ? Math.max(MIN_NODE_HEIGHT, action.node.height)
+          ? Math.max(
+              action.node.type === "freehand" ? 1 : MIN_NODE_HEIGHT,
+              action.node.height,
+            )
           : MIN_NODE_HEIGHT,
         isExpandable:
           isSystemDesignModuleNodeType(action.node.type)

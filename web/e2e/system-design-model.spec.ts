@@ -164,7 +164,7 @@ class MemoryStorage implements Storage {
   }
 }
 
-test.describe("system-design schema v2", () => {
+test.describe("system-design schema v3", () => {
   test("discovers and filters the complete Applied Solutions Architect set generically", () => {
     expect(APPLIED_SOLUTIONS_ARCHITECT_PROBLEMS).toHaveLength(15);
     expect(
@@ -586,7 +586,7 @@ test.describe("system-design schema v2", () => {
     const root = document.diagrams[document.rootDiagramId];
 
     expect(document).toMatchObject({
-      schemaVersion: 2,
+      schemaVersion: SYSTEM_DESIGN_SCHEMA_VERSION,
       id: legacy.id,
       problemId: legacy.problemId,
       title: legacy.title,
@@ -612,7 +612,7 @@ test.describe("system-design schema v2", () => {
 
     const serialized = serializeSystemDesignDocument(document);
     const serializedValue = JSON.parse(serialized) as Record<string, unknown>;
-    expect(serializedValue.schemaVersion).toBe(2);
+    expect(serializedValue.schemaVersion).toBe(SYSTEM_DESIGN_SCHEMA_VERSION);
     expect(serializedValue).not.toHaveProperty("nodes");
     expect(serializedValue).not.toHaveProperty("edges");
     expect(serializedValue).not.toHaveProperty("viewport");
@@ -817,14 +817,14 @@ test.describe("system-design schema v2", () => {
     const repository = new LocalStorageSystemDesignRepository(storage);
 
     const document = await repository.getDocument("url-shortener");
-    expect(document?.schemaVersion).toBe(2);
+    expect(document?.schemaVersion).toBe(SYSTEM_DESIGN_SCHEMA_VERSION);
     expect(document?.diagrams[document.rootDiagramId].nodes).toHaveLength(1);
 
     const persisted = JSON.parse(storage.getItem(key) ?? "{}") as Record<
       string,
       unknown
     >;
-    expect(persisted.schemaVersion).toBe(2);
+    expect(persisted.schemaVersion).toBe(SYSTEM_DESIGN_SCHEMA_VERSION);
     expect(persisted).not.toHaveProperty("nodes");
   });
 });

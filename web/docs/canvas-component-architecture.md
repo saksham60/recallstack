@@ -18,7 +18,13 @@ API.
   edges imperatively, then commit one reducer mutation at drag end.
 - Every node has a stable ID, semantic type, world position, size, layer,
   visibility and lock state. Optional style, typography, asset, technology,
-  hierarchy and string metadata remain serializable.
+  hierarchy, typed freehand ink and string metadata remain serializable.
+- Problem practice and `/system-design/canvas` pass explicit workspace modes
+  into the same `SystemDesignWorkspace`. Standalone documents omit `problemId`
+  and remain in memory; problem documents retain the local repository flow.
+- The Draw tool previews pointer samples locally in Konva and commits one
+  normalized `freehand` node when the stroke ends, so one stroke is one undo
+  history entry.
 - Palette definitions form the node registry: they provide category, label,
   icon, tooltip and default size. The visual registry supplies semantic canvas
   appearance. Specialized render paths are selected from those registry
@@ -27,6 +33,9 @@ API.
   repository restores them. Autosave is debounced, while drag and resize each
   generate a single document commit. JSON, SVG, Draw.io, PDF and interactive
   HTML export paths consume the same document.
+- Schema v3 makes the problem association optional and adds typed freehand
+  payloads. Schema-v1 and schema-v2 problem documents migrate automatically;
+  the local repository rewrites migrated problem documents in place.
 - Clipboard fragments clone selected nodes, internal edges and nested module
   diagrams. Paste allocates fresh node, edge and diagram IDs. Keyboard handlers
   ignore inputs, textareas, selects, contenteditable elements and ARIA

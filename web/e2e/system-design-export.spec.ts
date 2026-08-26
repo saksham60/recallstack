@@ -342,6 +342,59 @@ function createDocument(): SystemDesignDocument {
 }
 
 test.describe("interactive system-design HTML export", () => {
+  test("creates a problem-neutral diagram-only viewer with freehand ink", async ({
+    page,
+  }) => {
+    const document = createDocument();
+    document.diagrams.root.nodes.push({
+      id: "ink-stroke",
+      type: "freehand",
+      x: 120,
+      y: 260,
+      width: 90,
+      height: 48,
+      label: "Freehand drawing",
+      layer: 5,
+      locked: false,
+      visible: true,
+      drawing: {
+        points: [3, 30, 18, 8, 45, 22, 87, 4],
+        stroke: "#22d3ee",
+        strokeWidth: 4,
+        opacity: 0.8,
+      },
+    });
+    const exported = prepareInteractiveSystemDesignHtml(document, {
+      mode: "diagram-only",
+    });
+
+    expect(exported.filename).toBe("url-shortener-system-design.html");
+    expect(exported.html).toContain('data-export-mode="diagram-only"');
+    expect(exported.html).not.toContain(problem.summary);
+    expect(exported.html).not.toContain(problem.requirements[0]);
+    expect(exported.html).not.toMatch(
+      /<(?:script|link|img)[^>]+(?:src|href)=["']https?:/i,
+    );
+    const embedded = exported.html.match(
+      /<script type="application\/json" id="system-design-data">([\s\S]*?)<\/script>/,
+    );
+    const payload = JSON.parse(embedded?.[1] ?? "{}") as {
+      mode?: string;
+      problem?: unknown;
+    };
+    expect(payload.mode).toBe("diagram-only");
+    expect(payload).not.toHaveProperty("problem");
+
+    await page.setContent(exported.html, { waitUntil: "load" });
+    await expect(page.locator(".topbar, .inspector")).toHaveCount(0);
+    await expect(
+      page.locator('.node[data-id="ink-stroke"] polyline[data-freehand="true"]'),
+    ).toBeVisible();
+    await expect(page.locator('.edge[data-animation="moving_dash"]')).toBeVisible();
+    await page.locator('.node[data-id="analytics"]').dblclick();
+    await expect(page.locator('.node[data-id="reporting"]')).toBeVisible();
+  });
+
   test("embeds the complete current-schema document safely without dependencies", () => {
     const exported = prepareInteractiveSystemDesignHtml(
       createDocument(),

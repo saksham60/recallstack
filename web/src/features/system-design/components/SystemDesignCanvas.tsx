@@ -129,6 +129,7 @@ interface SystemDesignCanvasProps {
   onMoveNodes: (changes: NodePositionChange[]) => void;
   onResizeNode: (change: NodeFrameChange) => void;
   onAddEdge: (edge: SystemDesignEdge) => void;
+  onAddFreehand?: (points: readonly { x: number; y: number }[]) => void;
   onViewportChange: (viewport: SystemDesignViewport) => void;
   onDropNodeType: (
     nodeType: string,
@@ -204,6 +205,7 @@ export const SystemDesignCanvas = forwardRef<
     onMoveNodes,
     onResizeNode,
     onAddEdge,
+    onAddFreehand,
     onViewportChange,
     onDropNodeType,
     onOpenModule,
@@ -223,6 +225,7 @@ export const SystemDesignCanvas = forwardRef<
   const verticalGuideRef = useRef<Konva.Line>(null);
   const horizontalGuideRef = useRef<Konva.Line>(null);
   const marqueeRef = useRef<Konva.Rect>(null);
+  const draftStrokeLineRef = useRef<Konva.Line>(null);
   const alignmentFrameRef = useRef<number | null>(null);
   const wheelCommitTimerRef = useRef<number | null>(null);
   const animationFrameRef = useRef<number | null>(null);
@@ -247,6 +250,10 @@ export const SystemDesignCanvas = forwardRef<
   );
   const connectionArrowRef = useRef<Konva.Arrow>(null);
   const dragSnapshot = useRef(new Map<string, { x: number; y: number }>());
+  const draftStrokeRef = useRef<Array<{ x: number; y: number }> | null>(null);
+  const lastPinchDistanceRef = useRef<number | null>(null);
+  const lastPinchCenterRef = useRef<{ x: number; y: number } | null>(null);
+  const pendingTouchViewportRef = useRef<SystemDesignViewport | null>(null);
   const [connection, setConnection] = useState<ConnectionDraft | null>(null);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [editingLabel, setEditingLabel] = useState("");
@@ -293,7 +300,7 @@ export const SystemDesignCanvas = forwardRef<
     container.style.cursor =
       preview || activeTool === "pan" || spacePanning
         ? "grab"
-        : activeTool === "connect"
+        : activeTool === "connect" || activeTool === "draw"
           ? "crosshair"
           : "default";
   }, [activeTool, preview, spacePanning]);
@@ -307,7 +314,8 @@ export const SystemDesignCanvas = forwardRef<
       if (stage && !stage.isDragging()) {
         stage.draggable(preview || activeTool === "pan");
       }
-      const elementListening = preview || activeTool !== "pan";
+      const elementListening =
+        preview || (activeTool !== "pan" && activeTool !== "draw");
       boundaryLayerRef.current?.listening(elementListening);
       edgesLayerRef.current?.listening(elementListening);
       nodesLayerRef.current?.listening(elementListening);
@@ -669,7 +677,12 @@ export const SystemDesignCanvas = forwardRef<
     }
     const selected = nodeMap.get(selectedNodeIds[0]);
     const selectedRef = nodeRefs.current.get(selectedNodeIds[0]);
-    if (!selected || !selectedRef || selected.locked) {
+    if (
+      !selected ||
+      !selectedRef ||
+      selected.locked ||
+      selected.type === "freehand"
+    ) {
       transformer.nodes([]);
     } else {
       transformer.nodes([selectedRef]);
@@ -801,6 +814,96 @@ export const SystemDesignCanvas = forwardRef<
     marqueeRef.current?.visible(false);
     interactionLayerRef.current?.batchDraw();
   }, [activeTool]);
+
+  const cancelDraftStroke = useCallback(() => {
+    draftStrokeRef.current = null;
+    draftStrokeLineRef.current?.points([]);
+    draftStrokeLineRef.current?.visible(false);
+    interactionLayerRef.current?.batchDraw();
+  }, []);
+
+  useEffect(() => {
+    if (activeTool !== "draw" || preview) cancelDraftStroke();
+  }, [activeTool, cancelDraftStroke, preview]);
+
+  const beginFreehandStroke = useCallback(
+    (event: Konva.KonvaEventObject<PointerEvent>) => {
+      if (
+        preview ||
+        activeTool !== "draw" ||
+        spacePanningRef.current ||
+        event.evt.pointerType === "touch" ||
+        (event.evt.pointerType === "mouse" && event.evt.button !== 0)
+      ) {
+        return;
+      }
+      const stage = event.target.getStage();
+      const pointer = stage?.getPointerPosition();
+      if (!stage || !pointer) return;
+      event.cancelBubble = true;
+      stage.draggable(false);
+      onClearSelection();
+      const point = worldPoint(pointer, {
+        x: stage.x(),
+        y: stage.y(),
+        zoom: stage.scaleX(),
+      });
+      draftStrokeRef.current = [point];
+      draftStrokeLineRef.current?.points([point.x, point.y]);
+      draftStrokeLineRef.current?.visible(true);
+      interactionLayerRef.current?.batchDraw();
+    },
+    [activeTool, onClearSelection, preview],
+  );
+
+  const updateFreehandStroke = useCallback(
+    (event: Konva.KonvaEventObject<PointerEvent>) => {
+      const points = draftStrokeRef.current;
+      if (!points || event.evt.pointerType === "touch") return;
+      const stage = event.target.getStage();
+      const pointer = stage?.getPointerPosition();
+      if (!stage || !pointer) return;
+      const point = worldPoint(pointer, {
+        x: stage.x(),
+        y: stage.y(),
+        zoom: stage.scaleX(),
+      });
+      const previous = points.at(-1);
+      if (
+        previous &&
+        Math.hypot(point.x - previous.x, point.y - previous.y) *
+          stage.scaleX() <
+          1.5
+      ) {
+        return;
+      }
+      points.push(point);
+      draftStrokeLineRef.current?.points(
+        points.flatMap((entry) => [entry.x, entry.y]),
+      );
+      interactionLayerRef.current?.batchDraw();
+    },
+    [],
+  );
+
+  const finishFreehandStroke = useCallback(() => {
+    const points = draftStrokeRef.current;
+    if (!points) return;
+    cancelDraftStroke();
+    if (points.length >= 2) onAddFreehand?.(points);
+  }, [cancelDraftStroke, onAddFreehand]);
+
+  useEffect(() => {
+    const finish = () => finishFreehandStroke();
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", finish);
+    window.addEventListener("blur", finish);
+    return () => {
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", finish);
+      window.removeEventListener("blur", finish);
+    };
+  }, [finishFreehandStroke]);
 
   const hideAlignmentGuides = useCallback(() => {
     verticalGuideRef.current?.visible(false);
@@ -1295,9 +1398,11 @@ export const SystemDesignCanvas = forwardRef<
       data-space-panning={spacePanning ? "true" : "false"}
       data-viewport-x={viewport.x}
       data-viewport-y={viewport.y}
+      data-viewport-zoom={viewport.zoom}
       role="application"
       aria-label="System design diagram canvas"
       tabIndex={0}
+      style={{ touchAction: "none" }}
       onPointerEnter={() => {
         pointerOverCanvasRef.current = true;
       }}
@@ -1351,6 +1456,10 @@ export const SystemDesignCanvas = forwardRef<
           scaleY={viewport.zoom}
           draggable={preview || activeTool === "pan" || spacePanning}
           onWheel={handleWheel}
+          onPointerDown={beginFreehandStroke}
+          onPointerMove={updateFreehandStroke}
+          onPointerUp={finishFreehandStroke}
+          onPointerCancel={finishFreehandStroke}
           onDragStart={(event) => {
             if (event.target !== event.target.getStage()) return;
             const container = stageRef.current?.container();
@@ -1383,8 +1492,25 @@ export const SystemDesignCanvas = forwardRef<
             const stage = event.target.getStage();
             if (!stage) return;
             const isEmptyCanvas = event.target === stage;
+            const touches = event.evt.touches;
+            if (touches.length >= 2) {
+              stage.stopDrag();
+              stage.draggable(false);
+              const bounds = stage.container().getBoundingClientRect();
+              const first = touches[0];
+              const second = touches[1];
+              lastPinchDistanceRef.current = Math.hypot(
+                second.clientX - first.clientX,
+                second.clientY - first.clientY,
+              );
+              lastPinchCenterRef.current = {
+                x: (first.clientX + second.clientX) / 2 - bounds.left,
+                y: (first.clientY + second.clientY) / 2 - bounds.top,
+              };
+              return;
+            }
             stage.draggable(
-              (preview || activeTool === "pan") &&
+              (preview || activeTool === "pan" || activeTool === "draw") &&
                 isEmptyCanvas &&
                 !connection,
             );
@@ -1399,7 +1525,53 @@ export const SystemDesignCanvas = forwardRef<
             updateConnectionPointer(pointer);
           }}
           onTouchMove={(event) => {
-            const pointer = event.target.getStage()?.getPointerPosition();
+            const stage = event.target.getStage();
+            if (!stage) return;
+            const touches = event.evt.touches;
+            if (
+              touches.length >= 2 &&
+              lastPinchDistanceRef.current !== null &&
+              lastPinchCenterRef.current
+            ) {
+              event.evt.preventDefault();
+              const bounds = stage.container().getBoundingClientRect();
+              const first = touches[0];
+              const second = touches[1];
+              const distance = Math.hypot(
+                second.clientX - first.clientX,
+                second.clientY - first.clientY,
+              );
+              const center = {
+                x: (first.clientX + second.clientX) / 2 - bounds.left,
+                y: (first.clientY + second.clientY) / 2 - bounds.top,
+              };
+              const currentViewport = {
+                x: stage.x(),
+                y: stage.y(),
+                zoom: stage.scaleX(),
+              };
+              const anchoredWorldPoint = worldPoint(
+                lastPinchCenterRef.current,
+                currentViewport,
+              );
+              const zoom = clampZoom(
+                currentViewport.zoom *
+                  (distance / lastPinchDistanceRef.current),
+              );
+              const nextViewport = {
+                x: center.x - anchoredWorldPoint.x * zoom,
+                y: center.y - anchoredWorldPoint.y * zoom,
+                zoom,
+              };
+              stage.position({ x: nextViewport.x, y: nextViewport.y });
+              stage.scale({ x: zoom, y: zoom });
+              stage.batchDraw();
+              pendingTouchViewportRef.current = nextViewport;
+              lastPinchDistanceRef.current = distance;
+              lastPinchCenterRef.current = center;
+              return;
+            }
+            const pointer = stage.getPointerPosition();
             if (!pointer) return;
             updateConnectionPointer(pointer);
           }}
@@ -1412,9 +1584,15 @@ export const SystemDesignCanvas = forwardRef<
             if (connectionRef.current) clearConnection();
           }}
           onTouchEnd={(event) => {
-            event.target
-              .getStage()
-              ?.draggable(preview || activeTool === "pan");
+            const stage = event.target.getStage();
+            lastPinchDistanceRef.current = null;
+            lastPinchCenterRef.current = null;
+            const pendingTouchViewport = pendingTouchViewportRef.current;
+            pendingTouchViewportRef.current = null;
+            if (pendingTouchViewport) setViewport(pendingTouchViewport);
+            stage?.draggable(
+              preview || activeTool === "pan" || activeTool === "draw",
+            );
             if (connectionRef.current) clearConnection();
           }}
           onDragEnd={(event) => {
@@ -1424,7 +1602,7 @@ export const SystemDesignCanvas = forwardRef<
               container.style.cursor =
                 preview || activeTool === "pan" || spacePanningRef.current
                   ? "grab"
-                  : activeTool === "connect"
+                  : activeTool === "connect" || activeTool === "draw"
                     ? "crosshair"
                     : "default";
             }
@@ -1452,7 +1630,8 @@ export const SystemDesignCanvas = forwardRef<
           <Layer
             ref={boundaryLayerRef}
             listening={
-              !spacePanning && (preview || activeTool !== "pan")
+              !spacePanning &&
+              (preview || (activeTool !== "pan" && activeTool !== "draw"))
             }
           >
             {boundaryNodes.map((node) => (
@@ -1464,7 +1643,8 @@ export const SystemDesignCanvas = forwardRef<
                   !preview &&
                   selectedNodeIds.length === 1 &&
                   selectedNodeIds[0] === node.id &&
-                  !node.locked
+                  !node.locked &&
+                  node.type !== "freehand"
                 }
                 connecting={
                   !spacePanning &&
@@ -1491,7 +1671,8 @@ export const SystemDesignCanvas = forwardRef<
           <Layer
             ref={edgesLayerRef}
             listening={
-              !spacePanning && (preview || activeTool !== "pan")
+              !spacePanning &&
+              (preview || (activeTool !== "pan" && activeTool !== "draw"))
             }
           >
             {diagram.edges.map((edge) => {
@@ -1517,7 +1698,8 @@ export const SystemDesignCanvas = forwardRef<
           <Layer
             ref={nodesLayerRef}
             listening={
-              !spacePanning && (preview || activeTool !== "pan")
+              !spacePanning &&
+              (preview || (activeTool !== "pan" && activeTool !== "draw"))
             }
           >
             {foregroundNodes.map((node) => (
@@ -1529,7 +1711,8 @@ export const SystemDesignCanvas = forwardRef<
                   !preview &&
                   selectedNodeIds.length === 1 &&
                   selectedNodeIds[0] === node.id &&
-                  !node.locked
+                  !node.locked &&
+                  node.type !== "freehand"
                 }
                 connecting={
                   !spacePanning &&
@@ -1573,6 +1756,19 @@ export const SystemDesignCanvas = forwardRef<
                 listening={false}
               />
             )}
+            <Line
+              ref={draftStrokeLineRef}
+              visible={false}
+              points={[]}
+              stroke={theme.foreground}
+              strokeWidth={3}
+              opacity={1}
+              lineCap="round"
+              lineJoin="round"
+              tension={0.35}
+              listening={false}
+              perfectDrawEnabled={false}
+            />
             <Line
               ref={verticalGuideRef}
               visible={false}

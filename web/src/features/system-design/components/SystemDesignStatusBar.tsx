@@ -13,6 +13,7 @@ export interface SystemDesignStatusBarProps {
   saveState: SystemDesignSaveState;
   lastSavedAt?: string | null;
   saveError?: string | null;
+  isPersistent?: boolean;
   className?: string;
 }
 
@@ -62,9 +63,16 @@ export function SystemDesignStatusBar({
   saveState,
   lastSavedAt,
   saveError,
+  isPersistent = true,
   className = "",
 }: SystemDesignStatusBarProps) {
-  const presentation = saveStatePresentation[saveState];
+  const presentation = isPersistent
+    ? saveStatePresentation[saveState]
+    : {
+        label: "In-memory canvas",
+        className: "text-muted",
+        Icon: Cloud,
+      };
   const SaveIcon = presentation.Icon;
 
   return (
@@ -103,7 +111,7 @@ export function SystemDesignStatusBar({
         >
           <SaveIcon className={saveState === "saving" ? "h-3.5 w-3.5 animate-pulse" : "h-3.5 w-3.5"} />
           <span className="font-medium">{presentation.label}</span>
-          {lastSavedAt && (
+          {isPersistent && lastSavedAt && (
             <span className="text-muted">
               Last saved {formatSavedAt(lastSavedAt)}
             </span>
