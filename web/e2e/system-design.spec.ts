@@ -619,13 +619,29 @@ test.describe("Standalone System Design Canvas", () => {
     await expect(page.getByLabel("Y", { exact: true })).toHaveValue(
       String(expectedY),
     );
+    await expect(page.getByText("Freehand stroke", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("Freehand stroke color")).toBeVisible();
+    await expect(page.getByLabel("Freehand thickness")).toHaveValue("3");
+    await expect(page.getByLabel("Freehand opacity")).toHaveValue("1");
+    await expect(page.getByLabel("Freehand animation mode")).toHaveValue(
+      "moving_dash",
+    );
+    await page.getByLabel("Freehand line style").selectOption("dotted");
+    await expect(page.getByLabel("Freehand line style")).toHaveValue("dotted");
 
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expectEditorCounts(page, {
+      nodes: 1,
+      connections: 0,
+      selected: 0,
+    });
     await page.getByRole("button", { name: "Undo" }).click();
     await expectEditorCounts(page, {
       nodes: 0,
       connections: 0,
       selected: 0,
     });
+    await page.getByRole("button", { name: "Redo" }).click();
     await page.getByRole("button", { name: "Redo" }).click();
     await expectEditorCounts(page, {
       nodes: 1,

@@ -20,6 +20,7 @@ import {
   isSystemDesignBoundaryNodeType,
   isSystemDesignModuleNodeType,
 } from "../constants/system-design-palette";
+import { getSystemDesignLineDash } from "../constants/system-design-edge-registry";
 import type {
   SystemDesignNode,
   SystemDesignPort,
@@ -976,6 +977,25 @@ function SystemDesignNodeRendererComponent({
   const lineHeight = clampFinite(node.textStyle?.lineHeight, 0.8, 3, 1.3);
   const textPadding = clampFinite(node.textStyle?.padding, 0, 64, 8);
   const nodeOpacity = clampFinite(node.style?.opacity, 0, 1, 1);
+  const freehandDash = node.drawing
+    ? getSystemDesignLineDash(
+        node.drawing.lineStyle ?? "solid",
+        node.drawing.strokeWidth,
+        node.drawing.dashPattern,
+      )
+    : undefined;
+  const freehandAnimationMode =
+    node.drawing?.animationMode ?? "moving_dash";
+  const freehandMotionDash = node.drawing
+    ? freehandAnimationMode === "moving_dots"
+      ? [1, 11]
+      : freehandAnimationMode === "moving_dash"
+        ? freehandDash ?? [
+            node.drawing.strokeWidth * 5,
+            node.drawing.strokeWidth * 3,
+          ]
+        : undefined
+    : undefined;
   const fontStyle = getKonvaFontStyle(node);
   const semanticLabelFontStyle =
     node.textStyle?.fontWeight || node.textStyle?.fontStyle
@@ -1158,28 +1178,31 @@ function SystemDesignNodeRendererComponent({
             stroke={node.drawing.stroke}
             strokeWidth={node.drawing.strokeWidth}
             opacity={node.drawing.opacity ?? 1}
+            dash={freehandDash}
             lineCap="round"
             lineJoin="round"
             tension={0.35}
             listening={false}
             perfectDrawEnabled={false}
           />
-          <Line
-            name="system-design-freehand-motion"
-            points={node.drawing.points}
-            stroke={node.drawing.stroke}
-            strokeWidth={node.drawing.strokeWidth + 1}
-            opacity={0.85 * (node.drawing.opacity ?? 1)}
-            dash={[
-              node.drawing.strokeWidth * 5,
-              node.drawing.strokeWidth * 3,
-            ]}
-            lineCap="round"
-            lineJoin="round"
-            tension={0.35}
-            listening={false}
-            perfectDrawEnabled={false}
-          />
+          {freehandAnimationMode !== "none" && (
+            <Line
+              name="system-design-freehand-motion"
+              points={node.drawing.points}
+              stroke={node.drawing.stroke}
+              strokeWidth={node.drawing.strokeWidth + 1}
+              opacity={
+                (freehandAnimationMode === "flow_pulse" ? 0.3 : 0.85) *
+                (node.drawing.opacity ?? 1)
+              }
+              dash={freehandMotionDash}
+              lineCap="round"
+              lineJoin="round"
+              tension={0.35}
+              listening={false}
+              perfectDrawEnabled={false}
+            />
+          )}
         </>
       )}
 

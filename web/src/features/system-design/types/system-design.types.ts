@@ -222,6 +222,11 @@ export interface SystemDesignFreehandData {
   stroke: string;
   strokeWidth: number;
   opacity?: number;
+  lineStyle?: SystemDesignEdgeLineStyle;
+  dashPattern?: number[];
+  animationMode?: Exclude<SystemDesignEdgeAnimationMode, "direction_pulse">;
+  animationSpeed?: number;
+  animationDirection?: SystemDesignEdgeAnimationDirection;
 }
 
 export interface SystemDesignNode {

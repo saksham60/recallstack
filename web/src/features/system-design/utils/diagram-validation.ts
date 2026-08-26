@@ -221,6 +221,63 @@ function validateFreehandData(
     });
   }
   if (
+    value.lineStyle !== undefined &&
+    (typeof value.lineStyle !== "string" ||
+      !EDGE_LINE_STYLE_SET.has(value.lineStyle))
+  ) {
+    issues.push({
+      path: `${path}.lineStyle`,
+      message: "Unsupported freehand line style.",
+    });
+  }
+  if (
+    value.dashPattern !== undefined &&
+    (!Array.isArray(value.dashPattern) ||
+      value.dashPattern.length < 2 ||
+      value.dashPattern.length > 12 ||
+      value.dashPattern.some(
+        (entry) => !isFiniteNumber(entry) || entry <= 0 || entry > 100,
+      ))
+  ) {
+    issues.push({
+      path: `${path}.dashPattern`,
+      message:
+        "Dash patterns require 2 to 12 positive values no greater than 100.",
+    });
+  }
+  if (
+    value.animationMode !== undefined &&
+    (typeof value.animationMode !== "string" ||
+      !EDGE_ANIMATION_MODE_SET.has(value.animationMode) ||
+      value.animationMode === "direction_pulse")
+  ) {
+    issues.push({
+      path: `${path}.animationMode`,
+      message: "Unsupported freehand animation mode.",
+    });
+  }
+  if (
+    value.animationSpeed !== undefined &&
+    (!isFiniteNumber(value.animationSpeed) ||
+      value.animationSpeed < 0.1 ||
+      value.animationSpeed > 5)
+  ) {
+    issues.push({
+      path: `${path}.animationSpeed`,
+      message: "Animation speed must be between 0.1 and 5.",
+    });
+  }
+  if (
+    value.animationDirection !== undefined &&
+    (typeof value.animationDirection !== "string" ||
+      !EDGE_ANIMATION_DIRECTION_SET.has(value.animationDirection))
+  ) {
+    issues.push({
+      path: `${path}.animationDirection`,
+      message: "Unsupported freehand animation direction.",
+    });
+  }
+  if (
     !Array.isArray(points) ||
     typeof value.stroke !== "string" ||
     typeof value.strokeWidth !== "number"
@@ -232,6 +289,29 @@ function validateFreehandData(
     stroke: value.stroke,
     strokeWidth: value.strokeWidth,
     ...(typeof value.opacity === "number" ? { opacity: value.opacity } : {}),
+    ...(typeof value.lineStyle === "string"
+      ? { lineStyle: value.lineStyle as SystemDesignEdgeLineStyle }
+      : {}),
+    ...(Array.isArray(value.dashPattern)
+      ? { dashPattern: value.dashPattern as number[] }
+      : {}),
+    ...(typeof value.animationMode === "string"
+      ? {
+          animationMode: value.animationMode as Exclude<
+            SystemDesignEdgeAnimationMode,
+            "direction_pulse"
+          >,
+        }
+      : {}),
+    ...(typeof value.animationSpeed === "number"
+      ? { animationSpeed: value.animationSpeed }
+      : {}),
+    ...(typeof value.animationDirection === "string"
+      ? {
+          animationDirection:
+            value.animationDirection as SystemDesignEdgeAnimationDirection,
+        }
+      : {}),
   };
 }
 

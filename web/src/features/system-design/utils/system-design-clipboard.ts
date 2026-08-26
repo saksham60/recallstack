@@ -35,7 +35,13 @@ function cloneNode(node: SystemDesignNode): SystemDesignNode {
     technology: node.technology ? { ...node.technology } : undefined,
     asset: node.asset ? { ...node.asset } : undefined,
     drawing: node.drawing
-      ? { ...node.drawing, points: [...node.drawing.points] }
+      ? {
+          ...node.drawing,
+          points: [...node.drawing.points],
+          dashPattern: node.drawing.dashPattern
+            ? [...node.drawing.dashPattern]
+            : undefined,
+        }
       : undefined,
     metadata: node.metadata ? { ...node.metadata } : undefined,
   };

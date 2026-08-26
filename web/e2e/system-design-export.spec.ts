@@ -362,6 +362,10 @@ test.describe("interactive system-design HTML export", () => {
         stroke: "#22d3ee",
         strokeWidth: 4,
         opacity: 0.8,
+        lineStyle: "dotted",
+        animationMode: "moving_dots",
+        animationSpeed: 1.5,
+        animationDirection: "reverse",
       },
     });
     const exported = prepareInteractiveSystemDesignHtml(document, {
@@ -394,6 +398,10 @@ test.describe("interactive system-design HTML export", () => {
       '.node[data-id="ink-stroke"] polyline.freehand-motion',
     );
     await expect(freehandMotion).toBeVisible();
+    await expect(freehandMotion).toHaveAttribute(
+      "data-motion-kind",
+      "moving_dots",
+    );
     await expect
       .poll(async () =>
         Number((await freehandMotion.getAttribute("stroke-dashoffset")) ?? 0),

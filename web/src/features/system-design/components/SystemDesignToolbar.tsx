@@ -1300,8 +1300,8 @@ export function SystemDesignToolbar({
         <ToolbarButton
           label={
             animationsEnabled
-              ? "Pause all connection animations"
-              : "Play configured connection animations"
+              ? "Pause all diagram animations"
+              : "Play configured diagram animations"
           }
           onClick={() => onToggleAnimations?.()}
           disabled={!onToggleAnimations}

@@ -56,6 +56,7 @@ export type SystemDesignNodePropertyPatch = Partial<
     | "technology"
     | "description"
     | "metadata"
+    | "drawing"
     | "style"
     | "textStyle"
     | "isExpandable"
@@ -127,6 +128,9 @@ const tabs: ReadonlyArray<{
 ];
 
 const ports = ["top", "right", "bottom", "left"] as const;
+const freehandAnimationModes = SYSTEM_DESIGN_EDGE_ANIMATION_MODES.filter(
+  (mode) => mode !== "direction_pulse",
+);
 
 function optionLabel(value: string): string {
   return value
@@ -377,7 +381,7 @@ function EmptyProperties({
   );
 }
 
-function NodeProperties({
+function StandardNodeProperties({
   node,
   onUpdate,
   internalComponentCount = 0,
@@ -991,6 +995,288 @@ function NodeProperties({
       </label>
     </div>
   );
+}
+
+function FreehandProperties({
+  node,
+  onUpdate,
+}: {
+  node: SystemDesignNode & { drawing: NonNullable<SystemDesignNode["drawing"]> };
+  onUpdate: (patch: SystemDesignNodePropertyPatch) => void;
+}) {
+  const drawing = node.drawing;
+  const lineStyle = drawing.lineStyle ?? "solid";
+  const animationMode = drawing.animationMode ?? "moving_dash";
+  const animationSpeed = drawing.animationSpeed ?? 1;
+  const animationDirection = drawing.animationDirection ?? "forward";
+  const updateDrawing = (
+    patch: Partial<NonNullable<SystemDesignNode["drawing"]>>,
+  ) => onUpdate({ drawing: { ...drawing, ...patch } });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 rounded-md border border-border bg-background/50 p-2.5">
+        <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-accent/15 text-accent">
+          <SystemDesignNodeIcon type="freehand" className="h-4 w-4" />
+        </span>
+        <div>
+          <p className="text-xs font-semibold text-foreground">
+            Freehand stroke
+          </p>
+          <p className="text-[10px] uppercase tracking-wide text-muted">
+            Drawing annotation
+          </p>
+        </div>
+      </div>
+
+      <fieldset className="space-y-3 rounded-md border border-border bg-background/40 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <legend className="text-[11px] font-medium text-muted">
+            Stroke appearance
+          </legend>
+          <button
+            type="button"
+            className="text-[10px] font-medium text-accent hover:underline"
+            onClick={() =>
+              updateDrawing({
+                stroke: "#fafafa",
+                strokeWidth: 3,
+                opacity: 1,
+                lineStyle: "solid",
+                dashPattern: undefined,
+              })
+            }
+          >
+            Reset
+          </button>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <FieldLabel label="Color">
+            <input
+              aria-label="Freehand stroke color"
+              className="h-9 w-full cursor-pointer rounded-md border border-border bg-background p-1"
+              type="color"
+              value={drawing.stroke}
+              onChange={(event) =>
+                updateDrawing({ stroke: event.target.value })
+              }
+            />
+          </FieldLabel>
+          <FieldLabel label="Thickness">
+            <input
+              aria-label="Freehand thickness"
+              className={inputClass}
+              type="number"
+              min={1}
+              max={32}
+              step={0.5}
+              value={drawing.strokeWidth}
+              onChange={(event) => {
+                const strokeWidth = Number(event.target.value);
+                if (Number.isFinite(strokeWidth)) {
+                  updateDrawing({
+                    strokeWidth: Math.min(32, Math.max(1, strokeWidth)),
+                  });
+                }
+              }}
+            />
+          </FieldLabel>
+        </div>
+        <FieldLabel
+          label={`Opacity ${Math.round((drawing.opacity ?? 1) * 100)}%`}
+        >
+          <input
+            aria-label="Freehand opacity"
+            className="h-9 w-full accent-[var(--accent)]"
+            type="range"
+            min={0.1}
+            max={1}
+            step={0.05}
+            value={drawing.opacity ?? 1}
+            onChange={(event) =>
+              updateDrawing({ opacity: Number(event.target.value) })
+            }
+          />
+        </FieldLabel>
+        <FieldLabel label="Line style">
+          <select
+            aria-label="Freehand line style"
+            className={inputClass}
+            value={lineStyle}
+            onChange={(event) =>
+              updateDrawing({
+                lineStyle: event.target.value as NonNullable<
+                  SystemDesignNode["drawing"]
+                >["lineStyle"],
+              })
+            }
+          >
+            {SYSTEM_DESIGN_EDGE_LINE_STYLES.map((style) => (
+              <option key={style} value={style}>
+                {optionLabel(style)}
+              </option>
+            ))}
+          </select>
+        </FieldLabel>
+        <FieldLabel label="Custom dash pattern">
+          <BufferedTextField
+            value={drawing.dashPattern?.join(", ") ?? ""}
+            placeholder="Optional, e.g. 10, 6, 2, 6"
+            onCommit={(value) => {
+              const dashPattern = value
+                .split(",")
+                .map((part) => Number(part.trim()))
+                .filter((part) => Number.isFinite(part) && part > 0);
+              updateDrawing({
+                dashPattern:
+                  dashPattern.length >= 2 ? dashPattern : undefined,
+              });
+            }}
+          />
+        </FieldLabel>
+      </fieldset>
+
+      <fieldset className="space-y-3 rounded-md border border-border bg-background/40 p-3">
+        <legend className="px-1 text-[11px] font-medium text-muted">
+          Animation
+        </legend>
+        <FieldLabel label="Animation mode">
+          <select
+            aria-label="Freehand animation mode"
+            className={inputClass}
+            value={animationMode}
+            onChange={(event) =>
+              updateDrawing({
+                animationMode: event.target.value as NonNullable<
+                  SystemDesignNode["drawing"]
+                >["animationMode"],
+              })
+            }
+          >
+            {freehandAnimationModes.map((mode) => (
+              <option key={mode} value={mode}>
+                {optionLabel(mode)}
+              </option>
+            ))}
+          </select>
+        </FieldLabel>
+        {animationMode !== "none" && (
+          <div className="grid grid-cols-2 gap-2">
+            <FieldLabel label="Speed">
+              <input
+                aria-label="Freehand animation speed"
+                className={inputClass}
+                type="number"
+                min={0.1}
+                max={5}
+                step={0.1}
+                value={animationSpeed}
+                onChange={(event) => {
+                  const speed = Number(event.target.value);
+                  if (Number.isFinite(speed)) {
+                    updateDrawing({
+                      animationSpeed: Math.min(5, Math.max(0.1, speed)),
+                    });
+                  }
+                }}
+              />
+            </FieldLabel>
+            <FieldLabel label="Direction">
+              <select
+                aria-label="Freehand animation direction"
+                className={inputClass}
+                value={animationDirection}
+                onChange={(event) =>
+                  updateDrawing({
+                    animationDirection: event.target.value as NonNullable<
+                      SystemDesignNode["drawing"]
+                    >["animationDirection"],
+                  })
+                }
+              >
+                {SYSTEM_DESIGN_EDGE_ANIMATION_DIRECTIONS.map((direction) => (
+                  <option key={direction} value={direction}>
+                    {optionLabel(direction)}
+                  </option>
+                ))}
+              </select>
+            </FieldLabel>
+          </div>
+        )}
+      </fieldset>
+
+      <fieldset className="space-y-2">
+        <legend className="text-[11px] font-medium text-muted">Geometry</legend>
+        <div className="grid grid-cols-2 gap-2">
+          <FieldLabel label="X">
+            <input
+              aria-label="X"
+              className={inputClass}
+              type="number"
+              step={10}
+              disabled={node.locked}
+              value={Math.round(node.x)}
+              onChange={(event) => {
+                const x = Number(event.target.value);
+                if (Number.isFinite(x)) onUpdate({ x });
+              }}
+            />
+          </FieldLabel>
+          <FieldLabel label="Y">
+            <input
+              aria-label="Y"
+              className={inputClass}
+              type="number"
+              step={10}
+              disabled={node.locked}
+              value={Math.round(node.y)}
+              onChange={(event) => {
+                const y = Number(event.target.value);
+                if (Number.isFinite(y)) onUpdate({ y });
+              }}
+            />
+          </FieldLabel>
+        </div>
+      </fieldset>
+
+      <label className="flex cursor-pointer items-center justify-between rounded-md border border-border bg-background/50 px-3 py-2">
+        <span className="text-xs font-medium text-foreground">
+          Visible on canvas
+        </span>
+        <input
+          type="checkbox"
+          className="h-4 w-4 accent-[var(--accent)]"
+          checked={node.visible !== false}
+          onChange={(event) => onUpdate({ visible: event.target.checked })}
+        />
+      </label>
+      <label className="flex cursor-pointer items-center justify-between rounded-md border border-border bg-background/50 px-3 py-2">
+        <span className="text-xs font-medium text-foreground">Lock stroke</span>
+        <input
+          type="checkbox"
+          className="h-4 w-4 accent-[var(--accent)]"
+          checked={node.locked}
+          onChange={(event) => onUpdate({ locked: event.target.checked })}
+        />
+      </label>
+    </div>
+  );
+}
+
+function NodeProperties(
+  props: Parameters<typeof StandardNodeProperties>[0],
+) {
+  if (props.node.type === "freehand" && props.node.drawing) {
+    return (
+      <FreehandProperties
+        node={props.node as SystemDesignNode & {
+          drawing: NonNullable<SystemDesignNode["drawing"]>;
+        }}
+        onUpdate={props.onUpdate}
+      />
+    );
+  }
+  return <StandardNodeProperties {...props} />;
 }
 
 function EdgeProperties({

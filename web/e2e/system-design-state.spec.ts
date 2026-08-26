@@ -1352,6 +1352,13 @@ test.describe("system-design import and validation", () => {
       { stroke: "#22d3ee", strokeWidth: 4, opacity: 0.75 },
     );
     expect(stroke).not.toBeNull();
+    Object.assign(stroke!.drawing!, {
+      lineStyle: "dash_dot",
+      dashPattern: [10, 5, 2, 5],
+      animationMode: "moving_dots",
+      animationSpeed: 1.75,
+      animationDirection: "reverse",
+    } satisfies Partial<NonNullable<SystemDesignNode["drawing"]>>);
     document.diagrams[document.rootDiagramId].nodes.push(stroke!);
 
     const parsed = parseSystemDesignDocumentJson(

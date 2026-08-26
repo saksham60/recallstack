@@ -184,7 +184,13 @@ export function createSystemDesignNode(
     visible: overrides.visible ?? true,
     asset: overrides.asset ? { ...overrides.asset } : undefined,
     drawing: overrides.drawing
-      ? { ...overrides.drawing, points: [...overrides.drawing.points] }
+      ? {
+          ...overrides.drawing,
+          points: [...overrides.drawing.points],
+          dashPattern: overrides.drawing.dashPattern
+            ? [...overrides.drawing.dashPattern]
+            : undefined,
+        }
       : undefined,
     style: overrides.style ? { ...overrides.style } : undefined,
     textStyle: overrides.textStyle ? { ...overrides.textStyle } : undefined,
@@ -214,6 +220,10 @@ export function createSystemDesignFreehandNode(
     points: points.flatMap((point) => [point.x - left, point.y - top]),
     stroke: options.stroke ?? "#fafafa",
     strokeWidth,
+    lineStyle: "solid",
+    animationMode: "moving_dash",
+    animationSpeed: 1,
+    animationDirection: "forward",
     ...(options.opacity === undefined ? {} : { opacity: options.opacity }),
   };
   return createSystemDesignNode("freehand", { x: left, y: top }, {
@@ -301,7 +311,13 @@ export function cloneSystemDesignDiagram(
       technology: node.technology ? { ...node.technology } : undefined,
       asset: node.asset ? { ...node.asset } : undefined,
       drawing: node.drawing
-        ? { ...node.drawing, points: [...node.drawing.points] }
+        ? {
+            ...node.drawing,
+            points: [...node.drawing.points],
+            dashPattern: node.drawing.dashPattern
+              ? [...node.drawing.dashPattern]
+              : undefined,
+          }
         : undefined,
       style: node.style ? { ...node.style } : undefined,
       textStyle: node.textStyle ? { ...node.textStyle } : undefined,

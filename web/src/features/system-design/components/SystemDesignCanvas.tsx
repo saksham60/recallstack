@@ -431,24 +431,38 @@ export const SystemDesignCanvas = forwardRef<
       const animatedHandles = [...edgeRefs.current.values()].filter(
         (handle) => handle.isAnimated(),
       );
-      const animatedFreehandLines = diagram.nodes.flatMap((node) => {
-        if (node.type !== "freehand" || node.visible === false) return [];
+      const animatedFreehands = diagram.nodes.flatMap((node) => {
+        if (
+          node.type !== "freehand" ||
+          !node.drawing ||
+          node.visible === false ||
+          node.drawing.animationMode === "none"
+        ) {
+          return [];
+        }
         const line = nodeRefs.current
           .get(node.id)
           ?.findOne<Konva.Line>(".system-design-freehand-motion");
-        return line ? [line] : [];
+        return line ? [{ line, drawing: node.drawing }] : [];
       });
       const active =
         animationsEnabled &&
         !reducedMotion.matches &&
         document.visibilityState === "visible" &&
-        (animatedHandles.length > 0 || animatedFreehandLines.length > 0);
+        (animatedHandles.length > 0 || animatedFreehands.length > 0);
       edgeRefs.current.forEach((handle) =>
         handle.setAnimationActive(active && handle.isAnimated()),
       );
-      animatedFreehandLines.forEach((line) => {
+      animatedFreehands.forEach(({ line, drawing }) => {
         line.visible(active);
-        if (!active) line.dashOffset(0);
+        if (!active) {
+          line.dashOffset(0);
+          line.opacity(
+            (drawing.animationMode === "flow_pulse" ? 0.3 : 0.85) *
+              (drawing.opacity ?? 1),
+          );
+          line.strokeWidth(drawing.strokeWidth + 1);
+        }
       });
       edgesLayerRef.current?.batchDraw();
       nodesLayerRef.current?.batchDraw();
@@ -461,9 +475,18 @@ export const SystemDesignCanvas = forwardRef<
           animatedHandles.forEach((handle) =>
             handle.setAnimationFrame(elapsed),
           );
-          animatedFreehandLines.forEach((line) =>
-            line.dashOffset(-elapsed / 35),
-          );
+          animatedFreehands.forEach(({ line, drawing }) => {
+            const speed = drawing.animationSpeed ?? 1;
+            if (drawing.animationMode === "flow_pulse") {
+              const pulse = (Math.sin(elapsed * speed * 0.006) + 1) / 2;
+              line.opacity((0.15 + pulse * 0.6) * (drawing.opacity ?? 1));
+              line.strokeWidth(drawing.strokeWidth + pulse * 2);
+              return;
+            }
+            const direction =
+              drawing.animationDirection === "reverse" ? -1 : 1;
+            line.dashOffset(-((elapsed * speed) / 35) * direction);
+          });
           edgesLayerRef.current?.batchDraw();
           nodesLayerRef.current?.batchDraw();
         }
