@@ -1,0 +1,56 @@
+name: Realtime CI
+
+on:
+  pull_request:
+    paths:
+      - "realtime/**"
+      - ".github/workflows/realtime-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "realtime/**"
+      - ".github/workflows/realtime-ci.yml"
+
+concurrency:
+  group: realtime-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: realtime
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.0"
+          cache-dependency-path: realtime/go.sum
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Formatting
+        run: test -z "$(gofmt -l .)"
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Unit and integration tests
+        run: go test ./...
+
+      - name: Race detector
+        run: go test -race ./...
+
+      - name: Build server
+        run: go build ./cmd/server
+
+      - name: Build production image
+        run: docker build -t recallstack-realtime:ci .
