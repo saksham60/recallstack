@@ -47,6 +47,7 @@ import {
   Network,
   Pencil,
   Redo2,
+  Radio,
   RotateCcw,
   Save,
   StickyNote,
@@ -75,6 +76,7 @@ import type {
 } from "../types/system-design.types";
 import { SystemDesignShortcutHelp } from "./SystemDesignShortcutHelp";
 import type { SystemDesignSaveState } from "./SystemDesignStatusBar";
+import type { RealtimeConnectionStatus } from "../realtime/realtime-client";
 
 export type SystemDesignArrangeOperation =
   | "align-left"
@@ -103,6 +105,7 @@ export interface SystemDesignToolbarProps {
   zoom: number;
   canUndo: boolean;
   canRedo: boolean;
+  undoDisabledReason?: string;
   canSave: boolean;
   canMarkComplete: boolean;
   canExport?: boolean;
@@ -155,6 +158,8 @@ export interface SystemDesignToolbarProps {
     >,
   ) => void;
   onToggleAnimations?: () => void;
+  liveShareStatus?: RealtimeConnectionStatus;
+  onLiveShare?: () => void;
   className?: string;
 }
 
@@ -1034,6 +1039,7 @@ export function SystemDesignToolbar({
   zoom,
   canUndo,
   canRedo,
+  undoDisabledReason,
   canSave,
   canMarkComplete,
   canExport = true,
@@ -1072,6 +1078,8 @@ export function SystemDesignToolbar({
   onUpdateSelectedNodeText,
   onUpdateSelectedEdge,
   onToggleAnimations,
+  liveShareStatus = "idle",
+  onLiveShare,
   className = "",
 }: SystemDesignToolbarProps) {
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -1176,11 +1184,19 @@ export function SystemDesignToolbar({
       {!isPreviewMode && (
         <>
           <div className="flex items-center gap-1">
-            <ToolbarButton label="Undo" onClick={onUndo} disabled={!canUndo}>
+            <ToolbarButton
+              label={!canUndo && undoDisabledReason ? undoDisabledReason : "Undo"}
+              onClick={onUndo}
+              disabled={!canUndo}
+            >
               <Undo2 className="h-4 w-4" aria-hidden="true" />
               <span className="hidden 2xl:inline">Undo</span>
             </ToolbarButton>
-            <ToolbarButton label="Redo" onClick={onRedo} disabled={!canRedo}>
+            <ToolbarButton
+              label={!canRedo && undoDisabledReason ? undoDisabledReason : "Redo"}
+              onClick={onRedo}
+              disabled={!canRedo}
+            >
               <Redo2 className="h-4 w-4" aria-hidden="true" />
               <span className="hidden 2xl:inline">Redo</span>
             </ToolbarButton>
@@ -1297,6 +1313,46 @@ export function SystemDesignToolbar({
       )}
 
       <div className="ml-auto flex items-center gap-1">
+        {onLiveShare && (
+          <ToolbarButton
+            label={
+              liveShareStatus === "live"
+                ? "Open live session sharing"
+                : liveShareStatus === "starting"
+                  ? "Starting live session"
+                  : liveShareStatus === "connecting"
+                    ? "Connecting live session"
+                    : liveShareStatus === "reconnecting"
+                      ? "Reconnecting live session"
+                      : "Live Share"
+            }
+            onClick={onLiveShare}
+            emphasized={liveShareStatus === "live"}
+            pressed={liveShareStatus === "live"}
+          >
+            <Radio
+              className={`h-4 w-4 ${
+                liveShareStatus === "starting" ||
+                liveShareStatus === "connecting" ||
+                liveShareStatus === "reconnecting"
+                  ? "animate-pulse"
+                  : ""
+              }`}
+              aria-hidden="true"
+            />
+            <span className="hidden xl:inline">
+              {liveShareStatus === "live"
+                ? "Live"
+                : liveShareStatus === "starting"
+                  ? "Starting…"
+                  : liveShareStatus === "connecting"
+                    ? "Connecting…"
+                    : liveShareStatus === "reconnecting"
+                      ? "Reconnecting…"
+                      : "Live Share"}
+            </span>
+          </ToolbarButton>
+        )}
         <ToolbarButton
           label={
             animationsEnabled

@@ -24,6 +24,16 @@ import {
   createEmptyStandaloneSystemDesignDocument,
   createSystemDesignFreehandNode,
 } from "../src/features/system-design/utils/system-design-defaults";
+import {
+  applyCanvasOperation,
+  reconstructRoomDocument,
+} from "../src/features/system-design/realtime/apply-canvas-operation";
+import { parseCanvasOperation } from "../src/features/system-design/realtime/canvas-operation";
+import { RealtimeSequenceTracker } from "../src/features/system-design/realtime/realtime-client";
+import {
+  parseRealtimeServerMessage,
+  type RealtimeCommitMessage,
+} from "../src/features/system-design/realtime/realtime.types";
 
 const timestamp = (step: number) =>
   new Date(Date.UTC(2026, 6, 29, 0, 0, step)).toISOString();
@@ -1486,5 +1496,137 @@ test.describe("system-design import and validation", () => {
     expect(validationIssuePaths(duplicate)).toContain(
       "$.diagrams.diagram-url-shortener.edges[1]",
     );
+  });
+});
+
+test.describe("system-design realtime convergence", () => {
+  const committed = (
+    sequence: number,
+    opId: string,
+    payload: unknown,
+  ): RealtimeCommitMessage => ({
+    v: 1,
+    type: "op.commit",
+    actorId: "remote-actor",
+    opId,
+    sequence,
+    payload,
+  });
+
+  test("applies add, move, and delete through the existing reducer semantics", () => {
+    const first = createNode("node-live", 100, 120, "Live service");
+    let state = createSystemDesignEditorState(createDocument());
+
+    state = applyCanvasOperation(state, {
+      kind: "node.add",
+      diagramId: state.activeDiagramId,
+      node: first,
+    }).state;
+    expect(activeDiagram(state).nodes).toEqual([first]);
+
+    state = applyCanvasOperation(state, {
+      kind: "node.move",
+      diagramId: state.activeDiagramId,
+      positions: { [first.id]: { x: 340, y: 260 } },
+    }).state;
+    expect(activeDiagram(state).nodes[0]).toMatchObject({ x: 340, y: 260 });
+
+    const second = { ...createNode("node-target", 600, 260), layer: 1 };
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.addNode(second, timestamp(3)),
+    );
+    state = systemDesignEditorReducer(
+      state,
+      systemDesignEditorActions.addEdge(
+        createEdge("edge-live", first.id, second.id),
+        timestamp(4),
+      ),
+    );
+    state = applyCanvasOperation(state, {
+      kind: "node.delete",
+      diagramId: state.activeDiagramId,
+      nodeIds: [first.id],
+    }).state;
+    expect(activeDiagram(state).nodes.map((node) => node.id)).toEqual([
+      second.id,
+    ]);
+    expect(activeDiagram(state).edges).toEqual([]);
+  });
+
+  test("targets nested diagrams without changing the viewer's active diagram", () => {
+    const document = createDocument();
+    const childId = "diagram-child";
+    document.diagrams[document.rootDiagramId].nodes = [
+      {
+        ...createNode("module-parent"),
+        type: "module",
+        childDiagramId: childId,
+        isExpandable: true,
+      },
+    ];
+    document.diagrams[childId] = {
+      id: childId,
+      name: "Child",
+      parentNodeId: "module-parent",
+      nodes: [],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+    };
+    let state = createSystemDesignEditorState(document);
+    const rootId = state.activeDiagramId;
+    state = applyCanvasOperation(state, {
+      kind: "node.add",
+      diagramId: childId,
+      node: createNode("child-service"),
+    }).state;
+
+    expect(state.activeDiagramId).toBe(rootId);
+    expect(state.document.diagrams[childId].nodes).toHaveLength(1);
+    expect(state.selectedNodeIds).toEqual([]);
+  });
+
+  test("deduplicates committed operations and detects sequence gaps", () => {
+    const tracker = new RealtimeSequenceTracker();
+    const first = committed(1, "op-1", { kind: "node.delete" });
+    const second = committed(2, "op-2", { kind: "node.delete" });
+
+    expect(tracker.inspect(second, new Set())).toBe("gap");
+    expect(tracker.inspect(first, new Set())).toBe("apply");
+    tracker.accept(first);
+    expect(tracker.inspect(first, new Set())).toBe("duplicate");
+    expect(tracker.inspect(second, new Set(["op-2"]))).toBe("own");
+    tracker.accept(second);
+    expect(tracker.lastSequence).toBe(2);
+  });
+
+  test("reconstructs a full room state and rejects malformed envelopes", () => {
+    const snapshot = createDocument();
+    const diagramId = snapshot.rootDiagramId;
+    const node = createNode("replayed-node");
+    const document = reconstructRoomDocument(snapshot, [
+      committed(1, "op-add", { kind: "node.add", diagramId, node }),
+      committed(2, "op-move", {
+        kind: "node.move",
+        diagramId,
+        positions: { [node.id]: { x: 720, y: 440 } },
+      }),
+    ]);
+    expect(rootDiagram(document).nodes[0]).toMatchObject({
+      id: node.id,
+      x: 720,
+      y: 440,
+    });
+
+    expect(() =>
+      parseRealtimeServerMessage('{"v":2,"type":"room.state"}'),
+    ).toThrow(/protocol version/i);
+    expect(() =>
+      parseCanvasOperation({
+        kind: "node.move",
+        diagramId,
+        positions: { [node.id]: { x: Number.NaN, y: 1 } },
+      }),
+    ).toThrow(/position|operation/i);
   });
 });

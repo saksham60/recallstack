@@ -8,7 +8,8 @@ import {
   useRef,
   useState,
 } from "react";
-import { AlertTriangle, MonitorUp } from "lucide-react";
+import { AlertTriangle, LoaderCircle, MonitorUp, Radio } from "lucide-react";
+import Link from "next/link";
 import { ErrorState } from "@/components/ui/ErrorState";
 import {
   InlineNotice,
@@ -29,6 +30,9 @@ import {
   createSystemDesignEditorState,
   systemDesignEditorReducer,
 } from "../state/system-design-editor-reducer";
+import { applyCanvasOperation } from "../realtime/apply-canvas-operation";
+import type { CanvasOperation } from "../realtime/canvas-operation";
+import { useSystemDesignRealtime } from "../realtime/use-system-design-realtime";
 import type {
   SystemDesignDocument,
   SystemDesignEditorTool,
@@ -83,10 +87,12 @@ import {
   SystemDesignToolbar,
   type SystemDesignArrangeOperation,
 } from "./SystemDesignToolbar";
+import { SystemDesignLiveShareModal } from "./SystemDesignLiveShareModal";
 
 export type SystemDesignWorkspaceMode =
   | { kind: "problem"; problem: SystemDesignProblem }
-  | { kind: "standalone"; title?: string };
+  | { kind: "standalone"; title?: string }
+  | { kind: "live"; roomToken: string };
 
 function isSystemDesignNodeType(
   value: string,
@@ -126,6 +132,58 @@ function SmallScreenUnavailableMessage() {
   );
 }
 
+function LiveSessionLoading({ reconnecting }: { reconnecting: boolean }) {
+  return (
+    <div className="hidden min-h-screen items-center justify-center bg-background p-6 md:flex">
+      <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-8 text-center shadow-2xl">
+        <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-accent/30 bg-accent/10 text-accent">
+          <LoaderCircle className="h-6 w-6 animate-spin" aria-hidden="true" />
+        </span>
+        <h1 className="mt-5 text-xl font-semibold">
+          {reconnecting ? "Reconnecting…" : "Joining live session…"}
+        </h1>
+        <p className="mt-2 text-sm leading-6 text-muted">
+          {reconnecting
+            ? "Restoring the latest shared canvas changes."
+            : "Loading the shared canvas before opening the editor."}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function LiveSessionUnavailable({
+  title,
+  description,
+  onRetry,
+}: {
+  title: string;
+  description: string;
+  onRetry?: () => void;
+}) {
+  return (
+    <div className="hidden min-h-screen items-center justify-center bg-background p-6 md:flex">
+      <div className="w-full max-w-lg rounded-2xl border border-border bg-surface p-8 shadow-2xl">
+        <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-danger/30 bg-danger/10 text-danger">
+          <Radio className="h-6 w-6" aria-hidden="true" />
+        </span>
+        <h1 className="mt-5 text-xl font-semibold">{title}</h1>
+        <p className="mt-2 text-sm leading-6 text-muted">{description}</p>
+        <div className="mt-6 flex flex-wrap gap-2">
+          {onRetry && (
+            <button type="button" className={buttonClass} onClick={onRetry}>
+              Try again
+            </button>
+          )}
+          <Link href="/system-design" className={buttonClass}>
+            Back to System Design
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function SystemDesignWorkspace({
   mode,
 }: {
@@ -133,7 +191,11 @@ export function SystemDesignWorkspace({
 }) {
   const problem = mode.kind === "problem" ? mode.problem : undefined;
   const workspaceTitle =
-    mode.kind === "problem" ? mode.problem.title : mode.title ?? "Canvas";
+    mode.kind === "problem"
+      ? mode.problem.title
+      : mode.kind === "standalone"
+        ? mode.title ?? "Canvas"
+        : "Live session";
   const fallbackDocument = useMemo(
     () =>
       problem
@@ -165,6 +227,12 @@ export function SystemDesignWorkspace({
   const [pendingInlineEditNodeId, setPendingInlineEditNodeId] = useState<
     string | null
   >(null);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const stateRef = useRef(state);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   const { save, retryLoad } = useSystemDesignPersistence({
     enabled: Boolean(problem),
@@ -175,7 +243,63 @@ export function SystemDesignWorkspace({
     loadStatus: state.loadStatus,
     repository,
     dispatch,
+    initializeWhenDisabled: mode.kind !== "live",
   });
+
+  const handleInitialLiveDocument = useCallback(
+    (document: SystemDesignDocument) => {
+      const action = systemDesignEditorActions.loadSuccess(document, false);
+      stateRef.current = systemDesignEditorReducer(stateRef.current, action);
+      dispatch(action);
+    },
+    [],
+  );
+
+  const handleReplaceLiveDocument = useCallback(
+    (document: SystemDesignDocument) => {
+      const action =
+        systemDesignEditorActions.replaceCollaborationDocument(document);
+      stateRef.current = systemDesignEditorReducer(stateRef.current, action);
+      dispatch(action);
+    },
+    [],
+  );
+
+  const handleRemoteCanvasOperation = useCallback(
+    (operation: CanvasOperation) => {
+      const applied = applyCanvasOperation(stateRef.current, operation);
+      stateRef.current = applied.state;
+      dispatch(applied.action);
+    },
+    [],
+  );
+
+  const realtime = useSystemDesignRealtime({
+    initialRoomToken: mode.kind === "live" ? mode.roomToken : undefined,
+    onInitialDocument: handleInitialLiveDocument,
+    onReplaceDocument: handleReplaceLiveDocument,
+    onRemoteOperation: handleRemoteCanvasOperation,
+  });
+  const collaborationActive =
+    mode.kind === "live" || realtime.roomToken !== null;
+
+  const commitCanvasOperation = useCallback(
+    (operation: CanvasOperation) => {
+      const applied = applyCanvasOperation(stateRef.current, operation, {
+        selectAddedNode: operation.kind === "node.add",
+      });
+      stateRef.current = applied.state;
+      dispatch(applied.action);
+      if (collaborationActive) {
+        realtime.sendCommittedOperation(
+          applied.operation,
+          applied.state.document,
+        );
+      }
+      return applied.operation;
+    },
+    [collaborationActive, realtime],
+  );
 
   const activeDiagram =
     state.document.diagrams[state.activeDiagramId] ??
@@ -247,8 +371,28 @@ export function SystemDesignWorkspace({
   }, [save]);
 
   const handleDelete = useCallback(() => {
-    dispatch(systemDesignEditorActions.deleteSelection());
-  }, []);
+    const current = stateRef.current;
+    const diagram = current.document.diagrams[current.activeDiagramId];
+    const selectedNodeIds = diagram
+      ? current.selectedNodeIds.filter((nodeId) =>
+          diagram.nodes.some((node) => node.id === nodeId && !node.locked),
+        )
+      : [];
+    const action = systemDesignEditorActions.deleteSelection();
+    const next = systemDesignEditorReducer(current, action);
+    stateRef.current = next;
+    dispatch(action);
+    if (collaborationActive && diagram && selectedNodeIds.length > 0) {
+      realtime.sendCommittedOperation(
+        {
+          kind: "node.delete",
+          diagramId: diagram.id,
+          nodeIds: selectedNodeIds,
+        },
+        next.document,
+      );
+    }
+  }, [collaborationActive, realtime]);
 
   const handleDuplicate = useCallback(() => {
     dispatch(systemDesignEditorActions.duplicateNodes());
@@ -284,12 +428,14 @@ export function SystemDesignWorkspace({
   }, []);
 
   const handleUndo = useCallback(() => {
+    if (collaborationActive) return;
     dispatch(systemDesignEditorActions.undo());
-  }, []);
+  }, [collaborationActive]);
 
   const handleRedo = useCallback(() => {
+    if (collaborationActive) return;
     dispatch(systemDesignEditorActions.redo());
-  }, []);
+  }, [collaborationActive]);
 
   const handleOpenModule = useCallback((nodeId: string) => {
     dispatch(systemDesignEditorActions.openOrCreateModule(nodeId));
@@ -468,17 +614,25 @@ export function SystemDesignWorkspace({
       const y = arrangeAroundCenter
         ? center.y + (row - 1) * 130 - node.height / 2
         : center.y - node.height / 2;
-      dispatch(
-        systemDesignEditorActions.addNode({
-          ...node,
-          x,
-          y,
-        }),
-      );
+      const positionedNode = {
+        ...node,
+        x,
+        y,
+      };
+      commitCanvasOperation({
+        kind: "node.add",
+        diagramId: activeDiagram.id,
+        node: positionedNode,
+      });
       setInspectorTab("properties");
       return node.id;
     },
-    [activeDiagram.nodes.length, activeDiagram.parentNodeId],
+    [
+      activeDiagram.id,
+      activeDiagram.nodes.length,
+      activeDiagram.parentNodeId,
+      commitCanvasOperation,
+    ],
   );
 
   const addNodeFromPalette = useCallback(
@@ -571,6 +725,25 @@ export function SystemDesignWorkspace({
       );
     }
   }, [problem, state.document]);
+
+  const handleLiveShare = useCallback(() => {
+    setShareModalOpen(true);
+    if (
+      realtime.roomToken === null &&
+      realtime.status !== "starting" &&
+      realtime.status !== "connecting"
+    ) {
+      void realtime.startLiveSession(stateRef.current.document);
+    }
+  }, [realtime]);
+
+  const handleRetryLiveShare = useCallback(() => {
+    if (realtime.roomToken) {
+      realtime.retryConnection();
+      return;
+    }
+    void realtime.startLiveSession(stateRef.current.document);
+  }, [realtime]);
 
   const togglePreview = useCallback(() => {
     const enabled = !state.isPreviewMode;
@@ -692,9 +865,13 @@ export function SystemDesignWorkspace({
       const positions = Object.fromEntries(
         changes.map(({ id, x, y }) => [id, { x, y }]),
       );
-      dispatch(systemDesignEditorActions.moveNodes(positions));
+      commitCanvasOperation({
+        kind: "node.move",
+        diagramId: activeDiagram.id,
+        positions,
+      });
     },
-    [],
+    [activeDiagram.id, commitCanvasOperation],
   );
 
   const handleResizeNode = useCallback(
@@ -843,26 +1020,35 @@ export function SystemDesignWorkspace({
   };
 
   const editor = (
-    <div className="hidden h-[calc(100dvh-57px)] min-h-[38rem] flex-col overflow-hidden md:flex">
+    <div
+      className={`hidden min-h-[38rem] flex-col overflow-hidden md:flex ${
+        mode.kind === "live" ? "h-dvh" : "h-[calc(100dvh-57px)]"
+      }`}
+    >
       <SystemDesignToolbar
         onBack={parentBreadcrumbSegment ? handleNavigateParent : undefined}
         backLabel={
           parentBreadcrumbSegment
             ? `Back to ${parentBreadcrumbSegment.label}`
-            : mode.kind === "standalone"
+            : mode.kind === "standalone" || mode.kind === "live"
               ? "Back to system design"
               : "Back to system design problems"
         }
         className="shrink-0 overflow-x-auto"
-        title={workspaceTitle}
+        title={mode.kind === "live" ? state.document.title : workspaceTitle}
         difficulty={problem?.difficulty}
         showLearningActions={Boolean(problem)}
         saveState={saveState}
         isCompleted={state.document.status === "completed"}
         isPreviewMode={state.isPreviewMode}
         zoom={activeDiagram.viewport.zoom}
-        canUndo={state.history.length > 0}
-        canRedo={state.future.length > 0}
+        canUndo={!collaborationActive && state.history.length > 0}
+        canRedo={!collaborationActive && state.future.length > 0}
+        undoDisabledReason={
+          collaborationActive
+            ? "Undo is unavailable during live sessions"
+            : undefined
+        }
         canSave={state.loadStatus === "ready"}
         canMarkComplete={documentCounts.nodeCount > 0}
         showGrid={showGrid}
@@ -873,8 +1059,10 @@ export function SystemDesignWorkspace({
         selectedNodes={selectedNodes}
         selectedEdge={selectedEdge}
         animationsEnabled={animationsEnabled}
+        liveShareStatus={realtime.status}
         onUndo={handleUndo}
         onRedo={handleRedo}
+        onLiveShare={handleLiveShare}
         onSave={handleSave}
         onMarkComplete={handleMarkComplete}
         onTogglePreview={togglePreview}
@@ -1051,7 +1239,30 @@ export function SystemDesignWorkspace({
   return (
     <>
       <SmallScreenUnavailableMessage />
-      {state.loadStatus === "loading" || state.loadStatus === "idle" ? (
+      {mode.kind === "live" &&
+      (state.loadStatus === "loading" || state.loadStatus === "idle") ? (
+        realtime.failure ? (
+          <LiveSessionUnavailable
+            title={
+              realtime.failure.kind === "ended"
+                ? "This live session has ended"
+                : realtime.failure.kind === "room_full"
+                  ? "This live session is full"
+                  : "Couldn't join the live session"
+            }
+            description={realtime.failure.message}
+            onRetry={
+              realtime.failure.kind === "connection_failed"
+                ? realtime.retryConnection
+                : undefined
+            }
+          />
+        ) : (
+          <LiveSessionLoading
+            reconnecting={realtime.status === "reconnecting"}
+          />
+        )
+      ) : state.loadStatus === "loading" || state.loadStatus === "idle" ? (
         <div className="hidden min-h-[calc(100vh-57px)] p-6 md:block">
           <LoadingSkeleton rows={9} />
         </div>
@@ -1092,6 +1303,16 @@ export function SystemDesignWorkspace({
         destructive
         onClose={() => setPendingImport(null)}
         onConfirm={handleConfirmImport}
+      />
+
+      <SystemDesignLiveShareModal
+        open={shareModalOpen}
+        status={realtime.status}
+        failure={realtime.failure}
+        shareUrl={realtime.shareUrl}
+        isSlow={realtime.isSlow}
+        onClose={() => setShareModalOpen(false)}
+        onRetry={handleRetryLiveShare}
       />
     </>
   );

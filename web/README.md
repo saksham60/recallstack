@@ -14,6 +14,7 @@ Copy `.env.example` to `.env.local` and set:
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
 NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+NEXT_PUBLIC_REALTIME_BASE_URL=https://recallstack-ktuc.onrender.com
 SYSTEM_DESIGN_ENABLED=1
 ```
 
@@ -112,6 +113,10 @@ The System Design Practice routes and navigation are enabled only when
 `SYSTEM_DESIGN_ENABLED=1`. The canonical `/system-design` routes are available
 to every authenticated user; the legacy `/admin/system-design` URLs remain
 inside the admin area.
+
+Live Share creates rooms through `NEXT_PUBLIC_REALTIME_BASE_URL`. The public,
+capability-token guest route is `/system-design/live/[roomToken]`; it does not
+require a RecallStack account and is marked `noindex`.
 
 The normal navigation only exposes the Admin link when the backend `/api/v1/me`
 profile projection includes the active `admin` role. The Admin layout repeats the

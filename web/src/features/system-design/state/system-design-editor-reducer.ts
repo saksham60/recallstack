@@ -902,7 +902,9 @@ export function systemDesignEditorReducer(
     }
 
     case "node/add": {
-      const diagram = activeDiagram(state);
+      const diagramId = action.diagramId ?? state.activeDiagramId;
+      const diagram = state.document.diagrams[diagramId];
+      if (!diagram) return state;
       if (allNodeIds(state.document).has(action.node.id)) return state;
       const layer =
         diagram.nodes.reduce(
@@ -939,7 +941,9 @@ export function systemDesignEditorReducer(
           nodes: [...diagram.nodes, node],
         }),
         action.at,
-        { selectedNodeIds: [node.id], selectedEdgeIds: [] },
+        action.select === false || diagramId !== state.activeDiagramId
+          ? undefined
+          : { selectedNodeIds: [node.id], selectedEdgeIds: [] },
       );
     }
 
@@ -996,7 +1000,9 @@ export function systemDesignEditorReducer(
     }
 
     case "nodes/move": {
-      const diagram = activeDiagram(state);
+      const diagram =
+        state.document.diagrams[action.diagramId ?? state.activeDiagramId];
+      if (!diagram) return state;
       let changed = false;
       const nodes = diagram.nodes.map((node) => {
         const position = action.positions[node.id];
@@ -1189,7 +1195,7 @@ export function systemDesignEditorReducer(
     case "nodes/delete": {
       const document = removeNodes(
         state.document,
-        state.activeDiagramId,
+        action.diagramId ?? state.activeDiagramId,
         action.nodeIds,
       );
       return document
@@ -1581,6 +1587,37 @@ export function systemDesignEditorReducer(
         { selectedNodeIds: [], selectedEdgeIds: [] },
         document.rootDiagramId,
       );
+    }
+
+    case "collaboration/replace-document": {
+      if (!action.document.diagrams[action.document.rootDiagramId]) {
+        return state;
+      }
+      const normalized = normalizeDocumentDiagrams(
+        cloneSystemDesignDocument(action.document),
+      );
+      const document = preserveLiveViewports(normalized, state.document);
+      const activeDiagramId = resolveActiveDiagramId(
+        document,
+        state.activeDiagramId,
+      );
+      const diagram = document.diagrams[activeDiagramId];
+      const nodeIds = new Set(diagram.nodes.map((node) => node.id));
+      const edgeIds = new Set(diagram.edges.map((edge) => edge.id));
+      return {
+        ...state,
+        problemId: document.problemId,
+        document,
+        activeDiagramId,
+        selectedNodeIds: state.selectedNodeIds.filter((id) => nodeIds.has(id)),
+        selectedEdgeIds: state.selectedEdgeIds.filter((id) => edgeIds.has(id)),
+        future: [],
+        loadStatus: "ready",
+        loadError: null,
+        isDirty: true,
+        saveStatus: "unsaved",
+        saveError: null,
+      };
     }
 
     case "document/complete":

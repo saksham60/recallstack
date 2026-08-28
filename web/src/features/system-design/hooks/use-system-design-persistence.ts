@@ -25,6 +25,7 @@ interface UseSystemDesignPersistenceOptions {
   repository: SystemDesignRepository;
   dispatch: SystemDesignEditorDispatch;
   autoSaveDelay?: number;
+  initializeWhenDisabled?: boolean;
 }
 
 function errorMessage(error: unknown, fallback: string): string {
@@ -48,6 +49,7 @@ export function useSystemDesignPersistence({
   repository,
   dispatch,
   autoSaveDelay = 800,
+  initializeWhenDisabled = true,
 }: UseSystemDesignPersistenceOptions) {
   const activeLoad = useRef(0);
   const [reloadVersion, setReloadVersion] = useState(0);
@@ -66,7 +68,9 @@ export function useSystemDesignPersistence({
     const loadId = activeLoad.current + 1;
     activeLoad.current = loadId;
     if (!enabled || !problemId) {
-      dispatch(systemDesignEditorActions.loadSuccess(fallbackDocument, false));
+      if (initializeWhenDisabled) {
+        dispatch(systemDesignEditorActions.loadSuccess(fallbackDocument, false));
+      }
       return;
     }
     dispatch(systemDesignEditorActions.loadStart());
@@ -97,7 +101,15 @@ export function useSystemDesignPersistence({
     return () => {
       if (activeLoad.current === loadId) activeLoad.current += 1;
     };
-  }, [dispatch, enabled, fallbackDocument, problemId, reloadVersion, repository]);
+  }, [
+    dispatch,
+    enabled,
+    fallbackDocument,
+    initializeWhenDisabled,
+    problemId,
+    reloadVersion,
+    repository,
+  ]);
 
   const save = useCallback(
     async (snapshot = document) => {

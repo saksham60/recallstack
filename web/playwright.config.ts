@@ -38,6 +38,7 @@ export default defineConfig({
     env: {
       E2E_BYPASS_AUTH: '1',
       SYSTEM_DESIGN_ENABLED: '1',
+      NEXT_PUBLIC_REALTIME_BASE_URL: 'http://realtime.test',
     },
   },
 });
