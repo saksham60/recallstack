@@ -8,6 +8,11 @@ import {
 
 const ROOM_TOKEN = "room_token_for_browser_test_123456789";
 
+interface RealtimeTestWindow extends Window {
+  __emitRealtimeMessage?: (message: unknown) => void;
+  __sentRealtimeMessages?: string[];
+}
+
 function createSharedDocument(title = "Shared Canvas"): SystemDesignDocument {
   const diagramId = "shared-root";
   return {
@@ -35,6 +40,8 @@ async function installRealtimeSocket(
   options: { mode: "full" | "ended"; snapshot: SystemDesignDocument },
 ) {
   await page.addInitScript(({ mode, snapshot }) => {
+    const sockets: MockRealtimeWebSocket[] = [];
+    const sentMessages: string[] = [];
     class MockRealtimeWebSocket extends EventTarget {
       static readonly CONNECTING = 0;
       static readonly OPEN = 1;
@@ -60,6 +67,7 @@ async function installRealtimeSocket(
       constructor(url: string | URL) {
         super();
         this.url = String(url);
+        sockets.push(this);
         window.setTimeout(() => {
           this.readyState = MockRealtimeWebSocket.OPEN;
           this.onopen?.call(this as unknown as WebSocket, new Event("open"));
@@ -92,7 +100,9 @@ async function installRealtimeSocket(
         }, 25);
       }
 
-      send(): void {}
+      send(data: string | ArrayBufferLike | Blob | ArrayBufferView): void {
+        if (typeof data === "string") sentMessages.push(data);
+      }
 
       close(): void {
         this.readyState = MockRealtimeWebSocket.CLOSED;
@@ -112,6 +122,17 @@ async function installRealtimeSocket(
       configurable: true,
       value: realtimeAwareWebSocket,
     });
+    const testWindow = window as unknown as RealtimeTestWindow;
+    testWindow.__sentRealtimeMessages = sentMessages;
+    testWindow.__emitRealtimeMessage = (message) => {
+      sockets.forEach((socket) => {
+        if (socket.readyState !== MockRealtimeWebSocket.OPEN) return;
+        socket.onmessage?.call(
+          socket as unknown as WebSocket,
+          new MessageEvent("message", { data: JSON.stringify(message) }),
+        );
+      });
+    };
   }, options);
 }
 
@@ -194,6 +215,130 @@ base("loads the public guest canvas from a full room state", async ({ page }) =>
     page.getByRole("button", { name: "Open live session sharing" }),
   ).toContainText("Live");
   expect(forbiddenBackendRequests).toEqual([]);
+});
+
+base("renders remote drag previews without committing local editor state", async ({
+  page,
+}) => {
+  const snapshot = createSharedDocument("Remote Drag Canvas");
+  const diagramId = snapshot.rootDiagramId;
+  snapshot.diagrams[diagramId].nodes = [
+    {
+      id: "remote-service",
+      type: "service",
+      x: 72,
+      y: 72,
+      width: 160,
+      height: 88,
+      label: "Remote service",
+      layer: 0,
+      locked: false,
+      visible: true,
+    },
+  ];
+  await installRealtimeSocket(page, { mode: "full", snapshot });
+  await page.goto(`/system-design/live/${ROOM_TOKEN}`);
+
+  const canvas = page.getByTestId("system-design-canvas");
+  await expect(canvas).toBeVisible({ timeout: 30_000 });
+  await expect(
+    page.getByRole("button", { name: "Open live session sharing" }),
+  ).toContainText("Live");
+  const bounds = await canvas.boundingBox();
+  expect(bounds).not.toBeNull();
+  if (!bounds) return;
+
+  await page.evaluate(
+    ({ activeDiagramId }) => {
+      const emit = (window as unknown as RealtimeTestWindow)
+        .__emitRealtimeMessage;
+      emit?.({
+        v: 1,
+        type: "op.ephemeral",
+        actorId: "remote-actor",
+        payload: {
+          kind: "node.drag.start",
+          dragSessionId: "remote-drag-1",
+          diagramId: activeDiagramId,
+          nodeIds: ["remote-service"],
+        },
+      });
+      emit?.({
+        v: 1,
+        type: "op.ephemeral",
+        actorId: "remote-actor",
+        payload: {
+          kind: "node.drag.preview",
+          dragSessionId: "remote-drag-1",
+          diagramId: activeDiagramId,
+          previewIndex: 1,
+          positions: { "remote-service": { x: 340, y: 150 } },
+        },
+      });
+      emit?.({
+        v: 1,
+        type: "op.ephemeral",
+        actorId: "remote-actor",
+        payload: {
+          kind: "node.drag.preview",
+          dragSessionId: "remote-drag-1",
+          diagramId: activeDiagramId,
+          previewIndex: 2,
+          positions: { "remote-service": { x: 420, y: 190 } },
+        },
+      });
+    },
+    { activeDiagramId: diagramId },
+  );
+  await page.waitForTimeout(250);
+
+  await expect
+    .poll(async () => {
+      await page.mouse.click(bounds.x + 500, bounds.y + 234);
+      return page.getByLabel("Diagram status").textContent();
+    })
+    .toContain("Selected 1");
+
+  const sentBeforeDrag = await page.evaluate(
+    () =>
+      (window as unknown as RealtimeTestWindow).__sentRealtimeMessages ?? [],
+  );
+  await page.mouse.move(bounds.x + 500, bounds.y + 234);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + 620, bounds.y + 300, { steps: 4 });
+  await page.mouse.up();
+  const sentAfterDrag = await page.evaluate(
+    () =>
+      (window as unknown as RealtimeTestWindow).__sentRealtimeMessages ?? [],
+  );
+  expect(sentAfterDrag).toEqual(sentBeforeDrag);
+
+  await page.mouse.click(bounds.x + 20, bounds.y + 20);
+  await expect(page.getByLabel("Diagram status")).toContainText("Selected 0");
+  await page.evaluate(
+    ({ activeDiagramId }) => {
+      (window as unknown as RealtimeTestWindow).__emitRealtimeMessage?.({
+        v: 1,
+        type: "op.commit",
+        opId: "remote-final-move",
+        actorId: "remote-actor",
+        sequence: 1,
+        payload: {
+          kind: "node.move",
+          diagramId: activeDiagramId,
+          positions: { "remote-service": { x: 520, y: 260 } },
+        },
+      });
+    },
+    { activeDiagramId: diagramId },
+  );
+  await page.waitForTimeout(250);
+  await expect
+    .poll(async () => {
+      await page.mouse.click(bounds.x + 600, bounds.y + 304);
+      return page.getByLabel("Diagram status").textContent();
+    })
+    .toContain("Selected 1");
 });
 
 base("shows a safe terminal state when a guest room has ended", async ({

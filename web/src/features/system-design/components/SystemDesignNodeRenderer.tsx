@@ -53,6 +53,8 @@ interface SystemDesignNodeRendererProps {
   node: SystemDesignNode;
   selected: boolean;
   transformerOwnsSelection?: boolean;
+  dragDisabled?: boolean;
+  positionOverride?: { x: number; y: number };
   connecting: boolean;
   preview: boolean;
   theme: SystemDesignCanvasTheme;
@@ -933,6 +935,8 @@ function SystemDesignNodeRendererComponent({
   node,
   selected,
   transformerOwnsSelection = false,
+  dragDisabled = false,
+  positionOverride,
   connecting,
   preview,
   theme,
@@ -1047,11 +1051,11 @@ function SystemDesignNodeRendererComponent({
       id={`system-design-node-${node.id}`}
       name="system-design-node"
       ref={(group) => registerRef(node.id, group)}
-      x={node.x}
-      y={node.y}
+      x={positionOverride?.x ?? node.x}
+      y={positionOverride?.y ?? node.y}
       width={node.width}
       height={node.height}
-      draggable={!preview && !node.locked && !connecting}
+      draggable={!preview && !node.locked && !connecting && !dragDisabled}
       onClick={(event) =>
         !preview &&
         onSelect(
@@ -1093,7 +1097,11 @@ function SystemDesignNodeRendererComponent({
           ?.container()
           .style.setProperty(
             "cursor",
-            isExpandable ? "pointer" : node.locked || preview ? "default" : "move",
+            isExpandable
+              ? "pointer"
+              : node.locked || preview || dragDisabled
+                ? "default"
+                : "move",
           );
       }}
       onMouseLeave={(event) => {

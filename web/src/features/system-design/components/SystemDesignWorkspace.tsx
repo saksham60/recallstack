@@ -33,6 +33,7 @@ import {
 import { applyCanvasOperation } from "../realtime/apply-canvas-operation";
 import type { CanvasOperation } from "../realtime/canvas-operation";
 import { useSystemDesignRealtime } from "../realtime/use-system-design-realtime";
+import { useRemoteNodeDrags } from "../realtime/use-remote-node-drags";
 import type {
   SystemDesignDocument,
   SystemDesignEditorTool,
@@ -234,6 +235,35 @@ export function SystemDesignWorkspace({
     stateRef.current = state;
   }, [state]);
 
+  const activeDiagram =
+    state.document.diagrams[state.activeDiagramId] ??
+    state.document.diagrams[state.document.rootDiagramId];
+
+  const applyRemoteNodePositions = useCallback(
+    (
+      diagramId: string,
+      positions: Readonly<Record<string, SystemDesignPoint>>,
+    ) => {
+      if (stateRef.current.activeDiagramId !== diagramId) return;
+      canvasRef.current?.applyRemoteNodePositions(positions);
+    },
+    [],
+  );
+
+  const clearRemoteNodePositions = useCallback(
+    (diagramId: string, nodeIds: readonly string[]) => {
+      if (stateRef.current.activeDiagramId !== diagramId) return;
+      canvasRef.current?.clearRemoteNodePositions(nodeIds);
+    },
+    [],
+  );
+
+  const remoteNodeDrags = useRemoteNodeDrags({
+    activeDiagramId: activeDiagram.id,
+    onApplyPositions: applyRemoteNodePositions,
+    onClearPositions: clearRemoteNodePositions,
+  });
+
   const { save, retryLoad } = useSystemDesignPersistence({
     enabled: Boolean(problem),
     problemId: problem?.id,
@@ -248,30 +278,43 @@ export function SystemDesignWorkspace({
 
   const handleInitialLiveDocument = useCallback(
     (document: SystemDesignDocument) => {
+      remoteNodeDrags.clearAll();
       const action = systemDesignEditorActions.loadSuccess(document, false);
       stateRef.current = systemDesignEditorReducer(stateRef.current, action);
       dispatch(action);
     },
-    [],
+    [remoteNodeDrags],
   );
 
   const handleReplaceLiveDocument = useCallback(
     (document: SystemDesignDocument) => {
+      remoteNodeDrags.clearAll();
       const action =
         systemDesignEditorActions.replaceCollaborationDocument(document);
       stateRef.current = systemDesignEditorReducer(stateRef.current, action);
       dispatch(action);
     },
-    [],
+    [remoteNodeDrags],
   );
 
   const handleRemoteCanvasOperation = useCallback(
     (operation: CanvasOperation) => {
+      if (operation.kind === "node.move") {
+        remoteNodeDrags.finishCommittedMove(
+          operation.diagramId,
+          operation.positions,
+        );
+      } else if (operation.kind === "node.delete") {
+        remoteNodeDrags.clearCommittedNodes(
+          operation.diagramId,
+          operation.nodeIds,
+        );
+      }
       const applied = applyCanvasOperation(stateRef.current, operation);
       stateRef.current = applied.state;
       dispatch(applied.action);
     },
-    [],
+    [remoteNodeDrags],
   );
 
   const realtime = useSystemDesignRealtime({
@@ -279,6 +322,7 @@ export function SystemDesignWorkspace({
     onInitialDocument: handleInitialLiveDocument,
     onReplaceDocument: handleReplaceLiveDocument,
     onRemoteOperation: handleRemoteCanvasOperation,
+    onRemoteDragOperation: remoteNodeDrags.receive,
   });
   const collaborationActive =
     mode.kind === "live" || realtime.roomToken !== null;
@@ -301,9 +345,6 @@ export function SystemDesignWorkspace({
     [collaborationActive, realtime],
   );
 
-  const activeDiagram =
-    state.document.diagrams[state.activeDiagramId] ??
-    state.document.diagrams[state.document.rootDiagramId];
   const documentCounts = useMemo(
     () => countSystemDesignElements(state.document),
     [state.document],
@@ -874,6 +915,28 @@ export function SystemDesignWorkspace({
     [activeDiagram.id, commitCanvasOperation],
   );
 
+  const handleNodeDragStart = useCallback(
+    (nodeIds: readonly string[]) => {
+      realtime.beginNodeDrag(activeDiagram.id, nodeIds);
+    },
+    [activeDiagram.id, realtime],
+  );
+
+  const handleNodeDragPreview = useCallback(
+    (changes: readonly { id: string; x: number; y: number }[]) => {
+      realtime.previewNodeDrag(
+        Object.fromEntries(
+          changes.map(({ id, x, y }) => [id, { x, y }]),
+        ),
+      );
+    },
+    [realtime],
+  );
+
+  const handleNodeDragEnd = useCallback(() => {
+    realtime.endNodeDrag();
+  }, [realtime]);
+
   const handleResizeNode = useCallback(
     ({
       id,
@@ -1134,12 +1197,16 @@ export function SystemDesignWorkspace({
             snapToObjects={snapToObjects}
             activeTool={activeTool}
             animationsEnabled={animationsEnabled}
+            remotelyDraggedNodeIds={remoteNodeDrags.remotelyDraggedNodeIds}
             internalComponentCounts={internalComponentCounts}
             onSelectNode={handleSelectNode}
             onSelectNodes={handleSelectNodes}
             onSelectEdge={handleSelectEdge}
             onClearSelection={handleClearSelection}
             onMoveNodes={handleMoveNodes}
+            onNodeDragStart={handleNodeDragStart}
+            onNodeDragPreview={handleNodeDragPreview}
+            onNodeDragEnd={handleNodeDragEnd}
             onResizeNode={handleResizeNode}
             onAddEdge={handleAddEdge}
             onAddFreehand={addFreehandStroke}

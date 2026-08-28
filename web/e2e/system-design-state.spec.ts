@@ -34,6 +34,14 @@ import {
   parseRealtimeServerMessage,
   type RealtimeCommitMessage,
 } from "../src/features/system-design/realtime/realtime.types";
+import { parseNodeDragOperation } from "../src/features/system-design/realtime/node-drag-operation";
+import {
+  NODE_DRAG_PREVIEW_INTERVAL_MS,
+  REMOTE_NODE_DRAG_TIMEOUT_MS,
+  NodeDragPreviewBroadcaster,
+  RemoteNodeDragRegistry,
+  type DragPreviewScheduler,
+} from "../src/features/system-design/realtime/node-drag-preview";
 
 const timestamp = (step: number) =>
   new Date(Date.UTC(2026, 6, 29, 0, 0, step)).toISOString();
@@ -1644,5 +1652,306 @@ test.describe("system-design realtime convergence", () => {
         positions: { [node.id]: { x: Number.NaN, y: 1 } },
       }),
     ).toThrow(/position|operation/i);
+  });
+});
+
+test.describe("system-design live node drag previews", () => {
+  class ManualScheduler implements DragPreviewScheduler {
+    private currentTime = 0;
+    private nextId = 1;
+    private readonly tasks = new Map<
+      number,
+      { callback: () => void; dueAt: number }
+    >();
+
+    now = () => this.currentTime;
+
+    setTimeout = (callback: () => void, delay: number) => {
+      const id = this.nextId++;
+      this.tasks.set(id, { callback, dueAt: this.currentTime + delay });
+      return id as unknown as ReturnType<typeof setTimeout>;
+    };
+
+    clearTimeout = (handle: ReturnType<typeof setTimeout>) => {
+      this.tasks.delete(handle as unknown as number);
+    };
+
+    advance(milliseconds: number): void {
+      const target = this.currentTime + milliseconds;
+      while (true) {
+        const next = [...this.tasks.entries()]
+          .filter(([, task]) => task.dueAt <= target)
+          .sort((left, right) => left[1].dueAt - right[1].dueAt)[0];
+        if (!next) break;
+        const [id, task] = next;
+        this.tasks.delete(id);
+        this.currentTime = task.dueAt;
+        task.callback();
+      }
+      this.currentTime = target;
+    }
+
+    get pendingTaskCount(): number {
+      return this.tasks.size;
+    }
+  }
+
+  test("coalesces rapid local moves into one latest-only preview per interval", () => {
+    const scheduler = new ManualScheduler();
+    const sent: ReturnType<typeof parseNodeDragOperation>[] = [];
+    const broadcaster = new NodeDragPreviewBroadcaster({
+      scheduler,
+      createSessionId: () => "drag-local",
+      send: (operation) => {
+        sent.push(operation);
+        return true;
+      },
+    });
+
+    broadcaster.begin("diagram-root", ["node-a"]);
+    for (let x = 1; x <= 100; x += 1) {
+      broadcaster.preview({ "node-a": { x, y: x * 2 } });
+    }
+
+    expect(sent).toHaveLength(1);
+    expect(scheduler.pendingTaskCount).toBe(1);
+    scheduler.advance(NODE_DRAG_PREVIEW_INTERVAL_MS);
+    expect(sent).toHaveLength(2);
+    expect(sent[1]).toEqual({
+      kind: "node.drag.preview",
+      dragSessionId: "drag-local",
+      diagramId: "diagram-root",
+      previewIndex: 1,
+      positions: { "node-a": { x: 100, y: 200 } },
+    });
+
+    broadcaster.end();
+    expect(sent.at(-1)?.kind).toBe("node.drag.end");
+    expect(scheduler.pendingTaskCount).toBe(0);
+  });
+
+  test("keeps only the latest preview while transport backpressure clears", () => {
+    const scheduler = new ManualScheduler();
+    const sent: ReturnType<typeof parseNodeDragOperation>[] = [];
+    let blocked = false;
+    const broadcaster = new NodeDragPreviewBroadcaster({
+      scheduler,
+      createSessionId: () => "drag-backpressure",
+      send: (operation) => {
+        if (operation.kind === "node.drag.preview" && blocked) return false;
+        sent.push(operation);
+        return true;
+      },
+    });
+
+    broadcaster.begin("diagram-root", ["node-a"]);
+    blocked = true;
+    broadcaster.preview({ "node-a": { x: 10, y: 20 } });
+    scheduler.advance(NODE_DRAG_PREVIEW_INTERVAL_MS);
+    broadcaster.preview({ "node-a": { x: 90, y: 120 } });
+    expect(scheduler.pendingTaskCount).toBe(1);
+    blocked = false;
+    scheduler.advance(NODE_DRAG_PREVIEW_INTERVAL_MS);
+
+    expect(sent.filter((operation) => operation.kind === "node.drag.preview"))
+      .toEqual([
+        {
+          kind: "node.drag.preview",
+          dragSessionId: "drag-backpressure",
+          diagramId: "diagram-root",
+          previewIndex: 1,
+          positions: { "node-a": { x: 90, y: 120 } },
+        },
+      ]);
+  });
+
+  test("filters stale previews and clears transient state on one final move", () => {
+    const document = createDocument([createNode("node-a")]);
+    const diagramId = document.rootDiagramId;
+    let state = createSystemDesignEditorState(document);
+    const registry = new RemoteNodeDragRegistry();
+
+    registry.apply(
+      "actor-a",
+      parseNodeDragOperation({
+        kind: "node.drag.start",
+        dragSessionId: "drag-a",
+        diagramId,
+        nodeIds: ["node-a"],
+      }),
+      0,
+    );
+    registry.apply(
+      "actor-a",
+      parseNodeDragOperation({
+        kind: "node.drag.preview",
+        dragSessionId: "drag-a",
+        diagramId,
+        previewIndex: 3,
+        positions: { "node-a": { x: 300, y: 180 } },
+      }),
+      30,
+    );
+    expect(
+      registry.apply(
+        "actor-a",
+        parseNodeDragOperation({
+          kind: "node.drag.preview",
+          dragSessionId: "drag-a",
+          diagramId,
+          previewIndex: 2,
+          positions: { "node-a": { x: 20, y: 20 } },
+        }),
+        40,
+      ),
+    ).toBeNull();
+    expect(registry.positionsForDiagram(diagramId)).toEqual({
+      "node-a": { x: 300, y: 180 },
+    });
+    expect(state.history).toHaveLength(0);
+    expect(activeDiagram(state).nodes[0]).toMatchObject({ x: 40, y: 60 });
+
+    const finalPositions = { "node-a": { x: 360, y: 240 } };
+    registry.clearCommitted(diagramId, Object.keys(finalPositions));
+    state = applyCanvasOperation(state, {
+      kind: "node.move",
+      diagramId,
+      positions: finalPositions,
+    }).state;
+    expect(registry.positionsForDiagram(diagramId)).toEqual({});
+    expect(registry.ownedNodeIds(diagramId).size).toBe(0);
+    expect(state.history).toHaveLength(1);
+    expect(activeDiagram(state).nodes[0]).toMatchObject({ x: 360, y: 240 });
+  });
+
+  test("expires abandoned sessions and gives simultaneous drags first ownership", () => {
+    const registry = new RemoteNodeDragRegistry();
+    const diagramId = "diagram-root";
+    const start = (actorId: string, dragSessionId: string, now: number) =>
+      registry.apply(
+        actorId,
+        {
+          kind: "node.drag.start",
+          dragSessionId,
+          diagramId,
+          nodeIds: ["node-a"],
+        },
+        now,
+      );
+
+    start("actor-a", "drag-a", 0);
+    start("actor-b", "drag-b", 10);
+    registry.apply(
+      "actor-b",
+      {
+        kind: "node.drag.preview",
+        dragSessionId: "drag-b",
+        diagramId,
+        previewIndex: 1,
+        positions: { "node-a": { x: 900, y: 900 } },
+      },
+      20,
+    );
+    registry.apply(
+      "actor-a",
+      {
+        kind: "node.drag.preview",
+        dragSessionId: "drag-a",
+        diagramId,
+        previewIndex: 1,
+        positions: { "node-a": { x: 100, y: 120 } },
+      },
+      30,
+    );
+    expect(registry.positionsForDiagram(diagramId)).toEqual({
+      "node-a": { x: 100, y: 120 },
+    });
+
+    const mutations = registry.expire(
+      REMOTE_NODE_DRAG_TIMEOUT_MS + 31,
+      REMOTE_NODE_DRAG_TIMEOUT_MS,
+    );
+    expect(mutations.flatMap((mutation) => mutation.clearedNodeIds)).toContain(
+      "node-a",
+    );
+    expect(registry.ownedNodeIds(diagramId).size).toBe(0);
+  });
+
+  test("keeps consecutive drag sessions isolated from late old events", () => {
+    const registry = new RemoteNodeDragRegistry();
+    const diagramId = "diagram-root";
+    registry.apply(
+      "actor-a",
+      {
+        kind: "node.drag.preview",
+        dragSessionId: "drag-first",
+        diagramId,
+        previewIndex: 1,
+        positions: { "node-a": { x: 100, y: 100 } },
+      },
+      0,
+    );
+    registry.clearCommitted(diagramId, ["node-a"]);
+    registry.apply(
+      "actor-a",
+      {
+        kind: "node.drag.preview",
+        dragSessionId: "drag-second",
+        diagramId,
+        previewIndex: 1,
+        positions: { "node-a": { x: 200, y: 220 } },
+      },
+      20,
+    );
+    expect(
+      registry.apply(
+        "actor-a",
+        {
+          kind: "node.drag.preview",
+          dragSessionId: "drag-first",
+          diagramId,
+          previewIndex: 2,
+          positions: { "node-a": { x: 999, y: 999 } },
+        },
+        30,
+      ),
+    ).toBeNull();
+    expect(registry.positionsForDiagram(diagramId)).toEqual({
+      "node-a": { x: 200, y: 220 },
+    });
+  });
+
+  test("isolates nested diagrams and rejects malformed preview payloads", () => {
+    const registry = new RemoteNodeDragRegistry();
+    registry.apply(
+      "actor-a",
+      {
+        kind: "node.drag.preview",
+        dragSessionId: "drag-child",
+        diagramId: "diagram-child",
+        previewIndex: 1,
+        positions: { "child-node": { x: 55, y: 77 } },
+      },
+      0,
+    );
+    expect(registry.positionsForDiagram("diagram-root")).toEqual({});
+    expect(registry.positionsForDiagram("diagram-child")).toEqual({
+      "child-node": { x: 55, y: 77 },
+    });
+
+    expect(() =>
+      parseNodeDragOperation({
+        kind: "node.drag.preview",
+        dragSessionId: "drag-bad",
+        diagramId: "diagram-root",
+        previewIndex: 0,
+        positions: { "node-a": { x: Number.NaN, y: 1 } },
+      }),
+    ).toThrow(/drag operation/i);
+    expect(() =>
+      parseRealtimeServerMessage(
+        JSON.stringify({ v: 1, type: "op.ephemeral", payload: {} }),
+      ),
+    ).toThrow(/ephemeral/i);
   });
 });

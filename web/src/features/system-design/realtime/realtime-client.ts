@@ -1,5 +1,6 @@
 import type { SystemDesignDocument } from "../types/system-design.types";
 import type { CanvasOperation } from "./canvas-operation";
+import type { NodeDragOperation } from "./node-drag-operation";
 import {
   createRealtimeWebSocketUrl,
   getRealtimeBaseUrl,
@@ -11,6 +12,7 @@ import {
   REALTIME_PROTOCOL_VERSION,
   type CreateRealtimeRoomResponse,
   type RealtimeCommitMessage,
+  type RealtimeEphemeralMessage,
   type RealtimeRoomStateMessage,
 } from "./realtime.types";
 
@@ -42,6 +44,7 @@ export interface RealtimeClientCallbacks {
     pendingOperations: readonly CanvasOperation[],
   ) => void;
   onCommittedOperation: (message: RealtimeCommitMessage) => void;
+  onEphemeralOperation: (message: RealtimeEphemeralMessage) => void;
   onFailure: (failure: RealtimeFailure) => void;
 }
 
@@ -55,6 +58,7 @@ type WebSocketFactory = (url: string) => WebSocket;
 const RECONNECT_DELAYS = [1_000, 2_000, 4_000, 8_000, 12_000] as const;
 const MAX_PENDING_OPERATIONS = 256;
 const MAX_APPLIED_OPERATION_IDS = 4_096;
+const MAX_EPHEMERAL_BUFFERED_BYTES = 64 * 1_024;
 
 export class RealtimeSequenceTracker {
   private last = 0;
@@ -226,6 +230,30 @@ export class RealtimeClient {
     return opId;
   }
 
+  sendEphemeral(operation: NodeDragOperation): boolean {
+    const socket = this.socket;
+    if (
+      !this.everLive ||
+      socket?.readyState !== 1 ||
+      socket.bufferedAmount > MAX_EPHEMERAL_BUFFERED_BYTES
+    ) {
+      return false;
+    }
+    try {
+      socket.send(
+        JSON.stringify({
+          v: REALTIME_PROTOCOL_VERSION,
+          type: "op.ephemeral",
+          actorId: this.actorId,
+          payload: operation,
+        }),
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   private openSocket(reconnecting: boolean): void {
     if (this.stopped) return;
     const previous = this.socket;
@@ -292,6 +320,12 @@ export class RealtimeClient {
     }
     if (message.type === "op.commit") {
       this.handleCommit(message);
+      return;
+    }
+    if (message.type === "op.ephemeral") {
+      if (message.actorId !== this.actorId) {
+        this.callbacks.onEphemeralOperation(message);
+      }
       return;
     }
     if (message.type === "ack") {

@@ -16,6 +16,12 @@ import {
   type CanvasOperation,
 } from "./canvas-operation";
 import {
+  parseNodeDragOperation,
+  type NodeDragOperation,
+} from "./node-drag-operation";
+import { NodeDragPreviewBroadcaster } from "./node-drag-preview";
+import type { SystemDesignPoint } from "../types/system-design.types";
+import {
   createRealtimeRoom,
   RealtimeClient,
   type RealtimeConnectionStatus,
@@ -27,6 +33,10 @@ interface UseSystemDesignRealtimeOptions {
   onInitialDocument: (document: SystemDesignDocument) => void;
   onReplaceDocument: (document: SystemDesignDocument) => void;
   onRemoteOperation: (operation: CanvasOperation) => void;
+  onRemoteDragOperation: (
+    actorId: string,
+    operation: NodeDragOperation,
+  ) => void;
 }
 
 export interface SystemDesignRealtimeController {
@@ -41,6 +51,11 @@ export interface SystemDesignRealtimeController {
     operation: CanvasOperation,
     checkpoint: SystemDesignDocument,
   ) => string | null;
+  beginNodeDrag: (diagramId: string, nodeIds: readonly string[]) => void;
+  previewNodeDrag: (
+    positions: Readonly<Record<string, SystemDesignPoint>>,
+  ) => void;
+  endNodeDrag: () => void;
   disconnect: () => void;
 }
 
@@ -53,6 +68,7 @@ export function useSystemDesignRealtime({
   onInitialDocument,
   onReplaceDocument,
   onRemoteOperation,
+  onRemoteDragOperation,
 }: UseSystemDesignRealtimeOptions): SystemDesignRealtimeController {
   const [status, setStatus] =
     useState<RealtimeConnectionStatus>(initialRoomToken ? "connecting" : "idle");
@@ -74,19 +90,43 @@ export function useSystemDesignRealtime({
     onInitialDocument,
     onReplaceDocument,
     onRemoteOperation,
+    onRemoteDragOperation,
   });
   const connectionRoleRef = useRef<"host" | "guest">(
     initialRoomToken ? "guest" : "host",
   );
   const receivedStateRef = useRef(false);
+  const dragBroadcasterRef = useRef<NodeDragPreviewBroadcaster | null>(null);
+
+  useEffect(() => {
+    const broadcaster = new NodeDragPreviewBroadcaster({
+      send: (operation) =>
+        clientRef.current?.sendEphemeral(operation) ?? false,
+    });
+    dragBroadcasterRef.current = broadcaster;
+    return () => {
+      broadcaster.cancel();
+      dragBroadcasterRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     callbacksRef.current = {
       onInitialDocument,
       onReplaceDocument,
       onRemoteOperation,
+      onRemoteDragOperation,
     };
-  }, [onInitialDocument, onRemoteOperation, onReplaceDocument]);
+  }, [
+    onInitialDocument,
+    onRemoteDragOperation,
+    onRemoteOperation,
+    onReplaceDocument,
+  ]);
+
+  useEffect(() => {
+    if (status !== "live") dragBroadcasterRef.current?.cancel();
+  }, [status]);
 
   useEffect(() => {
     if (
@@ -115,6 +155,12 @@ export function useSystemDesignRealtime({
           onCommittedOperation: (message) => {
             callbacksRef.current.onRemoteOperation(
               parseCanvasOperation(message.payload),
+            );
+          },
+          onEphemeralOperation: (message) => {
+            callbacksRef.current.onRemoteDragOperation(
+              message.actorId,
+              parseNodeDragOperation(message.payload),
             );
           },
           onRoomState: (message, pendingOperations) => {
@@ -217,6 +263,30 @@ export function useSystemDesignRealtime({
     [],
   );
 
+  const beginNodeDrag = useCallback(
+    (diagramId: string, nodeIds: readonly string[]) => {
+      if (status !== "live" || nodeIds.length === 0) return;
+      dragBroadcasterRef.current?.begin(diagramId, nodeIds);
+    },
+    [status],
+  );
+
+  const previewNodeDrag = useCallback(
+    (positions: Readonly<Record<string, SystemDesignPoint>>) => {
+      if (status !== "live") return;
+      dragBroadcasterRef.current?.preview(positions);
+    },
+    [status],
+  );
+
+  const endNodeDrag = useCallback(() => {
+    if (status !== "live") {
+      dragBroadcasterRef.current?.cancel();
+      return;
+    }
+    dragBroadcasterRef.current?.end();
+  }, [status]);
+
   const disconnect = useCallback(() => {
     clientRef.current?.disconnect();
   }, []);
@@ -230,6 +300,9 @@ export function useSystemDesignRealtime({
     startLiveSession,
     retryConnection,
     sendCommittedOperation,
+    beginNodeDrag,
+    previewNodeDrag,
+    endNodeDrag,
     disconnect,
   };
 }

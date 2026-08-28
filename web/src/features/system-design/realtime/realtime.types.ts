@@ -47,9 +47,17 @@ export interface RealtimeErrorMessage {
   error: { code: string; message: string };
 }
 
+export interface RealtimeEphemeralMessage {
+  v: typeof REALTIME_PROTOCOL_VERSION;
+  type: "op.ephemeral";
+  actorId: string;
+  opId?: string;
+  payload: unknown;
+}
+
 export interface RealtimeOpaqueMessage {
   v: typeof REALTIME_PROTOCOL_VERSION;
-  type: "op.ephemeral" | "presence" | "ping" | "pong";
+  type: "presence" | "ping" | "pong";
   actorId?: string;
   opId?: string;
   payload?: unknown;
@@ -60,6 +68,7 @@ export type RealtimeServerMessage =
   | RealtimeCommitMessage
   | RealtimeAckMessage
   | RealtimeErrorMessage
+  | RealtimeEphemeralMessage
   | RealtimeOpaqueMessage;
 
 export interface CreateRealtimeRoomResponse {
@@ -211,8 +220,20 @@ export function parseRealtimeServerMessage(
     };
   }
 
+  if (value.type === "op.ephemeral") {
+    if (!isIdentifier(value.actorId) || !("payload" in value)) {
+      throw new RealtimeProtocolError("Invalid ephemeral operation envelope.");
+    }
+    return {
+      v: REALTIME_PROTOCOL_VERSION,
+      type: "op.ephemeral",
+      actorId: value.actorId,
+      ...(isIdentifier(value.opId) ? { opId: value.opId } : {}),
+      payload: value.payload,
+    };
+  }
+
   if (
-    value.type === "op.ephemeral" ||
     value.type === "presence" ||
     value.type === "ping" ||
     value.type === "pong"

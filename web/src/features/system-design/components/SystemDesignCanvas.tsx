@@ -88,6 +88,8 @@ interface NodePositionChange {
   y: number;
 }
 
+const EMPTY_NODE_ID_SET: ReadonlySet<string> = new Set<string>();
+
 interface NodeFrameChange extends NodePositionChange {
   width: number;
   height: number;
@@ -106,6 +108,10 @@ export interface SystemDesignCanvasHandle {
   zoomBy: (factor: number) => void;
   getVisibleCenter: () => { x: number; y: number };
   startInlineEdit: (nodeId: string) => void;
+  applyRemoteNodePositions: (
+    positions: Readonly<Record<string, { x: number; y: number }>>,
+  ) => void;
+  clearRemoteNodePositions: (nodeIds: readonly string[]) => void;
 }
 
 interface SystemDesignCanvasProps {
@@ -118,6 +124,7 @@ interface SystemDesignCanvasProps {
   snapToObjects?: boolean;
   activeTool?: SystemDesignEditorTool;
   animationsEnabled?: boolean;
+  remotelyDraggedNodeIds?: ReadonlySet<string>;
   internalComponentCounts?: Readonly<Record<string, number>>;
   onSelectNode: (nodeId: string, additive: boolean) => void;
   onSelectNodes: (
@@ -127,6 +134,9 @@ interface SystemDesignCanvasProps {
   onSelectEdge: (edgeId: string, additive: boolean) => void;
   onClearSelection: () => void;
   onMoveNodes: (changes: NodePositionChange[]) => void;
+  onNodeDragStart?: (nodeIds: readonly string[]) => void;
+  onNodeDragPreview?: (changes: readonly NodePositionChange[]) => void;
+  onNodeDragEnd?: (nodeIds: readonly string[]) => void;
   onResizeNode: (change: NodeFrameChange) => void;
   onAddEdge: (edge: SystemDesignEdge) => void;
   onAddFreehand?: (points: readonly { x: number; y: number }[]) => void;
@@ -198,11 +208,15 @@ export const SystemDesignCanvas = forwardRef<
     snapToObjects = true,
     activeTool = "select",
     animationsEnabled = true,
+    remotelyDraggedNodeIds = EMPTY_NODE_ID_SET,
     onSelectNode,
     onSelectNodes,
     onSelectEdge,
     onClearSelection,
     onMoveNodes,
+    onNodeDragStart,
+    onNodeDragPreview,
+    onNodeDragEnd,
     onResizeNode,
     onAddEdge,
     onAddFreehand,
@@ -239,6 +253,9 @@ export const SystemDesignCanvas = forwardRef<
   const liftedNodeIdsRef = useRef<string[]>([]);
   const liftedEdgeIdsRef = useRef<string[]>([]);
   const nodeRefs = useRef(new Map<string, Konva.Group>());
+  const remoteNodePositionsRef = useRef(
+    new Map<string, { x: number; y: number }>(),
+  );
   const edgeRefs = useRef(
     new Map<string, SystemDesignEdgeRendererHandle>(),
   );
@@ -694,6 +711,45 @@ export const SystemDesignCanvas = forwardRef<
     [setViewport, size.height, size.width, viewport],
   );
 
+  const applyRemoteNodePositions = useCallback(
+    (positions: Readonly<Record<string, { x: number; y: number }>>) => {
+      const applied = new Map<string, { x: number; y: number }>();
+      Object.entries(positions).forEach(([nodeId, position]) => {
+        if (!nodeMap.has(nodeId) || dragSnapshot.current.has(nodeId)) return;
+        remoteNodePositionsRef.current.set(nodeId, position);
+        nodeRefs.current.get(nodeId)?.position(position);
+        applied.set(nodeId, position);
+      });
+      if (applied.size === 0) return;
+      updateConnectedEdgeGeometry(applied);
+      boundaryLayerRef.current?.batchDraw();
+      nodesLayerRef.current?.batchDraw();
+      edgesLayerRef.current?.batchDraw();
+    },
+    [nodeMap, updateConnectedEdgeGeometry],
+  );
+
+  const clearRemoteNodePositions = useCallback(
+    (nodeIds: readonly string[]) => {
+      const canonical = new Map<string, { x: number; y: number }>();
+      nodeIds.forEach((nodeId) => {
+        remoteNodePositionsRef.current.delete(nodeId);
+        if (dragSnapshot.current.has(nodeId)) return;
+        const node = nodeMap.get(nodeId);
+        if (!node) return;
+        const position = { x: node.x, y: node.y };
+        nodeRefs.current.get(nodeId)?.position(position);
+        canonical.set(nodeId, position);
+      });
+      if (canonical.size === 0) return;
+      updateConnectedEdgeGeometry(canonical);
+      boundaryLayerRef.current?.batchDraw();
+      nodesLayerRef.current?.batchDraw();
+      edgesLayerRef.current?.batchDraw();
+    },
+    [nodeMap, updateConnectedEdgeGeometry],
+  );
+
   useImperativeHandle(
     ref,
     () => ({
@@ -702,14 +758,27 @@ export const SystemDesignCanvas = forwardRef<
       zoomBy,
       getVisibleCenter,
       startInlineEdit: (nodeId) => beginInlineLabelEditRef.current(nodeId),
+      applyRemoteNodePositions,
+      clearRemoteNodePositions,
     }),
-    [fitToScreen, getVisibleCenter, resetViewport, zoomBy],
+    [
+      applyRemoteNodePositions,
+      clearRemoteNodePositions,
+      fitToScreen,
+      getVisibleCenter,
+      resetViewport,
+      zoomBy,
+    ],
   );
 
   useEffect(() => {
     const transformer = transformerRef.current;
     if (!transformer) return;
-    if (preview || selectedNodeIds.length !== 1) {
+    if (
+      preview ||
+      selectedNodeIds.length !== 1 ||
+      remotelyDraggedNodeIds.has(selectedNodeIds[0])
+    ) {
       transformer.nodes([]);
       transformer.getLayer()?.batchDraw();
       return;
@@ -727,7 +796,13 @@ export const SystemDesignCanvas = forwardRef<
       transformer.nodes([selectedRef]);
     }
     transformer.getLayer()?.batchDraw();
-  }, [diagram.nodes, nodeMap, preview, selectedNodeIds]);
+  }, [
+    diagram.nodes,
+    nodeMap,
+    preview,
+    remotelyDraggedNodeIds,
+    selectedNodeIds,
+  ]);
 
   const gridLines = useMemo(() => {
     if (!showGrid || size.width === 0 || size.height === 0) return [];
@@ -1136,6 +1211,7 @@ export const SystemDesignCanvas = forwardRef<
 
   const handleDragStart = useCallback(
     (nodeId: string) => {
+      if (remotelyDraggedNodeIds.has(nodeId)) return;
       dragActiveRef.current = true;
       const activeIds = selectedNodeIds.includes(nodeId)
         ? selectedNodeIds
@@ -1144,15 +1220,23 @@ export const SystemDesignCanvas = forwardRef<
       dragSnapshot.current = new Map(
         activeIds.flatMap((id) => {
           const node = nodeMap.get(id);
-          return node && !node.locked
+          return node && !node.locked && !remotelyDraggedNodeIds.has(id)
             ? [[id, { x: node.x, y: node.y }] as const]
             : [];
         }),
       );
       liftDragVisuals([...dragSnapshot.current.keys()]);
+      onNodeDragStart?.([...dragSnapshot.current.keys()]);
       startSystemDesignDragMeasurement(dragSnapshot.current.size);
     },
-    [liftDragVisuals, nodeMap, onSelectNode, selectedNodeIds],
+    [
+      liftDragVisuals,
+      nodeMap,
+      onNodeDragStart,
+      onSelectNode,
+      remotelyDraggedNodeIds,
+      selectedNodeIds,
+    ],
   );
 
   const handleDragMove = useCallback(
@@ -1183,11 +1267,15 @@ export const SystemDesignCanvas = forwardRef<
         if (id !== nodeId) nodeRefs.current.get(id)?.position(next);
       });
       updateConnectedEdgeGeometry(positions);
+      onNodeDragPreview?.(
+        [...positions].map(([id, position]) => ({ id, ...position })),
+      );
       scheduleAlignmentGuides(nodeId, group);
       group.getLayer()?.batchDraw();
     },
     [
       getObjectSnappedPosition,
+      onNodeDragPreview,
       scheduleAlignmentGuides,
       snapToGrid,
       updateConnectedEdgeGeometry,
@@ -1201,7 +1289,10 @@ export const SystemDesignCanvas = forwardRef<
         dragActiveRef.current = false;
         hideAlignmentGuides();
         restoreDragVisuals();
-        onMoveNodes([{ id: nodeId, x: group.x(), y: group.y() }]);
+        const changes = [{ id: nodeId, x: group.x(), y: group.y() }];
+        onNodeDragPreview?.(changes);
+        onNodeDragEnd?.([nodeId]);
+        onMoveNodes(changes);
         requestSystemDesignDragMeasurementFinish();
         return;
       }
@@ -1218,10 +1309,18 @@ export const SystemDesignCanvas = forwardRef<
       dragActiveRef.current = false;
       hideAlignmentGuides();
       restoreDragVisuals();
+      onNodeDragPreview?.(changes);
+      onNodeDragEnd?.(changes.map((change) => change.id));
       onMoveNodes(changes);
       requestSystemDesignDragMeasurementFinish();
     },
-    [hideAlignmentGuides, onMoveNodes, restoreDragVisuals],
+    [
+      hideAlignmentGuides,
+      onMoveNodes,
+      onNodeDragEnd,
+      onNodeDragPreview,
+      restoreDragVisuals,
+    ],
   );
 
   const handlePortStart = useCallback(
@@ -1683,7 +1782,14 @@ export const SystemDesignCanvas = forwardRef<
                   selectedNodeIds.length === 1 &&
                   selectedNodeIds[0] === node.id &&
                   !node.locked &&
+                  !remotelyDraggedNodeIds.has(node.id) &&
                   node.type !== "freehand"
+                }
+                dragDisabled={remotelyDraggedNodeIds.has(node.id)}
+                positionOverride={
+                  remotelyDraggedNodeIds.has(node.id)
+                    ? remoteNodePositionsRef.current.get(node.id)
+                    : undefined
                 }
                 connecting={
                   !spacePanning &&
@@ -1751,7 +1857,14 @@ export const SystemDesignCanvas = forwardRef<
                   selectedNodeIds.length === 1 &&
                   selectedNodeIds[0] === node.id &&
                   !node.locked &&
+                  !remotelyDraggedNodeIds.has(node.id) &&
                   node.type !== "freehand"
+                }
+                dragDisabled={remotelyDraggedNodeIds.has(node.id)}
+                positionOverride={
+                  remotelyDraggedNodeIds.has(node.id)
+                    ? remoteNodePositionsRef.current.get(node.id)
+                    : undefined
                 }
                 connecting={
                   !spacePanning &&
