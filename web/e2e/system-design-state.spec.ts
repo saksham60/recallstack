@@ -1618,6 +1618,22 @@ test.describe("system-design realtime convergence", () => {
       y: 440,
     });
 
+    const emptyRoomState = parseRealtimeServerMessage(
+      JSON.stringify({
+        v: 1,
+        type: "room.state",
+        snapshot,
+        stateMode: "full",
+        historyStartsAt: 1,
+      }),
+    );
+    expect(emptyRoomState).toMatchObject({
+      type: "room.state",
+      currentSequence: 0,
+      operations: [],
+      presence: [],
+    });
+
     expect(() =>
       parseRealtimeServerMessage('{"v":2,"type":"room.state"}'),
     ).toThrow(/protocol version/i);

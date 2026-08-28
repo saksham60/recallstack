@@ -138,9 +138,12 @@ export function parseRealtimeServerMessage(
   }
 
   if (value.type === "room.state") {
+    // Go omits zero-valued numeric fields. A brand-new room therefore has no
+    // currentSequence property on the wire even though its semantic value is 0.
+    const currentSequence = value.currentSequence ?? 0;
     if (
       (value.stateMode !== "full" && value.stateMode !== "replay") ||
-      !isSequence(value.currentSequence) ||
+      !isSequence(currentSequence) ||
       !isSequence(value.historyStartsAt) ||
       (value.snapshot === undefined && value.stateMode === "full") ||
       (value.operations !== undefined && !Array.isArray(value.operations)) ||
@@ -164,7 +167,7 @@ export function parseRealtimeServerMessage(
       operations,
       presence,
       stateMode: value.stateMode,
-      currentSequence: value.currentSequence,
+      currentSequence,
       historyStartsAt: value.historyStartsAt,
     };
   }
