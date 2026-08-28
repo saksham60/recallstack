@@ -674,6 +674,7 @@ function isBlockedInPreview(action: SystemDesignEditorAction): boolean {
   return (
     action.type === "node/add" ||
     action.type === "node/update" ||
+    action.type === "nodes/update" ||
     action.type === "nodes/move" ||
     action.type === "nodes/arrange" ||
     action.type === "nodes/set-state" ||
@@ -948,7 +949,9 @@ export function systemDesignEditorReducer(
     }
 
     case "node/update": {
-      const diagram = activeDiagram(state);
+      const diagram =
+        state.document.diagrams[action.diagramId ?? state.activeDiagramId];
+      if (!diagram) return state;
       let changed = false;
       let linkedDiagramRename:
         | { diagramId: string; name: string }
@@ -995,6 +998,35 @@ export function systemDesignEditorReducer(
       return commitDocument(
         state,
         document,
+        action.at,
+      );
+    }
+
+    case "nodes/update": {
+      const diagram =
+        state.document.diagrams[action.diagramId ?? state.activeDiagramId];
+      if (!diagram) return state;
+      let changed = false;
+      const nodes = diagram.nodes.map((node) => {
+        const requested = action.patches[node.id];
+        if (!requested) return node;
+        const patch = sanitizeNodePatch(requested);
+        if (node.locked) {
+          delete patch.x;
+          delete patch.y;
+          delete patch.width;
+          delete patch.height;
+        }
+        if (Object.keys(patch).length === 0) return node;
+        const candidate = { ...node, ...patch, id: node.id };
+        if (JSON.stringify(candidate) === JSON.stringify(node)) return node;
+        changed = true;
+        return candidate;
+      });
+      if (!changed) return state;
+      return commitDocument(
+        state,
+        replaceDiagram(state.document, { ...diagram, nodes }),
         action.at,
       );
     }
@@ -1153,7 +1185,9 @@ export function systemDesignEditorReducer(
     }
 
     case "node/resize": {
-      const diagram = activeDiagram(state);
+      const diagram =
+        state.document.diagrams[action.diagramId ?? state.activeDiagramId];
+      if (!diagram) return state;
       const node = diagram.nodes.find(
         (candidate) => candidate.id === action.nodeId,
       );
@@ -1206,7 +1240,7 @@ export function systemDesignEditorReducer(
     case "edges/delete": {
       const document = removeEdges(
         state.document,
-        state.activeDiagramId,
+        action.diagramId ?? state.activeDiagramId,
         action.edgeIds,
       );
       return document
@@ -1266,7 +1300,9 @@ export function systemDesignEditorReducer(
     }
 
     case "edge/add": {
-      const diagram = activeDiagram(state);
+      const diagram =
+        state.document.diagrams[action.diagramId ?? state.activeDiagramId];
+      if (!diagram) return state;
       if (
         allEdgeIds(state.document).has(action.edge.id) ||
         !isValidEdge(action.edge, diagram.nodes, diagram.edges)
@@ -1280,12 +1316,16 @@ export function systemDesignEditorReducer(
           edges: [...diagram.edges, { ...action.edge }],
         }),
         action.at,
-        { selectedNodeIds: [], selectedEdgeIds: [action.edge.id] },
+        action.select === false || diagram.id !== state.activeDiagramId
+          ? undefined
+          : { selectedNodeIds: [], selectedEdgeIds: [action.edge.id] },
       );
     }
 
     case "edge/update": {
-      const diagram = activeDiagram(state);
+      const diagram =
+        state.document.diagrams[action.diagramId ?? state.activeDiagramId];
+      if (!diagram) return state;
       const edge = diagram.edges.find(
         (candidate) => candidate.id === action.edgeId,
       );
@@ -1618,6 +1658,56 @@ export function systemDesignEditorReducer(
         saveStatus: "unsaved",
         saveError: null,
       };
+    }
+
+    case "collaboration/add-diagram": {
+      const parentDiagram = state.document.diagrams[action.parentDiagramId];
+      const parentNode = parentDiagram?.nodes.find(
+        (node) => node.id === action.parentNodeId,
+      );
+      if (
+        !parentDiagram ||
+        !parentNode ||
+        state.document.diagrams[action.diagram.id] ||
+        action.diagram.parentNodeId !== parentNode.id
+      ) {
+        return state;
+      }
+      const nextParent = {
+        ...parentDiagram,
+        nodes: parentDiagram.nodes.map((node) =>
+          node.id === parentNode.id
+            ? {
+                ...node,
+                childDiagramId: action.diagram.id,
+                isExpandable: true,
+                isCollapsed: false,
+              }
+            : node,
+        ),
+      };
+      return commitDocument(
+        state,
+        {
+          ...state.document,
+          diagrams: {
+            ...state.document.diagrams,
+            [nextParent.id]: nextParent,
+            [action.diagram.id]: {
+              ...action.diagram,
+              nodes: action.diagram.nodes.map(cloneNode),
+              edges: action.diagram.edges.map((edge) => ({
+                ...edge,
+                dashPattern: edge.dashPattern
+                  ? [...edge.dashPattern]
+                  : undefined,
+              })),
+              viewport: { ...action.diagram.viewport },
+            },
+          },
+        },
+        action.at,
+      );
     }
 
     case "document/complete":

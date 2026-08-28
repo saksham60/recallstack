@@ -118,6 +118,13 @@ Live Share creates rooms through `NEXT_PUBLIC_REALTIME_BASE_URL`. The public,
 capability-token guest route is `/system-design/live/[roomToken]`; it does not
 require a RecallStack account and is marked `noindex`.
 
+System Design Live Share synchronizes structural node/edge/module operations and
+uses transient messages for drag, resize, freehand, and cursor previews. QR codes
+are rendered locally in the browser; no share URL is sent to a third-party QR
+service. In Vercel, set `NEXT_PUBLIC_REALTIME_BASE_URL` for Production and every
+Preview environment that should connect to the Render service. The Render
+`ALLOWED_ORIGINS` value must contain each corresponding exact Vercel origin.
+
 The normal navigation only exposes the Admin link when the backend `/api/v1/me`
 profile projection includes the active `admin` role. The Admin layout repeats the
 authorization check and every data request is made against the protected FastAPI

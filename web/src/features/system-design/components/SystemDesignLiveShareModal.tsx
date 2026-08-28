@@ -2,20 +2,24 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Check, Copy, LoaderCircle, Radio, RotateCw, X } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { buttonClass } from "@/features/admin/components/AdminPrimitives";
 import type {
   RealtimeConnectionStatus,
   RealtimeFailure,
 } from "../realtime/realtime-client";
+import type { CollaborationParticipant } from "../realtime/presence";
 
 interface SystemDesignLiveShareModalProps {
   open: boolean;
   status: RealtimeConnectionStatus;
   failure: RealtimeFailure | null;
   shareUrl: string | null;
+  participants: readonly CollaborationParticipant[];
   isSlow: boolean;
   onClose: () => void;
   onRetry: () => void;
+  onStartNew?: () => void;
 }
 
 function statusCopy(status: RealtimeConnectionStatus): string {
@@ -32,9 +36,11 @@ export function SystemDesignLiveShareModal({
   status,
   failure,
   shareUrl,
+  participants,
   isSlow,
   onClose,
   onRetry,
+  onStartNew,
 }: SystemDesignLiveShareModalProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">(
@@ -133,6 +139,16 @@ export function SystemDesignLiveShareModal({
                   Try again
                 </button>
               )}
+              {failure.kind === "ended" && onStartNew && (
+                <button
+                  type="button"
+                  className={`${buttonClass} mt-4 gap-2 border-accent/40`}
+                  onClick={onStartNew}
+                >
+                  <Radio className="h-4 w-4" aria-hidden="true" />
+                  Start new live session
+                </button>
+              )}
             </div>
           ) : waiting && !shareUrl ? (
             <div className="flex min-h-28 items-center gap-4 rounded-xl border border-border bg-background/45 p-4">
@@ -150,6 +166,7 @@ export function SystemDesignLiveShareModal({
                     : "Preparing a secure link for this canvas."}
                 </p>
               </div>
+
             </div>
           ) : (
             <>
@@ -188,6 +205,45 @@ export function SystemDesignLiveShareModal({
                   </p>
                 )}
               </div>
+
+              {shareUrl && (
+                <div className="grid gap-4 rounded-xl border border-border bg-background/35 p-4 sm:grid-cols-[132px_1fr]">
+                  <div className="flex h-[132px] w-[132px] items-center justify-center rounded-lg bg-white p-2">
+                    <QRCodeSVG
+                      value={shareUrl}
+                      size={116}
+                      level="M"
+                      title="Live session QR code"
+                      aria-label="Live session QR code"
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-foreground">
+                      Scan to join
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-muted">
+                      Open the camera on another laptop, browser, or tablet and scan this code.
+                    </p>
+                    <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-muted">
+                      Participants ({participants.length})
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {participants.map((participant) => (
+                        <span
+                          key={participant.actorId}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-2 py-1 text-xs"
+                        >
+                          <span
+                            className="h-2 w-2 rounded-full"
+                            style={{ backgroundColor: participant.color }}
+                          />
+                          {participant.isLocal ? "You" : participant.displayName}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="flex items-center justify-between rounded-lg border border-border bg-background/35 px-3 py-2.5">
                 <span className="flex items-center gap-2 text-sm font-medium">

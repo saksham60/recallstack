@@ -54,6 +54,7 @@ interface SystemDesignNodeRendererProps {
   selected: boolean;
   transformerOwnsSelection?: boolean;
   dragDisabled?: boolean;
+  remoteOwned?: boolean;
   positionOverride?: { x: number; y: number };
   connecting: boolean;
   preview: boolean;
@@ -68,6 +69,11 @@ interface SystemDesignNodeRendererProps {
   onDragMove: (nodeId: string, group: Konva.Group) => void;
   onDragEnd: (nodeId: string, group: Konva.Group) => void;
   onResizeEnd: (
+    nodeId: string,
+    frame: { x: number; y: number; width: number; height: number },
+  ) => void;
+  onResizeStart?: (nodeId: string) => void;
+  onResizePreview?: (
     nodeId: string,
     frame: { x: number; y: number; width: number; height: number },
   ) => void;
@@ -936,6 +942,7 @@ function SystemDesignNodeRendererComponent({
   selected,
   transformerOwnsSelection = false,
   dragDisabled = false,
+  remoteOwned = false,
   positionOverride,
   connecting,
   preview,
@@ -946,6 +953,8 @@ function SystemDesignNodeRendererComponent({
   onDragMove,
   onDragEnd,
   onResizeEnd,
+  onResizeStart,
+  onResizePreview,
   onPortStart,
   onPortEnd,
   onOpenModule,
@@ -1119,6 +1128,16 @@ function SystemDesignNodeRendererComponent({
       onDragEnd={(event) => {
         setDragging(false);
         onDragEnd(node.id, event.target as Konva.Group);
+      }}
+      onTransformStart={() => onResizeStart?.(node.id)}
+      onTransform={(event) => {
+        const group = event.target as Konva.Group;
+        onResizePreview?.(node.id, {
+          x: group.x(),
+          y: group.y(),
+          width: Math.max(MIN_NODE_WIDTH, node.width * group.scaleX()),
+          height: Math.max(MIN_NODE_HEIGHT, node.height * group.scaleY()),
+        });
       }}
       onTransformEnd={(event) => {
         const group = event.target as Konva.Group;
@@ -1533,6 +1552,23 @@ function SystemDesignNodeRendererComponent({
           strokeWidth={selected ? 2 : 1}
           opacity={selected ? 1 : 0.55}
           dash={isStructuralContainer ? [7, 4] : undefined}
+          strokeScaleEnabled={false}
+          listening={false}
+          perfectDrawEnabled={false}
+        />
+      )}
+
+      {remoteOwned && (
+        <Rect
+          x={-5}
+          y={-5}
+          width={node.width + 10}
+          height={node.height + 10}
+          cornerRadius={15}
+          stroke="#22d3ee"
+          strokeWidth={2}
+          dash={[6, 4]}
+          opacity={0.9}
           strokeScaleEnabled={false}
           listening={false}
           perfectDrawEnabled={false}

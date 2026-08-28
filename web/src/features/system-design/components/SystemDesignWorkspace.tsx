@@ -25,15 +25,26 @@ import { useSystemDesignKeyboardShortcuts } from "../hooks/use-system-design-key
 import { useSystemDesignClipboard } from "../hooks/use-system-design-clipboard";
 import { useSystemDesignPersistence } from "../hooks/use-system-design-persistence";
 import { createSystemDesignRepository } from "../repository/createSystemDesignRepository";
-import { systemDesignEditorActions } from "../state/system-design-editor-actions";
+import {
+  systemDesignEditorActions,
+  type SystemDesignEditorAction,
+  type SystemDesignEdgePatch,
+  type SystemDesignNodePatch,
+} from "../state/system-design-editor-actions";
 import {
   createSystemDesignEditorState,
   systemDesignEditorReducer,
 } from "../state/system-design-editor-reducer";
 import { applyCanvasOperation } from "../realtime/apply-canvas-operation";
-import type { CanvasOperation } from "../realtime/canvas-operation";
+import type {
+  CanvasEdgePatch,
+  CanvasNodePatch,
+  CanvasOperation,
+} from "../realtime/canvas-operation";
 import { useSystemDesignRealtime } from "../realtime/use-system-design-realtime";
 import { useRemoteNodeDrags } from "../realtime/use-remote-node-drags";
+import { useRemoteNodeResizes } from "../realtime/use-remote-node-resizes";
+import { useRemoteStrokes } from "../realtime/use-remote-strokes";
 import type {
   SystemDesignDocument,
   SystemDesignEditorTool,
@@ -109,6 +120,59 @@ const SYSTEM_DESIGN_CREATION_TOOL_TYPES: Partial<
   boundary: "system_boundary",
   module: "module",
 };
+
+const SYNCED_NODE_PATCH_KEYS = [
+  "x", "y", "width", "height", "label", "subtitle", "technology",
+  "description", "childDiagramId", "isExpandable", "isCollapsed",
+  "parentModuleId", "groupId", "layer", "locked", "visible", "drawing",
+  "style", "textStyle", "metadata",
+] as const satisfies readonly (keyof SystemDesignNodePatch)[];
+
+const SYNCED_EDGE_PATCH_KEYS = [
+  "sourceNodeId", "targetNodeId", "sourcePort", "targetPort", "type", "label",
+  "protocol", "description", "routing", "color", "opacity", "strokeWidth",
+  "lineStyle", "dashPattern", "startArrowhead", "endArrowhead", "labelIcon",
+  "labelPosition", "labelBackground", "labelTextColor", "animationMode",
+  "animationSpeed", "animationDirection",
+] as const satisfies readonly (keyof SystemDesignEdgePatch)[];
+
+function toCanvasNodePatch(patch: SystemDesignNodePatch): CanvasNodePatch {
+  return Object.fromEntries(
+    Object.entries(patch).map(([key, value]) => [
+      key,
+      value === undefined ? null : value,
+    ]),
+  ) as CanvasNodePatch;
+}
+
+function toCanvasEdgePatch(patch: SystemDesignEdgePatch): CanvasEdgePatch {
+  return Object.fromEntries(
+    Object.entries(patch).map(([key, value]) => [
+      key,
+      value === undefined ? null : value,
+    ]),
+  ) as CanvasEdgePatch;
+}
+
+function diffNode(before: SystemDesignNode, after: SystemDesignNode): CanvasNodePatch {
+  return Object.fromEntries(
+    SYNCED_NODE_PATCH_KEYS.flatMap((key) =>
+      JSON.stringify(before[key]) === JSON.stringify(after[key])
+        ? []
+        : [[key, after[key] === undefined ? null : after[key]] as const],
+    ),
+  ) as CanvasNodePatch;
+}
+
+function diffEdge(before: SystemDesignEdge, after: SystemDesignEdge): CanvasEdgePatch {
+  return Object.fromEntries(
+    SYNCED_EDGE_PATCH_KEYS.flatMap((key) =>
+      JSON.stringify(before[key]) === JSON.stringify(after[key])
+        ? []
+        : [[key, after[key] === undefined ? null : after[key]] as const],
+    ),
+  ) as CanvasEdgePatch;
+}
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) return error.message;
@@ -230,6 +294,7 @@ export function SystemDesignWorkspace({
   >(null);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const stateRef = useRef(state);
+  const activeStrokeSessionRef = useRef<string | null>(null);
 
   useEffect(() => {
     stateRef.current = state;
@@ -263,6 +328,18 @@ export function SystemDesignWorkspace({
     onApplyPositions: applyRemoteNodePositions,
     onClearPositions: clearRemoteNodePositions,
   });
+  const remoteNodeResizes = useRemoteNodeResizes(activeDiagram.id);
+  const remoteStrokes = useRemoteStrokes(activeDiagram.id);
+  const remotelyOwnedNodeIds = useMemo(
+    () => new Set([
+      ...remoteNodeDrags.remotelyDraggedNodeIds,
+      ...remoteNodeResizes.remotelyResizedNodeIds,
+    ]),
+    [
+      remoteNodeDrags.remotelyDraggedNodeIds,
+      remoteNodeResizes.remotelyResizedNodeIds,
+    ],
+  );
 
   const { save, retryLoad } = useSystemDesignPersistence({
     enabled: Boolean(problem),
@@ -279,22 +356,26 @@ export function SystemDesignWorkspace({
   const handleInitialLiveDocument = useCallback(
     (document: SystemDesignDocument) => {
       remoteNodeDrags.clearAll();
+      remoteNodeResizes.clearAll();
+      remoteStrokes.clearAll();
       const action = systemDesignEditorActions.loadSuccess(document, false);
       stateRef.current = systemDesignEditorReducer(stateRef.current, action);
       dispatch(action);
     },
-    [remoteNodeDrags],
+    [remoteNodeDrags, remoteNodeResizes, remoteStrokes],
   );
 
   const handleReplaceLiveDocument = useCallback(
     (document: SystemDesignDocument) => {
       remoteNodeDrags.clearAll();
+      remoteNodeResizes.clearAll();
+      remoteStrokes.clearAll();
       const action =
         systemDesignEditorActions.replaceCollaborationDocument(document);
       stateRef.current = systemDesignEditorReducer(stateRef.current, action);
       dispatch(action);
     },
-    [remoteNodeDrags],
+    [remoteNodeDrags, remoteNodeResizes, remoteStrokes],
   );
 
   const handleRemoteCanvasOperation = useCallback(
@@ -309,40 +390,169 @@ export function SystemDesignWorkspace({
           operation.diagramId,
           operation.nodeIds,
         );
+      } else if (operation.kind === "node.resize") {
+        remoteNodeResizes.finishCommittedResize(
+          operation.diagramId,
+          operation.nodeId,
+        );
+      } else if (
+        operation.kind === "node.add" &&
+        operation.transientSessionId
+      ) {
+        remoteStrokes.finishCommittedStroke(operation.transientSessionId);
       }
       const applied = applyCanvasOperation(stateRef.current, operation);
       stateRef.current = applied.state;
       dispatch(applied.action);
     },
-    [remoteNodeDrags],
+    [remoteNodeDrags, remoteNodeResizes, remoteStrokes],
   );
 
   const realtime = useSystemDesignRealtime({
     initialRoomToken: mode.kind === "live" ? mode.roomToken : undefined,
+    activeDiagramId: activeDiagram.id,
     onInitialDocument: handleInitialLiveDocument,
     onReplaceDocument: handleReplaceLiveDocument,
     onRemoteOperation: handleRemoteCanvasOperation,
     onRemoteDragOperation: remoteNodeDrags.receive,
+    onRemoteResizeOperation: remoteNodeResizes.receive,
+    onRemoteStrokeOperation: remoteStrokes.receive,
+    onTransientReset: () => {
+      remoteNodeDrags.clearAll();
+      remoteNodeResizes.clearAll();
+      remoteStrokes.clearAll();
+    },
   });
   const collaborationActive =
     mode.kind === "live" || realtime.roomToken !== null;
+  const sendCommittedOperation = realtime.sendCommittedOperation;
 
   const commitCanvasOperation = useCallback(
     (operation: CanvasOperation) => {
       const applied = applyCanvasOperation(stateRef.current, operation, {
-        selectAddedNode: operation.kind === "node.add",
+        selectAddedNode:
+          operation.kind === "node.add" || operation.kind === "edge.add",
       });
       stateRef.current = applied.state;
       dispatch(applied.action);
       if (collaborationActive) {
-        realtime.sendCommittedOperation(
+        sendCommittedOperation(
           applied.operation,
           applied.state.document,
         );
       }
       return applied.operation;
     },
-    [collaborationActive, realtime],
+    [collaborationActive, sendCommittedOperation],
+  );
+
+  const commitEditorActionWithConcreteOperations = useCallback(
+    (action: SystemDesignEditorAction): boolean => {
+      const current = stateRef.current;
+      const diagramId = current.activeDiagramId;
+      const before = current.document.diagrams[diagramId];
+      const next = systemDesignEditorReducer(current, action);
+      if (next === current) {
+        dispatch(action);
+        return false;
+      }
+      const after = next.document.diagrams[diagramId];
+      if (!before || !after) return false;
+
+      const newDiagramIds = Object.keys(next.document.diagrams).filter(
+        (candidateId) => !current.document.diagrams[candidateId],
+      );
+      const existingNodeIds = new Set(
+        Object.values(current.document.diagrams).flatMap((diagram) =>
+          diagram.nodes.map((node) => node.id),
+        ),
+      );
+      const unsupportedNestedClone = newDiagramIds.some((candidateId) => {
+        const diagram = next.document.diagrams[candidateId];
+        return (
+          diagram.nodes.length > 0 ||
+          diagram.edges.length > 0 ||
+          !diagram.parentNodeId ||
+          !existingNodeIds.has(diagram.parentNodeId)
+        );
+      });
+      if (collaborationActive && unsupportedNestedClone) {
+        setUiError(
+          "Duplicating or pasting nested modules is unavailable during a live session.",
+        );
+        return false;
+      }
+
+      stateRef.current = next;
+      dispatch(action);
+      if (!collaborationActive) return true;
+
+      const operations: CanvasOperation[] = [];
+      const beforeNodes = new Map(before.nodes.map((node) => [node.id, node]));
+      const afterNodes = new Map(after.nodes.map((node) => [node.id, node]));
+      const beforeEdges = new Map(before.edges.map((edge) => [edge.id, edge]));
+      const afterEdges = new Map(after.edges.map((edge) => [edge.id, edge]));
+      const deletedNodeIds = before.nodes
+        .filter((node) => !afterNodes.has(node.id))
+        .map((node) => node.id);
+      const deletedEdgeIds = before.edges
+        .filter((edge) => !afterEdges.has(edge.id))
+        .map((edge) => edge.id);
+      if (deletedNodeIds.length > 0) {
+        operations.push({ kind: "node.delete", diagramId, nodeIds: deletedNodeIds });
+      }
+      if (deletedEdgeIds.length > 0) {
+        operations.push({ kind: "edge.delete", diagramId, edgeIds: deletedEdgeIds });
+      }
+      after.nodes
+        .filter((node) => !beforeNodes.has(node.id))
+        .forEach((node) => operations.push({ kind: "node.add", diagramId, node }));
+      newDiagramIds.forEach((candidateId) => {
+        const diagram = next.document.diagrams[candidateId];
+        if (!diagram.parentNodeId) return;
+        const parentDiagram = Object.values(current.document.diagrams).find(
+          (candidate) =>
+            candidate.nodes.some((node) => node.id === diagram.parentNodeId),
+        );
+        if (parentDiagram) {
+          operations.push({
+            kind: "diagram.add",
+            diagramId: parentDiagram.id,
+            parentNodeId: diagram.parentNodeId,
+            diagram,
+          });
+        }
+      });
+      const nodePatches = Object.fromEntries(
+        after.nodes.flatMap((node) => {
+          const previous = beforeNodes.get(node.id);
+          if (!previous) return [];
+          const patch = diffNode(previous, node);
+          return Object.keys(patch).length > 0
+            ? [[node.id, patch] as const]
+            : [];
+        }),
+      );
+      if (Object.keys(nodePatches).length > 0) {
+        operations.push({ kind: "nodes.update", diagramId, patches: nodePatches });
+      }
+      after.edges
+        .filter((edge) => !beforeEdges.has(edge.id))
+        .forEach((edge) => operations.push({ kind: "edge.add", diagramId, edge }));
+      after.edges.forEach((edge) => {
+        const previous = beforeEdges.get(edge.id);
+        if (!previous) return;
+        const patch = diffEdge(previous, edge);
+        if (Object.keys(patch).length > 0) {
+          operations.push({ kind: "edge.update", diagramId, edgeId: edge.id, patch });
+        }
+      });
+      operations.forEach((operation) =>
+        sendCommittedOperation(operation, next.document),
+      );
+      return true;
+    },
+    [collaborationActive, sendCommittedOperation],
   );
 
   const documentCounts = useMemo(
@@ -412,48 +622,46 @@ export function SystemDesignWorkspace({
   }, [save]);
 
   const handleDelete = useCallback(() => {
-    const current = stateRef.current;
-    const diagram = current.document.diagrams[current.activeDiagramId];
-    const selectedNodeIds = diagram
-      ? current.selectedNodeIds.filter((nodeId) =>
-          diagram.nodes.some((node) => node.id === nodeId && !node.locked),
-        )
-      : [];
-    const action = systemDesignEditorActions.deleteSelection();
-    const next = systemDesignEditorReducer(current, action);
-    stateRef.current = next;
-    dispatch(action);
-    if (collaborationActive && diagram && selectedNodeIds.length > 0) {
-      realtime.sendCommittedOperation(
-        {
-          kind: "node.delete",
-          diagramId: diagram.id,
-          nodeIds: selectedNodeIds,
-        },
-        next.document,
-      );
-    }
-  }, [collaborationActive, realtime]);
+    commitEditorActionWithConcreteOperations(
+      systemDesignEditorActions.deleteSelection(),
+    );
+  }, [commitEditorActionWithConcreteOperations]);
 
   const handleDuplicate = useCallback(() => {
-    dispatch(systemDesignEditorActions.duplicateNodes());
-  }, []);
+    commitEditorActionWithConcreteOperations(
+      systemDesignEditorActions.duplicateNodes(),
+    );
+  }, [commitEditorActionWithConcreteOperations]);
 
-  const handleSetSelectionLocked = useCallback((locked: boolean) => {
-    dispatch(systemDesignEditorActions.setNodesState({ locked }));
-  }, []);
+  const handleSetSelectionLocked = useCallback(
+    (locked: boolean) => {
+      commitEditorActionWithConcreteOperations(
+        systemDesignEditorActions.setNodesState({ locked }),
+      );
+    },
+    [commitEditorActionWithConcreteOperations],
+  );
 
-  const handleSetSelectionVisible = useCallback((visible: boolean) => {
-    dispatch(systemDesignEditorActions.setNodesState({ visible }));
-  }, []);
+  const handleSetSelectionVisible = useCallback(
+    (visible: boolean) => {
+      commitEditorActionWithConcreteOperations(
+        systemDesignEditorActions.setNodesState({ visible }),
+      );
+    },
+    [commitEditorActionWithConcreteOperations],
+  );
 
   const handleGroupSelection = useCallback(() => {
-    dispatch(systemDesignEditorActions.groupNodes());
-  }, []);
+    commitEditorActionWithConcreteOperations(
+      systemDesignEditorActions.groupNodes(),
+    );
+  }, [commitEditorActionWithConcreteOperations]);
 
   const handleUngroupSelection = useCallback(() => {
-    dispatch(systemDesignEditorActions.ungroupNodes());
-  }, []);
+    commitEditorActionWithConcreteOperations(
+      systemDesignEditorActions.ungroupNodes(),
+    );
+  }, [commitEditorActionWithConcreteOperations]);
 
   const handleSelectAll = useCallback(() => {
     dispatch(systemDesignEditorActions.selectAll());
@@ -478,9 +686,14 @@ export function SystemDesignWorkspace({
     dispatch(systemDesignEditorActions.redo());
   }, [collaborationActive]);
 
-  const handleOpenModule = useCallback((nodeId: string) => {
-    dispatch(systemDesignEditorActions.openOrCreateModule(nodeId));
-  }, []);
+  const handleOpenModule = useCallback(
+    (nodeId: string) => {
+      commitEditorActionWithConcreteOperations(
+        systemDesignEditorActions.openOrCreateModule(nodeId),
+      );
+    },
+    [commitEditorActionWithConcreteOperations],
+  );
 
   const handleNavigateDiagram = useCallback((diagramId: string) => {
     dispatch(systemDesignEditorActions.activateDiagram(diagramId));
@@ -502,9 +715,9 @@ export function SystemDesignWorkspace({
       isSystemDesignModuleNodeType(selectedNode.type) &&
       selectedNode.isExpandable !== false
     ) {
-      dispatch(systemDesignEditorActions.openOrCreateModule(selectedNode.id));
+      handleOpenModule(selectedNode.id);
     }
-  }, [selectedNode]);
+  }, [handleOpenModule, selectedNode]);
 
   const handleNativeCopy = useCallback(
     (fragment: SystemDesignClipboardFragment) => {
@@ -515,16 +728,20 @@ export function SystemDesignWorkspace({
 
   const handleNativeCut = useCallback(
     (fragment?: SystemDesignClipboardFragment) => {
-      dispatch(systemDesignEditorActions.cutSelection(fragment));
+      commitEditorActionWithConcreteOperations(
+        systemDesignEditorActions.cutSelection(fragment),
+      );
     },
-    [],
+    [commitEditorActionWithConcreteOperations],
   );
 
   const handlePasteFragment = useCallback(
     (fragment: SystemDesignClipboardFragment) => {
-      dispatch(systemDesignEditorActions.pasteFragment(fragment));
+      commitEditorActionWithConcreteOperations(
+        systemDesignEditorActions.pasteFragment(fragment),
+      );
     },
-    [],
+    [commitEditorActionWithConcreteOperations],
   );
 
   const handlePasteText = useCallback(
@@ -543,19 +760,21 @@ export function SystemDesignWorkspace({
         label: normalized,
         parentModuleId: activeDiagram.parentNodeId,
       });
-      dispatch(
-        systemDesignEditorActions.addNode({
+      commitCanvasOperation({
+        kind: "node.add",
+        diagramId: activeDiagram.id,
+        node: {
           ...node,
           x: center.x - width / 2,
           y: center.y - height / 2,
           width,
           height,
-        }),
-      );
+        },
+      });
       setInspectorTab("properties");
       setPendingInlineEditNodeId(node.id);
     },
-    [activeDiagram.parentNodeId],
+    [activeDiagram.id, activeDiagram.parentNodeId, commitCanvasOperation],
   );
 
   const handlePasteAsset = useCallback(
@@ -570,17 +789,19 @@ export function SystemDesignWorkspace({
         asset,
         parentModuleId: activeDiagram.parentNodeId,
       });
-      dispatch(
-        systemDesignEditorActions.addNode({
+      commitCanvasOperation({
+        kind: "node.add",
+        diagramId: activeDiagram.id,
+        node: {
           ...node,
           x: center.x - frame.width / 2,
           y: center.y - frame.height / 2,
           ...frame,
-        }),
-      );
+        },
+      });
       setInspectorTab("properties");
     },
-    [activeDiagram.parentNodeId],
+    [activeDiagram.id, activeDiagram.parentNodeId, commitCanvasOperation],
   );
 
   useEffect(() => {
@@ -701,10 +922,37 @@ export function SystemDesignWorkspace({
         parentModuleId: activeDiagram.parentNodeId,
       });
       if (!node) return;
-      dispatch(systemDesignEditorActions.addNode(node));
+      commitCanvasOperation({
+        kind: "node.add",
+        diagramId: activeDiagram.id,
+        node,
+        ...(activeStrokeSessionRef.current
+          ? { transientSessionId: activeStrokeSessionRef.current }
+          : {}),
+      });
+      activeStrokeSessionRef.current = null;
     },
-    [activeDiagram.parentNodeId],
+    [activeDiagram.id, activeDiagram.parentNodeId, commitCanvasOperation],
   );
+
+  const handleFreehandStart = useCallback(
+    (point: SystemDesignPoint) => {
+      activeStrokeSessionRef.current = realtime.beginFreehandStroke(
+        activeDiagram.id,
+        point,
+      );
+    },
+    [activeDiagram.id, realtime],
+  );
+
+  const handleFreehandPoint = useCallback(
+    (point: SystemDesignPoint) => realtime.appendFreehandPoint(point),
+    [realtime],
+  );
+
+  const handleFreehandEnd = useCallback(() => {
+    realtime.endFreehandStroke();
+  }, [realtime]);
 
   const handleToolChange = useCallback(
     (tool: SystemDesignEditorTool) => {
@@ -951,23 +1199,47 @@ export function SystemDesignWorkspace({
       width: number;
       height: number;
     }) => {
-      dispatch(
-        systemDesignEditorActions.resizeNode(
-          id,
-          { width, height },
-          { x, y },
-        ),
-      );
+      commitCanvasOperation({
+        kind: "node.resize",
+        diagramId: activeDiagram.id,
+        nodeId: id,
+        frame: { x, y, width, height },
+      });
     },
-    [],
+    [activeDiagram.id, commitCanvasOperation],
   );
+
+  const handleNodeResizeStart = useCallback(
+    (nodeId: string) => realtime.beginNodeResize(activeDiagram.id, nodeId),
+    [activeDiagram.id, realtime],
+  );
+
+  const handleNodeResizePreview = useCallback(
+    (change: { id: string; x: number; y: number; width: number; height: number }) => {
+      realtime.previewNodeResize({
+        x: change.x,
+        y: change.y,
+        width: change.width,
+        height: change.height,
+      });
+    },
+    [realtime],
+  );
+
+  const handleNodeResizeEnd = useCallback(() => {
+    realtime.endNodeResize();
+  }, [realtime]);
 
   const handleAddEdge = useCallback(
     (edge: SystemDesignEdge) => {
-      dispatch(systemDesignEditorActions.addEdge(edge));
+      commitCanvasOperation({
+        kind: "edge.add",
+        diagramId: activeDiagram.id,
+        edge,
+      });
       if (activeTool === "connect") setActiveTool("select");
     },
-    [activeTool],
+    [activeDiagram.id, activeTool, commitCanvasOperation],
   );
 
   const handleViewportChange = useCallback(
@@ -985,16 +1257,26 @@ export function SystemDesignWorkspace({
 
   const handleInlineLabelEdit = useCallback(
     (nodeId: string, label: string) => {
-      dispatch(systemDesignEditorActions.updateNode(nodeId, { label }));
+      commitCanvasOperation({
+        kind: "node.update",
+        diagramId: activeDiagram.id,
+        nodeId,
+        patch: { label },
+      });
     },
-    [],
+    [activeDiagram.id, commitCanvasOperation],
   );
 
   const handleInlineEdgeLabelEdit = useCallback(
     (edgeId: string, label: string) => {
-      dispatch(systemDesignEditorActions.updateEdge(edgeId, { label }));
+      commitCanvasOperation({
+        kind: "edge.update",
+        diagramId: activeDiagram.id,
+        edgeId,
+        patch: { label },
+      });
     },
-    [],
+    [activeDiagram.id, commitCanvasOperation],
   );
 
   const handleArrange = useCallback(
@@ -1006,7 +1288,9 @@ export function SystemDesignWorkspace({
           operation === "match-width" ? "width" : "height",
         );
         if (Object.keys(frames).length > 0) {
-          dispatch(systemDesignEditorActions.arrangeNodes(frames));
+          commitEditorActionWithConcreteOperations(
+            systemDesignEditorActions.arrangeNodes(frames),
+          );
         }
         return;
       }
@@ -1030,10 +1314,19 @@ export function SystemDesignWorkspace({
                   | "bottom",
               );
       if (Object.keys(positions).length > 0) {
-        dispatch(systemDesignEditorActions.moveNodes(positions));
+        commitCanvasOperation({
+          kind: "node.move",
+          diagramId: activeDiagram.id,
+          positions,
+        });
       }
     },
-    [selectedNodes],
+    [
+      activeDiagram.id,
+      commitCanvasOperation,
+      commitEditorActionWithConcreteOperations,
+      selectedNodes,
+    ],
   );
 
   const layersProps = {
@@ -1047,17 +1340,23 @@ export function SystemDesignWorkspace({
         ),
       ),
     onRenameNode: (nodeId: string, label: string) =>
-      dispatch(systemDesignEditorActions.updateNode(nodeId, { label })),
+      commitCanvasOperation({
+        kind: "node.update",
+        diagramId: activeDiagram.id,
+        nodeId,
+        patch: { label },
+      }),
     onToggleVisibility: (nodeId: string) => {
       const node = activeDiagram.nodes.find(
         (candidate) => candidate.id === nodeId,
       );
       if (node) {
-        dispatch(
-          systemDesignEditorActions.updateNode(nodeId, {
-            visible: !node.visible,
-          }),
-        );
+        commitCanvasOperation({
+          kind: "node.update",
+          diagramId: activeDiagram.id,
+          nodeId,
+          patch: { visible: !node.visible },
+        });
       }
     },
     onToggleLocked: (nodeId: string) => {
@@ -1065,21 +1364,30 @@ export function SystemDesignWorkspace({
         (candidate) => candidate.id === nodeId,
       );
       if (node) {
-        dispatch(
-          systemDesignEditorActions.updateNode(nodeId, {
-            locked: !node.locked,
-          }),
-        );
+        commitCanvasOperation({
+          kind: "node.update",
+          diagramId: activeDiagram.id,
+          nodeId,
+          patch: { locked: !node.locked },
+        });
       }
     },
     onMoveForward: (nodeId: string) =>
-      dispatch(systemDesignEditorActions.reorderLayer(nodeId, "forward")),
+      commitEditorActionWithConcreteOperations(
+        systemDesignEditorActions.reorderLayer(nodeId, "forward"),
+      ),
     onMoveBackward: (nodeId: string) =>
-      dispatch(systemDesignEditorActions.reorderLayer(nodeId, "backward")),
+      commitEditorActionWithConcreteOperations(
+        systemDesignEditorActions.reorderLayer(nodeId, "backward"),
+      ),
     onBringToFront: (nodeId: string) =>
-      dispatch(systemDesignEditorActions.reorderLayer(nodeId, "front")),
+      commitEditorActionWithConcreteOperations(
+        systemDesignEditorActions.reorderLayer(nodeId, "front"),
+      ),
     onSendToBack: (nodeId: string) =>
-      dispatch(systemDesignEditorActions.reorderLayer(nodeId, "back")),
+      commitEditorActionWithConcreteOperations(
+        systemDesignEditorActions.reorderLayer(nodeId, "back"),
+      ),
   };
 
   const editor = (
@@ -1123,6 +1431,7 @@ export function SystemDesignWorkspace({
         selectedEdge={selectedEdge}
         animationsEnabled={animationsEnabled}
         liveShareStatus={realtime.status}
+        liveParticipantCount={realtime.participants.length}
         onUndo={handleUndo}
         onRedo={handleRedo}
         onLiveShare={handleLiveShare}
@@ -1147,7 +1456,7 @@ export function SystemDesignWorkspace({
         onSetSelectionLocked={handleSetSelectionLocked}
         onSetSelectionVisible={handleSetSelectionVisible}
         onReorderSelection={(direction) =>
-          dispatch(
+          commitEditorActionWithConcreteOperations(
             systemDesignEditorActions.reorderSelectedLayers(direction),
           )
         }
@@ -1156,17 +1465,21 @@ export function SystemDesignWorkspace({
         onDeleteSelection={handleDelete}
         onUpdateSelectedNodeText={(textStyle) => {
           if (!selectedNode) return;
-          dispatch(
-            systemDesignEditorActions.updateNode(selectedNode.id, {
-              textStyle,
-            }),
-          );
+          commitCanvasOperation({
+            kind: "node.update",
+            diagramId: activeDiagram.id,
+            nodeId: selectedNode.id,
+            patch: { textStyle },
+          });
         }}
         onUpdateSelectedEdge={(patch) => {
           if (selectedEdge) {
-            dispatch(
-              systemDesignEditorActions.updateEdge(selectedEdge.id, patch),
-            );
+            commitCanvasOperation({
+              kind: "edge.update",
+              diagramId: activeDiagram.id,
+              edgeId: selectedEdge.id,
+              patch: toCanvasEdgePatch(patch),
+            });
           }
         }}
         onToggleAnimations={() =>
@@ -1197,7 +1510,14 @@ export function SystemDesignWorkspace({
             snapToObjects={snapToObjects}
             activeTool={activeTool}
             animationsEnabled={animationsEnabled}
-            remotelyDraggedNodeIds={remoteNodeDrags.remotelyDraggedNodeIds}
+            remotelyDraggedNodeIds={remotelyOwnedNodeIds}
+            remoteNodeFrames={remoteNodeResizes.frames}
+            remoteStrokePreviews={remoteStrokes.previews}
+            remoteCursors={realtime.participants.filter(
+              (participant) =>
+                !participant.isLocal &&
+                participant.cursor?.diagramId === activeDiagram.id,
+            )}
             internalComponentCounts={internalComponentCounts}
             onSelectNode={handleSelectNode}
             onSelectNodes={handleSelectNodes}
@@ -1208,8 +1528,15 @@ export function SystemDesignWorkspace({
             onNodeDragPreview={handleNodeDragPreview}
             onNodeDragEnd={handleNodeDragEnd}
             onResizeNode={handleResizeNode}
+            onNodeResizeStart={handleNodeResizeStart}
+            onNodeResizePreview={handleNodeResizePreview}
+            onNodeResizeEnd={handleNodeResizeEnd}
             onAddEdge={handleAddEdge}
             onAddFreehand={addFreehandStroke}
+            onFreehandStart={handleFreehandStart}
+            onFreehandPoint={handleFreehandPoint}
+            onFreehandEnd={handleFreehandEnd}
+            onCursorMove={(point) => realtime.updateCursor(activeDiagram.id, point)}
             onViewportChange={handleViewportChange}
             onDropNodeType={addDroppedNode}
             onOpenModule={handleOpenModule}
@@ -1276,14 +1603,20 @@ export function SystemDesignWorkspace({
             problem={problem}
             layersProps={layersProps}
             onUpdateNode={(nodeId, patch) =>
-              dispatch(
-                systemDesignEditorActions.updateNode(nodeId, patch),
-              )
+              commitCanvasOperation({
+                kind: "node.update",
+                diagramId: activeDiagram.id,
+                nodeId,
+                patch: toCanvasNodePatch(patch),
+              })
             }
             onUpdateEdge={(edgeId, patch) =>
-              dispatch(
-                systemDesignEditorActions.updateEdge(edgeId, patch),
-              )
+              commitCanvasOperation({
+                kind: "edge.update",
+                diagramId: activeDiagram.id,
+                edgeId,
+                patch: toCanvasEdgePatch(patch),
+              })
             }
             onOpenModule={handleOpenModule}
           />
@@ -1377,9 +1710,15 @@ export function SystemDesignWorkspace({
         status={realtime.status}
         failure={realtime.failure}
         shareUrl={realtime.shareUrl}
+        participants={realtime.participants}
         isSlow={realtime.isSlow}
         onClose={() => setShareModalOpen(false)}
         onRetry={handleRetryLiveShare}
+        onStartNew={
+          mode.kind === "live"
+            ? undefined
+            : () => void realtime.startLiveSession(stateRef.current.document)
+        }
       />
     </>
   );

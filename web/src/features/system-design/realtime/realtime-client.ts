@@ -1,6 +1,6 @@
 import type { SystemDesignDocument } from "../types/system-design.types";
 import type { CanvasOperation } from "./canvas-operation";
-import type { NodeDragOperation } from "./node-drag-operation";
+import type { SystemDesignEphemeralOperation } from "./ephemeral-operation";
 import {
   createRealtimeWebSocketUrl,
   getRealtimeBaseUrl,
@@ -14,7 +14,9 @@ import {
   type RealtimeCommitMessage,
   type RealtimeEphemeralMessage,
   type RealtimeRoomStateMessage,
+  type RealtimePresenceMessage,
 } from "./realtime.types";
+import type { PresencePayload } from "./presence";
 
 export type RealtimeConnectionStatus =
   | "idle"
@@ -45,6 +47,7 @@ export interface RealtimeClientCallbacks {
   ) => void;
   onCommittedOperation: (message: RealtimeCommitMessage) => void;
   onEphemeralOperation: (message: RealtimeEphemeralMessage) => void;
+  onPresence: (message: RealtimePresenceMessage) => void;
   onFailure: (failure: RealtimeFailure) => void;
 }
 
@@ -230,7 +233,7 @@ export class RealtimeClient {
     return opId;
   }
 
-  sendEphemeral(operation: NodeDragOperation): boolean {
+  sendEphemeral(operation: SystemDesignEphemeralOperation): boolean {
     const socket = this.socket;
     if (
       !this.everLive ||
@@ -248,6 +251,22 @@ export class RealtimeClient {
           payload: operation,
         }),
       );
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  sendPresence(payload: PresencePayload): boolean {
+    const socket = this.socket;
+    if (!this.everLive || socket?.readyState !== 1) return false;
+    try {
+      socket.send(JSON.stringify({
+        v: REALTIME_PROTOCOL_VERSION,
+        type: "presence",
+        actorId: this.actorId,
+        payload,
+      }));
       return true;
     } catch {
       return false;
@@ -326,6 +345,10 @@ export class RealtimeClient {
       if (message.actorId !== this.actorId) {
         this.callbacks.onEphemeralOperation(message);
       }
+      return;
+    }
+    if (message.type === "presence") {
+      if (message.actorId !== this.actorId) this.callbacks.onPresence(message);
       return;
     }
     if (message.type === "ack") {

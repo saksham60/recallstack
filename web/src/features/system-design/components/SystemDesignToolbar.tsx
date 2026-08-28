@@ -159,6 +159,7 @@ export interface SystemDesignToolbarProps {
   ) => void;
   onToggleAnimations?: () => void;
   liveShareStatus?: RealtimeConnectionStatus;
+  liveParticipantCount?: number;
   onLiveShare?: () => void;
   className?: string;
 }
@@ -1079,6 +1080,7 @@ export function SystemDesignToolbar({
   onUpdateSelectedEdge,
   onToggleAnimations,
   liveShareStatus = "idle",
+  liveParticipantCount = 0,
   onLiveShare,
   className = "",
 }: SystemDesignToolbarProps) {
@@ -1351,6 +1353,11 @@ export function SystemDesignToolbar({
                       ? "Reconnecting…"
                       : "Live Share"}
             </span>
+            {liveShareStatus === "live" && liveParticipantCount > 0 && (
+              <span className="rounded-full bg-background/60 px-1.5 text-[10px] font-semibold">
+                {liveParticipantCount}
+              </span>
+            )}
           </ToolbarButton>
         )}
         <ToolbarButton

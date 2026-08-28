@@ -55,9 +55,16 @@ export interface RealtimeEphemeralMessage {
   payload: unknown;
 }
 
+export interface RealtimePresenceMessage {
+  v: typeof REALTIME_PROTOCOL_VERSION;
+  type: "presence";
+  actorId: string;
+  payload: unknown;
+}
+
 export interface RealtimeOpaqueMessage {
   v: typeof REALTIME_PROTOCOL_VERSION;
-  type: "presence" | "ping" | "pong";
+  type: "ping" | "pong";
   actorId?: string;
   opId?: string;
   payload?: unknown;
@@ -69,6 +76,7 @@ export type RealtimeServerMessage =
   | RealtimeAckMessage
   | RealtimeErrorMessage
   | RealtimeEphemeralMessage
+  | RealtimePresenceMessage
   | RealtimeOpaqueMessage;
 
 export interface CreateRealtimeRoomResponse {
@@ -233,11 +241,19 @@ export function parseRealtimeServerMessage(
     };
   }
 
-  if (
-    value.type === "presence" ||
-    value.type === "ping" ||
-    value.type === "pong"
-  ) {
+  if (value.type === "presence") {
+    if (!isIdentifier(value.actorId) || !("payload" in value)) {
+      throw new RealtimeProtocolError("Invalid presence envelope.");
+    }
+    return {
+      v: REALTIME_PROTOCOL_VERSION,
+      type: "presence",
+      actorId: value.actorId,
+      payload: value.payload,
+    };
+  }
+
+  if (value.type === "ping" || value.type === "pong") {
     if (value.actorId !== undefined && !isIdentifier(value.actorId)) {
       throw new RealtimeProtocolError("Invalid realtime actor identifier.");
     }

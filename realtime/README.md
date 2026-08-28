@@ -112,6 +112,18 @@ To keep a room correct and memory-bounded, a client can attach a full current do
 
 Presence is cached only for active connections. Ephemeral and presence messages are never sequenced or retained in operation history. WebSocket control-frame ping/pong provides transport liveness independently of protocol `ping`/`pong`.
 
+### System Design frontend semantics
+
+The browser keeps three deliberately separate kinds of state:
+
+- **Committed shared state** is reconstructed from the room snapshot plus ordered `op.commit` history. Phase 2 operations cover node add/move/resize/update/delete, batch node updates, edge add/update/delete, and child-diagram creation. Freehand ink becomes a normal `node.add` only after pointer-up.
+- **Ephemeral shared state** uses `op.ephemeral` for drag previews, resize previews, and batched freehand deltas. It never enters the document, undo history, snapshots, or replay. Preview sessions have monotonically increasing indexes and expire after three seconds if an end/final commit is lost.
+- **Local-only state** includes selection, active tool, viewport, open inspector tab, modal state, and animation playback. These are intentionally not synchronized.
+
+Presence payloads contain a bounded display name, the diagram being viewed, and an optional world-space cursor. Cursor updates are latest-only and throttled to about 25 updates per second. Participant colors and fallback names are deterministic from the actor ID. The room state seeds cached presence after reconnect; join/leave lifecycle messages keep the roster current.
+
+Committed operations remain server-ordered last-writer-wins. A late update or edge that references a deleted node is a safe no-op after frontend validation. A remote transient preview is removed when its matching final commit arrives, on timeout, when state is replaced, and when the connection leaves live state.
+
 ## Safety and lifecycle
 
 - Secure room tokens use 32 bytes from `crypto/rand` and base64url encoding.
@@ -171,8 +183,8 @@ Each terminal first receives `room.state`. Send from Alice:
 
 Bob must receive `op.commit` with `sequence:1`; Alice receives the same commit plus `ack`. Then send a different operation from Bob and confirm Alice receives `sequence:2`. Reconnect Bob with `&lastSequence=1` to verify replay.
 
-## Limitations and next phase
+## Limitations
 
 This is intentionally single-instance and memory-only. Every room is lost on a process restart, Render restart/sleep, redeploy, or instance replacement. There is no cross-instance synchronization or recovery.
 
-After this service is deployed and validated, the frontend phase can create a room from the existing `SystemDesignDocument`, connect with the native WebSocket API, translate existing reducer mutations into opaque canvas operations, and apply incoming operations through the existing reducer. No frontend integration is included here.
+The System Design frontend integration supports shared structural editing, transient drag/resize/freehand previews, presence, cursors, participant UI, and client-rendered QR sharing. It intentionally does not provide CRDT text merging, offline edits, synchronized undo/redo, persisted rooms, access revocation, or multi-instance room recovery.

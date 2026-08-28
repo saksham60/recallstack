@@ -13,6 +13,8 @@ import type {
 import { parseSystemDesignDocument } from "../utils/diagram-validation";
 import {
   CanvasOperationError,
+  normalizeCanvasEdgePatch,
+  normalizeCanvasNodePatch,
   parseCanvasOperation,
   type CanvasOperation,
 } from "./canvas-operation";
@@ -41,9 +43,62 @@ function createAction(
       operation.positions,
     );
   }
-  return systemDesignEditorActions.deleteNodesFromDiagram(
+  if (operation.kind === "node.resize") {
+    return systemDesignEditorActions.resizeNodeInDiagram(
+      operation.diagramId,
+      operation.nodeId,
+      { width: operation.frame.width, height: operation.frame.height },
+      { x: operation.frame.x, y: operation.frame.y },
+    );
+  }
+  if (operation.kind === "node.update") {
+    return systemDesignEditorActions.updateNodeInDiagram(
+      operation.diagramId,
+      operation.nodeId,
+      normalizeCanvasNodePatch(operation.patch),
+    );
+  }
+  if (operation.kind === "nodes.update") {
+    return systemDesignEditorActions.updateNodesInDiagram(
+      operation.diagramId,
+      Object.fromEntries(
+        Object.entries(operation.patches).map(([nodeId, patch]) => [
+          nodeId,
+          normalizeCanvasNodePatch(patch),
+        ]),
+      ),
+    );
+  }
+  if (operation.kind === "node.delete") {
+    return systemDesignEditorActions.deleteNodesFromDiagram(
+      operation.diagramId,
+      operation.nodeIds,
+    );
+  }
+  if (operation.kind === "edge.add") {
+    return systemDesignEditorActions.addEdgeToDiagram(
+      operation.diagramId,
+      operation.edge,
+      { select: selectAddedNode },
+    );
+  }
+  if (operation.kind === "edge.update") {
+    return systemDesignEditorActions.updateEdgeInDiagram(
+      operation.diagramId,
+      operation.edgeId,
+      normalizeCanvasEdgePatch(operation.patch),
+    );
+  }
+  if (operation.kind === "edge.delete") {
+    return systemDesignEditorActions.deleteEdgesFromDiagram(
+      operation.diagramId,
+      operation.edgeIds,
+    );
+  }
+  return systemDesignEditorActions.addCollaborationDiagram(
     operation.diagramId,
-    operation.nodeIds,
+    operation.parentNodeId,
+    operation.diagram,
   );
 }
 
@@ -78,6 +133,9 @@ export function applyCanvasOperation(
       );
       state = systemDesignEditorReducer(editorState, action);
       return { action, state, operation: sanitizedOperation };
+    }
+    if (state === editorState) {
+      return { action, state, operation };
     }
   } catch (error) {
     if (error instanceof CanvasOperationError) throw error;

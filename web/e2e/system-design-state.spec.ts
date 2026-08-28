@@ -42,6 +42,23 @@ import {
   RemoteNodeDragRegistry,
   type DragPreviewScheduler,
 } from "../src/features/system-design/realtime/node-drag-preview";
+import { parseNodeResizeOperation } from "../src/features/system-design/realtime/node-resize-operation";
+import {
+  NodeResizePreviewBroadcaster,
+  RemoteNodeResizeRegistry,
+} from "../src/features/system-design/realtime/node-resize-preview";
+import { parseStrokeOperation } from "../src/features/system-design/realtime/stroke-operation";
+import {
+  REMOTE_STROKE_TIMEOUT_MS,
+  STROKE_BATCH_INTERVAL_MS,
+  RemoteStrokeRegistry,
+  StrokeDeltaBroadcaster,
+} from "../src/features/system-design/realtime/stroke-preview";
+import {
+  CursorPresenceBroadcaster,
+  parsePresencePayload,
+  participantDefaults,
+} from "../src/features/system-design/realtime/presence";
 
 const timestamp = (step: number) =>
   new Date(Date.UTC(2026, 6, 29, 0, 0, step)).toISOString();
@@ -1292,6 +1309,189 @@ test.describe("system-design editor reducer", () => {
     expect(state.isDirty).toBe(false);
     expect(state.saveStatus).toBe("saved");
     expect(state.lastSavedAt).toBe(timestamp(4));
+  });
+});
+
+test.describe("system-design Phase 2 structural collaboration", () => {
+  test("converges resize, styles, edges, freehand, delete, and nested diagrams", () => {
+    const diagramId = "diagram-url-shortener";
+    const source = createNode("source");
+    const target = { ...createNode("target", 400, 60), layer: 1 };
+    const moduleNode = { ...createNode("module", 100, 300), type: "module" as const, layer: 2 };
+    let state = createSystemDesignEditorState(createDocument([source, target, moduleNode]));
+
+    const operations = [
+      { kind: "node.resize", diagramId, nodeId: source.id, frame: { x: 80, y: 90, width: 220, height: 120 } },
+      { kind: "node.update", diagramId, nodeId: source.id, patch: { label: "API", style: { fill: "#123456" } } },
+      { kind: "edge.add", diagramId, edge: createEdge("edge-live", source.id, target.id) },
+      { kind: "edge.update", diagramId, edgeId: "edge-live", patch: { color: "#22d3ee", animationMode: "moving_dash" } },
+    ] as const;
+    operations.forEach((operation) => {
+      state = applyCanvasOperation(state, operation).state;
+    });
+    const stroke = createSystemDesignFreehandNode([{ x: 20, y: 20 }, { x: 50, y: 55 }]);
+    expect(stroke).not.toBeNull();
+    state = applyCanvasOperation(state, {
+      kind: "node.add",
+      diagramId,
+      node: stroke!,
+      transientSessionId: "stroke-final",
+    }).state;
+    state = applyCanvasOperation(state, {
+      kind: "diagram.add",
+      diagramId,
+      parentNodeId: moduleNode.id,
+      diagram: {
+        id: "diagram-child",
+        name: "Module",
+        parentNodeId: moduleNode.id,
+        nodes: [],
+        edges: [],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    }).state;
+
+    expect(state.activeDiagramId).toBe(diagramId);
+    expect(activeDiagram(state).nodes.find((node) => node.id === source.id)).toMatchObject({
+      x: 80, y: 90, width: 220, height: 120, label: "API",
+    });
+    expect(activeDiagram(state).edges[0]).toMatchObject({ color: "#22d3ee", animationMode: "moving_dash" });
+    expect(activeDiagram(state).nodes.some((node) => node.type === "freehand")).toBe(true);
+    expect(state.document.diagrams["diagram-child"]).toBeDefined();
+
+    state = applyCanvasOperation(state, { kind: "edge.delete", diagramId, edgeIds: ["edge-live"] }).state;
+    state = applyCanvasOperation(state, { kind: "node.delete", diagramId, nodeIds: [target.id] }).state;
+    expect(activeDiagram(state).edges).toEqual([]);
+    expect(activeDiagram(state).nodes.some((node) => node.id === target.id)).toBe(false);
+  });
+
+  test("rejects malformed patches and treats delete/update races as safe no-ops", () => {
+    const document = createDocument([createNode("node-a")]);
+    const diagramId = document.rootDiagramId;
+    expect(() => parseCanvasOperation({
+      kind: "node.update",
+      diagramId,
+      nodeId: "node-a",
+      patch: { unknownProperty: true },
+    })).toThrow(/operation|patch/i);
+
+    let state = createSystemDesignEditorState(document);
+    state = applyCanvasOperation(state, { kind: "node.delete", diagramId, nodeIds: ["node-a"] }).state;
+    const afterDelete = state.document;
+    state = applyCanvasOperation(state, {
+      kind: "node.update", diagramId, nodeId: "node-a", patch: { label: "late" },
+    }).state;
+    expect(state.document).toEqual(afterDelete);
+    state = applyCanvasOperation(state, {
+      kind: "edge.add", diagramId, edge: createEdge("late-edge", "node-a", "missing"),
+    }).state;
+    expect(activeDiagram(state).edges).toEqual([]);
+  });
+});
+
+class PhaseTwoManualScheduler implements DragPreviewScheduler {
+  private time = 0;
+  private nextId = 1;
+  private readonly tasks = new Map<number, { callback: () => void; due: number }>();
+  now = () => this.time;
+  setTimeout = (callback: () => void, delay: number) => {
+    const id = this.nextId++;
+    this.tasks.set(id, { callback, due: this.time + delay });
+    return id as unknown as ReturnType<typeof setTimeout>;
+  };
+  clearTimeout = (handle: ReturnType<typeof setTimeout>) => {
+    this.tasks.delete(handle as unknown as number);
+  };
+  advance(milliseconds: number) {
+    const end = this.time + milliseconds;
+    while (true) {
+      const next = [...this.tasks.entries()]
+        .filter(([, task]) => task.due <= end)
+        .sort((a, b) => a[1].due - b[1].due)[0];
+      if (!next) break;
+      this.tasks.delete(next[0]);
+      this.time = next[1].due;
+      next[1].callback();
+    }
+    this.time = end;
+  }
+}
+
+test.describe("system-design live resize, stroke, and presence previews", () => {
+  test("coalesces resize previews and rejects stale remote frames", () => {
+    const scheduler = new PhaseTwoManualScheduler();
+    const sent: ReturnType<typeof parseNodeResizeOperation>[] = [];
+    const broadcaster = new NodeResizePreviewBroadcaster({
+      scheduler,
+      createSessionId: () => "resize-a",
+      send: (operation) => { sent.push(operation); return true; },
+    });
+    broadcaster.begin("diagram-root", "node-a");
+    broadcaster.preview({ x: 1, y: 2, width: 180, height: 90 });
+    broadcaster.preview({ x: 5, y: 6, width: 240, height: 130 });
+    scheduler.advance(NODE_DRAG_PREVIEW_INTERVAL_MS);
+    expect(sent.filter((entry) => entry.kind === "node.resize.preview")).toHaveLength(1);
+
+    const registry = new RemoteNodeResizeRegistry();
+    sent.forEach((operation, index) => registry.apply("actor-a", operation, index));
+    expect(registry.frames("diagram-root")["node-a"]).toMatchObject({ width: 240, height: 130 });
+    expect(registry.apply("actor-a", {
+      kind: "node.resize.preview", dragSessionId: "resize-a", diagramId: "diagram-root",
+      nodeId: "node-a", previewIndex: 1, frame: { x: 0, y: 0, width: 10, height: 10 },
+    }, 50)).toBe(false);
+    expect(registry.clearCommitted("diagram-root", "node-a")).toBe(true);
+    expect(registry.frames("diagram-root")).toEqual({});
+  });
+
+  test("batches freehand deltas, isolates sessions, and cleans commit/timeout", () => {
+    const scheduler = new PhaseTwoManualScheduler();
+    const sent: ReturnType<typeof parseStrokeOperation>[] = [];
+    const broadcaster = new StrokeDeltaBroadcaster({
+      scheduler,
+      createSessionId: () => "stroke-a",
+      send: (operation) => { sent.push(operation); return true; },
+    });
+    broadcaster.begin("diagram-root", { x: 0, y: 0 });
+    for (let x = 1; x <= 600; x += 1) broadcaster.add({ x, y: x });
+    scheduler.advance(STROKE_BATCH_INTERVAL_MS);
+    broadcaster.end();
+    const deltas = sent.filter((entry) => entry.kind === "stroke.delta");
+    expect(deltas.length).toBeGreaterThanOrEqual(3);
+    expect(deltas.every((entry) => entry.points.length <= 256)).toBe(true);
+
+    const registry = new RemoteStrokeRegistry();
+    sent.forEach((operation, index) => registry.apply("actor-a", operation, index));
+    registry.apply("actor-b", {
+      kind: "stroke.delta", strokeSessionId: "stroke-b", diagramId: "diagram-root",
+      batchIndex: 1, points: [{ x: 9, y: 9 }],
+    }, 1);
+    expect(registry.previews("diagram-root")).toHaveLength(2);
+    expect(registry.clearCommitted("stroke-a")).toBe(true);
+    expect(registry.previews("diagram-root")).toHaveLength(1);
+    expect(registry.expire(REMOTE_STROKE_TIMEOUT_MS + 2, REMOTE_STROKE_TIMEOUT_MS)).toBe(true);
+    expect(registry.previews("diagram-root")).toEqual([]);
+  });
+
+  test("parses presence, derives stable identity, and throttles cursors", () => {
+    expect(participantDefaults("actor-a")).toEqual(participantDefaults("actor-a"));
+    expect(parsePresencePayload({
+      displayName: "Guest 42",
+      viewingDiagramId: "diagram-root",
+      cursor: { diagramId: "diagram-root", x: 12, y: 34 },
+    })).toMatchObject({ displayName: "Guest 42", cursor: { x: 12, y: 34 } });
+    expect(() => parsePresencePayload({ displayName: "", cursor: { x: 1 } })).toThrow(/presence/i);
+
+    const scheduler = new PhaseTwoManualScheduler();
+    const sent: unknown[] = [];
+    const broadcaster = new CursorPresenceBroadcaster({
+      scheduler,
+      send: (payload) => { sent.push(payload); return true; },
+    });
+    broadcaster.update({ displayName: "Guest", cursor: { diagramId: "root", x: 1, y: 1 } });
+    broadcaster.update({ displayName: "Guest", cursor: { diagramId: "root", x: 99, y: 99 } });
+    scheduler.advance(40);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ cursor: { x: 99, y: 99 } });
   });
 });
 

@@ -12,6 +12,7 @@ import {
 import type Konva from "konva";
 import {
   Arrow,
+  Group,
   Layer,
   Line,
   Rect,
@@ -26,6 +27,7 @@ import type {
   SystemDesignNode,
   SystemDesignPort,
   SystemDesignSelectionMode,
+  SystemDesignRect,
   SystemDesignViewport,
 } from "../types/system-design.types";
 import { isSystemDesignBoundaryNodeType } from "../constants/system-design-palette";
@@ -55,6 +57,8 @@ import {
   type SystemDesignCanvasTheme,
 } from "./SystemDesignNodeRenderer";
 import { SystemDesignMinimap } from "./SystemDesignMinimap";
+import type { RemoteStrokePreview } from "../realtime/stroke-preview";
+import type { CollaborationParticipant } from "../realtime/presence";
 
 const GRID_SIZE = 24;
 
@@ -125,6 +129,9 @@ interface SystemDesignCanvasProps {
   activeTool?: SystemDesignEditorTool;
   animationsEnabled?: boolean;
   remotelyDraggedNodeIds?: ReadonlySet<string>;
+  remoteNodeFrames?: Readonly<Record<string, SystemDesignRect>>;
+  remoteStrokePreviews?: readonly RemoteStrokePreview[];
+  remoteCursors?: readonly CollaborationParticipant[];
   internalComponentCounts?: Readonly<Record<string, number>>;
   onSelectNode: (nodeId: string, additive: boolean) => void;
   onSelectNodes: (
@@ -138,8 +145,15 @@ interface SystemDesignCanvasProps {
   onNodeDragPreview?: (changes: readonly NodePositionChange[]) => void;
   onNodeDragEnd?: (nodeIds: readonly string[]) => void;
   onResizeNode: (change: NodeFrameChange) => void;
+  onNodeResizeStart?: (nodeId: string) => void;
+  onNodeResizePreview?: (frame: NodeFrameChange) => void;
+  onNodeResizeEnd?: (nodeId: string) => void;
   onAddEdge: (edge: SystemDesignEdge) => void;
   onAddFreehand?: (points: readonly { x: number; y: number }[]) => void;
+  onFreehandStart?: (point: { x: number; y: number }) => void;
+  onFreehandPoint?: (point: { x: number; y: number }) => void;
+  onFreehandEnd?: () => void;
+  onCursorMove?: (point: { x: number; y: number } | null) => void;
   onViewportChange: (viewport: SystemDesignViewport) => void;
   onDropNodeType: (
     nodeType: string,
@@ -209,6 +223,9 @@ export const SystemDesignCanvas = forwardRef<
     activeTool = "select",
     animationsEnabled = true,
     remotelyDraggedNodeIds = EMPTY_NODE_ID_SET,
+    remoteNodeFrames = {},
+    remoteStrokePreviews = [],
+    remoteCursors = [],
     onSelectNode,
     onSelectNodes,
     onSelectEdge,
@@ -218,8 +235,15 @@ export const SystemDesignCanvas = forwardRef<
     onNodeDragPreview,
     onNodeDragEnd,
     onResizeNode,
+    onNodeResizeStart,
+    onNodeResizePreview,
+    onNodeResizeEnd,
     onAddEdge,
     onAddFreehand,
+    onFreehandStart,
+    onFreehandPoint,
+    onFreehandEnd,
+    onCursorMove,
     onViewportChange,
     onDropNodeType,
     onOpenModule,
@@ -399,8 +423,13 @@ export const SystemDesignCanvas = forwardRef<
     () =>
       [...diagram.nodes]
         .filter((node) => node.visible !== false)
+        .map((node) =>
+          remoteNodeFrames[node.id]
+            ? { ...node, ...remoteNodeFrames[node.id] }
+            : node,
+        )
         .sort((a, b) => a.layer - b.layer),
-    [diagram.nodes],
+    [diagram.nodes, remoteNodeFrames],
   );
   const nodeMap = useMemo(
     () => new Map(visibleNodes.map((node) => [node.id, node])),
@@ -533,7 +562,12 @@ export const SystemDesignCanvas = forwardRef<
   }, [diagram.edges]);
 
   const updateConnectedEdgeGeometry = useCallback(
-    (positions: ReadonlyMap<string, { x: number; y: number }>) => {
+    (
+      positions: ReadonlyMap<
+        string,
+        { x: number; y: number; width?: number; height?: number }
+      >,
+    ) => {
       const edgeIds = new Set<string>();
       positions.forEach((_, nodeId) => {
         connectedEdgesByNode
@@ -963,11 +997,12 @@ export const SystemDesignCanvas = forwardRef<
         zoom: stage.scaleX(),
       });
       draftStrokeRef.current = [point];
+      onFreehandStart?.(point);
       draftStrokeLineRef.current?.points([point.x, point.y]);
       draftStrokeLineRef.current?.visible(true);
       interactionLayerRef.current?.batchDraw();
     },
-    [activeTool, onClearSelection, preview],
+    [activeTool, onClearSelection, onFreehandStart, preview],
   );
 
   const updateFreehandStroke = useCallback(
@@ -992,20 +1027,38 @@ export const SystemDesignCanvas = forwardRef<
         return;
       }
       points.push(point);
+      onFreehandPoint?.(point);
       draftStrokeLineRef.current?.points(
         points.flatMap((entry) => [entry.x, entry.y]),
       );
       interactionLayerRef.current?.batchDraw();
     },
-    [],
+    [onFreehandPoint],
+  );
+
+  const publishCursor = useCallback(
+    (event: Konva.KonvaEventObject<PointerEvent>) => {
+      const stage = event.target.getStage();
+      const pointer = stage?.getPointerPosition();
+      if (!stage || !pointer) return;
+      onCursorMove?.(
+        worldPoint(pointer, {
+          x: stage.x(),
+          y: stage.y(),
+          zoom: stage.scaleX(),
+        }),
+      );
+    },
+    [onCursorMove],
   );
 
   const finishFreehandStroke = useCallback(() => {
     const points = draftStrokeRef.current;
     if (!points) return;
+    onFreehandEnd?.();
     cancelDraftStroke();
     if (points.length >= 2) onAddFreehand?.(points);
-  }, [cancelDraftStroke, onAddFreehand]);
+  }, [cancelDraftStroke, onAddFreehand, onFreehandEnd]);
 
   useEffect(() => {
     const finish = () => finishFreehandStroke();
@@ -1401,8 +1454,8 @@ export const SystemDesignCanvas = forwardRef<
     (
       id: string,
       frame: { x: number; y: number; width: number; height: number },
-    ) =>
-      onResizeNode({
+    ) => {
+      const snapped = {
         id,
         x: snapToGrid
           ? Math.round(frame.x / GRID_SIZE) * GRID_SIZE
@@ -1416,8 +1469,24 @@ export const SystemDesignCanvas = forwardRef<
         height: snapToGrid
           ? Math.round(frame.height / GRID_SIZE) * GRID_SIZE
           : frame.height,
-      }),
-    [onResizeNode, snapToGrid],
+      };
+      onNodeResizePreview?.(snapped);
+      onNodeResizeEnd?.(id);
+      onResizeNode(snapped);
+    },
+    [onNodeResizeEnd, onNodeResizePreview, onResizeNode, snapToGrid],
+  );
+
+  const handleResizePreview = useCallback(
+    (
+      id: string,
+      frame: { x: number; y: number; width: number; height: number },
+    ) => {
+      updateConnectedEdgeGeometry(new Map([[id, frame]]));
+      edgesLayerRef.current?.batchDraw();
+      onNodeResizePreview?.({ id, ...frame });
+    },
+    [onNodeResizePreview, updateConnectedEdgeGeometry],
   );
 
   const beginInlineLabelEdit = useCallback(
@@ -1595,7 +1664,11 @@ export const SystemDesignCanvas = forwardRef<
           draggable={preview || activeTool === "pan" || spacePanning}
           onWheel={handleWheel}
           onPointerDown={beginFreehandStroke}
-          onPointerMove={updateFreehandStroke}
+          onPointerMove={(event) => {
+            publishCursor(event);
+            updateFreehandStroke(event);
+          }}
+          onPointerLeave={() => onCursorMove?.(null)}
           onPointerUp={finishFreehandStroke}
           onPointerCancel={finishFreehandStroke}
           onDragStart={(event) => {
@@ -1786,6 +1859,7 @@ export const SystemDesignCanvas = forwardRef<
                   node.type !== "freehand"
                 }
                 dragDisabled={remotelyDraggedNodeIds.has(node.id)}
+                remoteOwned={remotelyDraggedNodeIds.has(node.id)}
                 positionOverride={
                   remotelyDraggedNodeIds.has(node.id)
                     ? remoteNodePositionsRef.current.get(node.id)
@@ -1805,6 +1879,8 @@ export const SystemDesignCanvas = forwardRef<
                 onDragMove={handleDragMove}
                 onDragEnd={handleDragEnd}
                 onResizeEnd={handleResizeEnd}
+                onResizeStart={onNodeResizeStart}
+                onResizePreview={handleResizePreview}
                 onPortStart={handlePortStart}
                 onPortEnd={handlePortEnd}
                 onOpenModule={onOpenModule}
@@ -1861,6 +1937,7 @@ export const SystemDesignCanvas = forwardRef<
                   node.type !== "freehand"
                 }
                 dragDisabled={remotelyDraggedNodeIds.has(node.id)}
+                remoteOwned={remotelyDraggedNodeIds.has(node.id)}
                 positionOverride={
                   remotelyDraggedNodeIds.has(node.id)
                     ? remoteNodePositionsRef.current.get(node.id)
@@ -1880,6 +1957,8 @@ export const SystemDesignCanvas = forwardRef<
                 onDragMove={handleDragMove}
                 onDragEnd={handleDragEnd}
                 onResizeEnd={handleResizeEnd}
+                onResizeStart={onNodeResizeStart}
+                onResizePreview={handleResizePreview}
                 onPortStart={handlePortStart}
                 onPortEnd={handlePortEnd}
                 onOpenModule={onOpenModule}
@@ -1889,6 +1968,53 @@ export const SystemDesignCanvas = forwardRef<
             ))}
           </Layer>
           <Layer ref={interactionLayerRef} listening={!spacePanning}>
+            {remoteStrokePreviews.map((stroke) => (
+              <Line
+                key={stroke.key}
+                points={stroke.points.flatMap((point) => [point.x, point.y])}
+                stroke={stroke.stroke}
+                strokeWidth={stroke.strokeWidth}
+                lineCap="round"
+                lineJoin="round"
+                tension={0.35}
+                opacity={0.9}
+                listening={false}
+              />
+            ))}
+            {remoteCursors.map((participant) =>
+              participant.cursor ? (
+                <Group
+                  key={participant.actorId}
+                  x={participant.cursor.x}
+                  y={participant.cursor.y}
+                  listening={false}
+                >
+                  <Line
+                    points={[0, 0, 4, 15, 8, 9, 15, 8]}
+                    closed
+                    fill={participant.color}
+                    stroke="#09090b"
+                    strokeWidth={1.5}
+                  />
+                  <Rect
+                    x={11}
+                    y={10}
+                    width={Math.max(48, participant.displayName.length * 7 + 12)}
+                    height={22}
+                    cornerRadius={5}
+                    fill={participant.color}
+                  />
+                  <Text
+                    x={17}
+                    y={15}
+                    text={participant.displayName}
+                    fontSize={11}
+                    fontStyle="bold"
+                    fill="#09090b"
+                  />
+                </Group>
+              ) : null,
+            )}
             {connection && (
               <Arrow
                 ref={connectionArrowRef}

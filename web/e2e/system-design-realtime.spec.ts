@@ -217,6 +217,68 @@ base("loads the public guest canvas from a full room state", async ({ page }) =>
   expect(forbiddenBackendRequests).toEqual([]);
 });
 
+base("applies remote structural edits and shows presence with a local QR code", async ({
+  page,
+}) => {
+  const snapshot = createSharedDocument("Phase 2 Canvas");
+  await installRealtimeSocket(page, { mode: "full", snapshot });
+  await page.goto(`/system-design/live/${ROOM_TOKEN}`);
+  const canvas = page.getByTestId("system-design-canvas");
+  await expect(canvas).toBeVisible({ timeout: 30_000 });
+  const bounds = await canvas.boundingBox();
+  expect(bounds).not.toBeNull();
+  if (!bounds) return;
+
+  await page.evaluate(({ diagramId }) => {
+    const emit = (window as unknown as RealtimeTestWindow).__emitRealtimeMessage;
+    emit?.({
+      v: 1,
+      type: "presence",
+      actorId: "remote-phase-two",
+      payload: {
+        displayName: "Guest Tablet",
+        viewingDiagramId: diagramId,
+        cursor: { diagramId, x: 420, y: 180 },
+      },
+    });
+    emit?.({
+      v: 1,
+      type: "op.commit",
+      opId: "remote-add-node",
+      actorId: "remote-phase-two",
+      sequence: 1,
+      payload: {
+        kind: "node.add",
+        diagramId,
+        node: {
+          id: "phase-two-node",
+          type: "service",
+          x: 320,
+          y: 160,
+          width: 160,
+          height: 88,
+          label: "Synced service",
+          layer: 0,
+          locked: false,
+          visible: true,
+        },
+      },
+    });
+  }, { diagramId: snapshot.rootDiagramId });
+
+  await expect
+    .poll(async () => {
+      await page.mouse.click(bounds.x + 400, bounds.y + 204);
+      return page.getByLabel("Diagram status").textContent();
+    })
+    .toContain("Selected 1");
+
+  await page.getByRole("button", { name: "Open live session sharing" }).click();
+  await expect(page.getByText("Guest Tablet", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Participants \(2\)/)).toBeVisible();
+  await expect(page.getByLabel("Live session QR code")).toBeVisible();
+});
+
 base("renders remote drag previews without committing local editor state", async ({
   page,
 }) => {
@@ -311,7 +373,11 @@ base("renders remote drag previews without committing local editor state", async
     () =>
       (window as unknown as RealtimeTestWindow).__sentRealtimeMessages ?? [],
   );
-  expect(sentAfterDrag).toEqual(sentBeforeDrag);
+  const committedOrEphemeral = (messages: string[]) =>
+    messages.filter((message) => JSON.parse(message).type !== "presence");
+  expect(committedOrEphemeral(sentAfterDrag)).toEqual(
+    committedOrEphemeral(sentBeforeDrag),
+  );
 
   await page.mouse.click(bounds.x + 20, bounds.y + 20);
   await expect(page.getByLabel("Diagram status")).toContainText("Selected 0");

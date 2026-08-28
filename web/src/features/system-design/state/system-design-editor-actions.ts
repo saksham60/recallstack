@@ -1,6 +1,7 @@
 import type {
   SystemDesignClipboardFragment,
   SystemDesignDocument,
+  SystemDesignDiagram,
   SystemDesignEdge,
   SystemDesignEditorState,
   SystemDesignLayerDirection,
@@ -44,6 +45,13 @@ export type SystemDesignEditorAction =
       type: "node/update";
       nodeId: string;
       changes: SystemDesignNodePatch;
+      diagramId?: string;
+      at: string;
+    }
+  | {
+      type: "nodes/update";
+      patches: Readonly<Record<string, SystemDesignNodePatch>>;
+      diagramId?: string;
       at: string;
     }
   | {
@@ -76,6 +84,7 @@ export type SystemDesignEditorAction =
       nodeId: string;
       size: SystemDesignSize;
       position?: SystemDesignPoint;
+      diagramId?: string;
       at: string;
     }
   | {
@@ -84,7 +93,7 @@ export type SystemDesignEditorAction =
       diagramId?: string;
       at: string;
     }
-  | { type: "edges/delete"; edgeIds: string[]; at: string }
+  | { type: "edges/delete"; edgeIds: string[]; diagramId?: string; at: string }
   | { type: "selection/delete"; at: string }
   | {
       type: "nodes/duplicate";
@@ -94,11 +103,12 @@ export type SystemDesignEditorAction =
       edgeIdMap?: Readonly<Record<string, string>>;
       at: string;
     }
-  | { type: "edge/add"; edge: SystemDesignEdge; at: string }
+  | { type: "edge/add"; edge: SystemDesignEdge; diagramId?: string; select?: boolean; at: string }
   | {
       type: "edge/update";
       edgeId: string;
       changes: SystemDesignEdgePatch;
+      diagramId?: string;
       at: string;
     }
   | {
@@ -152,6 +162,13 @@ export type SystemDesignEditorAction =
   | {
       type: "collaboration/replace-document";
       document: SystemDesignDocument;
+    }
+  | {
+      type: "collaboration/add-diagram";
+      parentDiagramId: string;
+      parentNodeId: string;
+      diagram: SystemDesignDiagram;
+      at: string;
     }
   | { type: "document/complete"; at: string }
   | {
@@ -243,6 +260,28 @@ export const systemDesignEditorActions = {
     changes,
     at: now(at),
   }),
+  updateNodeInDiagram: (
+    diagramId: string,
+    nodeId: string,
+    changes: SystemDesignNodePatch,
+    at?: string,
+  ): SystemDesignEditorAction => ({
+    type: "node/update",
+    diagramId,
+    nodeId,
+    changes,
+    at: now(at),
+  }),
+  updateNodesInDiagram: (
+    diagramId: string,
+    patches: Readonly<Record<string, SystemDesignNodePatch>>,
+    at?: string,
+  ): SystemDesignEditorAction => ({
+    type: "nodes/update",
+    diagramId,
+    patches,
+    at: now(at),
+  }),
   moveNodes: (
     positions: Readonly<Record<string, SystemDesignPoint>>,
     at?: string,
@@ -309,6 +348,20 @@ export const systemDesignEditorActions = {
     position,
     at: now(at),
   }),
+  resizeNodeInDiagram: (
+    diagramId: string,
+    nodeId: string,
+    size: SystemDesignSize,
+    position?: SystemDesignPoint,
+    at?: string,
+  ): SystemDesignEditorAction => ({
+    type: "node/resize",
+    diagramId,
+    nodeId,
+    size,
+    position,
+    at: now(at),
+  }),
   deleteNodes: (
     nodeIds: string[],
     at?: string,
@@ -332,6 +385,16 @@ export const systemDesignEditorActions = {
     at?: string,
   ): SystemDesignEditorAction => ({
     type: "edges/delete",
+    edgeIds,
+    at: now(at),
+  }),
+  deleteEdgesFromDiagram: (
+    diagramId: string,
+    edgeIds: string[],
+    at?: string,
+  ): SystemDesignEditorAction => ({
+    type: "edges/delete",
+    diagramId,
     edgeIds,
     at: now(at),
   }),
@@ -363,12 +426,35 @@ export const systemDesignEditorActions = {
     edge,
     at: now(at),
   }),
+  addEdgeToDiagram: (
+    diagramId: string,
+    edge: SystemDesignEdge,
+    options: { select?: boolean; at?: string } = {},
+  ): SystemDesignEditorAction => ({
+    type: "edge/add",
+    diagramId,
+    edge,
+    select: options.select,
+    at: now(options.at),
+  }),
   updateEdge: (
     edgeId: string,
     changes: SystemDesignEdgePatch,
     at?: string,
   ): SystemDesignEditorAction => ({
     type: "edge/update",
+    edgeId,
+    changes,
+    at: now(at),
+  }),
+  updateEdgeInDiagram: (
+    diagramId: string,
+    edgeId: string,
+    changes: SystemDesignEdgePatch,
+    at?: string,
+  ): SystemDesignEditorAction => ({
+    type: "edge/update",
+    diagramId,
     edgeId,
     changes,
     at: now(at),
@@ -461,6 +547,18 @@ export const systemDesignEditorActions = {
   ): SystemDesignEditorAction => ({
     type: "collaboration/replace-document",
     document,
+  }),
+  addCollaborationDiagram: (
+    parentDiagramId: string,
+    parentNodeId: string,
+    diagram: SystemDesignDiagram,
+    at?: string,
+  ): SystemDesignEditorAction => ({
+    type: "collaboration/add-diagram",
+    parentDiagramId,
+    parentNodeId,
+    diagram,
+    at: now(at),
   }),
   markComplete: (at?: string): SystemDesignEditorAction => ({
     type: "document/complete",
