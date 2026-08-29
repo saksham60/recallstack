@@ -5,6 +5,7 @@ import {
   SYSTEM_DESIGN_SCHEMA_VERSION,
   type SystemDesignDocument,
 } from "../src/features/system-design/types/system-design.types";
+import { createCollaborationChildDiagramId } from "../src/features/system-design/realtime/canvas-operation";
 
 const ROOM_TOKEN = "room_token_for_browser_test_123456789";
 
@@ -215,6 +216,81 @@ base("loads the public guest canvas from a full room state", async ({ page }) =>
     page.getByRole("button", { name: "Open live session sharing" }),
   ).toContainText("Live");
   expect(forbiddenBackendRequests).toEqual([]);
+});
+
+base("keeps an uninitialized module on one shared child diagram", async ({
+  page,
+}) => {
+  const snapshot = createSharedDocument("Nested Tracking");
+  const root = snapshot.diagrams[snapshot.rootDiagramId];
+  root.nodes = [{
+    id: "shared-module",
+    type: "module",
+    x: 120,
+    y: 100,
+    width: 180,
+    height: 100,
+    label: "Module",
+    layer: 0,
+    locked: false,
+    visible: true,
+    isExpandable: true,
+  }];
+  const childDiagramId = createCollaborationChildDiagramId("shared-module");
+  await installRealtimeSocket(page, { mode: "full", snapshot });
+  await page.goto(`/system-design/live/${ROOM_TOKEN}`);
+
+  const canvas = page.getByTestId("system-design-canvas");
+  await expect(canvas).toBeVisible({ timeout: 30_000 });
+  const bounds = await canvas.boundingBox();
+  expect(bounds).not.toBeNull();
+  if (!bounds) return;
+  await page.mouse.dblclick(bounds.x + 210, bounds.y + 150);
+  await expect(page.getByLabel("Diagram breadcrumb")).toContainText("Module");
+
+  await expect.poll(async () => {
+    const messages = await page.evaluate(
+      () => (window as unknown as RealtimeTestWindow).__sentRealtimeMessages ?? [],
+    );
+    return messages
+      .map((message) => JSON.parse(message))
+      .find((message) => message.type === "op.commit")?.payload;
+  }).toMatchObject({
+    kind: "diagram.add",
+    parentNodeId: "shared-module",
+    diagram: { id: childDiagramId },
+  });
+
+  await page.evaluate(({ diagramId }) => {
+    (window as unknown as RealtimeTestWindow).__emitRealtimeMessage?.({
+      v: 1,
+      type: "op.commit",
+      opId: "remote-child-node",
+      actorId: "remote-nested-user",
+      sequence: 1,
+      payload: {
+        kind: "node.add",
+        diagramId,
+        node: {
+          id: "inside-shared-module",
+          type: "load_balancer",
+          x: 160,
+          y: 120,
+          width: 180,
+          height: 100,
+          label: "Shared load balancer",
+          layer: 0,
+          locked: false,
+          visible: true,
+          parentModuleId: "shared-module",
+        },
+      },
+    });
+  }, { diagramId: childDiagramId });
+
+  await expect(page.getByLabel("Diagram status")).toContainText(/Nodes\s+1/);
+  await page.mouse.click(bounds.x + 250, bounds.y + 170);
+  await expect(page.getByLabel("Diagram status")).toContainText(/Selected\s+1/);
 });
 
 base("applies remote structural edits and shows presence with a local QR code", async ({

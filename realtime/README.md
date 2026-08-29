@@ -124,6 +124,8 @@ Presence payloads contain a bounded display name, the diagram being viewed, and 
 
 Committed operations remain server-ordered last-writer-wins. A late update or edge that references a deleted node is a safe no-op after frontend validation. A remote transient preview is removed when its matching final commit arrives, on timeout, when state is replaced, and when the connection leaves live state.
 
+Live creation of an uninitialized module page uses a deterministic child-diagram ID derived from the stable module node ID. Concurrent participants therefore open the same nested page instead of creating parallel child diagrams. Child edits still target `diagramId` directly and never force another participant to navigate away from their current page.
+
 ## Safety and lifecycle
 
 - Secure room tokens use 32 bytes from `crypto/rand` and base64url encoding.

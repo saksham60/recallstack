@@ -74,6 +74,17 @@ export class CanvasOperationError extends Error {
   }
 }
 
+export function createCollaborationChildDiagramId(parentNodeId: string): string {
+  let first = 2166136261;
+  let second = 0x9e3779b9;
+  for (let index = 0; index < parentNodeId.length; index += 1) {
+    const code = parentNodeId.charCodeAt(index);
+    first = Math.imul(first ^ code, 16777619);
+    second = Math.imul(second ^ code, 2246822519);
+  }
+  return `diagram_live_${(first >>> 0).toString(36)}_${(second >>> 0).toString(36)}`;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

@@ -28,7 +28,10 @@ import {
   applyCanvasOperation,
   reconstructRoomDocument,
 } from "../src/features/system-design/realtime/apply-canvas-operation";
-import { parseCanvasOperation } from "../src/features/system-design/realtime/canvas-operation";
+import {
+  createCollaborationChildDiagramId,
+  parseCanvasOperation,
+} from "../src/features/system-design/realtime/canvas-operation";
 import { RealtimeSequenceTracker } from "../src/features/system-design/realtime/realtime-client";
 import {
   parseRealtimeServerMessage,
@@ -1386,6 +1389,60 @@ test.describe("system-design Phase 2 structural collaboration", () => {
       kind: "edge.add", diagramId, edge: createEdge("late-edge", "node-a", "missing"),
     }).state;
     expect(activeDiagram(state).edges).toEqual([]);
+  });
+
+  test("concurrent users open the same uninitialized module page", () => {
+    const moduleNode = {
+      ...createNode("shared-module"),
+      type: "module" as const,
+      isExpandable: true,
+    };
+    const document = createDocument([moduleNode]);
+    const childDiagramId = createCollaborationChildDiagramId(moduleNode.id);
+    const open = systemDesignEditorActions.openOrCreateModule(moduleNode.id, {
+      childDiagramId,
+      at: timestamp(2),
+    });
+    let first = systemDesignEditorReducer(
+      createSystemDesignEditorState(document),
+      open,
+    );
+    let second = systemDesignEditorReducer(
+      createSystemDesignEditorState(document),
+      open,
+    );
+
+    expect(first.activeDiagramId).toBe(childDiagramId);
+    expect(second.activeDiagramId).toBe(childDiagramId);
+    expect(rootDiagram(first.document).nodes[0].childDiagramId).toBe(
+      childDiagramId,
+    );
+    expect(rootDiagram(second.document).nodes[0].childDiagramId).toBe(
+      childDiagramId,
+    );
+
+    const sharedChild = first.document.diagrams[childDiagramId];
+    second = applyCanvasOperation(second, {
+      kind: "diagram.add",
+      diagramId: document.rootDiagramId,
+      parentNodeId: moduleNode.id,
+      diagram: sharedChild,
+    }).state;
+    second = applyCanvasOperation(second, {
+      kind: "node.add",
+      diagramId: childDiagramId,
+      node: createNode("inside-shared-module", 120, 100, "Inside"),
+    }).state;
+    first = applyCanvasOperation(first, {
+      kind: "node.add",
+      diagramId: childDiagramId,
+      node: createNode("inside-shared-module", 120, 100, "Inside"),
+    }).state;
+
+    expect(first.document.diagrams[childDiagramId].nodes).toHaveLength(1);
+    expect(second.document.diagrams[childDiagramId].nodes).toEqual(
+      first.document.diagrams[childDiagramId].nodes,
+    );
   });
 });
 

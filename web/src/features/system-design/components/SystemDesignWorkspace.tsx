@@ -36,10 +36,11 @@ import {
   systemDesignEditorReducer,
 } from "../state/system-design-editor-reducer";
 import { applyCanvasOperation } from "../realtime/apply-canvas-operation";
-import type {
-  CanvasEdgePatch,
-  CanvasNodePatch,
-  CanvasOperation,
+import {
+  createCollaborationChildDiagramId,
+  type CanvasEdgePatch,
+  type CanvasNodePatch,
+  type CanvasOperation,
 } from "../realtime/canvas-operation";
 import { useSystemDesignRealtime } from "../realtime/use-system-design-realtime";
 import { useRemoteNodeDrags } from "../realtime/use-remote-node-drags";
@@ -688,11 +689,18 @@ export function SystemDesignWorkspace({
 
   const handleOpenModule = useCallback(
     (nodeId: string) => {
+      // Concurrent live opens must resolve to one shared child page. Local
+      // documents retain the existing random-ID behavior.
       commitEditorActionWithConcreteOperations(
-        systemDesignEditorActions.openOrCreateModule(nodeId),
+        systemDesignEditorActions.openOrCreateModule(
+          nodeId,
+          collaborationActive
+            ? { childDiagramId: createCollaborationChildDiagramId(nodeId) }
+            : {},
+        ),
       );
     },
-    [commitEditorActionWithConcreteOperations],
+    [collaborationActive, commitEditorActionWithConcreteOperations],
   );
 
   const handleNavigateDiagram = useCallback((diagramId: string) => {
