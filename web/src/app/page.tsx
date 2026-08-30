@@ -1,13 +1,5 @@
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { ReasonLandingPage } from "@/features/landing/components/ReasonLandingPage";
 
-export default async function HomePage() {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-
-  if (data?.user) {
-    redirect("/dsa");
-  } else {
-    redirect("/login");
-  }
+export default function HomePage() {
+  return <ReasonLandingPage />;
 }

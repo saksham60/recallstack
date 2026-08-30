@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { setupAuth } from './helpers/auth';
+import { POST_AUTH_REDIRECT_COOKIE } from '../src/features/auth/auth-redirect';
 
 test.describe('Authentication and Route Protection', () => {
   test.describe('Unauthenticated User', () => {
@@ -51,6 +52,26 @@ test.describe('Authentication and Route Protection', () => {
 
       await page.goto('/auth/callback?code=mock&next=@evil.com');
       await expect(page).toHaveURL(/.*\/dsa/);
+    });
+
+    test('returns a signed-in user to the protected route that initiated login', async ({ page }) => {
+      await setupAuth(page);
+      await page.context().addCookies([
+        {
+          name: POST_AUTH_REDIRECT_COOKIE,
+          value: encodeURIComponent('/system-design/canvas'),
+          domain: 'localhost',
+          path: '/',
+        },
+      ]);
+
+      await page.goto('/auth/callback?code=mock');
+
+      await expect(page).toHaveURL(/.*\/system-design\/canvas/);
+      await expect.poll(async () => {
+        const cookies = await page.context().cookies();
+        return cookies.some(cookie => cookie.name === POST_AUTH_REDIRECT_COOKIE);
+      }).toBe(false);
     });
   });
 });

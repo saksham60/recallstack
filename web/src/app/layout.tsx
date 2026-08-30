@@ -4,8 +4,9 @@ import { AuthProvider } from "@/features/auth";
 import QueryProvider from "@/lib/query/QueryProvider";
 
 export const metadata: Metadata = {
-  title: "RecallStack",
-  description: "Technical learning, revision, and active-recall platform",
+  title: "ReasonAI — Think Beyond",
+  description:
+    "A visual knowledge, learning, and system-design workspace for connected reasoning.",
 };
 
 export default function RootLayout({

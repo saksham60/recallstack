@@ -4,13 +4,17 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import type { User, Session } from "@supabase/supabase-js";
 import { getBrowserClient } from "@/lib/supabase/client";
 import { usePathname, useRouter } from "next/navigation";
+import {
+  getSafeAuthRedirect,
+  POST_AUTH_REDIRECT_COOKIE,
+} from "./auth-redirect";
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   isLoading: boolean;
   signOut: () => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
+  signInWithGoogle: (nextPath?: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -85,7 +89,10 @@ function SupabaseAuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error;
   };
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = async (nextPath = "/dsa") => {
+    const safeNextPath = getSafeAuthRedirect(nextPath);
+    const secureAttribute = window.location.protocol === "https:" ? "; Secure" : "";
+    document.cookie = `${POST_AUTH_REDIRECT_COOKIE}=${encodeURIComponent(safeNextPath)}; Path=/; Max-Age=600; SameSite=Lax${secureAttribute}`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {

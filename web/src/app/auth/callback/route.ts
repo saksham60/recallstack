@@ -1,17 +1,36 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { isE2EAuthBypassEnabled } from '@/lib/config/server'
+import {
+  getSafeAuthRedirect,
+  POST_AUTH_REDIRECT_COOKIE,
+} from '@/features/auth/auth-redirect'
 
-export async function GET(request: Request) {
+function clearPostAuthRedirect(response: NextResponse): NextResponse {
+  response.cookies.set(POST_AUTH_REDIRECT_COOKIE, '', {
+    maxAge: 0,
+    path: '/',
+  })
+  return response
+}
+
+export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
-  
-  // Validate "next" param for open-redirect prevention
-  let next = requestUrl.searchParams.get('next') ?? '/dsa'
-  // Only accept paths starting with a single slash (but not two slashes which would be protocol-relative)
-  if (!next.startsWith('/') || next.startsWith('//') || next.startsWith('/\\')) {
-    next = '/dsa'
+
+  let cookieNext: string | undefined
+  const encodedCookieNext = request.cookies.get(POST_AUTH_REDIRECT_COOKIE)?.value
+  if (encodedCookieNext) {
+    try {
+      cookieNext = decodeURIComponent(encodedCookieNext)
+    } catch {
+      cookieNext = undefined
+    }
   }
+
+  const next = getSafeAuthRedirect(
+    requestUrl.searchParams.get('next') ?? cookieNext,
+  )
 
   // Double-check URL construction to ensure same origin
   let redirectUrl: URL;
@@ -26,16 +45,20 @@ export async function GET(request: Request) {
 
   if (code) {
     if (isE2EAuthBypassEnabled() && code === "mock") {
-      return NextResponse.redirect(redirectUrl)
+      return clearPostAuthRedirect(NextResponse.redirect(redirectUrl))
     }
 
     const supabase = await createClient()
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
-      return NextResponse.redirect(redirectUrl)
+      return clearPostAuthRedirect(NextResponse.redirect(redirectUrl))
     }
   }
 
   // return the user to an error page with instructions
-  return NextResponse.redirect(new URL('/login?error=auth-callback-failed', requestUrl.origin))
+  return clearPostAuthRedirect(
+    NextResponse.redirect(
+      new URL('/login?error=auth-callback-failed', requestUrl.origin),
+    ),
+  )
 }

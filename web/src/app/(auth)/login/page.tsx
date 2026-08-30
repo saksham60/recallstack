@@ -4,26 +4,28 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "@/features/auth";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import { getSafeAuthRedirect } from "@/features/auth/auth-redirect";
 
 function LoginContent() {
   const { signInWithGoogle, isLoading, user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const error = searchParams.get("error");
+  const nextPath = getSafeAuthRedirect(searchParams.get("next"));
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [signInError, setSignInError] = useState(false);
 
   useEffect(() => {
     if (user) {
-      router.replace("/dsa");
+      router.replace(nextPath);
     }
-  }, [user, router]);
+  }, [user, router, nextPath]);
 
   const handleSignIn = async () => {
     setSignInError(false);
     setIsRedirecting(true);
     try {
-      await signInWithGoogle();
+      await signInWithGoogle(nextPath);
     } catch {
       setSignInError(true);
       setIsRedirecting(false);
