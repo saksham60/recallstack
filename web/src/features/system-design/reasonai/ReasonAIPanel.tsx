@@ -172,7 +172,7 @@ export function ReasonAIPanel({ ref, diagram, title, problem, selectedNodeIds, s
           </form>
         </section>
       )}
-      <div className="pointer-events-auto absolute bottom-4 right-4 flex max-w-[calc(100%-2rem)] flex-col items-center gap-1 rounded-xl border border-border bg-surface/95 px-3 py-2 shadow-xl backdrop-blur">
+      <div className="pointer-events-auto absolute bottom-4 left-1/2 flex max-w-[calc(100%-2rem)] -translate-x-1/2 flex-col items-center gap-1 rounded-xl border border-border bg-surface/95 px-3 py-2 shadow-xl backdrop-blur">
         <button ref={launcher} type="button" aria-label="Open ReasonAI" aria-expanded={open} onClick={() => setOpen((value) => !value)} className="flex items-center gap-3 whitespace-nowrap text-xs text-muted hover:text-foreground"><Sparkles className="h-4 w-4 text-accent" /><span>Ask ReasonAI about this design…</span><kbd className="rounded border border-border px-1">⌘K</kbd></button>
         <div className="flex gap-4 text-[11px] text-muted"><button type="button" disabled={busy} onClick={() => quick("chat", "Explain")} className="hover:text-foreground">Explain</button><button type="button" disabled={busy} onClick={() => quick("review", "Find issues in")} className="hover:text-foreground">Find issues</button><button type="button" disabled={busy} onClick={() => quick("fix", "Improve")} className="hover:text-foreground">Improve</button></div>
       </div>
