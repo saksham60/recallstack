@@ -3,6 +3,7 @@ import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "./e2e",
   testMatch: [
+    "**/reasonai-state.spec.ts",
     "**/system-design-state.spec.ts",
     "**/system-design-model.spec.ts",
     "**/system-design-export.spec.ts",

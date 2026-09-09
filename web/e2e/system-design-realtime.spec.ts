@@ -9,6 +9,57 @@ import { createCollaborationChildDiagramId } from "../src/features/system-design
 
 const ROOM_TOKEN = "room_token_for_browser_test_123456789";
 
+base("ReasonAI stays private until Apply broadcasts normal canvas operations to a collaborator", async ({ page, browser }) => {
+  const snapshot = createSharedDocument();
+  const collaboratorContext = await browser.newContext();
+  const collaborator = await collaboratorContext.newPage();
+  try {
+    await installRealtimeSocket(page, { mode: "full", snapshot });
+    await installRealtimeSocket(collaborator, { mode: "full", snapshot });
+    await page.route("**/api/reasonai/chat", (route) => route.fulfill({ json: {
+      text: "Private architecture suggestion",
+      proposal: { summary: "Add a cache", operations: [
+        { op: "add_node", ref: "new:service", type: "service", label: "URL Service", x: 100, y: 100 },
+        { op: "add_node", ref: "new:cache", type: "cache", label: "Redis", x: 400, y: 100 },
+        { op: "add_edge", sourceNodeId: "new:service", targetNodeId: "new:cache", type: "database_read" },
+      ] },
+    } }));
+    await page.goto(`/system-design/live/${ROOM_TOKEN}`);
+    await collaborator.goto(`/system-design/live/${ROOM_TOKEN}`);
+    await expect(page.getByTestId("system-design-canvas")).toBeVisible({ timeout: 30_000 });
+    await expect(collaborator.getByTestId("system-design-canvas")).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("button", { name: "Open ReasonAI" }).click();
+    await page.getByLabel("Message ReasonAI").fill("Privately improve this design");
+    await page.getByRole("button", { name: "Send to ReasonAI" }).click();
+    await expect(page.getByRole("heading", { name: "Proposed Changes" })).toBeVisible();
+    await expect(page.getByLabel("Diagram status")).toContainText(/Nodes\s+0/);
+    await expect(collaborator.getByLabel("Diagram status")).toContainText(/Nodes\s+0/);
+    await expect(collaborator.getByText("Private architecture suggestion")).toHaveCount(0);
+    const before = await page.evaluate(() => (window as unknown as RealtimeTestWindow).__sentRealtimeMessages ?? []);
+    expect(before.join(" ")).not.toMatch(/Private|Privately|new:cache|op.commit/);
+    await page.getByRole("button", { name: "Apply Changes" }).click();
+    await expect(page.getByLabel("Diagram status")).toContainText(/Nodes\s+2/);
+    // The real transport serializes commits, waiting for each server echo.
+    for (let index = 0; index < 3; index++) {
+      await expect.poll(() => page.evaluate(() => ((window as unknown as RealtimeTestWindow).__sentRealtimeMessages ?? []).map((value) => JSON.parse(value)).filter((message) => message.type === "op.commit").length)).toBe(index + 1);
+      const commit = await page.evaluate((sequence) => {
+        const sent = (window as unknown as RealtimeTestWindow).__sentRealtimeMessages ?? [];
+        const message = { ...sent.map((value) => JSON.parse(value)).filter((m) => m.type === "op.commit").at(-1), sequence };
+        (window as unknown as RealtimeTestWindow).__emitRealtimeMessage?.(message);
+        return message;
+      }, index + 1);
+      await collaborator.evaluate((message) => (window as unknown as RealtimeTestWindow).__emitRealtimeMessage?.(message), commit);
+    }
+    const sent = await page.evaluate(() => (window as unknown as RealtimeTestWindow).__sentRealtimeMessages ?? []);
+    const commits = sent.map((value) => JSON.parse(value)).filter((message) => message.type === "op.commit");
+    expect(commits.map((m) => m.payload.kind)).toEqual(["node.add", "node.add", "edge.add"]);
+    expect(JSON.stringify(commits)).not.toMatch(/Private|Privately|new:cache|new:service/);
+    await expect(collaborator.getByLabel("Diagram status")).toContainText(/Nodes\s+2/);
+    await expect(collaborator.getByLabel("Diagram status")).toContainText(/Connections\s+1/);
+    await expect(collaborator.getByRole("dialog", { name: "ReasonAI", exact: true })).toHaveCount(0);
+  } finally { await collaboratorContext.close(); }
+});
+
 interface RealtimeTestWindow extends Window {
   __emitRealtimeMessage?: (message: unknown) => void;
   __sentRealtimeMessages?: string[];

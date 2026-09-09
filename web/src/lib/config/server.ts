@@ -1,5 +1,13 @@
 import "server-only";
 
+export function getReasonAIConfiguration() {
+  return {
+    apiKey: process.env.NEBIUS_API_KEY,
+    model: process.env.REASONAI_MODEL || "nvidia/nemotron-3-super-120b-a12b",
+    baseUrl: process.env.REASONAI_BASE_URL || "https://api.tokenfactory.nebius.com/v1",
+  };
+}
+
 export function isE2EAuthBypassEnabled(): boolean {
   return (
     process.env.NODE_ENV !== "production" &&

@@ -20,6 +20,47 @@ SYSTEM_DESIGN_ENABLED=1
 
 Only public browser configuration belongs in `NEXT_PUBLIC_*` variables. Server-only or test-only values must be read from `src/lib/config/server.ts` and must not be re-exported into client modules.
 
+## ReasonAI Stage 1
+
+Add `NEBIUS_API_KEY` to the ignored `.env.local` and restart Next.js. The default
+server provider uses `https://api.tokenfactory.nebius.com/v1` and
+`nvidia/nemotron-3-super-120b-a12b`. Optional `REASONAI_BASE_URL` and
+`REASONAI_MODEL` overrides allow another OpenAI-compatible deployment. No new
+dependencies or services are required. The paid endpoint requires a signed-in
+session; anonymous live guests can still use the existing canvas.
+
+Open the floating ReasonAI bar or press Ctrl/Cmd+K. Chat, Review, Fix and Eagle
+View are modes of one copilot. Explain, Find issues and Improve use the current
+selection when present. Only the active diagram's bounded architecture JSON
+is sent to `POST /api/reasonai/chat`; assets, ink points and editor state are
+excluded. Common credential patterns in text are redacted. Avoid putting
+credentials in architecture descriptions or chat messages.
+
+The server validates requests and calls the small `ReasonAIProvider.complete`
+interface using native fetch, a 60-second timeout and one function tool,
+`propose_canvas_changes`. Proposals support adding, updating, moving and deleting
+nodes, and adding, updating and deleting edges. Review and Eagle View are textual.
+
+Conversations and proposals stay in local React state and are cleared when leaving
+the active diagram. Preview shows the exact operation list. Apply revalidates the
+entire proposal against the latest diagram and simulates the existing reducer
+before committing. New objects receive secure IDs from the existing constructors;
+temporary node refs resolve to those IDs. Every approved change uses
+`commitCanvasOperation`, existing undo history and the normal live collaboration
+transport. Only applied canvas changes are broadcast. Connect to the live session
+before applying; locked nodes and invalid/stale references reject the whole batch.
+Node deletion uses existing behavior, including deleting incident edges and child
+diagrams. Undo remains one step per committed operation.
+
+Stage 1 limits: 4,000-character messages, last 10 history messages, 200 nodes,
+400 edges and 50 proposed operations. AI can reason about image/freehand nodes
+through their text, but does not generate image or ink assets. Graphical previews,
+heatmaps, streaming, persistent AI history and external search are deferred.
+
+ReasonAI tests use the existing Playwright tooling and mocked AI responses:
+`npm run test:system-design-state` and
+`npm run test:e2e -- reasonai.spec.ts system-design-realtime.spec.ts`.
+
 ## Commands
 
 ```bash

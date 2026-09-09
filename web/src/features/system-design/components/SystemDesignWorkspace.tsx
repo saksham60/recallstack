@@ -101,6 +101,8 @@ import {
   type SystemDesignArrangeOperation,
 } from "./SystemDesignToolbar";
 import { SystemDesignLiveShareModal } from "./SystemDesignLiveShareModal";
+import { ReasonAIPanel } from "../reasonai/ReasonAIPanel";
+import { prepareReasonAIApply } from "../reasonai/apply-proposal";
 
 export type SystemDesignWorkspaceMode =
   | { kind: "problem"; problem: SystemDesignProblem }
@@ -1552,6 +1554,20 @@ export function SystemDesignWorkspace({
             onEditEdgeLabel={handleInlineEdgeLabelEdit}
           />
           <SystemDesignPerformancePanel />
+          <ReasonAIPanel
+            key={`${state.document.id}:${activeDiagram.id}`}
+            diagram={activeDiagram}
+            title={state.document.title}
+            problem={problem}
+            selectedNodeIds={state.selectedNodeIds}
+            selectedEdgeIds={state.selectedEdgeIds}
+            canApply={!state.isPreviewMode && (!collaborationActive || realtime.status === "live")}
+            onApply={(proposal) => {
+              if (collaborationActive && realtime.status !== "live") throw new Error("Reconnect to the live session before applying changes.");
+              const operations = prepareReasonAIApply(proposal, stateRef.current, activeDiagram.id);
+              operations.forEach(commitCanvasOperation);
+            }}
+          />
 
           {state.isPreviewMode && problem && (
             <details
