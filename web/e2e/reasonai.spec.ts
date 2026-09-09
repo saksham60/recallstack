@@ -12,49 +12,112 @@ test.beforeEach(async ({ authenticatedPage: page }) => {
   await expect(page.getByTestId("system-design-canvas")).toBeVisible({ timeout: 30_000 });
 });
 
-test("empty canvas proposal stays private and unchanged through preview, then applies nodes and edges once", async ({ authenticatedPage: page }) => {
-  await page.route("**/api/reasonai/chat", (route) => {
-    const body = route.request().postDataJSON();
-    expect(body.mode).toBe("chat");
-    expect(body.context.nodes).toEqual([]);
-    expect(body.context.edges).toEqual([]);
-    expect(body.history).toEqual([]);
-    return route.fulfill({ json: { text: "Use a cache for hot redirects.", proposal } });
-  });
-  await page.keyboard.press("Control+k");
+test("ReasonAI can be moved without editing the canvas and stays reachable after resizing", async ({ authenticatedPage: page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.getByRole("button", { name: "Open ReasonAI" }).click();
   const dialog = page.getByRole("dialog", { name: "ReasonAI", exact: true });
-  await expect(dialog).toBeVisible();
-  await page.getByLabel("Message ReasonAI").fill("Design a URL shortener for 100M users.");
-  await page.getByRole("button", { name: "Send to ReasonAI" }).click();
-  await expect(dialog.getByRole("heading", { name: "Proposed Changes" })).toBeVisible();
-  const status = page.getByLabel("Diagram status");
-  await expect(status).toContainText(/Nodes\s+0/);
-  await dialog.getByText("Preview", { exact: true }).click();
-  await expect(dialog.locator("pre").first()).toContainText("new:service");
-  await expect(status).toContainText(/Connections\s+0/);
-  await page.screenshot({ path: "test-results/reasonai-panel.png" });
-  await dialog.getByRole("button", { name: "Apply Changes" }).click();
-  await expect(status).toContainText(/Nodes\s+2/);
-  await expect(status).toContainText(/Connections\s+1/);
-  await expect(dialog.getByText("Applied to canvas")).toBeVisible();
-  await expect(dialog.getByRole("button", { name: "Apply Changes" })).toHaveCount(0);
-  await page.getByRole("button", { name: "Close ReasonAI" }).click();
-  await expect(page.getByRole("tab", { name: "Properties", exact: true })).toBeVisible();
-  await expect(page.getByRole("tab", { name: "Layers", exact: true })).toBeVisible();
-  await page.unroute("**/api/reasonai/chat");
+  const handle = dialog.getByRole("button", { name: "Move ReasonAI" });
+  const initial = (await dialog.boundingBox())!;
+  const grip = (await handle.boundingBox())!;
+  await page.mouse.move(grip.x + 50, grip.y + 15);
+  await page.mouse.down();
+  await page.mouse.move(grip.x - 110, grip.y + 47, { steps: 8 });
+  await page.mouse.up();
+  const moved = (await dialog.boundingBox())!;
+  expect(moved.x).toBeCloseTo(initial.x - 160, 0);
+  expect(moved.y).toBeCloseTo(initial.y + 32, 0);
+  await page.getByLabel("Message ReasonAI").fill("Keep my draft");
+  await dialog.getByRole("button", { name: "Close ReasonAI" }).click();
+  await page.getByRole("button", { name: "Open ReasonAI" }).click();
+  expect((await dialog.boundingBox())!.x).toBeCloseTo(moved.x, 0);
+  expect((await dialog.boundingBox())!.y).toBeCloseTo(moved.y, 0);
+  await expect(page.getByLabel("Message ReasonAI")).toHaveValue("Keep my draft");
+  await handle.focus();
+  await page.keyboard.press("ArrowRight");
+  expect((await dialog.boundingBox())!.x).toBeCloseTo(moved.x + 16, 0);
+
+  // Capture continues beyond the handle, and the panel clamps at the canvas edge.
+  const nextGrip = (await handle.boundingBox())!;
+  await page.mouse.move(nextGrip.x + 50, nextGrip.y + 15);
+  await page.mouse.down();
+  await page.mouse.move(1595, 995, { steps: 8 });
+  await page.mouse.up();
+  const withinCanvas = () => dialog.evaluate((element) => {
+    const panel = element.getBoundingClientRect(), bounds = element.parentElement!.getBoundingClientRect();
+    return panel.left >= bounds.left && panel.top >= bounds.top && panel.right <= bounds.right + 1 && panel.bottom <= bounds.bottom + 1;
+  });
+  await expect.poll(withinCanvas).toBe(true);
+  await page.setViewportSize({ width: 1100, height: 720 });
+  await expect.poll(withinCanvas).toBe(true);
+  await page.route("**/api/reasonai/chat", (route) => route.fulfill({ json: { text: "Observed: The canvas is empty.\n\n".repeat(40) } }));
+  await dialog.getByRole("button", { name: "Send to ReasonAI" }).click();
+  await expect(dialog.getByRole("log")).toContainText("Observed: The canvas is empty.");
+  await expect.poll(withinCanvas).toBe(true);
+  await expect(page.getByLabel("Diagram status")).toContainText(/Nodes\s+0/);
+});
+
+test("independent generated cards use native canvas drops, dependencies, private refs and history", async ({ authenticatedPage: page }) => {
+  test.setTimeout(60_000);
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  let latestContext: { nodes: { id: string; label: string; x: number; y: number }[]; edges: { sourceNodeId: string; targetNodeId: string }[] } | undefined;
   await page.route("**/api/reasonai/chat", (route) => {
     const body = route.request().postDataJSON();
-    expect(body.context.nodes).toHaveLength(2);
-    expect(body.context.edges).toHaveLength(1);
-    expect(body.context.selectedEdgeIds).toEqual([body.context.edges[0].id]);
-    expect(body.context.nodes[0]).not.toHaveProperty("style");
-    expect(body.history).toHaveLength(2);
-    expect(body.message).toContain("selected");
-    return route.fulfill({ json: { text: "This connection reads cached URL mappings." } });
+    latestContext = body.context;
+    return route.fulfill({ json: { text: "Use a cache for hot redirects.", proposal: { ...proposal, operations: [...proposal.operations, { op: "add_node", ref: "new:kafka", type: "message_queue", label: "Kafka", x: 999, y: 999 }] } } });
   });
-  await page.getByRole("button", { name: "Explain", exact: true }).click();
-  await page.getByRole("button", { name: "Send to ReasonAI" }).click();
-  await expect(dialog.getByText("This connection reads cached URL mappings.")).toBeVisible();
+  await page.getByRole("button", { name: "Open ReasonAI" }).click();
+  const dialog = page.getByRole("dialog", { name: "ReasonAI", exact: true });
+  const canvas = page.getByTestId("system-design-canvas");
+  await page.getByLabel("Message ReasonAI").fill("Design a URL shortener");
+  await page.getByLabel("Message ReasonAI").press("Enter");
+  const service = dialog.getByRole("region", { name: "Suggestion: URL Service", exact: true });
+  const redis = dialog.getByRole("region", { name: "Suggestion: Redis", exact: true });
+  const kafka = dialog.getByRole("region", { name: "Suggestion: Kafka", exact: true });
+  const connection = dialog.getByRole("region", { name: "Suggestion: URL Service → Redis", exact: true });
+  await expect(redis).toBeVisible();
+  await expect(dialog.locator("pre")).toHaveCount(0);
+  await expect(dialog).not.toContainText(/new:redis|new:service|propose_canvas_changes/);
+  await expect(page.getByLabel("Diagram status")).toContainText(/Nodes\s+0/);
+  await expect(connection.getByRole("button", { name: "Connect", exact: true })).toBeDisabled();
+  await service.getByRole("button", { name: "Drag URL Service to canvas" }).dragTo(canvas, { targetPosition: { x: 100, y: 150 } });
+  await expect(service).toHaveAttribute("data-suggestion-status", "added");
+  await expect(connection.getByRole("button", { name: "Connect", exact: true })).toBeDisabled();
+  await redis.getByRole("button", { name: "Drag Redis to canvas" }).dragTo(canvas, { targetPosition: { x: 300, y: 300 } });
+  await expect(redis).toHaveAttribute("data-suggestion-status", "added");
+  await expect(redis.getByRole("button", { name: "Drag Redis to canvas" })).toBeDisabled();
+  await expect(kafka).toHaveAttribute("data-suggestion-status", "pending");
+  await expect(page.getByLabel("Diagram status")).toContainText(/Nodes\s+2/);
+  await expect(connection.getByRole("button", { name: "Connect", exact: true })).toBeEnabled();
+  await connection.getByRole("button", { name: "Connect", exact: true }).click();
+  await expect(page.getByLabel("Diagram status")).toContainText(/Connections\s+1/);
+  await connection.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(connection).toHaveAttribute("data-suggestion-status", "undone");
+  await expect(page.getByLabel("Diagram status")).toContainText(/Connections\s+0/);
+  await redis.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(redis).toHaveAttribute("data-suggestion-status", "undone");
+  await expect(page.getByLabel("Diagram status")).toContainText(/Nodes\s+1/);
+  await expect(connection.getByRole("button", { name: "Connect", exact: true })).toBeDisabled();
+  await redis.getByRole("button", { name: "Drag Redis to canvas" }).dragTo(canvas, { targetPosition: { x: 300, y: 300 } });
+  await kafka.getByRole("button", { name: "Dismiss", exact: true }).click();
+  await page.getByLabel("Message ReasonAI").fill("Explain this design");
+  await page.getByLabel("Message ReasonAI").press("Enter");
+  await expect.poll(() => latestContext?.nodes.length).toBe(2);
+  const cache = latestContext!.nodes.find((node) => node.label === "Redis")!;
+  expect(cache.id).toMatch(/^node_[a-f0-9-]{36}$/);
+  expect(cache.x).not.toBe(400);
+  const zoom = Number(await canvas.getAttribute("data-viewport-zoom"));
+  const viewportX = Number(await canvas.getAttribute("data-viewport-x"));
+  // Cache default width is 150; coordinates are centered using the palette path.
+  expect(cache.x).toBeCloseTo(Math.round(((300 - viewportX) / zoom) / 24) * 24 - 75, 0);
+  await page.getByRole("button", { name: "Close ReasonAI" }).click();
+  await canvas.focus();
+  await page.keyboard.press("Control+z");
+  await expect(page.getByLabel("Diagram status")).toContainText(/Nodes\s+1/);
+  await page.keyboard.press("Control+Shift+z");
+  await expect(page.getByLabel("Diagram status")).toContainText(/Nodes\s+2/);
+  await page.getByRole("button", { name: "Open ReasonAI" }).click();
+  await expect(redis.first()).toHaveAttribute("data-suggestion-status", "added");
+  await page.screenshot({ path: "test-results/reasonai-conversation.png" });
 });
 
 test("discard, errors, and malicious proposals never change the canvas", async ({ authenticatedPage: page }) => {
@@ -68,13 +131,13 @@ test("discard, errors, and malicious proposals never change the canvas", async (
   await page.getByRole("button", { name: "Improve", exact: true }).click();
   await page.getByRole("button", { name: "Send to ReasonAI" }).click();
   await expect(page.getByRole("dialog", { name: "ReasonAI", exact: true }).getByRole("alert")).toContainText("ReasonAI is busy");
-  await page.getByRole("button", { name: "Send to ReasonAI" }).click();
+  await page.getByRole("button", { name: "Retry", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "ReasonAI", exact: true }).getByRole("alert")).toHaveText("ReasonAI returned an invalid canvas proposal. No changes were applied.");
-  await page.getByRole("button", { name: "Send to ReasonAI" }).click();
+  await page.getByRole("button", { name: "Retry", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "ReasonAI", exact: true }).getByRole("alert")).toHaveText("ReasonAI could not complete that response. Please try again.");
-  await page.getByRole("button", { name: "Send to ReasonAI" }).click();
-  await page.getByRole("button", { name: "Discard", exact: true }).click();
-  await expect(page.getByText("Proposal discarded")).toBeVisible();
+  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await page.getByRole("button", { name: "Dismiss", exact: true }).first().click();
+  await expect(page.getByText("Dismissed", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Diagram status")).toContainText(/Nodes\s+0/);
 });
 
@@ -117,4 +180,71 @@ test("API rejects oversized or invalid requests without calling the provider", a
   const response = await page.request.post("/api/reasonai/chat", { data: { mode: "chat", message: "x".repeat(4001), history: [], context: { title: "Canvas", nodes: [], edges: [] } } });
   expect(response.status()).toBe(400);
   expect(response.headers()["cache-control"]).toBe("no-store");
+});
+
+test("conversation supports multiline input, immediate user turns, regenerate, stop and clear", async ({ authenticatedPage: page }) => {
+  test.setTimeout(60_000);
+  let attempts = 0;
+  let release: () => void = () => {};
+  const slow = new Promise<void>((resolve) => { release = resolve; });
+  await page.route("**/api/reasonai/chat", async (route) => {
+    attempts++;
+    if (attempts >= 3) await slow;
+    await route.fulfill({ json: { text: `Answer ${attempts}` } }).catch(() => {});
+  });
+  await page.getByRole("button", { name: "Open ReasonAI" }).click();
+  const dialog = page.getByRole("dialog", { name: "ReasonAI", exact: true });
+  const input = page.getByLabel("Message ReasonAI");
+  await input.fill("Explain");
+  await input.press("Shift+Enter");
+  await input.pressSequentially("the read path");
+  await expect(input).toHaveValue("Explain\nthe read path");
+  await input.press("Enter");
+  await expect(dialog.getByRole("log")).toContainText("Explain\nthe read path");
+  await expect(dialog.getByText("Answer 1", { exact: true })).toBeVisible();
+  await dialog.getByRole("button", { name: "Regenerate" }).click();
+  await expect(dialog.getByText("Answer 2", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Answer 1", { exact: true })).toHaveCount(0);
+  await input.fill("A slower question");
+  await input.press("Enter");
+  await expect(dialog.getByText("A slower question", { exact: true })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Stop generating" })).toBeVisible();
+  await expect(input).toBeVisible();
+  await dialog.getByRole("button", { name: "Stop generating" }).click();
+  await expect(dialog.getByRole("button", { name: "Retry", exact: true })).toBeVisible();
+  await dialog.getByRole("button", { name: "Clear conversation" }).click();
+  release();
+  await expect(dialog.getByRole("log").locator("article")).toHaveCount(0);
+  await expect(dialog.getByRole("alert")).toHaveCount(0);
+  await expect(input).toHaveValue("");
+  await expect(page.getByLabel("Diagram status")).toContainText(/Nodes\s+0/);
+});
+
+test("a connection suggestion becomes unavailable when an endpoint is deleted", async ({ authenticatedPage: page }) => {
+  let attempt = 0;
+  await page.route("**/api/reasonai/chat", (route) => {
+    attempt++;
+    const context = route.request().postDataJSON().context;
+    return route.fulfill({ json: { text: "Connect the request path", proposal: attempt === 1 ? proposal : {
+      summary: "Connect to the cache", operations: [{ op: "add_edge", sourceNodeId: context.nodes[0].id, targetNodeId: context.nodes[1].id, type: "database_read" }],
+    } } });
+  });
+  await page.getByRole("button", { name: "Open ReasonAI" }).click();
+  const input = page.getByLabel("Message ReasonAI");
+  await input.fill("Suggest components");
+  await input.press("Enter");
+  await page.getByRole("region", { name: "Suggestion: URL Service", exact: true }).getByRole("button", { name: "Add to canvas", exact: true }).click();
+  await page.getByRole("region", { name: "Suggestion: Redis", exact: true }).getByRole("button", { name: "Add to canvas", exact: true }).click();
+  await input.fill("Connect them");
+  await input.press("Enter");
+  await expect(page.getByRole("region", { name: "Suggestion: URL Service → Redis", exact: true })).toHaveCount(2);
+  await page.getByRole("button", { name: "Close ReasonAI" }).click();
+  await page.getByTestId("system-design-canvas").focus();
+  await page.keyboard.press("Delete");
+  await expect(page.getByLabel("Diagram status")).toContainText(/Nodes\s+1/);
+  await page.getByRole("button", { name: "Open ReasonAI" }).click();
+  const last = page.getByRole("log").locator("article").last();
+  await expect(last.getByRole("button", { name: "Connect", exact: true })).toBeDisabled();
+  await expect(last).toContainText("Unavailable");
+  await expect(page.getByLabel("Diagram status")).toContainText(/Connections\s+0/);
 });

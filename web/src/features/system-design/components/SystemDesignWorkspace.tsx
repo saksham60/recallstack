@@ -101,8 +101,8 @@ import {
   type SystemDesignArrangeOperation,
 } from "./SystemDesignToolbar";
 import { SystemDesignLiveShareModal } from "./SystemDesignLiveShareModal";
-import { ReasonAIPanel } from "../reasonai/ReasonAIPanel";
-import { prepareReasonAIApply } from "../reasonai/apply-proposal";
+import { ReasonAIPanel, type ReasonAIPanelHandle } from "../reasonai/ReasonAIPanel";
+import { captureReasonAIAction, prepareReasonAISuggestion, reasonAIUndoUnavailable } from "../reasonai/suggestions";
 
 export type SystemDesignWorkspaceMode =
   | { kind: "problem"; problem: SystemDesignProblem }
@@ -279,6 +279,7 @@ export function SystemDesignWorkspace({
       createSystemDesignEditorState(document, { loadStatus: "idle" }),
   );
   const canvasRef = useRef<SystemDesignCanvasHandle>(null);
+  const reasonAIRef = useRef<ReasonAIPanelHandle>(null);
   const [inspectorTab, setInspectorTab] =
     useState<SystemDesignInspectorTab>("properties");
   const [resetOpen, setResetOpen] = useState(false);
@@ -1505,6 +1506,38 @@ export function SystemDesignWorkspace({
       </div>
 
       <div className="relative flex min-h-0 flex-1">
+        <ReasonAIPanel
+          ref={reasonAIRef}
+          key={`${state.document.id}:${activeDiagram.id}`}
+          diagram={activeDiagram}
+          title={state.document.title}
+          problem={problem}
+          selectedNodeIds={state.selectedNodeIds}
+          selectedEdgeIds={state.selectedEdgeIds}
+          live={collaborationActive}
+          canApply={!state.isPreviewMode && (!collaborationActive || realtime.status === "live")}
+          onCommit={(suggestion, refs, position) => {
+            if (collaborationActive && realtime.status !== "live") throw new Error("Reconnect before making changes.");
+            const before = stateRef.current;
+            const center = position ?? canvasRef.current?.getVisibleCenter() ?? { x: 480, y: 320 };
+            const operation = prepareReasonAISuggestion(suggestion, refs, before, activeDiagram.id, center);
+            const committed = commitCanvasOperation(operation);
+            setInspectorTab("properties");
+            return captureReasonAIAction(committed, before, stateRef.current);
+          }}
+          undoUnavailable={(action) => reasonAIUndoUnavailable(action, state, collaborationActive)}
+          onUndo={(action) => {
+            if (collaborationActive && realtime.status !== "live") throw new Error("Reconnect before undoing.");
+            const blocked = reasonAIUndoUnavailable(action, stateRef.current, collaborationActive);
+            if (blocked) throw new Error(blocked);
+            if (collaborationActive) action.inverse.forEach(commitCanvasOperation);
+            else {
+              const undo = systemDesignEditorActions.undo();
+              stateRef.current = systemDesignEditorReducer(stateRef.current, undo);
+              dispatch(undo);
+            }
+          }}
+        />
         {!state.isPreviewMode && (
           <SystemDesignPalette onAddNode={addNodeFromPalette} />
         )}
@@ -1549,25 +1582,13 @@ export function SystemDesignWorkspace({
             onCursorMove={(point) => realtime.updateCursor(activeDiagram.id, point)}
             onViewportChange={handleViewportChange}
             onDropNodeType={addDroppedNode}
+            onDropAISuggestion={(token, position) => reasonAIRef.current?.dropSuggestion(token, position)}
             onOpenModule={handleOpenModule}
             onEditNodeLabel={handleInlineLabelEdit}
             onEditEdgeLabel={handleInlineEdgeLabelEdit}
           />
           <SystemDesignPerformancePanel />
-          <ReasonAIPanel
-            key={`${state.document.id}:${activeDiagram.id}`}
-            diagram={activeDiagram}
-            title={state.document.title}
-            problem={problem}
-            selectedNodeIds={state.selectedNodeIds}
-            selectedEdgeIds={state.selectedEdgeIds}
-            canApply={!state.isPreviewMode && (!collaborationActive || realtime.status === "live")}
-            onApply={(proposal) => {
-              if (collaborationActive && realtime.status !== "live") throw new Error("Reconnect to the live session before applying changes.");
-              const operations = prepareReasonAIApply(proposal, stateRef.current, activeDiagram.id);
-              operations.forEach(commitCanvasOperation);
-            }}
-          />
+
 
           {state.isPreviewMode && problem && (
             <details

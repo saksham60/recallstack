@@ -134,7 +134,7 @@ export const REASONAI_TOOL = {
   type: "function",
   function: {
     name: "propose_canvas_changes",
-    description: "Propose minimal changes for user approval. Operations run in order. add_node declares a unique ref such as new:redis. add_edge and update_edge use sourceNodeId and targetNodeId: exact existing node IDs or previously declared new: refs. update_node, move_node and delete_node use nodeId for an existing node; update_edge and delete_edge use edgeId for an existing edge. Existing IDs must come from CANVAS_CONTEXT. No changes happen until Apply. Summary must briefly explain tradeoffs using component names, not IDs, in plain text without tables or HTML.",
+    description: "Propose minimal, individually actionable suggestions. Declare new nodes before connections for dependency validation; users choose which suggestions to accept. add_node declares a unique ref such as new:redis. add_edge and update_edge use sourceNodeId and targetNodeId: exact existing node IDs or previously declared new: refs. update_node, move_node and delete_node use nodeId for an existing node; update_edge and delete_edge use edgeId for an existing edge. Existing IDs must come from CANVAS_CONTEXT. No changes happen until the user drops a component or accepts an individual suggestion. Users choose final drop coordinates. Summary must briefly explain tradeoffs using component names, not IDs, in plain text without tables or HTML.",
     parameters: { type: "object", additionalProperties: false, required: ["summary", "operations"], properties: { summary: textField(2000), operations: { type: "array", minItems: 1, maxItems: 50, items: { oneOf: operationSchemas } } } },
   },
 };

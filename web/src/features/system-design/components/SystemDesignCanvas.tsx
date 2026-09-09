@@ -1,5 +1,7 @@
 "use client";
 
+import { REASONAI_NODE_DRAG_MIME } from "../reasonai/suggestions";
+
 import {
   forwardRef,
   useCallback,
@@ -159,6 +161,7 @@ interface SystemDesignCanvasProps {
     nodeType: string,
     position: { x: number; y: number },
   ) => void;
+  onDropAISuggestion?: (token: string, position: { x: number; y: number }) => void;
   onOpenModule?: (nodeId: string) => void;
   onEditNodeLabel?: (nodeId: string, label: string) => void;
   onEditEdgeLabel?: (edgeId: string, label: string) => void;
@@ -246,6 +249,7 @@ export const SystemDesignCanvas = forwardRef<
     onCursorMove,
     onViewportChange,
     onDropNodeType,
+    onDropAISuggestion,
     onOpenModule,
     onEditNodeLabel,
     onEditEdgeLabel,
@@ -1630,20 +1634,23 @@ export const SystemDesignCanvas = forwardRef<
         const type = event.dataTransfer.getData(
           "application/x-recallstack-system-design-node",
         );
-        if (!type) return;
+        const suggestion = event.dataTransfer.getData(REASONAI_NODE_DRAG_MIME);
+        if (!type && !suggestion) return;
         const rect = event.currentTarget.getBoundingClientRect();
         const position = worldPoint(
           { x: event.clientX - rect.left, y: event.clientY - rect.top },
           viewport,
         );
-        onDropNodeType(type, {
+        const dropPosition = {
           x: snapToGrid
             ? Math.round(position.x / GRID_SIZE) * GRID_SIZE
             : position.x,
           y: snapToGrid
             ? Math.round(position.y / GRID_SIZE) * GRID_SIZE
             : position.y,
-        });
+        };
+        if (suggestion) onDropAISuggestion?.(suggestion, dropPosition);
+        else onDropNodeType(type, dropPosition);
       }}
     >
       <span className="sr-only">

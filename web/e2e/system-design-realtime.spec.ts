@@ -9,7 +9,9 @@ import { createCollaborationChildDiagramId } from "../src/features/system-design
 
 const ROOM_TOKEN = "room_token_for_browser_test_123456789";
 
-base("ReasonAI stays private until Apply broadcasts normal canvas operations to a collaborator", async ({ page, browser }) => {
+base("ReasonAI suggestions stay private; individual drops, connections and live undo reach collaborators", async ({ page, browser }) => {
+  base.setTimeout(60_000);
+  await page.setViewportSize({ width: 1600, height: 1000 });
   const snapshot = createSharedDocument();
   const collaboratorContext = await browser.newContext();
   const collaborator = await collaboratorContext.newPage();
@@ -26,36 +28,52 @@ base("ReasonAI stays private until Apply broadcasts normal canvas operations to 
     } }));
     await page.goto(`/system-design/live/${ROOM_TOKEN}`);
     await collaborator.goto(`/system-design/live/${ROOM_TOKEN}`);
-    await expect(page.getByTestId("system-design-canvas")).toBeVisible({ timeout: 30_000 });
+    const canvas = page.getByTestId("system-design-canvas");
+    await expect(canvas).toBeVisible({ timeout: 30_000 });
     await expect(collaborator.getByTestId("system-design-canvas")).toBeVisible({ timeout: 30_000 });
     await page.getByRole("button", { name: "Open ReasonAI" }).click();
     await page.getByLabel("Message ReasonAI").fill("Privately improve this design");
-    await page.getByRole("button", { name: "Send to ReasonAI" }).click();
-    await expect(page.getByRole("heading", { name: "Proposed Changes" })).toBeVisible();
+    await page.getByLabel("Message ReasonAI").press("Enter");
+    const service = page.getByRole("region", { name: "Suggestion: URL Service", exact: true });
+    const redis = page.getByRole("region", { name: "Suggestion: Redis", exact: true });
+    const connection = page.getByRole("region", { name: "Suggestion: URL Service → Redis", exact: true });
+    await expect(redis).toBeVisible();
     await expect(page.getByLabel("Diagram status")).toContainText(/Nodes\s+0/);
     await expect(collaborator.getByLabel("Diagram status")).toContainText(/Nodes\s+0/);
     await expect(collaborator.getByText("Private architecture suggestion")).toHaveCount(0);
     const before = await page.evaluate(() => (window as unknown as RealtimeTestWindow).__sentRealtimeMessages ?? []);
     expect(before.join(" ")).not.toMatch(/Private|Privately|new:cache|op.commit/);
-    await page.getByRole("button", { name: "Apply Changes" }).click();
-    await expect(page.getByLabel("Diagram status")).toContainText(/Nodes\s+2/);
-    // The real transport serializes commits, waiting for each server echo.
-    for (let index = 0; index < 3; index++) {
-      await expect.poll(() => page.evaluate(() => ((window as unknown as RealtimeTestWindow).__sentRealtimeMessages ?? []).map((value) => JSON.parse(value)).filter((message) => message.type === "op.commit").length)).toBe(index + 1);
+    const relay = async (sequence: number) => {
+      await expect.poll(() => page.evaluate(() => ((window as unknown as RealtimeTestWindow).__sentRealtimeMessages ?? []).map((value) => JSON.parse(value)).filter((message) => message.type === "op.commit").length)).toBe(sequence);
       const commit = await page.evaluate((sequence) => {
         const sent = (window as unknown as RealtimeTestWindow).__sentRealtimeMessages ?? [];
         const message = { ...sent.map((value) => JSON.parse(value)).filter((m) => m.type === "op.commit").at(-1), sequence };
         (window as unknown as RealtimeTestWindow).__emitRealtimeMessage?.(message);
         return message;
-      }, index + 1);
+      }, sequence);
       await collaborator.evaluate((message) => (window as unknown as RealtimeTestWindow).__emitRealtimeMessage?.(message), commit);
-    }
+    };
+    await service.getByRole("button", { name: "Drag URL Service to canvas" }).dragTo(canvas, { targetPosition: { x: 100, y: 120 } });
+    await relay(1);
+    await expect(collaborator.getByLabel("Diagram status")).toContainText(/Nodes\s+1/);
+    await redis.getByRole("button", { name: "Drag Redis to canvas" }).dragTo(canvas, { targetPosition: { x: 300, y: 250 } });
+    await relay(2);
+    await expect(collaborator.getByLabel("Diagram status")).toContainText(/Nodes\s+2/);
+    await connection.getByRole("button", { name: "Connect", exact: true }).click();
+    await relay(3);
+    await expect(collaborator.getByLabel("Diagram status")).toContainText(/Connections\s+1/);
+    await expect(redis.getByRole("button", { name: "Undo", exact: true })).toBeDisabled();
+    await connection.getByRole("button", { name: "Undo", exact: true }).click();
+    await relay(4);
+    await expect(collaborator.getByLabel("Diagram status")).toContainText(/Connections\s+0/);
+    await redis.getByRole("button", { name: "Undo", exact: true }).click();
+    await relay(5);
+    await expect(collaborator.getByLabel("Diagram status")).toContainText(/Nodes\s+1/);
+    await expect(redis).toHaveAttribute("data-suggestion-status", "undone");
     const sent = await page.evaluate(() => (window as unknown as RealtimeTestWindow).__sentRealtimeMessages ?? []);
     const commits = sent.map((value) => JSON.parse(value)).filter((message) => message.type === "op.commit");
-    expect(commits.map((m) => m.payload.kind)).toEqual(["node.add", "node.add", "edge.add"]);
+    expect(commits.map((m) => m.payload.kind)).toEqual(["node.add", "node.add", "edge.add", "edge.delete", "node.delete"]);
     expect(JSON.stringify(commits)).not.toMatch(/Private|Privately|new:cache|new:service/);
-    await expect(collaborator.getByLabel("Diagram status")).toContainText(/Nodes\s+2/);
-    await expect(collaborator.getByLabel("Diagram status")).toContainText(/Connections\s+1/);
     await expect(collaborator.getByRole("dialog", { name: "ReasonAI", exact: true })).toHaveCount(0);
   } finally { await collaboratorContext.close(); }
 });
