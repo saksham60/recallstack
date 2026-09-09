@@ -17,6 +17,7 @@ export type ReasonAIOperation =
   | { op: "delete_edge"; edgeId: string };
 export interface ReasonAIProposal { summary: string; operations: ReasonAIOperation[] }
 export interface ReasonAIResponse { text: string; proposal?: ReasonAIProposal }
+export const REASONAI_INVALID_PROPOSAL = "ReasonAI returned an invalid canvas proposal. No changes were applied.";
 export interface ReasonAIContext {
   title: string;
   requirements: string[];
@@ -133,7 +134,7 @@ export const REASONAI_TOOL = {
   type: "function",
   function: {
     name: "propose_canvas_changes",
-    description: "Propose minimal changes for user approval. Operations run in order. Add nodes before referencing their unique new: refs. Existing IDs must come from CANVAS_CONTEXT. No changes happen until Apply. Summary must explain the tradeoffs.",
+    description: "Propose minimal changes for user approval. Operations run in order. add_node declares a unique ref such as new:redis. add_edge and update_edge use sourceNodeId and targetNodeId: exact existing node IDs or previously declared new: refs. update_node, move_node and delete_node use nodeId for an existing node; update_edge and delete_edge use edgeId for an existing edge. Existing IDs must come from CANVAS_CONTEXT. No changes happen until Apply. Summary must briefly explain tradeoffs using component names, not IDs, in plain text without tables or HTML.",
     parameters: { type: "object", additionalProperties: false, required: ["summary", "operations"], properties: { summary: textField(2000), operations: { type: "array", minItems: 1, maxItems: 50, items: { oneOf: operationSchemas } } } },
   },
 };

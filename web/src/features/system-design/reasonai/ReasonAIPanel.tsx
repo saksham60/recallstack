@@ -4,15 +4,16 @@ import { useEffect, useRef, useState } from "react";
 import { LoaderCircle, Sparkles, X } from "lucide-react";
 import { buttonClass } from "@/features/admin/components/AdminPrimitives";
 import type { SystemDesignDiagram, SystemDesignProblem } from "../types/system-design.types";
-import { buildReasonAIContext, parseReasonAIProposal, record, REASONAI_MODES, type ReasonAIMessage, type ReasonAIMode, type ReasonAIOperation, type ReasonAIProposal } from "./contract";
+import { buildReasonAIContext, parseReasonAIProposal, record, REASONAI_INVALID_PROPOSAL, REASONAI_MODES, type ReasonAIMessage, type ReasonAIMode, type ReasonAIOperation, type ReasonAIProposal } from "./contract";
+import { normalizeReasonAIVisibleText } from "./visible-text";
 
 interface Turn extends ReasonAIMessage { proposal?: ReasonAIProposal; status?: "applied" | "discarded" }
 function describe(op: ReasonAIOperation, diagram: SystemDesignDiagram, proposal: ReasonAIProposal): string {
   const node = (id: string) => {
     const added = proposal.operations.find((operation) => operation.op === "add_node" && operation.ref === id);
-    return diagram.nodes.find((n) => n.id === id)?.label ?? (added?.op === "add_node" ? added.label : id);
+    return diagram.nodes.find((n) => n.id === id)?.label ?? (added?.op === "add_node" ? added.label : "Component");
   };
-  const edge = (id: string) => { const e = diagram.edges.find((e) => e.id === id); return e ? `${node(e.sourceNodeId)} → ${node(e.targetNodeId)}` : id; };
+  const edge = (id: string) => { const e = diagram.edges.find((e) => e.id === id); return e ? `${node(e.sourceNodeId)} → ${node(e.targetNodeId)}` : "Connection"; };
   switch (op.op) {
     case "add_node": return `+ Add ${op.label} (${op.type})`;
     case "update_node": return `Update ${node(op.nodeId)}`;
@@ -49,7 +50,15 @@ export function ReasonAIPanel({ diagram, title, problem, selectedNodeIds, select
     return () => window.removeEventListener("keydown", shortcut, true);
   }, []);
   useEffect(() => { if (open) input.current?.focus(); }, [open]);
-  useEffect(() => { scroll.current?.scrollTo({ top: scroll.current.scrollHeight }); }, [turns, busy]);
+  useEffect(() => {
+    const container = scroll.current;
+    const reply = container?.querySelector<HTMLElement>("article:last-of-type");
+    if (!container) return;
+    const top = !busy && reply
+      ? container.scrollTop + reply.getBoundingClientRect().top - container.getBoundingClientRect().top - 16
+      : container.scrollHeight;
+    container.scrollTo({ top });
+  }, [turns, busy]);
   const close = () => { setOpen(false); launcher.current?.focus(); };
   const selected = selectedNodeIds.length + selectedEdgeIds.length;
   function quick(nextMode: ReasonAIMode, prompt: string) { setMode(nextMode); setMessage(`${prompt} ${selected ? "the selected components and connections" : "this architecture"}.`); setOpen(true); }
@@ -65,11 +74,16 @@ export function ReasonAIPanel({ diagram, title, problem, selectedNodeIds, select
       const question = message.trim();
       const response = await fetch("/api/reasonai/chat", { method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal, body: JSON.stringify({ mode, message: question, history: turns.slice(-10).map(({ role, content }) => ({ role, content: content.slice(0, 8000) })), context }) });
       if (response.redirected || response.status === 401) throw new Error("Sign in to use ReasonAI, then try again.");
-      const data = record(await response.json());
+      let data;
+      try { data = record(await response.json()); }
+      catch { throw new Error("ReasonAI could not complete that response. Please try again."); }
       if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "ReasonAI is unavailable. Please try again.");
       if (typeof data.text !== "string" || data.text.length > 16_000) throw new Error("ReasonAI returned an invalid response. Please try again.");
-      const proposal = data.proposal ? parseReasonAIProposal(data.proposal, context) : undefined;
-      setTurns((previous) => [...previous, { role: "user", content: question }, { role: "assistant", content: data.text as string, proposal }]);
+      let proposal;
+      try { proposal = data.proposal ? parseReasonAIProposal(data.proposal, context) : undefined; }
+      catch { throw new Error(REASONAI_INVALID_PROPOSAL); }
+      const content = normalizeReasonAIVisibleText(data.text, context, proposal);
+      setTurns((previous) => [...previous, { role: "user", content: question }, { role: "assistant", content, proposal }]);
       setMessage("");
     } catch (error) {
       if (pending.current === controller) setError(controller.signal.aborted ? "Request cancelled or timed out. You can try again." : error instanceof Error ? error.message : "ReasonAI is unavailable. Please try again.");
@@ -80,7 +94,7 @@ export function ReasonAIPanel({ diagram, title, problem, selectedNodeIds, select
     try {
       if (status === "applied") onApply(turns[index].proposal!);
       setTurns((previous) => previous.map((turn, i) => i === index ? { ...turn, status } : turn));
-    } catch (error) { setError(error instanceof Error ? error.message : "Could not apply the proposal."); }
+    } catch { setError("Could not apply this proposal to the current canvas. No changes were applied. Check that its components are still present and unlocked."); }
   }
   return (
     <div className="pointer-events-none absolute inset-0 z-20">
@@ -97,10 +111,10 @@ export function ReasonAIPanel({ diagram, title, problem, selectedNodeIds, select
             {!turns.length && <p className="text-muted">{diagram.nodes.length ? "Ask about tradeoffs, find issues, or propose improvements to your design." : "Start with a design goal, such as: Design a URL shortener for 100M users."}</p>}
             {turns.map((turn, index) => <article key={index} className="space-y-2">
               <p className="text-xs font-semibold text-muted">{turn.role === "user" ? "You" : "ReasonAI"}</p>
-              <p className="whitespace-pre-wrap break-words">{turn.content}</p>
+              <p className="whitespace-pre-wrap break-words leading-relaxed [overflow-wrap:anywhere]">{turn.content}</p>
               {turn.proposal && <div className="space-y-3 rounded-lg border border-border bg-background/60 p-3">
                 <h3 className="font-semibold">Proposed Changes</h3>
-                {turn.proposal.summary !== turn.content && <p className="whitespace-pre-wrap break-words text-muted">{turn.proposal.summary}</p>}
+                {normalizeReasonAIVisibleText(turn.proposal.summary, diagram, turn.proposal) !== turn.content && <p className="whitespace-pre-wrap break-words leading-relaxed text-muted [overflow-wrap:anywhere]">{normalizeReasonAIVisibleText(turn.proposal.summary, diagram, turn.proposal)}</p>}
                 <ul className="space-y-1 text-xs">{turn.proposal.operations.map((op, i) => <li key={i} className="break-words">{describe(op, diagram, turn.proposal!)}</li>)}</ul>
                 {!turn.status ? <>
                   <details><summary className="cursor-pointer text-xs text-accent">Preview</summary><ol className="mt-2 space-y-2 text-xs">{turn.proposal.operations.map((op, i) => <li key={i}><p>{describe(op, diagram, turn.proposal!)}</p><pre className="mt-1 whitespace-pre-wrap break-all text-muted">{JSON.stringify(op, null, 2)}</pre></li>)}</ol></details>

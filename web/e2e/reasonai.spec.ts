@@ -61,6 +61,7 @@ test("discard, errors, and malicious proposals never change the canvas", async (
   let attempt = 0;
   await page.route("**/api/reasonai/chat", (route) => {
     attempt++;
+    if (attempt === 3) return route.fulfill({ contentType: "application/json", body: '{"private":"USER_SECRET",' });
     return attempt === 1 ? route.fulfill({ status: 429, json: { error: "ReasonAI is busy. Please try again shortly." } })
       : route.fulfill({ json: { text: "Suggested design", proposal: attempt === 2 ? { ...proposal, operations: [...proposal.operations, { op: "delete_node", nodeId: "missing" }] } : proposal } });
   });
@@ -68,11 +69,32 @@ test("discard, errors, and malicious proposals never change the canvas", async (
   await page.getByRole("button", { name: "Send to ReasonAI" }).click();
   await expect(page.getByRole("dialog", { name: "ReasonAI", exact: true }).getByRole("alert")).toContainText("ReasonAI is busy");
   await page.getByRole("button", { name: "Send to ReasonAI" }).click();
-  await expect(page.getByRole("dialog", { name: "ReasonAI", exact: true }).getByRole("alert")).toContainText("missing");
+  await expect(page.getByRole("dialog", { name: "ReasonAI", exact: true }).getByRole("alert")).toHaveText("ReasonAI returned an invalid canvas proposal. No changes were applied.");
+  await page.getByRole("button", { name: "Send to ReasonAI" }).click();
+  await expect(page.getByRole("dialog", { name: "ReasonAI", exact: true }).getByRole("alert")).toHaveText("ReasonAI could not complete that response. Please try again.");
   await page.getByRole("button", { name: "Send to ReasonAI" }).click();
   await page.getByRole("button", { name: "Discard", exact: true }).click();
   await expect(page.getByText("Proposal discarded")).toBeVisible();
   await expect(page.getByLabel("Diagram status")).toContainText(/Nodes\s+0/);
+});
+
+test("Explain cleans accidental Markdown and entities without changing the canvas", async ({ authenticatedPage: page }) => {
+  await page.route("**/api/reasonai/chat", (route) => route.fulfill({ json: {
+    text: "```markdown\n### **URL Shortener**&#x20;\n\nObserved\n- The canvas is empty.\n\n| Component | Recommendation |\n| --- | --- |\n| Redirect Service | Add only when needed |\n\n**Assumptions**\n• Read traffic dominates.\nDo not assume node_internal_unknown or edge_internal_unknown exists.\n```",
+  } }));
+  await page.getByRole("button", { name: "Explain", exact: true }).click();
+  await page.getByRole("button", { name: "Send to ReasonAI" }).click();
+  const dialog = page.getByRole("dialog", { name: "ReasonAI", exact: true });
+  const answer = dialog.getByRole("log").locator("article").last().locator("p").nth(1);
+  await expect(answer).toContainText("URL Shortener");
+  await expect(answer).toContainText("• The canvas is empty.");
+  await expect(answer).toContainText("Component: Redirect Service; Recommendation: Add only when needed");
+  await expect(answer).not.toContainText(/\*\*|###|&#x20;|\| Component|node_internal|edge_internal|```/);
+  await expect(answer).toHaveCSS("white-space", "pre-wrap");
+  expect(await answer.textContent()).toContain("\n\nObserved\n");
+  expect(await answer.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await expect(page.getByLabel("Diagram status")).toContainText(/Nodes\s+0/);
+  await expect(dialog.getByRole("button", { name: "Apply Changes" })).toHaveCount(0);
 });
 
 for (const [label, mode] of [["Chat", "chat"], ["Review", "review"], ["Fix", "fix"], ["Eagle View", "eagle"]]) {

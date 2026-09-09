@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useRef, useState } from "react";
-import { Workflow } from "lucide-react";
+import { PanelRightClose, PanelRightOpen, Workflow } from "lucide-react";
 import {
   buttonClass,
   inputClass,
@@ -1704,47 +1704,66 @@ export function SystemDesignInspector({
   className = "",
 }: SystemDesignInspectorProps) {
   const baseId = useId();
+  const [collapsed, setCollapsed] = useState(false);
   const visibleTabs = problem
     ? tabs
     : tabs.filter((tab) => tab.id !== "problem");
 
   return (
     <aside
-      className={`flex min-h-0 w-80 shrink-0 flex-col border-l border-border bg-surface ${className}`}
+      className={`flex min-h-0 shrink-0 flex-col border-l border-border bg-surface ${collapsed ? "w-10" : "w-80"} ${className}`}
       aria-label="Diagram inspector"
     >
-      <div
-        className={`grid ${problem ? "grid-cols-3" : "grid-cols-2"} border-b border-border`}
-        role="tablist"
-      >
-        {visibleTabs.map((tab) => {
-          const active = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              id={`${baseId}-${tab.id}-tab`}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              aria-controls={`${baseId}-${tab.id}-panel`}
-              className={`border-b-2 px-2 py-3 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${
-                active
-                  ? "border-accent text-accent"
-                  : "border-transparent text-muted hover:text-foreground"
-              }`}
-              onClick={() => onTabChange(tab.id)}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
+      <div className="flex items-center border-b border-border">
+        <div
+          className={`${collapsed ? "hidden" : "grid"} min-w-0 flex-1 ${problem ? "grid-cols-3" : "grid-cols-2"}`}
+          role="tablist"
+        >
+          {visibleTabs.map((tab) => {
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                id={`${baseId}-${tab.id}-tab`}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                aria-controls={`${baseId}-${tab.id}-panel`}
+                className={`border-b-2 px-2 py-3 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${
+                  active
+                    ? "border-accent text-accent"
+                    : "border-transparent text-muted hover:text-foreground"
+                }`}
+                onClick={() => onTabChange(tab.id)}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+        <button
+          type="button"
+          aria-label={collapsed ? "Expand inspector" : "Collapse inspector"}
+          title={collapsed ? "Expand inspector" : "Collapse inspector"}
+          aria-expanded={!collapsed}
+          aria-controls={`${baseId}-${activeTab}-panel`}
+          onClick={() => setCollapsed((value) => !value)}
+          onKeyDown={(event) => event.stopPropagation()}
+          className="flex h-10 w-9 shrink-0 items-center justify-center text-muted hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+        >
+          {collapsed ? (
+            <PanelRightOpen className="h-4 w-4" aria-hidden="true" />
+          ) : (
+            <PanelRightClose className="h-4 w-4" aria-hidden="true" />
+          )}
+        </button>
       </div>
 
       <div
         id={`${baseId}-${activeTab}-panel`}
         role="tabpanel"
         aria-labelledby={`${baseId}-${activeTab}-tab`}
-        className="min-h-0 flex-1 overflow-y-auto p-3"
+        className={collapsed ? "hidden" : "min-h-0 flex-1 overflow-y-auto p-3"}
       >
         {activeTab === "properties" &&
           (selectedNode && selectedCount === 1 ? (
