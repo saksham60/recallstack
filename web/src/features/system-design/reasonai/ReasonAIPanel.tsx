@@ -8,7 +8,16 @@ import {
   useState,
   type Ref,
 } from "react";
-import { ArrowUp, LoaderCircle, RotateCcw, Sparkles, Square, Trash2, X } from "lucide-react";
+import {
+  ArrowUp,
+  GripHorizontal,
+  LoaderCircle,
+  RotateCcw,
+  Sparkles,
+  Square,
+  Trash2,
+  X,
+} from "lucide-react";
 import { buttonClass } from "@/features/admin/components/AdminPrimitives";
 import type { SystemDesignDiagram, SystemDesignPoint, SystemDesignProblem } from "../types/system-design.types";
 import { buildReasonAIContext, parseReasonAIProposal, record, REASONAI_INVALID_PROPOSAL, REASONAI_MODES, type ReasonAIMessage, type ReasonAIMode, type ReasonAIProposal } from "./contract";
@@ -18,6 +27,29 @@ import { ReasonAISuggestions, type ReasonAISuggestionActions } from "./ReasonAIS
 interface Turn extends ReasonAIMessage { id: string; proposal?: ReasonAIProposal }
 interface Generation { question: string; mode: ReasonAIMode; history: ReasonAIMessage[] }
 export interface ReasonAIPanelHandle { dropSuggestion: (token: string, position: SystemDesignPoint) => void }
+
+interface PanelPosition {
+  x: number;
+  y: number;
+}
+
+function constrainPanelPosition(
+  position: PanelPosition,
+  container: HTMLElement,
+  panel: HTMLElement,
+): PanelPosition {
+  const inset = 8;
+  return {
+    x: Math.max(
+      inset,
+      Math.min(position.x, container.clientWidth - panel.offsetWidth - inset),
+    ),
+    y: Math.max(
+      inset,
+      Math.min(position.y, container.clientHeight - panel.offsetHeight - inset),
+    ),
+  };
+}
 export function ReasonAIPanel({
   ref,
   diagram,
@@ -54,6 +86,12 @@ export function ReasonAIPanel({
   const [error, setError] = useState<string | null>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const launcher = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLElement>(null);
+  const drag = useRef<{
+    pointerId: number;
+    offsetX: number;
+    offsetY: number;
+  } | null>(null);
   const scroll = useRef<HTMLDivElement>(null);
   const pending = useRef<AbortController | null>(null);
   const lastGeneration = useRef<Generation | null>(null);
@@ -61,6 +99,7 @@ export function ReasonAIPanel({
     token: string;
     drop: (position: SystemDesignPoint) => void;
   } | null>(null);
+  const [position, setPosition] = useState<PanelPosition | null>(null);
 
   const setPanelOpen = useCallback(
     (next: boolean | ((current: boolean) => boolean)) => {
@@ -103,6 +142,26 @@ export function ReasonAIPanel({
 
   useEffect(() => {
     if (open) input.current?.focus();
+  }, [open]);
+
+  useEffect(() => {
+    const dialog = panel.current;
+    const container = dialog?.parentElement;
+    if (!open || !dialog || !container) return;
+
+    const observer = new ResizeObserver(() => {
+      setPosition((current) =>
+        current
+          ? constrainPanelPosition(current, container, dialog)
+          : current,
+      );
+    });
+    observer.observe(container);
+    observer.observe(dialog);
+    return () => {
+      observer.disconnect();
+      drag.current = null;
+    };
   }, [open]);
 
   useEffect(() => {
@@ -259,22 +318,142 @@ export function ReasonAIPanel({
     <>
       {launcherControl}
       <aside
-      role="dialog"
-      aria-label="ReasonAI"
-      onKeyDown={(event) => {
-        event.stopPropagation();
-        if (event.key === "Escape") {
-          event.preventDefault();
-          close();
+        ref={panel}
+        role="dialog"
+        aria-label="ReasonAI"
+        style={
+          position
+            ? { left: position.x, top: position.y }
+            : { right: 56, top: 16 }
         }
-      }}
-      className={`${open ? "flex" : "hidden"} min-h-0 w-[380px] shrink-0 flex-col border-r border-[var(--editor-border)] bg-surface`}
-    >
+        onKeyDown={(event) => {
+          event.stopPropagation();
+          if (event.key === "Escape") {
+            event.preventDefault();
+            close();
+          }
+        }}
+        className={`${open ? "flex" : "hidden"} absolute z-40 h-[min(620px,calc(100%-2rem))] min-h-[28rem] w-[380px] max-w-[calc(100%-2rem)] flex-col overflow-hidden rounded-xl border border-[var(--editor-border)] bg-surface shadow-2xl`}
+      >
       <header className="flex h-12 shrink-0 items-center gap-3 border-b border-[var(--editor-border)] px-3">
-        <div className="min-w-0 flex-1">
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label="Move ReasonAI"
+          title="Drag to move · Use arrow keys to reposition"
+          className="min-w-0 flex-1 touch-none select-none rounded-sm cursor-grab focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent active:cursor-grabbing"
+          onPointerDown={(event) => {
+            const dialog = panel.current;
+            const container = dialog?.parentElement;
+            if (
+              event.button !== 0 ||
+              !event.isPrimary ||
+              !dialog ||
+              !container
+            ) {
+              return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            event.currentTarget.focus();
+            const dialogBounds = dialog.getBoundingClientRect();
+            const containerBounds = container.getBoundingClientRect();
+            setPosition({
+              x: dialogBounds.left - containerBounds.left,
+              y: dialogBounds.top - containerBounds.top,
+            });
+            drag.current = {
+              pointerId: event.pointerId,
+              offsetX: event.clientX - dialogBounds.left,
+              offsetY: event.clientY - dialogBounds.top,
+            };
+            event.currentTarget.setPointerCapture(event.pointerId);
+          }}
+          onPointerMove={(event) => {
+            const activeDrag = drag.current;
+            const dialog = panel.current;
+            const container = dialog?.parentElement;
+            if (
+              !activeDrag ||
+              activeDrag.pointerId !== event.pointerId ||
+              !dialog ||
+              !container
+            ) {
+              return;
+            }
+            event.stopPropagation();
+            const containerBounds = container.getBoundingClientRect();
+            setPosition(
+              constrainPanelPosition(
+                {
+                  x:
+                    event.clientX -
+                    containerBounds.left -
+                    activeDrag.offsetX,
+                  y:
+                    event.clientY -
+                    containerBounds.top -
+                    activeDrag.offsetY,
+                },
+                container,
+                dialog,
+              ),
+            );
+          }}
+          onPointerUp={(event) => {
+            if (drag.current?.pointerId !== event.pointerId) return;
+            drag.current = null;
+            if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+              event.currentTarget.releasePointerCapture(event.pointerId);
+            }
+          }}
+          onPointerCancel={() => {
+            drag.current = null;
+          }}
+          onLostPointerCapture={() => {
+            drag.current = null;
+          }}
+          onKeyDown={(event) => {
+            const direction: Record<string, [number, number]> = {
+              ArrowLeft: [-1, 0],
+              ArrowRight: [1, 0],
+              ArrowUp: [0, -1],
+              ArrowDown: [0, 1],
+            };
+            const delta = direction[event.key];
+            const dialog = panel.current;
+            const container = dialog?.parentElement;
+            if (!delta || !dialog || !container) return;
+            event.preventDefault();
+            event.stopPropagation();
+            const dialogBounds = dialog.getBoundingClientRect();
+            const containerBounds = container.getBoundingClientRect();
+            const step = event.shiftKey ? 48 : 16;
+            setPosition(
+              constrainPanelPosition(
+                {
+                  x:
+                    dialogBounds.left -
+                    containerBounds.left +
+                    delta[0] * step,
+                  y:
+                    dialogBounds.top -
+                    containerBounds.top +
+                    delta[1] * step,
+                },
+                container,
+                dialog,
+              ),
+            );
+          }}
+        >
           <h2 className="flex items-center gap-2 text-sm font-semibold tracking-tight">
             <Sparkles className="h-4 w-4 text-accent" aria-hidden="true" />
             ReasonAI
+            <GripHorizontal
+              className="ml-auto h-3.5 w-3.5 text-muted/70"
+              aria-hidden="true"
+            />
           </h2>
           <p className="truncate text-[10px] text-muted">
             Private · Changes apply only when you choose
