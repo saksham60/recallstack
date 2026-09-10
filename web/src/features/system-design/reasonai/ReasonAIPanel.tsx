@@ -333,7 +333,7 @@ export function ReasonAIPanel({
             close();
           }
         }}
-        className={`${open ? "flex" : "hidden"} absolute z-40 h-[min(620px,calc(100%-2rem))] min-h-[28rem] w-[380px] max-w-[calc(100%-2rem)] flex-col overflow-hidden rounded-xl border border-[var(--editor-border)] bg-surface shadow-2xl`}
+        className={`${open ? "flex" : "hidden"} absolute z-40 h-[min(620px,calc(100%-2rem))] max-h-[calc(100%-1rem)] min-h-[24rem] w-[380px] min-w-[320px] max-w-[calc(100%-1rem)] resize flex-col overflow-hidden rounded-xl border border-[var(--editor-border)] bg-surface shadow-2xl`}
       >
       <header className="flex h-12 shrink-0 items-center gap-3 border-b border-[var(--editor-border)] px-3">
         <div
@@ -686,7 +686,11 @@ export function ReasonAIPanel({
           </div>
         </div>
       </form>
-      </aside>
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute bottom-1 right-1 h-2.5 w-2.5 border-b border-r border-muted/60"
+      />
+    </aside>
     </>
   );
 }

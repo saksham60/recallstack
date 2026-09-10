@@ -290,7 +290,6 @@ export function SystemDesignWorkspace({
   const [inspectorOpen, setInspectorOpen] = useState(
     mode.kind === "problem",
   );
-  const previousSelectedCountRef = useRef(0);
   const [resetOpen, setResetOpen] = useState(false);
   const [pendingImport, setPendingImport] =
     useState<SystemDesignDocument | null>(null);
@@ -618,13 +617,6 @@ export function SystemDesignWorkspace({
       : null;
   const selectedCount =
     state.selectedNodeIds.length + state.selectedEdgeIds.length;
-
-  useEffect(() => {
-    if (previousSelectedCountRef.current === 0 && selectedCount > 0) {
-      setInspectorOpen(true);
-    }
-    previousSelectedCountRef.current = selectedCount;
-  }, [selectedCount]);
 
   const saveState: SystemDesignSaveState =
     state.saveStatus === "saving"

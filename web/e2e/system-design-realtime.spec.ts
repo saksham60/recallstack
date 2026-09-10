@@ -505,6 +505,9 @@ base("renders remote drag previews without committing local editor state", async
       return page.getByLabel("Diagram status").textContent();
     })
     .toContain("Selected 1");
+  await expect(
+    page.getByRole("button", { name: "Expand inspector" }),
+  ).toBeVisible();
 
   const sentBeforeDrag = await page.evaluate(
     () =>
@@ -524,7 +527,7 @@ base("renders remote drag previews without committing local editor state", async
     committedOrEphemeral(sentBeforeDrag),
   );
 
-  await page.mouse.click(bounds.x + 20, bounds.y + 20);
+  await page.mouse.click(bounds.x + 260, bounds.y + 20);
   await expect(page.getByLabel("Diagram status")).toContainText("Selected 0");
   await page.evaluate(
     ({ activeDiagramId }) => {

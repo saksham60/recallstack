@@ -12,7 +12,7 @@ test.beforeEach(async ({ authenticatedPage: page }) => {
   await expect(page.getByTestId("system-design-canvas")).toBeVisible({ timeout: 30_000 });
 });
 
-test("ReasonAI floats above the canvas, can be moved, and preserves drafts", async ({ authenticatedPage: page }) => {
+test("ReasonAI floats above the canvas, can be moved, resized, and preserves drafts", async ({ authenticatedPage: page }) => {
   await page.setViewportSize({ width: 1600, height: 1000 });
   const canvas = page.getByTestId("system-design-canvas");
   const closedCanvas = (await canvas.boundingBox())!;
@@ -34,15 +34,25 @@ test("ReasonAI floats above the canvas, can be moved, and preserves drafts", asy
   expect(moved.x).toBeLessThan(initial.x - 100);
   expect(moved.y).toBeGreaterThan(initial.y + 50);
 
+  await page.mouse.move(moved.x + moved.width - 2, moved.y + moved.height - 2);
+  await page.mouse.down();
+  await page.mouse.move(moved.x + moved.width + 94, moved.y + moved.height + 62, {
+    steps: 8,
+  });
+  await page.mouse.up();
+  const resized = (await dialog.boundingBox())!;
+  expect(resized.width).toBeGreaterThan(moved.width + 50);
+
   await page.getByLabel("Message ReasonAI").fill("Keep my draft");
   await dialog.getByRole("button", { name: "Close ReasonAI" }).click();
   await page.getByRole("button", { name: "Open ReasonAI" }).click();
   await expect(page.getByLabel("Message ReasonAI")).toHaveValue("Keep my draft");
-  expect((await dialog.boundingBox())!.x).toBeCloseTo(moved.x, 0);
+  expect((await dialog.boundingBox())!.width).toBeCloseTo(resized.width, 0);
 
   await handle.focus();
+  const reopened = (await dialog.boundingBox())!;
   await page.keyboard.press("ArrowRight");
-  expect((await dialog.boundingBox())!.x).toBeCloseTo(moved.x + 16, 0);
+  expect((await dialog.boundingBox())!.x).toBeCloseTo(reopened.x + 16, 0);
 
   await page.setViewportSize({ width: 1100, height: 720 });
   const withinEditor = () =>

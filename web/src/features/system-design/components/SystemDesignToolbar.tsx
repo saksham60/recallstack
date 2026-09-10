@@ -1002,6 +1002,11 @@ export function SystemDesignToolbar({
             type="button"
             className={`${editorGhostButtonClass} mx-1 ${liveShareStatus === "live" ? "text-accent" : ""}`}
             aria-pressed={liveShareStatus === "live"}
+            aria-label={
+              liveShareStatus === "live"
+                ? "Open live session sharing"
+                : "Live Share"
+            }
             title={liveShareStatus === "live" ? "Open live session sharing" : "Live Share"}
             onClick={onLiveShare}
           >
