@@ -28,36 +28,25 @@ import {
   ArrowUpDown,
   ArrowUpToLine,
   Boxes,
-  BoxSelect,
   CheckCircle2,
   ChevronDown,
   Download,
   Copy,
   Eye,
   EyeOff,
-  Grid3X3,
-  Hand,
   LayoutGrid,
   Lock,
   LockOpen,
-  LocateFixed,
-  Magnet,
-  Maximize2,
+  MoreHorizontal,
   MousePointer2,
-  Network,
-  Pencil,
   Redo2,
   Radio,
   RotateCcw,
   Save,
-  StickyNote,
   Trash2,
-  Type,
   Ungroup,
   Undo2,
   Upload,
-  ZoomIn,
-  ZoomOut,
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { buttonClass } from "@/features/admin/components/AdminPrimitives";
@@ -69,12 +58,16 @@ import {
 } from "../constants/system-design-edge-registry";
 import type {
   SystemDesignEdge,
-  SystemDesignEditorTool,
   SystemDesignLayerDirection,
   SystemDesignNode,
   SystemDesignProblem,
 } from "../types/system-design.types";
 import { SystemDesignShortcutHelp } from "./SystemDesignShortcutHelp";
+import {
+  EditorIconButton,
+  editorGhostButtonClass,
+  editorIconButtonClass,
+} from "./SystemDesignUiPrimitives";
 import type { SystemDesignSaveState } from "./SystemDesignStatusBar";
 import type { RealtimeConnectionStatus } from "../realtime/realtime-client";
 
@@ -97,25 +90,18 @@ export interface SystemDesignToolbarProps {
   onBack?: () => void;
   backLabel?: string;
   title: string;
+  breadcrumbs?: React.ReactNode;
   difficulty?: SystemDesignProblem["difficulty"];
   showLearningActions?: boolean;
   saveState: SystemDesignSaveState;
   isCompleted: boolean;
   isPreviewMode: boolean;
-  zoom: number;
   canUndo: boolean;
   canRedo: boolean;
   undoDisabledReason?: string;
   canSave: boolean;
   canMarkComplete: boolean;
   canExport?: boolean;
-  showGrid?: boolean;
-  snapToGrid?: boolean;
-  snapToObjects?: boolean;
-  activeTool?: SystemDesignEditorTool;
-  selectedNodeCount?: number;
-  selectedNodes?: SystemDesignNode[];
-  selectedEdge?: SystemDesignEdge | null;
   animationsEnabled?: boolean;
   onUndo: () => void;
   onRedo: () => void;
@@ -125,38 +111,6 @@ export interface SystemDesignToolbarProps {
   onResetCanvas: () => void;
   onImportFile: (file: File) => void;
   onExport: () => void;
-  onFitToScreen: () => void;
-  onResetViewport: () => void;
-  onZoomOut: () => void;
-  onZoomIn: () => void;
-  onToggleGrid?: () => void;
-  onToggleSnapToGrid?: () => void;
-  onToggleSnapToObjects?: () => void;
-  onToolChange?: (tool: SystemDesignEditorTool) => void;
-  onArrange?: (operation: SystemDesignArrangeOperation) => void;
-  onDuplicateSelection?: () => void;
-  onSetSelectionLocked?: (locked: boolean) => void;
-  onSetSelectionVisible?: (visible: boolean) => void;
-  onReorderSelection?: (direction: SystemDesignLayerDirection) => void;
-  onGroupSelection?: () => void;
-  onUngroupSelection?: () => void;
-  onDeleteSelection?: () => void;
-  onUpdateSelectedNodeText?: (
-    textStyle: NonNullable<SystemDesignNode["textStyle"]>,
-  ) => void;
-  onUpdateSelectedEdge?: (
-    patch: Partial<
-      Pick<
-        SystemDesignEdge,
-        | "color"
-        | "lineStyle"
-        | "strokeWidth"
-        | "startArrowhead"
-        | "endArrowhead"
-        | "animationMode"
-      >
-    >,
-  ) => void;
   onToggleAnimations?: () => void;
   liveShareStatus?: RealtimeConnectionStatus;
   liveParticipantCount?: number;
@@ -164,16 +118,7 @@ export interface SystemDesignToolbarProps {
   className?: string;
 }
 
-interface ToolbarButtonProps {
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-  emphasized?: boolean;
-  pressed?: boolean;
-  children: React.ReactNode;
-}
-
-const TEXT_FORMATTABLE_NODE_TYPES = new Set<SystemDesignNode["type"]>([
+export const TEXT_FORMATTABLE_NODE_TYPES = new Set<SystemDesignNode["type"]>([
   "text",
   "note",
   "warning_note",
@@ -186,14 +131,12 @@ const TEXT_FORMATTABLE_NODE_TYPES = new Set<SystemDesignNode["type"]>([
   "label",
 ]);
 
-function QuickTextControls({
+export function QuickTextControls({
   node,
   onUpdate,
 }: {
   node: SystemDesignNode;
-  onUpdate: NonNullable<
-    SystemDesignToolbarProps["onUpdateSelectedNodeText"]
-  >;
+  onUpdate: (textStyle: NonNullable<SystemDesignNode["textStyle"]>) => void;
 }) {
   const updateTextStyle = (
     patch: Partial<NonNullable<SystemDesignNode["textStyle"]>>,
@@ -289,12 +232,24 @@ function QuickTextControls({
   );
 }
 
-function QuickEdgeControls({
+export function QuickEdgeControls({
   edge,
   onUpdate,
 }: {
   edge: SystemDesignEdge;
-  onUpdate: NonNullable<SystemDesignToolbarProps["onUpdateSelectedEdge"]>;
+  onUpdate: (
+    patch: Partial<
+      Pick<
+        SystemDesignEdge,
+        | "color"
+        | "lineStyle"
+        | "strokeWidth"
+        | "startArrowhead"
+        | "endArrowhead"
+        | "animationMode"
+      >
+    >,
+  ) => void;
 }) {
   const resolved = resolveSystemDesignEdgeStyle(edge);
   const color =
@@ -396,31 +351,6 @@ function QuickEdgeControls({
   );
 }
 
-function ToolbarButton({
-  label,
-  onClick,
-  disabled,
-  emphasized,
-  pressed,
-  children,
-}: ToolbarButtonProps) {
-  return (
-    <button
-      type="button"
-      className={`${buttonClass} h-8 min-h-8 gap-1.5 px-2 ${
-        emphasized ? "border-accent bg-accent text-accent-foreground" : ""
-      }`}
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={label}
-      aria-pressed={pressed}
-      title={label}
-    >
-      {children}
-    </button>
-  );
-}
-
 interface ArrangeAction {
   operation: SystemDesignArrangeOperation;
   label: string;
@@ -507,7 +437,7 @@ const ARRANGE_ACTIONS: ArrangeAction[] = [
   },
 ];
 
-function ArrangeMenu({
+export function ArrangeMenu({
   selectedNodeCount,
   onArrange,
 }: {
@@ -724,95 +654,7 @@ function ArrangeMenu({
   );
 }
 
-const TOOL_ACTIONS: ReadonlyArray<{
-  tool: SystemDesignEditorTool;
-  label: string;
-  icon: React.ReactNode;
-}> = [
-  {
-    tool: "select",
-    label: "Select tool",
-    icon: <MousePointer2 className="h-4 w-4" aria-hidden="true" />,
-  },
-  {
-    tool: "pan",
-    label: "Pan tool",
-    icon: <Hand className="h-4 w-4" aria-hidden="true" />,
-  },
-  {
-    tool: "connect",
-    label: "Connect tool",
-    icon: <Network className="h-4 w-4" aria-hidden="true" />,
-  },
-  {
-    tool: "draw",
-    label: "Draw tool",
-    icon: <Pencil className="h-4 w-4" aria-hidden="true" />,
-  },
-  {
-    tool: "text",
-    label: "Add text",
-    icon: <Type className="h-4 w-4" aria-hidden="true" />,
-  },
-  {
-    tool: "note",
-    label: "Add note",
-    icon: <StickyNote className="h-4 w-4" aria-hidden="true" />,
-  },
-  {
-    tool: "boundary",
-    label: "Add system boundary",
-    icon: <BoxSelect className="h-4 w-4" aria-hidden="true" />,
-  },
-  {
-    tool: "module",
-    label: "Add module",
-    icon: <Boxes className="h-4 w-4" aria-hidden="true" />,
-  },
-];
-
-function ToolControls({
-  activeTool,
-  onToolChange,
-}: {
-  activeTool: SystemDesignEditorTool;
-  onToolChange?: (tool: SystemDesignEditorTool) => void;
-}) {
-  return (
-    <div
-      className="flex items-center gap-0.5 rounded-md border border-border bg-background/60 p-0.5"
-      role="toolbar"
-      aria-label="Canvas tools"
-    >
-      {TOOL_ACTIONS.map((action) => {
-        const isDrawTool = action.tool === "draw";
-        return (
-          <button
-            key={action.tool}
-            type="button"
-            className={`${buttonClass} h-7 min-h-7 ${
-              isDrawTool ? "w-auto gap-1.5 px-2" : "w-7 px-0"
-            } ${
-              activeTool === action.tool
-                ? "border-accent bg-accent text-accent-foreground"
-                : ""
-            }`}
-            aria-label={action.label}
-            title={action.label}
-            aria-pressed={activeTool === action.tool}
-            disabled={!onToolChange}
-            onClick={() => onToolChange?.(action.tool)}
-          >
-            {action.icon}
-            {isDrawTool && <span>Draw</span>}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function SelectionActionsMenu({
+export function SelectionActionsMenu({
   selectedNodes,
   onDuplicate,
   onSetLocked,
@@ -1032,25 +874,18 @@ export function SystemDesignToolbar({
   onBack,
   backLabel = "Back to system design problems",
   title,
+  breadcrumbs,
   difficulty,
   showLearningActions = true,
   saveState,
   isCompleted,
   isPreviewMode,
-  zoom,
   canUndo,
   canRedo,
   undoDisabledReason,
   canSave,
   canMarkComplete,
   canExport = true,
-  showGrid = true,
-  snapToGrid = false,
-  snapToObjects = true,
-  activeTool = "select",
-  selectedNodeCount = 0,
-  selectedNodes = [],
-  selectedEdge = null,
   animationsEnabled = true,
   onUndo,
   onRedo,
@@ -1060,24 +895,6 @@ export function SystemDesignToolbar({
   onResetCanvas,
   onImportFile,
   onExport,
-  onFitToScreen,
-  onResetViewport,
-  onZoomOut,
-  onZoomIn,
-  onToggleGrid,
-  onToggleSnapToGrid,
-  onToggleSnapToObjects,
-  onToolChange,
-  onArrange,
-  onDuplicateSelection,
-  onSetSelectionLocked,
-  onSetSelectionVisible,
-  onReorderSelection,
-  onGroupSelection,
-  onUngroupSelection,
-  onDeleteSelection,
-  onUpdateSelectedNodeText,
-  onUpdateSelectedEdge,
   onToggleAnimations,
   liveShareStatus = "idle",
   liveParticipantCount = 0,
@@ -1085,16 +902,11 @@ export function SystemDesignToolbar({
   className = "",
 }: SystemDesignToolbarProps) {
   const importInputRef = useRef<HTMLInputElement>(null);
-  const selectedTextNode =
-    selectedNodes.length === 1 &&
-    TEXT_FORMATTABLE_NODE_TYPES.has(selectedNodes[0].type)
-      ? selectedNodes[0]
-      : null;
   const saveStatusLabel =
     saveState === "saving"
-      ? "Saving…"
+      ? "Saving locally"
       : saveState === "saved"
-        ? "Saved"
+        ? "Saved locally"
         : saveState === "error"
           ? "Retry save"
           : "Save";
@@ -1106,298 +918,194 @@ export function SystemDesignToolbar({
     event.target.value = "";
   };
 
+  const overflowItem = `${editorGhostButtonClass} w-full justify-start px-2.5`;
+
   return (
     <header
-      className={`flex min-h-12 items-center gap-2 border-b border-border bg-surface px-2 py-1.5 ${className}`}
+      className={`flex min-h-12 items-center gap-2 border-b border-[var(--editor-border)] bg-surface/95 px-2.5 py-1.5 ${className}`}
       aria-label="System design editor toolbar"
     >
       <div className="flex min-w-0 items-center gap-2">
         {onBack ? (
-          <button
-            type="button"
-            className={`${buttonClass} h-8 min-h-8 w-8 px-0`}
-            aria-label={backLabel}
-            title={backLabel}
-            onClick={onBack}
-          >
+          <EditorIconButton label={backLabel} onClick={onBack}>
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          </button>
+          </EditorIconButton>
         ) : (
           <Link
             href={backHref}
-            className={`${buttonClass} h-8 min-h-8 w-8 px-0`}
+            className={editorIconButtonClass}
             aria-label={backLabel}
             title={backLabel}
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           </Link>
         )}
-        <div className="min-w-0 max-w-52">
-          <p className="truncate text-xs font-semibold text-foreground">
-            {title}
-          </p>
-          <p className="text-[10px] text-muted">
-            {isPreviewMode ? "Read-only preview" : "Diagram editor"}
-          </p>
+        <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-2">
+            <h1 className="max-w-64 truncate text-sm font-semibold tracking-tight text-foreground">
+              {title}
+            </h1>
+            {difficulty && (
+              <Badge variant={difficultyVariant(difficulty)}>{difficulty}</Badge>
+            )}
+          </div>
+          {breadcrumbs ? (
+            <div className="mt-0.5 max-w-[34rem] truncate text-[10px] text-muted">
+              {breadcrumbs}
+            </div>
+          ) : (
+            <p className="text-[10px] text-muted">
+              {isPreviewMode ? "Read-only preview" : "System design"}
+            </p>
+          )}
         </div>
-        {difficulty && (
-          <Badge variant={difficultyVariant(difficulty)}>
-            {difficulty}
-          </Badge>
-        )}
       </div>
 
-      <div className="mx-1 h-6 w-px shrink-0 bg-border" aria-hidden="true" />
-
-      {!isPreviewMode && (
-        <ToolControls
-          activeTool={activeTool}
-          onToolChange={onToolChange}
-        />
-      )}
-
-      {!isPreviewMode && selectedNodes.length > 0 && (
-        <SelectionActionsMenu
-          selectedNodes={selectedNodes}
-          onDuplicate={onDuplicateSelection}
-          onSetLocked={onSetSelectionLocked}
-          onSetVisible={onSetSelectionVisible}
-          onReorder={onReorderSelection}
-          onGroup={onGroupSelection}
-          onUngroup={onUngroupSelection}
-          onDelete={onDeleteSelection}
-        />
-      )}
-
-      {!isPreviewMode && selectedTextNode && onUpdateSelectedNodeText && (
-        <QuickTextControls
-          node={selectedTextNode}
-          onUpdate={onUpdateSelectedNodeText}
-        />
-      )}
-
-      {!isPreviewMode && selectedEdge && onUpdateSelectedEdge && (
-        <QuickEdgeControls
-          edge={selectedEdge}
-          onUpdate={onUpdateSelectedEdge}
-        />
-      )}
-
-      {!isPreviewMode && (
-        <>
-          <div className="flex items-center gap-1">
-            <ToolbarButton
+      <div className="ml-auto flex items-center gap-0.5">
+        {!isPreviewMode && (
+          <>
+            <EditorIconButton
               label={!canUndo && undoDisabledReason ? undoDisabledReason : "Undo"}
-              onClick={onUndo}
               disabled={!canUndo}
+              onClick={onUndo}
             >
               <Undo2 className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden 2xl:inline">Undo</span>
-            </ToolbarButton>
-            <ToolbarButton
+            </EditorIconButton>
+            <EditorIconButton
               label={!canRedo && undoDisabledReason ? undoDisabledReason : "Redo"}
-              onClick={onRedo}
               disabled={!canRedo}
+              onClick={onRedo}
             >
               <Redo2 className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden 2xl:inline">Redo</span>
-            </ToolbarButton>
-          </div>
+            </EditorIconButton>
+          </>
+        )}
 
-          <div className="h-6 w-px shrink-0 bg-border" aria-hidden="true" />
-
-          <div className="flex items-center gap-1">
-            {showLearningActions && (
-              <>
-                <ToolbarButton
-                  label={saveActionLabel}
-                  onClick={onSave}
-                  disabled={!canSave || saveState === "saving"}
-                  emphasized={saveState === "unsaved" || saveState === "error"}
-                >
-                  <Save className="h-4 w-4" aria-hidden="true" />
-                  <span className="hidden xl:inline" aria-hidden="true">
-                    {saveStatusLabel}
-                  </span>
-                </ToolbarButton>
-                <ToolbarButton
-                  label={isCompleted ? "Diagram complete" : "Mark complete"}
-                  onClick={onMarkComplete}
-                  disabled={!canMarkComplete || isCompleted}
-                >
-                  <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                  <span className="hidden 2xl:inline">
-                    {isCompleted ? "Complete" : "Mark complete"}
-                  </span>
-                </ToolbarButton>
-              </>
-            )}
-            <ToolbarButton label="Preview diagram" onClick={onTogglePreview}>
-              <Eye className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden xl:inline">Preview</span>
-            </ToolbarButton>
-          </div>
-
-          <div className="h-6 w-px shrink-0 bg-border" aria-hidden="true" />
-
-          <div className="flex items-center gap-1">
-            <ToolbarButton
-              label={showGrid ? "Hide grid" : "Show grid"}
-              onClick={() => onToggleGrid?.()}
-              disabled={!onToggleGrid}
-              emphasized={showGrid}
-              pressed={showGrid}
-            >
-              <Grid3X3 className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden 2xl:inline">Grid</span>
-            </ToolbarButton>
-            <ToolbarButton
-              label={snapToGrid ? "Disable snap to grid" : "Enable snap to grid"}
-              onClick={() => onToggleSnapToGrid?.()}
-              disabled={!onToggleSnapToGrid}
-              emphasized={snapToGrid}
-              pressed={snapToGrid}
-            >
-              <Magnet className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden 2xl:inline">Snap</span>
-            </ToolbarButton>
-            <ToolbarButton
-              label={
-                snapToObjects
-                  ? "Disable snap to objects"
-                  : "Enable snap to objects"
-              }
-              onClick={() => onToggleSnapToObjects?.()}
-              disabled={!onToggleSnapToObjects}
-              emphasized={snapToObjects}
-              pressed={snapToObjects}
-            >
-              <LocateFixed className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden 2xl:inline">Objects</span>
-            </ToolbarButton>
-            <ArrangeMenu
-              selectedNodeCount={selectedNodeCount}
-              onArrange={onArrange}
-            />
-          </div>
-
-          <div className="h-6 w-px shrink-0 bg-border" aria-hidden="true" />
-
-          <div className="flex items-center gap-1">
-            <ToolbarButton label="Reset canvas" onClick={onResetCanvas}>
-              <RotateCcw className="h-4 w-4" aria-hidden="true" />
-            </ToolbarButton>
-            <ToolbarButton
-              label="Import JSON"
-              onClick={() => importInputRef.current?.click()}
-            >
-              <Upload className="h-4 w-4" aria-hidden="true" />
-            </ToolbarButton>
-            <input
-              ref={importInputRef}
-              type="file"
-              accept="application/json,.json"
-              className="sr-only"
-              tabIndex={-1}
-              onChange={handleImport}
+        {showLearningActions && !isPreviewMode && (
+          <button
+            type="button"
+            className={`${editorGhostButtonClass} mx-1 ${saveState === "error" ? "text-danger" : "text-foreground"}`}
+            title={saveActionLabel}
+            disabled={!canSave || saveState === "saving"}
+            onClick={onSave}
+          >
+            <Save
+              className={`h-4 w-4 ${saveState === "saving" ? "animate-pulse text-accent" : saveState === "saved" ? "text-success" : ""}`}
               aria-hidden="true"
             />
-            <ToolbarButton
-              label="Download Interactive HTML"
-              onClick={onExport}
-              disabled={!canExport}
-            >
-              <Download className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden 2xl:inline">Download HTML</span>
-            </ToolbarButton>
-          </div>
-        </>
-      )}
+            <span className="hidden sm:inline">{saveStatusLabel}</span>
+          </button>
+        )}
 
-      <div className="ml-auto flex items-center gap-1">
         {onLiveShare && (
-          <ToolbarButton
-            label={
-              liveShareStatus === "live"
-                ? "Open live session sharing"
-                : liveShareStatus === "starting"
-                  ? "Starting live session"
-                  : liveShareStatus === "connecting"
-                    ? "Connecting live session"
-                    : liveShareStatus === "reconnecting"
-                      ? "Reconnecting live session"
-                      : "Live Share"
-            }
+          <button
+            type="button"
+            className={`${editorGhostButtonClass} mx-1 ${liveShareStatus === "live" ? "text-accent" : ""}`}
+            aria-pressed={liveShareStatus === "live"}
+            title={liveShareStatus === "live" ? "Open live session sharing" : "Live Share"}
             onClick={onLiveShare}
-            emphasized={liveShareStatus === "live"}
-            pressed={liveShareStatus === "live"}
           >
             <Radio
-              className={`h-4 w-4 ${
-                liveShareStatus === "starting" ||
-                liveShareStatus === "connecting" ||
-                liveShareStatus === "reconnecting"
-                  ? "animate-pulse"
-                  : ""
-              }`}
+              className={`h-4 w-4 ${["starting", "connecting", "reconnecting"].includes(liveShareStatus) ? "animate-pulse" : ""}`}
               aria-hidden="true"
             />
-            <span className="hidden xl:inline">
-              {liveShareStatus === "live"
-                ? "Live"
-                : liveShareStatus === "starting"
-                  ? "Starting…"
-                  : liveShareStatus === "connecting"
-                    ? "Connecting…"
-                    : liveShareStatus === "reconnecting"
-                      ? "Reconnecting…"
-                      : "Live Share"}
+            <span className="hidden lg:inline">
+              {liveShareStatus === "live" ? "Live" : "Live Share"}
             </span>
             {liveShareStatus === "live" && liveParticipantCount > 0 && (
               <span className="rounded-full bg-background/60 px-1.5 text-[10px] font-semibold">
                 {liveParticipantCount}
               </span>
             )}
-          </ToolbarButton>
+          </button>
         )}
-        <ToolbarButton
-          label={
-            animationsEnabled
-              ? "Pause all diagram animations"
-              : "Play configured diagram animations"
-          }
-          onClick={() => onToggleAnimations?.()}
-          disabled={!onToggleAnimations}
-          pressed={animationsEnabled}
-          emphasized={animationsEnabled}
+
+        <button
+          type="button"
+          className={`${editorGhostButtonClass} mx-1 text-foreground`}
+          aria-label={isPreviewMode ? "Exit preview" : "Preview diagram"}
+          onClick={onTogglePreview}
         >
-          <Activity className="h-4 w-4" aria-hidden="true" />
-          <span className="hidden 2xl:inline">Motion</span>
-        </ToolbarButton>
-        {isPreviewMode && (
-          <ToolbarButton label="Exit preview" onClick={onTogglePreview} emphasized>
+          {isPreviewMode ? (
             <EyeOff className="h-4 w-4" aria-hidden="true" />
-            <span>Exit preview</span>
-          </ToolbarButton>
+          ) : (
+            <Eye className="h-4 w-4" aria-hidden="true" />
+          )}
+          <span className="hidden md:inline">
+            {isPreviewMode ? "Exit preview" : "Preview"}
+          </span>
+        </button>
+
+        {!isPreviewMode && (
+          <details className="group relative">
+            <summary
+              className={`${editorIconButtonClass} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}
+              aria-label="More editor actions"
+              title="More editor actions"
+            >
+              <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+            </summary>
+            <div className="absolute right-0 top-10 z-50 w-56 rounded-lg border border-[var(--editor-border)] bg-[var(--editor-floating)] p-1.5 shadow-xl">
+              {showLearningActions && (
+                <button
+                  type="button"
+                  className={overflowItem}
+                  disabled={!canMarkComplete || isCompleted}
+                  onClick={onMarkComplete}
+                >
+                  <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                  {isCompleted ? "Diagram complete" : "Mark complete"}
+                </button>
+              )}
+              <button
+                type="button"
+                className={overflowItem}
+                aria-pressed={animationsEnabled}
+                onClick={() => onToggleAnimations?.()}
+                disabled={!onToggleAnimations}
+              >
+                <Activity className={`h-4 w-4 ${animationsEnabled ? "text-accent" : ""}`} aria-hidden="true" />
+                {animationsEnabled ? "Pause motion" : "Play motion"}
+              </button>
+              <div className="my-1 h-px bg-[var(--editor-border)]" role="separator" />
+              <button
+                type="button"
+                className={overflowItem}
+                onClick={() => importInputRef.current?.click()}
+              >
+                <Upload className="h-4 w-4" aria-hidden="true" />
+                Import JSON
+              </button>
+              <input
+                ref={importInputRef}
+                type="file"
+                accept="application/json,.json"
+                className="sr-only"
+                tabIndex={-1}
+                onChange={handleImport}
+                aria-hidden="true"
+              />
+              <button
+                type="button"
+                className={overflowItem}
+                aria-label="Download Interactive HTML"
+                onClick={onExport}
+                disabled={!canExport}
+              >
+                <Download className="h-4 w-4" aria-hidden="true" />
+                Download interactive HTML
+              </button>
+              <button
+                type="button"
+                className={`${overflowItem} text-danger`}
+                onClick={onResetCanvas}
+              >
+                <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                Reset canvas
+              </button>
+            </div>
+          </details>
         )}
-        <ToolbarButton label="Fit diagram to screen" onClick={onFitToScreen}>
-          <Maximize2 className="h-4 w-4" aria-hidden="true" />
-        </ToolbarButton>
-        <ToolbarButton label="Reset viewport" onClick={onResetViewport}>
-          <LocateFixed className="h-4 w-4" aria-hidden="true" />
-        </ToolbarButton>
-        <ToolbarButton label="Zoom out" onClick={onZoomOut} disabled={zoom <= 0.25}>
-          <ZoomOut className="h-4 w-4" aria-hidden="true" />
-        </ToolbarButton>
-        <output
-          className="w-12 text-center text-[11px] font-medium tabular-nums text-foreground"
-          aria-label={`Current zoom ${Math.round(zoom * 100)} percent`}
-        >
-          {Math.round(zoom * 100)}%
-        </output>
-        <ToolbarButton label="Zoom in" onClick={onZoomIn} disabled={zoom >= 2}>
-          <ZoomIn className="h-4 w-4" aria-hidden="true" />
-        </ToolbarButton>
         <SystemDesignShortcutHelp />
       </div>
     </header>

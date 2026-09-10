@@ -5,6 +5,7 @@ import {
   GripVertical,
   Plus,
   Search,
+  X,
 } from "lucide-react";
 import {
   useCallback,
@@ -88,6 +89,7 @@ export interface SystemDesignPaletteProps {
     type: SystemDesignNodeType,
   ) => void;
   disabled?: boolean;
+  onClose?: () => void;
   className?: string;
 }
 
@@ -173,6 +175,7 @@ export function SystemDesignPalette({
   onDragStart,
   onDragEnd,
   disabled = false,
+  onClose,
   className = "",
 }: SystemDesignPaletteProps) {
   const [query, setQuery] = useState("");
@@ -264,11 +267,24 @@ export function SystemDesignPalette({
 
   return (
     <aside
-      className={`flex min-h-0 w-72 shrink-0 flex-col border-r border-border bg-surface ${className}`}
+      className={`flex min-h-0 w-[272px] shrink-0 flex-col border border-[var(--editor-border)] bg-surface/95 shadow-xl backdrop-blur ${className}`}
       aria-label="System design component palette"
     >
-      <div className="border-b border-border p-3">
-        <h2 className="text-xs font-semibold text-foreground">Components</h2>
+      <div className="border-b border-[var(--editor-border)] p-3">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-xs font-semibold text-foreground">Components</h2>
+          {onClose && (
+            <button
+              type="button"
+              aria-label="Close component library"
+              title="Close component library"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted transition hover:bg-surface-elevated hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              onClick={onClose}
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          )}
+        </div>
         <label className="relative mt-2 block">
           <span className="sr-only">Search components</span>
           <Search
@@ -290,7 +306,7 @@ export function SystemDesignPalette({
         {!normalizedQuery && !recentTypes.includes("service") && (
           <section
             aria-label="Quick add components"
-            className="mb-2 rounded-md border border-accent/20 bg-accent/5 p-1.5"
+            className="mb-3 px-1"
           >
             <h3 className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted">
               Quick add
@@ -310,7 +326,7 @@ export function SystemDesignPalette({
         {recentItems.length > 0 && (
           <section
             aria-label="Recently used components"
-            className="mb-2 rounded-md border border-border bg-background/35 p-1.5"
+            className="mb-3 border-t border-[var(--editor-border)] px-1 pt-3"
           >
             <h3 className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted">
               Recently used

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Live System Design | RecallStack",
+  title: "Live System Design | ReasonAI",
   robots: {
     index: false,
     follow: false,

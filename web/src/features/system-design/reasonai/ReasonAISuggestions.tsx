@@ -2,7 +2,10 @@
 
 import { useRef, useState } from "react";
 import { Check, GripVertical, Undo2 } from "lucide-react";
-import { buttonClass } from "@/features/admin/components/AdminPrimitives";
+import {
+  editorGhostButtonClass,
+  editorSecondaryButtonClass,
+} from "../components/SystemDesignUiPrimitives";
 import { SystemDesignNodeIcon } from "../components/SystemDesignIcons";
 import { getSystemDesignNodeDefinition } from "../constants/system-design-palette";
 import type { SystemDesignDiagram, SystemDesignPoint } from "../types/system-design.types";
@@ -59,7 +62,7 @@ export function ReasonAISuggestions({ proposal, diagram, canApply, live, onCommi
     } catch { update(index, { dragging: false, error: "Could not make this change. The canvas may have changed; check the components and try again." }); }
     setConfirmDelete(null);
   }
-  return <div className="mt-4 space-y-3" aria-label="Suggested changes">
+  return <div className="mt-3 space-y-2" aria-label="Suggested changes">
     {proposal.operations.map((op, index) => {
       const state = states[index] ?? {};
       const status = state.dismissed ? "dismissed" : state.action ? reasonAIActionStatus(state.action, diagram) : state.dragging ? "dragging" : "pending";
@@ -68,7 +71,7 @@ export function ReasonAISuggestions({ proposal, diagram, canApply, live, onCommi
       const available = (status === "pending" || status === "undone" || status === "dragging") && !blocked;
       const title = clean(op.op === "add_node" ? op.label : op.op === "add_edge" ? `${nodeName(op.sourceNodeId)} → ${nodeName(op.targetNodeId)}` : op.op === "update_node" ? op.label ? `${nodeName(op.nodeId)} → ${op.label}` : `Update ${nodeName(op.nodeId)}` : op.op === "move_node" ? `Move ${nodeName(op.nodeId)}` : op.op === "delete_node" ? `Remove ${nodeName(op.nodeId)}` : op.op === "update_edge" ? `Update ${edgeName(op.edgeId)}` : `Remove ${edgeName(op.edgeId)}`);
       const done = op.op === "add_edge" ? "Connected" : op.op.startsWith("delete") ? "Deleted" : op.op === "add_node" ? "Added" : "Applied";
-      return <section key={index} aria-label={`Suggestion: ${title}`} data-suggestion-status={status} className={`rounded-xl border p-3 text-sm ${status === "dragging" ? "border-accent bg-accent/10" : "border-border bg-background/50"}`}>
+      return <section key={index} aria-label={`Suggestion: ${title}`} data-suggestion-status={status} className={`rounded-lg border px-3 py-2.5 text-sm transition ${status === "dragging" ? "border-accent/70 bg-accent/10" : status === "added" ? "border-transparent bg-transparent px-1 py-1.5" : "border-[var(--editor-border)] bg-background/30 hover:bg-background/50"}`}>
         {op.op === "add_node" ? <button type="button" draggable={available} disabled={!available} aria-label={`Drag ${title} to canvas`} title="Drag onto the canvas, or use Add to canvas below" className="flex w-full cursor-grab items-center gap-3 text-left active:cursor-grabbing disabled:cursor-default"
           onDragStart={(event) => {
             if (!available) { event.preventDefault(); return; }
@@ -84,12 +87,12 @@ export function ReasonAISuggestions({ proposal, diagram, canApply, live, onCommi
         {op.op === "add_edge" && (op.label || op.protocol) && <p className="mt-1 text-xs text-muted">{clean([op.label, op.protocol].filter(Boolean).join(" · "))}</p>}
         {op.op === "update_node" && <p className="mt-1 text-xs text-muted whitespace-pre-wrap">{clean([op.subtitle, op.technology, op.description].filter(Boolean).join(" · "))}</p>}
         {op.op === "update_edge" && <p className="mt-1 text-xs text-muted">{clean([op.label, op.protocol, op.type?.replaceAll("_", " "), op.sourceNodeId ? `From ${nodeName(op.sourceNodeId)}` : "", op.targetNodeId ? `To ${nodeName(op.targetNodeId)}` : ""].filter(Boolean).join(" · "))}</p>}
-        {status === "added" ? <div className="mt-3 space-y-1"><div className="flex items-center justify-between"><span className="flex items-center gap-1 text-xs text-accent"><Check className="h-3 w-3" />{done}</span><button type="button" className={buttonClass} disabled={!canApply || Boolean(undoReason)} onClick={() => { try { onUndo(state.action!); update(index, { error: undefined }); } catch { update(index, { error: "This action can no longer be undone safely." }); } }}><Undo2 className="mr-1 h-3 w-3" />Undo</button></div>{undoReason && <p className="text-xs text-muted">{undoReason}</p>}</div>
+        {status === "added" ? <div className="space-y-1"><div className="flex items-center justify-between"><span className="flex items-center gap-1 text-xs text-success"><Check className="h-3 w-3" />{done}</span><button type="button" className={editorGhostButtonClass} disabled={!canApply || Boolean(undoReason)} onClick={() => { try { onUndo(state.action!); update(index, { error: undefined }); } catch { update(index, { error: "This action can no longer be undone safely." }); } }}><Undo2 className="h-3 w-3" />Undo</button></div>{undoReason && <p className="text-xs text-muted">{undoReason}</p>}</div>
           : status === "dismissed" || status === "unavailable" ? <p className="mt-2 text-xs text-muted">{status === "dismissed" ? "Dismissed" : "Unavailable: this component or connection has changed."}</p>
             : <div className="mt-3 space-y-2">
               {blocked && <p className="text-xs text-muted">{blocked}</p>}
               {status === "undone" && op.op !== "add_node" && <p className="text-xs text-muted">Undone</p>}
-              {confirmDelete === index ? <div className="space-y-2"><p className="text-xs text-muted">{op.op === "delete_node" ? `Remove this component and its connections${live && diagram.nodes.find((n) => n.id === op.nodeId)?.childDiagramId ? " and nested contents? This deletion cannot be undone in live mode." : "?"}` : "Remove this connection?"}</p><div className="flex gap-2"><button type="button" className={buttonClass} disabled={!available} onClick={() => apply(index)}>Confirm delete</button><button type="button" className={buttonClass} onClick={() => setConfirmDelete(null)}>Cancel</button></div></div> : <div className="flex flex-wrap gap-2"><button type="button" className={buttonClass} disabled={!available} onClick={() => op.op.startsWith("delete") ? setConfirmDelete(index) : apply(index)}>{op.op === "add_node" ? status === "undone" ? "Add again" : "Add to canvas" : op.op === "add_edge" ? "Connect" : op.op.startsWith("delete") ? "Delete" : "Apply"}</button><button type="button" className={buttonClass} onClick={() => update(index, { dismissed: true, dragging: false })}>Dismiss</button></div>}
+              {confirmDelete === index ? <div className="space-y-2"><p className="text-xs text-muted">{op.op === "delete_node" ? `Remove this component and its connections${live && diagram.nodes.find((n) => n.id === op.nodeId)?.childDiagramId ? " and nested contents? This deletion cannot be undone in live mode." : "?"}` : "Remove this connection?"}</p><div className="flex gap-2"><button type="button" className={editorSecondaryButtonClass} disabled={!available} onClick={() => apply(index)}>Confirm delete</button><button type="button" className={editorGhostButtonClass} onClick={() => setConfirmDelete(null)}>Cancel</button></div></div> : <div className="flex flex-wrap gap-2"><button type="button" className={editorSecondaryButtonClass} disabled={!available} onClick={() => op.op.startsWith("delete") ? setConfirmDelete(index) : apply(index)}>{op.op === "add_node" ? status === "undone" ? "Add again" : "Add to canvas" : op.op === "add_edge" ? "Connect" : op.op.startsWith("delete") ? "Delete" : "Apply"}</button><button type="button" className={editorGhostButtonClass} onClick={() => update(index, { dismissed: true, dragging: false })}>Dismiss</button></div>}
             </div>}
         {state.error && <p role="alert" className="mt-2 text-xs text-danger">{state.error}</p>}
       </section>;

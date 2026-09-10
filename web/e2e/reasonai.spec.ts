@@ -12,47 +12,36 @@ test.beforeEach(async ({ authenticatedPage: page }) => {
   await expect(page.getByTestId("system-design-canvas")).toBeVisible({ timeout: 30_000 });
 });
 
-test("ReasonAI can be moved without editing the canvas and stays reachable after resizing", async ({ authenticatedPage: page }) => {
+test("ReasonAI docks beside the canvas, preserves drafts, and stays usable after resizing", async ({ authenticatedPage: page }) => {
   await page.setViewportSize({ width: 1600, height: 1000 });
+  const canvas = page.getByTestId("system-design-canvas");
+  const closedCanvas = (await canvas.boundingBox())!;
   await page.getByRole("button", { name: "Open ReasonAI" }).click();
+
   const dialog = page.getByRole("dialog", { name: "ReasonAI", exact: true });
-  const handle = dialog.getByRole("button", { name: "Move ReasonAI" });
-  const initial = (await dialog.boundingBox())!;
-  const grip = (await handle.boundingBox())!;
-  await page.mouse.move(grip.x + 50, grip.y + 15);
-  await page.mouse.down();
-  await page.mouse.move(grip.x - 110, grip.y + 47, { steps: 8 });
-  await page.mouse.up();
-  const moved = (await dialog.boundingBox())!;
-  expect(moved.x).toBeCloseTo(initial.x - 160, 0);
-  expect(moved.y).toBeCloseTo(initial.y + 32, 0);
+  const dock = (await dialog.boundingBox())!;
+  const openCanvas = (await canvas.boundingBox())!;
+  expect(dock.width).toBeCloseTo(380, 0);
+  expect(dock.x + dock.width).toBeLessThanOrEqual(openCanvas.x + 1);
+  expect(openCanvas.width).toBeLessThan(closedCanvas.width);
+  expect(openCanvas.width).toBeGreaterThan(700);
+
   await page.getByLabel("Message ReasonAI").fill("Keep my draft");
   await dialog.getByRole("button", { name: "Close ReasonAI" }).click();
+  await expect.poll(async () => (await canvas.boundingBox())!.width).toBeGreaterThan(openCanvas.width);
   await page.getByRole("button", { name: "Open ReasonAI" }).click();
-  expect((await dialog.boundingBox())!.x).toBeCloseTo(moved.x, 0);
-  expect((await dialog.boundingBox())!.y).toBeCloseTo(moved.y, 0);
   await expect(page.getByLabel("Message ReasonAI")).toHaveValue("Keep my draft");
-  await handle.focus();
-  await page.keyboard.press("ArrowRight");
-  expect((await dialog.boundingBox())!.x).toBeCloseTo(moved.x + 16, 0);
 
-  // Capture continues beyond the handle, and the panel clamps at the canvas edge.
-  const nextGrip = (await handle.boundingBox())!;
-  await page.mouse.move(nextGrip.x + 50, nextGrip.y + 15);
-  await page.mouse.down();
-  await page.mouse.move(1595, 995, { steps: 8 });
-  await page.mouse.up();
-  const withinCanvas = () => dialog.evaluate((element) => {
-    const panel = element.getBoundingClientRect(), bounds = element.parentElement!.getBoundingClientRect();
-    return panel.left >= bounds.left && panel.top >= bounds.top && panel.right <= bounds.right + 1 && panel.bottom <= bounds.bottom + 1;
-  });
-  await expect.poll(withinCanvas).toBe(true);
   await page.setViewportSize({ width: 1100, height: 720 });
-  await expect.poll(withinCanvas).toBe(true);
-  await page.route("**/api/reasonai/chat", (route) => route.fulfill({ json: { text: "Observed: The canvas is empty.\n\n".repeat(40) } }));
+  await expect(dialog).toBeVisible();
+  await expect(canvas).toBeVisible();
+  expect((await canvas.boundingBox())!.width).toBeGreaterThan(600);
+
+  await page.route("**/api/reasonai/chat", (route) =>
+    route.fulfill({ json: { text: "Observed: The canvas is empty.\n\n".repeat(40) } }),
+  );
   await dialog.getByRole("button", { name: "Send to ReasonAI" }).click();
   await expect(dialog.getByRole("log")).toContainText("Observed: The canvas is empty.");
-  await expect.poll(withinCanvas).toBe(true);
   await expect(page.getByLabel("Diagram status")).toContainText(/Nodes\s+0/);
 });
 
@@ -128,6 +117,7 @@ test("discard, errors, and malicious proposals never change the canvas", async (
     return attempt === 1 ? route.fulfill({ status: 429, json: { error: "ReasonAI is busy. Please try again shortly." } })
       : route.fulfill({ json: { text: "Suggested design", proposal: attempt === 2 ? { ...proposal, operations: [...proposal.operations, { op: "delete_node", nodeId: "missing" }] } : proposal } });
   });
+  await page.getByRole("button", { name: "Open ReasonAI" }).click();
   await page.getByRole("button", { name: "Improve", exact: true }).click();
   await page.getByRole("button", { name: "Send to ReasonAI" }).click();
   await expect(page.getByRole("dialog", { name: "ReasonAI", exact: true }).getByRole("alert")).toContainText("ReasonAI is busy");
@@ -145,6 +135,7 @@ test("Explain cleans accidental Markdown and entities without changing the canva
   await page.route("**/api/reasonai/chat", (route) => route.fulfill({ json: {
     text: "```markdown\n### **URL Shortener**&#x20;\n\nObserved\n- The canvas is empty.\n\n| Component | Recommendation |\n| --- | --- |\n| Redirect Service | Add only when needed |\n\n**Assumptions**\n• Read traffic dominates.\nDo not assume node_internal_unknown or edge_internal_unknown exists.\n```",
   } }));
+  await page.getByRole("button", { name: "Open ReasonAI" }).click();
   await page.getByRole("button", { name: "Explain", exact: true }).click();
   await page.getByRole("button", { name: "Send to ReasonAI" }).click();
   const dialog = page.getByRole("dialog", { name: "ReasonAI", exact: true });

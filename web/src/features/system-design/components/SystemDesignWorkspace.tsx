@@ -101,6 +101,9 @@ import {
   type SystemDesignArrangeOperation,
 } from "./SystemDesignToolbar";
 import { SystemDesignLiveShareModal } from "./SystemDesignLiveShareModal";
+import { SystemDesignCanvasToolRail } from "./SystemDesignCanvasToolRail";
+import { SystemDesignSelectionToolbar } from "./SystemDesignSelectionToolbar";
+import { SystemDesignViewportControls } from "./SystemDesignViewportControls";
 import { ReasonAIPanel, type ReasonAIPanelHandle } from "../reasonai/ReasonAIPanel";
 import { captureReasonAIAction, prepareReasonAISuggestion, reasonAIUndoUnavailable } from "../reasonai/suggestions";
 
@@ -282,6 +285,12 @@ export function SystemDesignWorkspace({
   const reasonAIRef = useRef<ReasonAIPanelHandle>(null);
   const [inspectorTab, setInspectorTab] =
     useState<SystemDesignInspectorTab>("properties");
+  const [reasonAIOpen, setReasonAIOpen] = useState(false);
+  const [componentPaletteOpen, setComponentPaletteOpen] = useState(false);
+  const [inspectorOpen, setInspectorOpen] = useState(
+    mode.kind === "problem",
+  );
+  const previousSelectedCountRef = useRef(0);
   const [resetOpen, setResetOpen] = useState(false);
   const [pendingImport, setPendingImport] =
     useState<SystemDesignDocument | null>(null);
@@ -609,6 +618,13 @@ export function SystemDesignWorkspace({
       : null;
   const selectedCount =
     state.selectedNodeIds.length + state.selectedEdgeIds.length;
+
+  useEffect(() => {
+    if (previousSelectedCountRef.current === 0 && selectedCount > 0) {
+      setInspectorOpen(true);
+    }
+    previousSelectedCountRef.current = selectedCount;
+  }, [selectedCount]);
 
   const saveState: SystemDesignSaveState =
     state.saveStatus === "saving"
@@ -1403,7 +1419,7 @@ export function SystemDesignWorkspace({
 
   const editor = (
     <div
-      className={`hidden min-h-[38rem] flex-col overflow-hidden md:flex ${
+      className={`system-design-shell hidden min-h-[38rem] flex-col overflow-hidden md:flex ${
         mode.kind === "live" ? "h-dvh" : "h-[calc(100dvh-57px)]"
       }`}
     >
@@ -1416,14 +1432,19 @@ export function SystemDesignWorkspace({
               ? "Back to system design"
               : "Back to system design problems"
         }
-        className="shrink-0 overflow-x-auto"
+        className="shrink-0"
         title={mode.kind === "live" ? state.document.title : workspaceTitle}
+        breadcrumbs={
+          <SystemDesignBreadcrumbs
+            segments={breadcrumbSegments}
+            onNavigate={handleNavigateDiagram}
+          />
+        }
         difficulty={problem?.difficulty}
         showLearningActions={Boolean(problem)}
         saveState={saveState}
         isCompleted={state.document.status === "completed"}
         isPreviewMode={state.isPreviewMode}
-        zoom={activeDiagram.viewport.zoom}
         canUndo={!collaborationActive && state.history.length > 0}
         canRedo={!collaborationActive && state.future.length > 0}
         undoDisabledReason={
@@ -1433,13 +1454,6 @@ export function SystemDesignWorkspace({
         }
         canSave={state.loadStatus === "ready"}
         canMarkComplete={documentCounts.nodeCount > 0}
-        showGrid={showGrid}
-        snapToGrid={snapToGrid}
-        snapToObjects={snapToObjects}
-        activeTool={activeTool}
-        selectedNodeCount={state.selectedNodeIds.length}
-        selectedNodes={selectedNodes}
-        selectedEdge={selectedEdge}
         animationsEnabled={animationsEnabled}
         liveShareStatus={realtime.status}
         liveParticipantCount={realtime.participants.length}
@@ -1452,58 +1466,10 @@ export function SystemDesignWorkspace({
         onResetCanvas={() => setResetOpen(true)}
         onImportFile={(file) => void handleImport(file)}
         onExport={handleExport}
-        onFitToScreen={() => canvasRef.current?.fitToScreen()}
-        onResetViewport={() => canvasRef.current?.resetViewport()}
-        onZoomOut={() => canvasRef.current?.zoomBy(1 / 1.15)}
-        onZoomIn={() => canvasRef.current?.zoomBy(1.15)}
-        onToggleGrid={() => setShowGrid((visible) => !visible)}
-        onToggleSnapToGrid={() => setSnapToGrid((enabled) => !enabled)}
-        onToggleSnapToObjects={() =>
-          setSnapToObjects((enabled) => !enabled)
-        }
-        onToolChange={handleToolChange}
-        onArrange={handleArrange}
-        onDuplicateSelection={handleDuplicate}
-        onSetSelectionLocked={handleSetSelectionLocked}
-        onSetSelectionVisible={handleSetSelectionVisible}
-        onReorderSelection={(direction) =>
-          commitEditorActionWithConcreteOperations(
-            systemDesignEditorActions.reorderSelectedLayers(direction),
-          )
-        }
-        onGroupSelection={handleGroupSelection}
-        onUngroupSelection={handleUngroupSelection}
-        onDeleteSelection={handleDelete}
-        onUpdateSelectedNodeText={(textStyle) => {
-          if (!selectedNode) return;
-          commitCanvasOperation({
-            kind: "node.update",
-            diagramId: activeDiagram.id,
-            nodeId: selectedNode.id,
-            patch: { textStyle },
-          });
-        }}
-        onUpdateSelectedEdge={(patch) => {
-          if (selectedEdge) {
-            commitCanvasOperation({
-              kind: "edge.update",
-              diagramId: activeDiagram.id,
-              edgeId: selectedEdge.id,
-              patch: toCanvasEdgePatch(patch),
-            });
-          }
-        }}
         onToggleAnimations={() =>
           setAnimationsEnabled((enabled) => !enabled)
         }
       />
-
-      <div className="flex min-h-9 shrink-0 items-center border-b border-border bg-surface/80 px-3">
-        <SystemDesignBreadcrumbs
-          segments={breadcrumbSegments}
-          onNavigate={handleNavigateDiagram}
-        />
-      </div>
 
       <div className="relative flex min-h-0 flex-1">
         <ReasonAIPanel
@@ -1515,6 +1481,8 @@ export function SystemDesignWorkspace({
           selectedNodeIds={state.selectedNodeIds}
           selectedEdgeIds={state.selectedEdgeIds}
           live={collaborationActive}
+          open={reasonAIOpen}
+          onOpenChange={setReasonAIOpen}
           canApply={!state.isPreviewMode && (!collaborationActive || realtime.status === "live")}
           onCommit={(suggestion, refs, position) => {
             if (collaborationActive && realtime.status !== "live") throw new Error("Reconnect before making changes.");
@@ -1538,10 +1506,77 @@ export function SystemDesignWorkspace({
             }
           }}
         />
-        {!state.isPreviewMode && (
-          <SystemDesignPalette onAddNode={addNodeFromPalette} />
-        )}
         <div className="relative min-w-0 flex-1">
+          {!state.isPreviewMode && (
+            <>
+              <SystemDesignCanvasToolRail
+                activeTool={activeTool}
+                paletteOpen={componentPaletteOpen}
+                onToolChange={handleToolChange}
+                onTogglePalette={() =>
+                  setComponentPaletteOpen((open) => !open)
+                }
+              />
+              {componentPaletteOpen && (
+                <SystemDesignPalette
+                  onAddNode={addNodeFromPalette}
+                  onClose={() => setComponentPaletteOpen(false)}
+                  className="absolute bottom-3 left-[4.25rem] top-3 z-30 overflow-hidden rounded-lg"
+                />
+              )}
+              <SystemDesignSelectionToolbar
+                selectedNodes={selectedNodes}
+                selectedEdge={selectedEdge}
+                onArrange={handleArrange}
+                onDuplicate={handleDuplicate}
+                onSetLocked={handleSetSelectionLocked}
+                onSetVisible={handleSetSelectionVisible}
+                onReorder={(direction) =>
+                  commitEditorActionWithConcreteOperations(
+                    systemDesignEditorActions.reorderSelectedLayers(direction),
+                  )
+                }
+                onGroup={handleGroupSelection}
+                onUngroup={handleUngroupSelection}
+                onDelete={handleDelete}
+                onUpdateText={(textStyle) => {
+                  if (!selectedNode) return;
+                  commitCanvasOperation({
+                    kind: "node.update",
+                    diagramId: activeDiagram.id,
+                    nodeId: selectedNode.id,
+                    patch: { textStyle },
+                  });
+                }}
+                onUpdateEdge={(patch) => {
+                  if (!selectedEdge) return;
+                  commitCanvasOperation({
+                    kind: "edge.update",
+                    diagramId: activeDiagram.id,
+                    edgeId: selectedEdge.id,
+                    patch: toCanvasEdgePatch(patch),
+                  });
+                }}
+              />
+              <SystemDesignViewportControls
+                zoom={activeDiagram.viewport.zoom}
+                showGrid={showGrid}
+                snapToGrid={snapToGrid}
+                snapToObjects={snapToObjects}
+                onZoomOut={() => canvasRef.current?.zoomBy(1 / 1.15)}
+                onZoomIn={() => canvasRef.current?.zoomBy(1.15)}
+                onFitToScreen={() => canvasRef.current?.fitToScreen()}
+                onResetViewport={() => canvasRef.current?.resetViewport()}
+                onToggleGrid={() => setShowGrid((visible) => !visible)}
+                onToggleSnapToGrid={() =>
+                  setSnapToGrid((enabled) => !enabled)
+                }
+                onToggleSnapToObjects={() =>
+                  setSnapToObjects((enabled) => !enabled)
+                }
+              />
+            </>
+          )}
           <SystemDesignCanvas
             ref={canvasRef}
             diagram={activeDiagram}
@@ -1664,11 +1699,14 @@ export function SystemDesignWorkspace({
               })
             }
             onOpenModule={handleOpenModule}
+            collapsed={!inspectorOpen}
+            onCollapsedChange={(collapsed) => setInspectorOpen(!collapsed)}
           />
         )}
       </div>
 
       <SystemDesignStatusBar
+        className="sr-only"
         nodeCount={activeDiagram.nodes.length}
         edgeCount={activeDiagram.edges.length}
         selectedCount={selectedCount}

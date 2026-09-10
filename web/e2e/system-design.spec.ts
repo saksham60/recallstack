@@ -208,6 +208,11 @@ async function openEditor(
   await expect(page.getByTestId("system-design-canvas")).toBeVisible();
 }
 
+async function openComponentPalette(page: Page) {
+  await page.getByRole("button", { name: "Open component library" }).click();
+  await expect(page.getByLabel("System design component palette")).toBeVisible();
+}
+
 async function expectEditorCounts(
   page: Page,
   {
@@ -241,11 +246,15 @@ async function readStoredDocument(
 
 async function saveFromToolbar(page: Page) {
   const saveButton = page.getByRole("button", {
-    name: /^(Save|Retry save)$/,
+    name: /^(Save|Retry save|Saving locally|Saved locally)$/,
   });
   await expect(saveButton).toBeEnabled();
   await saveButton.click();
-  await expect(page.getByText("Saved locally", { exact: true })).toBeVisible();
+  await expect(saveButton).toContainText("Saved locally");
+}
+
+async function openEditorOverflow(page: Page) {
+  await page.locator('summary[aria-label="More editor actions"]').click();
 }
 
 async function canvasPoint(
@@ -549,13 +558,10 @@ test.describe("Standalone System Design Canvas", () => {
     await expect(
       page.getByLabel("System design editor toolbar"),
     ).toBeVisible();
-    await expect(
-      page.getByLabel("System design component palette"),
-    ).toBeVisible();
+    await expect(page.getByLabel("System design component palette")).toHaveCount(0);
+    await page.getByRole("button", { name: "Open component library" }).click();
+    await expect(page.getByLabel("System design component palette")).toBeVisible();
     await expect(page.getByRole("button", { name: "Draw tool" })).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Draw tool" }),
-    ).toContainText("Draw");
     const drawTool = page.getByRole("button", { name: "Draw tool" });
     const selectTool = page.getByRole("button", { name: "Select tool" });
     await drawTool.click();
@@ -648,6 +654,7 @@ test.describe("Standalone System Design Canvas", () => {
       connections: 0,
       selected: 0,
     });
+    await page.getByRole("button", { name: "Open component library" }).click();
     await page.getByRole("button", { name: "Add User" }).click();
     await expectEditorCounts(page, {
       nodes: 2,
@@ -843,6 +850,7 @@ test.describe("System Design editor", () => {
     authenticatedPage: page,
   }) => {
     await openEditor(page);
+    await openComponentPalette(page);
     const palette = page.getByLabel("System design component palette");
     const networking = page.getByTestId(
       "system-design-palette-category-networking",
@@ -946,17 +954,17 @@ test.describe("System Design editor", () => {
     });
     await seedDocuments(page, [document]);
     await openEditor(page);
-    const toolbar = page.getByLabel("System design editor toolbar");
+    const tools = page.getByLabel("Canvas tools");
     const canvas = page.getByTestId("system-design-canvas");
 
-    await expect(toolbar.getByRole("button", { name: "Select tool" })).toHaveAttribute(
+    await expect(tools.getByRole("button", { name: "Select tool" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
     await expect(
-      toolbar.getByRole("button", { name: "Draw tool" }),
+      tools.getByRole("button", { name: "Draw tool" }),
     ).toBeVisible();
-    const start = await canvasPoint(page, 45, 70);
+    const start = await canvasPoint(page, 65, 70);
     const end = await canvasPoint(page, 475, 220);
     await page.mouse.move(start.x, start.y);
     await page.mouse.down();
@@ -968,11 +976,11 @@ test.describe("System Design editor", () => {
       selected: 2,
     });
 
-    await toolbar
+    await page
       .getByRole("button", { name: "Actions for 2 selected components" })
       .click();
     await page.getByRole("menuitem", { name: "Group", exact: true }).click();
-    await canvas.click({ position: { x: 30, y: 30 } });
+    await canvas.click({ position: { x: 70, y: 30 } });
     const first = rootDiagram(document)!.nodes[0];
     const firstCenter = await canvasPoint(
       page,
@@ -1009,10 +1017,10 @@ test.describe("System Design editor", () => {
       selected: 2,
     });
 
-    await toolbar.getByRole("button", { name: "Pan tool" }).click();
+    await tools.getByRole("button", { name: "Pan tool" }).click();
     await expect(canvas).toHaveAttribute("data-active-tool", "pan");
-    await toolbar.getByRole("button", { name: "Select tool" }).click();
-    await toolbar.getByRole("button", { name: "Add note" }).click();
+    await tools.getByRole("button", { name: "Select tool" }).click();
+    await tools.getByRole("button", { name: "Add note" }).click();
     await expect(canvas).toHaveAttribute("data-active-tool", "select");
     await expectEditorCounts(page, {
       nodes: 4,
@@ -1032,6 +1040,7 @@ test.describe("System Design editor", () => {
     authenticatedPage: page,
   }) => {
     await openEditor(page);
+    await openComponentPalette(page);
     await expectEditorCounts(page, {
       nodes: 0,
       connections: 0,
@@ -1291,6 +1300,7 @@ test.describe("System Design editor", () => {
 
     await seedDocuments(page, [document]);
     await openEditor(page);
+    await openComponentPalette(page);
     await expectEditorCounts(page, {
       nodes: 1,
       connections: 0,
@@ -1437,6 +1447,7 @@ test.describe("System Design editor", () => {
   }) => {
     test.slow();
     await openEditor(page);
+    await openComponentPalette(page);
 
     await page.getByRole("button", { name: "Add User" }).click();
     await saveFromToolbar(page);
@@ -1504,6 +1515,7 @@ test.describe("System Design editor", () => {
       selected: 0,
     });
 
+    await openEditorOverflow(page);
     await page
       .getByRole("button", { name: "Reset canvas", exact: true })
       .click();
@@ -1549,6 +1561,7 @@ test.describe("System Design editor", () => {
     await seedDocuments(page, [document]);
     await openEditor(page);
 
+    await openEditorOverflow(page);
     const downloadPromise = page.waitForEvent("download");
     await page
       .getByRole("button", {
@@ -1605,6 +1618,7 @@ test.describe("System Design editor", () => {
     authenticatedPage: page,
   }) => {
     await openEditor(page);
+    await openComponentPalette(page);
     await page.getByRole("button", { name: "Add User" }).click();
     await expectEditorCounts(page, {
       nodes: 1,

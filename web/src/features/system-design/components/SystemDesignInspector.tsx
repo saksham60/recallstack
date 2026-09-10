@@ -115,6 +115,9 @@ export interface SystemDesignInspectorProps {
     patch: SystemDesignEdgePropertyPatch,
   ) => void;
   onOpenModule?: (nodeId: string) => void;
+  collapsed?: boolean;
+  defaultCollapsed?: boolean;
+  onCollapsedChange?: (collapsed: boolean) => void;
   className?: string;
 }
 
@@ -547,7 +550,7 @@ function StandardNodeProperties({
         </datalist>
       </FieldLabel>
 
-      <fieldset className="space-y-3 rounded-md border border-border bg-background/40 p-3">
+      <fieldset className="space-y-3 border-t border-[var(--editor-border)] pt-3">
         <div className="flex items-center justify-between gap-2">
           <span className="text-[11px] font-medium text-muted">
             Appearance
@@ -638,7 +641,7 @@ function StandardNodeProperties({
         </div>
       </fieldset>
 
-      <fieldset className="space-y-3 rounded-md border border-border bg-background/40 p-3">
+      <fieldset className="space-y-3 border-t border-[var(--editor-border)] pt-3">
         <div className="flex items-center justify-between gap-2">
           <span className="text-[11px] font-medium text-muted">
             Text style
@@ -1029,7 +1032,7 @@ function FreehandProperties({
         </div>
       </div>
 
-      <fieldset className="space-y-3 rounded-md border border-border bg-background/40 p-3">
+      <fieldset className="space-y-3 border-t border-[var(--editor-border)] pt-3">
         <div className="flex items-center justify-between gap-2">
           <legend className="text-[11px] font-medium text-muted">
             Stroke appearance
@@ -1136,7 +1139,7 @@ function FreehandProperties({
         </FieldLabel>
       </fieldset>
 
-      <fieldset className="space-y-3 rounded-md border border-border bg-background/40 p-3">
+      <fieldset className="space-y-3 border-t border-[var(--editor-border)] pt-3">
         <legend className="px-1 text-[11px] font-medium text-muted">
           Animation
         </legend>
@@ -1349,7 +1352,7 @@ function EdgeProperties({
         </select>
       </FieldLabel>
 
-      <fieldset className="space-y-3 rounded-md border border-border bg-background/40 p-3">
+      <fieldset className="space-y-3 border-t border-[var(--editor-border)] pt-3">
         <legend className="px-1 text-[11px] font-medium text-muted">
           Line and routing
         </legend>
@@ -1453,7 +1456,7 @@ function EdgeProperties({
         </FieldLabel>
       </fieldset>
 
-      <fieldset className="space-y-3 rounded-md border border-border bg-background/40 p-3">
+      <fieldset className="space-y-3 border-t border-[var(--editor-border)] pt-3">
         <legend className="px-1 text-[11px] font-medium text-muted">
           Arrowheads
         </legend>
@@ -1532,7 +1535,7 @@ function EdgeProperties({
         />
       </FieldLabel>
 
-      <fieldset className="space-y-3 rounded-md border border-border bg-background/40 p-3">
+      <fieldset className="space-y-3 border-t border-[var(--editor-border)] pt-3">
         <legend className="px-1 text-[11px] font-medium text-muted">
           Label appearance
         </legend>
@@ -1590,7 +1593,7 @@ function EdgeProperties({
         </div>
       </fieldset>
 
-      <fieldset className="space-y-3 rounded-md border border-border bg-background/40 p-3">
+      <fieldset className="space-y-3 border-t border-[var(--editor-border)] pt-3">
         <legend className="px-1 text-[11px] font-medium text-muted">
           Animation
         </legend>
@@ -1701,17 +1704,26 @@ export function SystemDesignInspector({
   onUpdateNode,
   onUpdateEdge,
   onOpenModule,
+  collapsed: controlledCollapsed,
+  defaultCollapsed = false,
+  onCollapsedChange,
   className = "",
 }: SystemDesignInspectorProps) {
   const baseId = useId();
-  const [collapsed, setCollapsed] = useState(false);
+  const [internalCollapsed, setInternalCollapsed] =
+    useState(defaultCollapsed);
+  const collapsed = controlledCollapsed ?? internalCollapsed;
+  const setCollapsed = (next: boolean) => {
+    setInternalCollapsed(next);
+    onCollapsedChange?.(next);
+  };
   const visibleTabs = problem
     ? tabs
     : tabs.filter((tab) => tab.id !== "problem");
 
   return (
     <aside
-      className={`flex min-h-0 shrink-0 flex-col border-l border-border bg-surface ${collapsed ? "w-10" : "w-80"} ${className}`}
+      className={`flex min-h-0 shrink-0 flex-col border-l border-[var(--editor-border)] bg-surface transition-[width] duration-150 ${collapsed ? "w-10" : "w-[296px]"} ${className}`}
       aria-label="Diagram inspector"
     >
       <div className="flex items-center border-b border-border">
@@ -1747,7 +1759,7 @@ export function SystemDesignInspector({
           title={collapsed ? "Expand inspector" : "Collapse inspector"}
           aria-expanded={!collapsed}
           aria-controls={`${baseId}-${activeTab}-panel`}
-          onClick={() => setCollapsed((value) => !value)}
+          onClick={() => setCollapsed(!collapsed)}
           onKeyDown={(event) => event.stopPropagation()}
           className="flex h-10 w-9 shrink-0 items-center justify-center text-muted hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
         >
