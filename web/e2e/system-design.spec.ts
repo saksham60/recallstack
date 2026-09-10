@@ -1161,7 +1161,8 @@ test.describe("System Design editor", () => {
       .toEqual({ width: 210, height: 120 });
   });
 
-  test("connects two components and edits the selected connection", async ({
+  for (const annotations of [false, true]) {
+  test(`connects ${annotations ? "annotations" : "two components"} and edits the selected connection`, async ({
     authenticatedPage: page,
   }) => {
     const document = createDocument({
@@ -1172,6 +1173,10 @@ test.describe("System Design editor", () => {
       withEdge: false,
       updatedAt: "2026-07-28T09:00:00.000Z",
     });
+    if (annotations) {
+      rootDiagram(document)!.nodes[0].type = "note";
+      rootDiagram(document)!.nodes[1].type = "text";
+    }
     await seedDocuments(page, [document]);
     await openEditor(page);
 
@@ -1250,6 +1255,8 @@ test.describe("System Design editor", () => {
         protocol: "Kafka",
       });
   });
+
+  }
 
   test("drills into a module, preserves its child diagram, and navigates with breadcrumbs", async ({
     authenticatedPage: page,

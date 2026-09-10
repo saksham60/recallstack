@@ -981,7 +981,7 @@ function SystemDesignNodeRendererComponent({
   const ports: SystemDesignPort[] = ["top", "right", "bottom", "left"];
   const isAnnotation = visual.category === "annotations";
   const isStructuralContainer = isSystemDesignBoundaryNodeType(node.type);
-  const isConnectable = !isAnnotation && !isStructuralContainer;
+  const isConnectable = !isStructuralContainer;
   const isNote = NOTE_NODE_TYPES.has(node.type);
   const isFreeformText = FREEFORM_TEXT_NODE_TYPES.has(node.type);
   const textColor = node.textStyle?.color ?? theme.foreground;
