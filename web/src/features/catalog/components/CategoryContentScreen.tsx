@@ -39,11 +39,11 @@ export function CategoryContentScreen({ categoryId, domainSlug }: { categoryId: 
             <tbody className="divide-y divide-border">
               {data.items.map((item) => (
                 <tr key={item.content_item_id} className="hover:bg-surface-elevated/50 transition-colors">
-                  <td className="px-6 py-4 font-medium text-foreground"><Link href={`/content/${item.slug}`} className="hover:text-accent">{item.title}</Link></td>
+                  <td className="px-6 py-4 font-medium text-foreground"><Link href={domainSlug === "dsa" ? `/dsa/problem/${item.slug}` : `/content/${item.slug}`} className="hover:text-accent">{item.title}</Link></td>
                   <td className="px-6 py-4 text-muted">{item.primary_topic?.name || "—"}</td>
                   <td className="px-6 py-4"><DifficultyBadge difficulty={item.difficulty} /></td>
                   <td className="px-6 py-4"><StatusBadge status={item.user_progress.status} /></td>
-                  <td className="px-6 py-4 text-right"><div className="flex items-center justify-end gap-2"><BookmarkButton contentId={item.content_item_id} isBookmarked={item.is_bookmarked} /><Link href={`/content/${item.slug}`} className="text-accent hover:text-accent/80 font-medium">Study →</Link></div></td>
+                  <td className="px-6 py-4 text-right"><div className="flex items-center justify-end gap-2"><BookmarkButton contentId={item.content_item_id} isBookmarked={item.is_bookmarked} /><Link href={domainSlug === "dsa" ? `/dsa/problem/${item.slug}` : `/content/${item.slug}`} className="text-accent hover:text-accent/80 font-medium">{domainSlug === "dsa" ? "Practice →" : "Study →"}</Link></div></td>
                 </tr>
               ))}
               {data.items.length === 0 && <tr><td colSpan={5} className="px-6 py-12 text-center text-muted">No content available in this category yet.</td></tr>}

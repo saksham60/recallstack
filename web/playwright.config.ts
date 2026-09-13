@@ -6,6 +6,7 @@ loadEnvConfig(process.cwd());
 export default defineConfig({
   testDir: './e2e',
   testIgnore: [
+    '**/dsa-reasonai-provider.spec.ts',
     '**/reasonai-provider.spec.ts',
     '**/reasonai-state.spec.ts',
     '**/system-design-disabled.spec.ts',

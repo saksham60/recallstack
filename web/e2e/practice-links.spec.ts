@@ -38,7 +38,7 @@ test.describe("Practice links", () => {
 
     await page.goto("/content/ultimate-dsa-016-3sum");
 
-    const practiceLink = page.getByRole("link", { name: "Practice on LeetCode" });
+    const practiceLink = page.getByRole("link", { name: "Open on LeetCode" });
     await expect(practiceLink).toHaveAttribute(
       "href",
       "https://leetcode.com/problems/3sum/",

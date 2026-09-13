@@ -59,6 +59,7 @@ test.describe('Notes Flow', () => {
     });
 
     await page.goto('/content/mock-slug');
+    await page.getByRole('tab', { name: 'Notes', exact: true }).click();
     
     // Click Add Note
     await page.locator('text=Add Note').click();
@@ -109,6 +110,7 @@ test.describe('Notes Flow', () => {
     });
 
     await page.goto('/content/mock-slug');
+    await page.getByRole('tab', { name: 'Notes', exact: true }).click();
 
     // Note should initially be visible
     await expect(page.locator('text=Existing Note')).toBeVisible();

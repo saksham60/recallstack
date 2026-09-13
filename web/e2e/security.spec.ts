@@ -8,6 +8,7 @@ test.describe('Security Hardening', () => {
     await page.route('**/api/v1/content/*', async route => {
       const json = createStudyNoteResponse({
         title: "XSS Test",
+        domain: { id: "domain-other", name: "Fundamentals", slug: "fundamentals" },
         slug: "xss-test",
         content_item_id: "x1",
         blocks: [
@@ -48,6 +49,7 @@ test.describe('Security Hardening', () => {
     await page.route('**/api/v1/content/*', async route => {
       await route.fulfill({
         json: createStudyNoteResponse({
+          domain: { id: "domain-other", name: "Fundamentals", slug: "fundamentals" },
           blocks: [{
             id: 'unknown-1',
             type: 'future-block',

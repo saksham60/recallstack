@@ -11,7 +11,7 @@ export function TopNavigation({
 }) {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-surface/80 backdrop-blur">
-      <div className="max-w-7xl mx-auto flex h-14 items-center justify-between px-4 sm:px-6 lg:px-8 gap-4">
+      <div className="max-w-7xl mx-auto flex h-14 items-center justify-between px-4 sm:px-6 lg:px-8 gap-2 sm:gap-4">
         
         <Link href="/" className="flex items-center space-x-2 shrink-0">
           <span className="font-bold sm:inline-block text-accent">RecallStack</span>
@@ -36,7 +36,7 @@ export function TopNavigation({
           />
         </div>
         
-        <div className="flex-1 max-w-xl mx-auto flex justify-center w-full min-w-[120px]">
+        <div className="flex-1 max-w-xl mx-auto flex justify-center w-full min-w-0">
           <GlobalSearch />
         </div>
 

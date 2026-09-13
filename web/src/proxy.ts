@@ -6,6 +6,11 @@ const PUBLIC_LIVE_CANVAS_PATH =
   /^\/system-design\/live\/[A-Za-z0-9_-]{20,128}\/?$/u
 
 export async function proxy(request: NextRequest) {
+  // The DSA tutor authenticates inside its handler and must return JSON 401s,
+  // not a login-page redirect, when a chat session expires.
+  if (request.nextUrl.pathname === '/api/reasonai/dsa/chat') {
+    return NextResponse.next({ request })
+  }
   if (PUBLIC_LIVE_CANVAS_PATH.test(request.nextUrl.pathname)) {
     return NextResponse.next({ request })
   }

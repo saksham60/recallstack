@@ -1,5 +1,9 @@
 import "server-only";
 
+export function getTavilyConfiguration() {
+  return { apiKey: process.env.TAVILY_API_KEY };
+}
+
 export function getReasonAIConfiguration() {
   return {
     apiKey: process.env.NEBIUS_API_KEY,

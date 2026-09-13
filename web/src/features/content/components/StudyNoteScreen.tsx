@@ -16,6 +16,8 @@ const StudyNoteRenderer = dynamic(
   { ssr: false },
 );
 
+const DSAProblemWorkspace = dynamic(() => import("@/features/dsa/components/DSAProblemScreen").then((module) => module.DSAProblemWorkspace));
+
 export function StudyNoteScreen({ slug }: { slug: string }) {
   const { data: note, isLoading, error } = useStudyNote(slug);
 
@@ -37,6 +39,9 @@ export function StudyNoteScreen({ slug }: { slug: string }) {
       />
     );
   }
+
+  // Preserve old content/bookmark/revision URLs without fetching the note again.
+  if (note.domain.slug === "dsa") return <DSAProblemWorkspace key={note.content_item_id} note={note} />;
 
   return (
     <div className="flex flex-col lg:flex-row gap-8">
