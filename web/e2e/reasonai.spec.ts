@@ -1,5 +1,7 @@
 import { test, expect } from "./fixtures/authenticated-test";
 import { createProfile } from "./helpers/factories";
+import { analysisDocument, analysisResponse } from "./helpers/reasonai-analysis";
+import { LocalStorageSystemDesignRepository } from "../src/features/system-design/repository/LocalStorageSystemDesignRepository";
 
 const proposal = { summary: "Add a service with a Redis cache", operations: [
   { op: "add_node", ref: "new:service", type: "service", label: "URL Service", x: 100, y: 100 },
@@ -269,4 +271,92 @@ test("a connection suggestion becomes unavailable when an endpoint is deleted", 
   await expect(last.getByRole("button", { name: "Connect", exact: true })).toBeDisabled();
   await expect(last).toContainText("Unavailable");
   await expect(page.getByLabel("Diagram status")).toContainText(/Connections\s+0/);
+});
+
+test("analysis highlights the existing canvas, clears safely, and stays out of persistence and undo", async ({ authenticatedPage: page }) => {
+  test.setTimeout(60_000);
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  const document = analysisDocument();
+  const key = LocalStorageSystemDesignRepository.storageKey("url-shortener");
+  await page.evaluate(({ key, document }) => localStorage.setItem(key, JSON.stringify(document)), { key, document });
+  await page.goto("/system-design/url-shortener");
+  const canvas = page.getByTestId("system-design-canvas");
+  await expect(canvas).toBeVisible();
+  const before = await page.evaluate((key) => localStorage.getItem(key), key);
+  const layerCount = await canvas.locator("canvas").count();
+  await page.route("**/api/reasonai/chat", (route) => route.fulfill({ json: { text: analysisResponse.summary, visualization: analysisResponse, sources: [{ id: 1, title: "Postgres availability", url: "https://www.postgresql.org/docs/current/high-availability.html" }] } }));
+  await page.getByRole("button", { name: "Open ReasonAI" }).click();
+  await page.getByLabel("Message ReasonAI").fill("What happens if Postgres fails?");
+  await page.getByLabel("Message ReasonAI").press("Enter");
+  const overlay = page.getByRole("region", { name: "ReasonAI analysis", exact: true });
+  await expect(overlay).toBeVisible();
+  await expect(overlay).toContainText("Hypothetical");
+  await expect(canvas.locator("canvas")).toHaveCount(layerCount + 1);
+  await page.screenshot({ path: "test-results/reasonai-analysis.png" });
+  await expect(page.getByRole("button", { name: "Undo", exact: true })).toBeDisabled();
+  await expect(page.getByRole("link", { name: /Postgres availability/ })).toHaveAttribute("rel", "noopener noreferrer");
+  expect(await page.evaluate((key) => localStorage.getItem(key), key)).toBe(before);
+  await page.getByRole("button", { name: "Close ReasonAI" }).click();
+  // The overlay layer must not intercept canvas selection or dragging.
+  const bounds = (await canvas.boundingBox())!;
+  const api = document.diagrams[document.rootDiagramId].nodes[0];
+  await page.mouse.click(bounds.x + api.x + api.width / 2, bounds.y + api.y + api.height / 2);
+  await expect(page.getByLabel("Diagram status")).toContainText(/Selected\s+1/);
+  await expect(overlay).toContainText("Reads depend on Postgres");
+  await page.mouse.move(bounds.x + api.x + api.width / 2, bounds.y + api.y + api.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + api.x + api.width / 2 + 60, bounds.y + api.y + api.height / 2 + 30, { steps: 6 });
+  await page.mouse.up();
+  await expect(overlay).toBeVisible();
+  await page.getByRole("button", { name: "Clear analysis" }).click();
+  await expect(overlay).toHaveCount(0);
+  await expect(canvas.locator("canvas")).toHaveCount(layerCount);
+  await canvas.focus();
+  await page.keyboard.press("Control+z");
+  // Undo reverses the actual drag; analysis never becomes a history item.
+  await expect(page.getByRole("button", { name: "Undo", exact: true })).toBeDisabled();
+  await expect(page.getByLabel("Diagram status")).toContainText(/Nodes\s+3/);
+  await page.getByRole("button", { name: /^(Save|Saved locally)$/ }).click();
+  await expect.poll(() => page.evaluate((key) => JSON.parse(localStorage.getItem(key)!).diagrams, key)).toEqual(document.diagrams);
+  expect(await page.evaluate((key) => localStorage.getItem(key), key)).not.toContain("Hypothetical");
+});
+
+test("late analysis is discarded after a topology change and never follows into nested diagrams", async ({ authenticatedPage: page }) => {
+  test.setTimeout(60_000);
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  const document = analysisDocument();
+  const key = LocalStorageSystemDesignRepository.storageKey("url-shortener");
+  await page.evaluate(({ key, document }) => localStorage.setItem(key, JSON.stringify(document)), { key, document });
+  await page.goto("/system-design/url-shortener");
+  const canvas = page.getByTestId("system-design-canvas");
+  await expect(canvas).toBeVisible();
+  let release = () => {};
+  let requested = false;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  await page.route("**/api/reasonai/chat", async (route) => { requested = true; await gate; await route.fulfill({ json: { text: analysisResponse.summary, visualization: analysisResponse } }); });
+  await page.getByRole("button", { name: "Open ReasonAI" }).click();
+  await page.getByLabel("Message ReasonAI").fill("Show failure impact");
+  await page.getByLabel("Message ReasonAI").press("Enter");
+  await expect.poll(() => requested).toBe(true);
+  await page.getByRole("button", { name: "Close ReasonAI" }).click();
+  const bounds = (await canvas.boundingBox())!;
+  await page.mouse.click(bounds.x + 220, bounds.y + 390);
+  await canvas.focus();
+  await page.keyboard.press("Delete");
+  await expect(page.getByLabel("Diagram status")).toContainText(/Nodes\s+2/);
+  release();
+  await page.getByRole("button", { name: "Open ReasonAI" }).click();
+  await expect(page.getByRole("log")).toContainText("Hypothetical");
+  await expect(page.getByRole("region", { name: "ReasonAI analysis", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Close ReasonAI" }).click();
+  await canvas.focus(); await page.keyboard.press("Control+z");
+  await page.getByRole("button", { name: "Open ReasonAI" }).click();
+  await page.getByLabel("Message ReasonAI").fill("Show failure impact again");
+  await page.getByLabel("Message ReasonAI").press("Enter");
+  await expect(page.getByRole("region", { name: "ReasonAI analysis", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Close ReasonAI" }).click();
+  await page.mouse.dblclick(bounds.x + 540, bounds.y + 145);
+  await expect(page.getByRole("navigation", { name: "Diagram breadcrumb" }).getByText("Analytics", { exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("region", { name: "ReasonAI analysis", exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Diagram status")).toContainText(/Nodes\s+1/);
 });

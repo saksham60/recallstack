@@ -298,7 +298,7 @@ test.describe("System Design access", () => {
     await expect(page).toHaveURL(/\/login(?:[/?#]|$)/);
     await expect(page.getByTestId("system-design-canvas")).toHaveCount(0);
     await expect(
-      page.getByRole("heading", { name: "URL Shortener" }),
+      page.getByRole("heading", { name: "URL Shortener", level: 1 }),
     ).toHaveCount(0);
   });
 
@@ -365,7 +365,7 @@ test.describe("System Design access", () => {
     await page.goto("/system-design/url-shortener");
     await expect(page.getByTestId("system-design-canvas")).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "URL Shortener" }),
+      page.getByRole("heading", { name: "URL Shortener", level: 1 }),
     ).toBeVisible();
   });
 });
@@ -619,6 +619,7 @@ test.describe("Standalone System Design Canvas", () => {
     });
     const expectedX = Math.round((150 - viewport.x) / viewport.zoom - 3);
     const expectedY = Math.round((170 - viewport.y) / viewport.zoom - 3);
+    await page.getByRole("button", { name: "Expand inspector" }).click();
     await expect(page.getByLabel("X", { exact: true })).toHaveValue(
       String(expectedX),
     );
@@ -1067,7 +1068,7 @@ test.describe("System Design editor", () => {
     });
     await label.fill("Catalog Service");
 
-    await page.getByLabel("Diagram status").click();
+    await page.getByTestId("system-design-canvas").focus();
     await page.keyboard.press("Control+d");
     await expectEditorCounts(page, {
       nodes: 2,
@@ -1307,6 +1308,7 @@ test.describe("System Design editor", () => {
       selected: 0,
     });
 
+    await page.getByRole("button", { name: "Close component library" }).first().click();
     const moduleCenter = await canvasPoint(
       page,
       moduleNode.x + moduleNode.width / 2,
@@ -1327,6 +1329,7 @@ test.describe("System Design editor", () => {
       selected: 0,
     });
 
+    await openComponentPalette(page);
     await page.getByRole("button", { name: "Add Service" }).click();
     await expectEditorCounts(page, {
       nodes: 1,
@@ -1335,6 +1338,7 @@ test.describe("System Design editor", () => {
     });
     await saveFromToolbar(page);
 
+    await page.getByRole("button", { name: "Close component library" }).first().click();
     await page
       .getByRole("navigation", { name: "Diagram breadcrumb" })
       .getByRole("button", { name: "URL Shortener", exact: true })
@@ -1478,7 +1482,7 @@ test.describe("System Design editor", () => {
         };
       })
       .toEqual({ nodes: 2, firstLabel: "Persistent User" });
-    await expect(page.getByText("Saved locally", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Saved locally", exact: true })).toBeVisible();
 
     await page.reload({ waitUntil: "domcontentloaded" });
     await expect(page.getByTestId("system-design-canvas")).toBeVisible();

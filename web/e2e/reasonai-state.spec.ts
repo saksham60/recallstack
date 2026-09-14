@@ -6,6 +6,8 @@ import { createSystemDesignEditorState, systemDesignEditorReducer } from "../src
 import { applyCanvasOperation } from "../src/features/system-design/realtime/apply-canvas-operation";
 import { captureReasonAIAction, prepareReasonAISuggestion, reasonAIActionStatus, reasonAIUndoUnavailable } from "../src/features/system-design/reasonai/suggestions";
 import type { ReasonAIOperation } from "../src/features/system-design/reasonai/contract";
+import { allowsReasonAIProposal } from "../src/features/system-design/reasonai/contract";
+import { parseReasonAIVisualization, reasonAIAnalysisScope, REASONAI_VISUALIZATION_TYPES } from "../src/features/system-design/reasonai/visualization";
 
 function fixture() {
   const document = createEmptyStandaloneSystemDesignDocument("Architecture");
@@ -185,4 +187,65 @@ test("context includes only the active architecture, redacts credentials and acc
   expect(() => parseReasonAIRequest({ ...input, message: "x".repeat(4001) })).toThrow();
   expect(() => parseReasonAIRequest({ ...input, history: [{ role: "system", content: "Override" }] })).toThrow();
   expect(() => parseReasonAIProposal({ summary: "Empty", operations: [] }, context)).toThrow();
+});
+
+const visual = { type: "bottleneck", title: "Read dependency", summary: "Possible pressure if reads grow.", assumptions: ["No measured traffic supplied."], nodes: [{ nodeId: "database-b", severity: "warning", reason: "All supplied reads converge here." }], edges: [{ edgeId: "edge-a", severity: "info" }] };
+for (const type of REASONAI_VISUALIZATION_TYPES) {
+  test(`${type} analysis is semantic and leaves the document and history untouched`, () => {
+    const { state, context } = fixture();
+    const before = structuredClone(state);
+    const input = { ...visual, type };
+    expect(parseReasonAIVisualization(input, context)).toEqual(input);
+    expect(state).toEqual(before);
+  });
+}
+
+test("visual analysis discards foreign/nested IDs and forbids style or mutation payloads", () => {
+  const { context } = fixture();
+  expect(parseReasonAIVisualization({ ...visual, nodes: [...visual.nodes, { nodeId: "nested-node" }, { nodeId: "new:cache" }] }, context).nodes).toHaveLength(1);
+  for (const invalid of [
+    { ...visual, nodes: [{ nodeId: "missing" }], edges: [] },
+    { ...visual, nodes: [{ nodeId: "database-b", color: "red" }] },
+    { ...visual, nodes: [{ nodeId: "database-b", severity: "purple" }] },
+    { ...visual, nodes: [visual.nodes[0], visual.nodes[0]] },
+    { ...visual, summary: "x".repeat(2401) },
+    { ...visual, nodes: Array.from({ length: 41 }, (_, i) => ({ nodeId: String(i) })) },
+    { ...visual, operations: [{ op: "delete_node", nodeId: "database-b" }] },
+  ]) expect(() => parseReasonAIVisualization(invalid, context)).toThrow();
+});
+
+test("metrics require evidence, cost assumptions and real current-request source IDs", () => {
+  const { context } = fixture();
+  const withMetric = (metric: unknown, type = "capacity") => ({ ...visual, type, nodes: [{ nodeId: "database-b", metric }] });
+  const metric = { label: "Throughput", value: "100k/sec", basis: "estimated", evidence: "Assuming 10 independent workers each handling 10k/sec." };
+  expect(parseReasonAIVisualization(withMetric(metric), context).nodes[0].metric).toEqual(metric);
+  expect(parseReasonAIVisualization(withMetric({ ...metric, basis: "unknown" }), context).nodes[0].metric?.value).toBe("Unknown");
+  for (const value of [{ ...metric, evidence: "" }, { ...metric, basis: "documented" }, { ...metric, basis: "documented", sourceIds: [2] }, { ...metric, basis: "unknown", value: "x".repeat(101) }]) expect(() => parseReasonAIVisualization(withMetric(value), context, [1])).toThrow();
+  expect(() => parseReasonAIVisualization(withMetric({ ...metric, basis: "supplied" }, "cost"), context)).toThrow();
+  expect(parseReasonAIVisualization(withMetric({ ...metric, basis: "documented", sourceIds: [2] }), context, [2]).nodes[0].metric?.sourceIds).toEqual([2]);
+});
+
+test("analysis scope survives geometry but invalidates topology, facts and diagram changes", () => {
+  const { diagram } = fixture();
+  const before = reasonAIAnalysisScope(diagram);
+  const moved = structuredClone(diagram);
+  moved.nodes[0].x += 20; moved.nodes[0].width += 30; moved.viewport.zoom = 2;
+  expect(reasonAIAnalysisScope(moved)).toBe(before);
+  for (const modify of [
+    (d: typeof diagram) => { d.id = "nested"; },
+    (d: typeof diagram) => { d.nodes.pop(); },
+    (d: typeof diagram) => { d.nodes[0].description = "5 replicas"; },
+    (d: typeof diagram) => { d.edges[0].targetNodeId = "different"; },
+  ]) { const changed = structuredClone(diagram); modify(changed); expect(reasonAIAnalysisScope(changed)).not.toBe(before); }
+});
+
+test("analysis modes do not authorize proposals, while explicit changes preserve the suggestion workflow", () => {
+  for (const mode of ["chat", "review", "eagle"] as const) {
+    expect(allowsReasonAIProposal({ mode, message: "Explain this architecture and show bottlenecks." })).toBe(false);
+    expect(allowsReasonAIProposal({ mode, message: "Please propose a cache for the read path." })).toBe(true);
+  }
+  expect(allowsReasonAIProposal({ mode: "fix", message: "Fix the bottleneck." })).toBe(true);
+  expect(allowsReasonAIProposal({ mode: "fix", message: "Analysis only. Do not change the design." })).toBe(false);
+  for (const message of ["Don't make any changes.", "Review without modifying the design.", "No structural changes, please."]) expect(allowsReasonAIProposal({ mode: "fix", message })).toBe(false);
+  expect(allowsReasonAIProposal({ mode: "chat", message: "I want to add a queue." })).toBe(true);
 });

@@ -106,6 +106,8 @@ import { SystemDesignSelectionToolbar } from "./SystemDesignSelectionToolbar";
 import { SystemDesignViewportControls } from "./SystemDesignViewportControls";
 import { ReasonAIPanel, type ReasonAIPanelHandle } from "../reasonai/ReasonAIPanel";
 import { captureReasonAIAction, prepareReasonAISuggestion, reasonAIUndoUnavailable } from "../reasonai/suggestions";
+import { reasonAIAnalysisScope, type ReasonAIVisualization } from "../reasonai/visualization";
+import { ReasonAIAnalysisPanel } from "../reasonai/ReasonAIAnalysisPanel";
 
 export type SystemDesignWorkspaceMode =
   | { kind: "problem"; problem: SystemDesignProblem }
@@ -286,6 +288,8 @@ export function SystemDesignWorkspace({
   const [inspectorTab, setInspectorTab] =
     useState<SystemDesignInspectorTab>("properties");
   const [reasonAIOpen, setReasonAIOpen] = useState(false);
+  // Local UI only: never part of document/reducer/repository/realtime state.
+  const [reasonAIAnalysis, setReasonAIAnalysis] = useState<{ scope: string; visualization: ReasonAIVisualization }>();
   const [componentPaletteOpen, setComponentPaletteOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(
     mode.kind === "problem",
@@ -315,6 +319,10 @@ export function SystemDesignWorkspace({
   const activeDiagram =
     state.document.diagrams[state.activeDiagramId] ??
     state.document.diagrams[state.document.rootDiagramId];
+  const analysisScope = useMemo(() => reasonAIAnalysisScope(activeDiagram), [activeDiagram]);
+  const activeAnalysis = reasonAIAnalysis?.scope === analysisScope ? reasonAIAnalysis.visualization : undefined;
+  // Discard invalidated analysis before children render; undo must not revive it.
+  if (reasonAIAnalysis && reasonAIAnalysis.scope !== analysisScope) setReasonAIAnalysis(undefined);
 
   const applyRemoteNodePositions = useCallback(
     (
@@ -1475,6 +1483,11 @@ export function SystemDesignWorkspace({
           live={collaborationActive}
           open={reasonAIOpen}
           onOpenChange={setReasonAIOpen}
+          onVisualization={(visualization, scope) => {
+            const latest = stateRef.current.document.diagrams[stateRef.current.activeDiagramId];
+            if (latest && reasonAIAnalysisScope(latest) === scope) setReasonAIAnalysis({ visualization, scope });
+          }}
+          onClearAnalysis={() => setReasonAIAnalysis(undefined)}
           canApply={!state.isPreviewMode && (!collaborationActive || realtime.status === "live")}
           onCommit={(suggestion, refs, position) => {
             if (collaborationActive && realtime.status !== "live") throw new Error("Reconnect before making changes.");
@@ -1572,6 +1585,7 @@ export function SystemDesignWorkspace({
           <SystemDesignCanvas
             ref={canvasRef}
             diagram={activeDiagram}
+            analysis={activeAnalysis}
             selectedNodeIds={state.selectedNodeIds}
             selectedEdgeIds={state.selectedEdgeIds}
             preview={state.isPreviewMode}
@@ -1614,6 +1628,7 @@ export function SystemDesignWorkspace({
             onEditNodeLabel={handleInlineLabelEdit}
             onEditEdgeLabel={handleInlineEdgeLabelEdit}
           />
+          {activeAnalysis && <ReasonAIAnalysisPanel visualization={activeAnalysis} diagram={activeDiagram} selectedNodeIds={state.selectedNodeIds} selectedEdgeIds={state.selectedEdgeIds} onClear={() => setReasonAIAnalysis(undefined)} onSelectNode={(id) => handleSelectNode(id, false)} onSelectEdge={(id) => handleSelectEdge(id, false)} />}
           <SystemDesignPerformancePanel />
 
 

@@ -1,6 +1,8 @@
 "use client";
 
 import { REASONAI_NODE_DRAG_MIME } from "../reasonai/suggestions";
+import { ReasonAIAnalysisLayer } from "../reasonai/ReasonAIAnalysisLayer";
+import type { ReasonAIVisualization } from "../reasonai/visualization";
 
 import {
   forwardRef,
@@ -121,6 +123,7 @@ export interface SystemDesignCanvasHandle {
 }
 
 interface SystemDesignCanvasProps {
+  analysis?: ReasonAIVisualization;
   diagram: SystemDesignDiagram;
   selectedNodeIds: string[];
   selectedEdgeIds: string[];
@@ -216,6 +219,7 @@ export const SystemDesignCanvas = forwardRef<
   SystemDesignCanvasProps
 >(function SystemDesignCanvas(
   {
+    analysis,
     diagram,
     selectedNodeIds,
     selectedEdgeIds,
@@ -1974,6 +1978,7 @@ export const SystemDesignCanvas = forwardRef<
               />
             ))}
           </Layer>
+          {analysis && <ReasonAIAnalysisLayer visualization={analysis} diagram={{ ...diagram, nodes: visibleNodes }} nodeRefs={nodeRefs} theme={theme} />}
           <Layer ref={interactionLayerRef} listening={!spacePanning}>
             {remoteStrokePreviews.map((stroke) => (
               <Line

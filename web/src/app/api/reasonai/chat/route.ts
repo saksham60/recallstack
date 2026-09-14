@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   let input;
   try { input = parseReasonAIRequest(await readBoundedJSON(request, 512 * 1024)); }
   catch { return reply({ error: "Invalid request. Use a message up to 4,000 characters and an active diagram with at most 200 nodes and 400 connections." }, 400); }
-  try { return reply(await reasonAIProvider.complete(input)); }
+  try { return reply(await reasonAIProvider.complete(input, request.signal)); }
   catch (error) {
     return error instanceof ReasonAIProviderError
       ? reply({ error: error.message }, error.status)

@@ -6,6 +6,7 @@ import {
   type SystemDesignDocument,
 } from "../src/features/system-design/types/system-design.types";
 import { createCollaborationChildDiagramId } from "../src/features/system-design/realtime/canvas-operation";
+import { analysisDocument, analysisResponse } from "./helpers/reasonai-analysis";
 
 const ROOM_TOKEN = "room_token_for_browser_test_123456789";
 
@@ -571,4 +572,32 @@ base("shows a safe terminal state when a guest room has ended", async ({
     page.getByRole("heading", { name: "This live session has ended" }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Try again" })).toHaveCount(0);
+});
+
+base("analysis is private during Live Share and clears on remote architectural edits", async ({ page, browser }) => {
+  base.setTimeout(60_000);
+  const snapshot = analysisDocument();
+  const collaboratorContext = await browser.newContext();
+  const collaborator = await collaboratorContext.newPage();
+  try {
+    await installRealtimeSocket(page, { mode: "full", snapshot });
+    await installRealtimeSocket(collaborator, { mode: "full", snapshot });
+    await page.route("**/api/reasonai/chat", (route) => route.fulfill({ json: { text: analysisResponse.summary, visualization: analysisResponse } }));
+    await page.goto(`/system-design/live/${ROOM_TOKEN}`);
+    await collaborator.goto(`/system-design/live/${ROOM_TOKEN}`);
+    await expect(page.getByTestId("system-design-canvas")).toBeVisible();
+    await expect(collaborator.getByTestId("system-design-canvas")).toBeVisible();
+    await page.getByRole("button", { name: "Open ReasonAI" }).click();
+    await page.getByLabel("Message ReasonAI").fill("What if Postgres fails?");
+    await page.getByLabel("Message ReasonAI").press("Enter");
+    await expect(page.getByRole("region", { name: "ReasonAI analysis", exact: true })).toBeVisible();
+    await expect(collaborator.getByRole("region", { name: "ReasonAI analysis", exact: true })).toHaveCount(0);
+    const messages = await page.evaluate(() => (window as unknown as RealtimeTestWindow).__sentRealtimeMessages ?? []);
+    expect(messages.join(" ")).not.toMatch(/Hypothetical|visualization|Postgres unavailable|op.commit/);
+    await page.evaluate((diagramId) => {
+      (window as unknown as RealtimeTestWindow).__emitRealtimeMessage?.({ v: 1, type: "op.commit", opId: "remote-delete-postgres", actorId: "other-user", sequence: 1, payload: { kind: "node.delete", diagramId, nodeIds: ["postgres"] } });
+    }, snapshot.rootDiagramId);
+    await expect(page.getByLabel("Diagram status")).toContainText(/Nodes\s+2/);
+    await expect(page.getByRole("region", { name: "ReasonAI analysis", exact: true })).toHaveCount(0);
+  } finally { await collaboratorContext.close(); }
 });

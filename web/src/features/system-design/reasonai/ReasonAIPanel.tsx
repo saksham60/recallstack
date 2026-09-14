@@ -23,8 +23,11 @@ import type { SystemDesignDiagram, SystemDesignPoint, SystemDesignProblem } from
 import { buildReasonAIContext, parseReasonAIProposal, record, REASONAI_INVALID_PROPOSAL, REASONAI_MODES, type ReasonAIMessage, type ReasonAIMode, type ReasonAIProposal } from "./contract";
 import { normalizeReasonAIVisibleText } from "./visible-text";
 import { ReasonAISuggestions, type ReasonAISuggestionActions } from "./ReasonAISuggestions";
+import { parseReasonAISources, type ReasonAISource } from "./sources";
+import { ReasonAISources } from "./ReasonAISources";
+import { parseReasonAIVisualization, reasonAIAnalysisScope, type ReasonAIVisualization } from "./visualization";
 
-interface Turn extends ReasonAIMessage { id: string; proposal?: ReasonAIProposal }
+interface Turn extends ReasonAIMessage { id: string; proposal?: ReasonAIProposal; sources?: ReasonAISource[]; notice?: string }
 interface Generation { question: string; mode: ReasonAIMode; history: ReasonAIMessage[] }
 export interface ReasonAIPanelHandle { dropSuggestion: (token: string, position: SystemDesignPoint) => void }
 
@@ -64,6 +67,8 @@ export function ReasonAIPanel({
   undoUnavailable,
   open: controlledOpen,
   onOpenChange,
+  onVisualization,
+  onClearAnalysis,
 }: ReasonAISuggestionActions & {
   ref?: Ref<ReasonAIPanelHandle>;
   diagram: SystemDesignDiagram;
@@ -75,6 +80,8 @@ export function ReasonAIPanel({
   live: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  onVisualization?: (visualization: ReasonAIVisualization, scope: string) => void;
+  onClearAnalysis?: () => void;
 }) {
   const [internalOpen, setInternalOpen] = useState(false);
   const open = controlledOpen ?? internalOpen;
@@ -265,9 +272,15 @@ export function ReasonAIPanel({
       }
       const content = normalizeReasonAIVisibleText(data.text, context, proposal);
       if (pending.current !== controller) return;
+      const sources = parseReasonAISources(data.sources);
+      let notice = typeof data.notice === "string" ? data.notice.slice(0, 1000) : undefined;
+      if (data.visualization) {
+        try { onVisualization?.(parseReasonAIVisualization(data.visualization, context, sources.map((source) => source.id)), reasonAIAnalysisScope(diagram)); }
+        catch { notice = "The analysis overlay could not be displayed. Your architecture is unchanged."; }
+      }
       setTurns((previous) => [
         ...previous,
-        { id: crypto.randomUUID(), role: "assistant", content, proposal },
+        { id: crypto.randomUUID(), role: "assistant", content, proposal, sources, notice },
       ]);
     } catch (error) {
       if (pending.current === controller) {
@@ -289,6 +302,7 @@ export function ReasonAIPanel({
   }
 
   function clearConversation() {
+    onClearAnalysis?.();
     pending.current?.abort();
     pending.current = null;
     pendingDrop.current = null;
@@ -563,6 +577,8 @@ export function ReasonAIPanel({
                 }}
               />
             )}
+            {turn.notice && <p className="text-xs leading-5 text-warning">{turn.notice}</p>}
+            {!!turn.sources?.length && <ReasonAISources sources={turn.sources} />}
             {turn.role === "assistant" &&
               !turn.proposal &&
               index === turns.length - 1 &&
@@ -632,6 +648,10 @@ export function ReasonAIPanel({
             ),
           )}
         </div>
+        <details className="text-xs text-muted"><summary className="cursor-pointer py-1 hover:text-foreground">Visual analysis</summary><div className="grid grid-cols-2 gap-1 py-2">{[
+          ["Show bottlenecks", "Show bottlenecks in"], ["Simulate failure", "Simulate a hypothetical failure affecting"],
+          ["Capacity analysis", "Analyze capacity risks in"], ["Reliability analysis", "Show reliability risks in"],
+        ].map(([label, prompt]) => <button key={label} type="button" disabled={busy} onClick={() => quick("chat", prompt)} className="rounded-md bg-background/50 px-2 py-2 text-left hover:text-accent disabled:opacity-40">{label}</button>)}</div></details>
         <div className="flex items-center justify-between text-[10px] text-muted">
           <span>
             {selected ? `${selected} selected · ` : ""}

@@ -1,6 +1,8 @@
 import { SYSTEM_DESIGN_NODE_DEFINITIONS } from "../constants/system-design-palette";
 import { SYSTEM_DESIGN_PRIMARY_EDGE_TYPES, SYSTEM_DESIGN_LEGACY_EDGE_TYPES } from "../constants/system-design-edge-registry";
 import type { SystemDesignDiagram, SystemDesignEdge, SystemDesignNode, SystemDesignProblem } from "../types/system-design.types";
+import type { ReasonAIVisualization } from "./visualization";
+import type { ReasonAISource } from "./sources";
 
 export const REASONAI_MODES = { chat: "Chat", review: "Review", fix: "Fix", eagle: "Eagle View" } as const;
 export type ReasonAIMode = keyof typeof REASONAI_MODES;
@@ -16,7 +18,7 @@ export type ReasonAIOperation =
   | ({ op: "update_edge"; edgeId: string } & Partial<EdgeFields>)
   | { op: "delete_edge"; edgeId: string };
 export interface ReasonAIProposal { summary: string; operations: ReasonAIOperation[] }
-export interface ReasonAIResponse { text: string; proposal?: ReasonAIProposal }
+export interface ReasonAIResponse { text: string; proposal?: ReasonAIProposal; visualization?: ReasonAIVisualization; sources?: ReasonAISource[]; notice?: string }
 export const REASONAI_INVALID_PROPOSAL = "ReasonAI returned an invalid canvas proposal. No changes were applied.";
 export interface ReasonAIContext {
   title: string;
@@ -32,6 +34,11 @@ export interface ReasonAIRequest {
   message: string;
   history: ReasonAIMessage[];
   context: ReasonAIContext;
+}
+export function allowsReasonAIProposal(request: Pick<ReasonAIRequest, "mode" | "message">): boolean {
+  if (/\b(?:do not|don['\u2019]t|without|never)\s+(?:\w+\s+){0,3}(?:chang(?:e[sd]?|ing)|modif(?:y|ying|ications?)|add(?:ing)?|remov(?:e|ing)|delet(?:e|ing)|propos(?:e|ing|als?)|fix(?:ing)?)\b|\b(?:analysis|explanation|review) only\b|\bno\s+(?:(?:structural|canvas|architectural?)\s+)?(?:changes|modifications|proposals)\b/i.test(request.message)) return false;
+  if (request.mode === "fix") return true;
+  return /(?:^|[.!?]\s+)(?:(?:please|can you|could you|would you|help me|i want(?: you)? to|let's)\s+)*(?:add|remove|delete|create|build|design|fix|improve|replace|update|move|connect|propose|optimize|redesign|suggest (?:changes|improvements))\b/i.test(request.message.trim());
 }
 export class ReasonAIValidationError extends Error {}
 export function record(value: unknown): Record<string, unknown> {
@@ -67,7 +74,7 @@ function array<T>(value: unknown, max: number, parse: (item: unknown) => T): T[]
 export function redactReasonAIText(value: string): string {
   return value
     .replace(/data:[^\s"'<>]+/gi, "[inline data omitted]")
-    .replace(/\b(?:Bearer\s+\S+|(?:sk-|ghp_|github_pat_)[A-Za-z0-9_-]{16,}|v1\.[A-Za-z0-9_-]{30,}\.[A-Za-z0-9_-]+|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)/g, "[credential redacted]")
+    .replace(/\b(?:Bearer\s+\S+|(?:tvly-|sk-|ghp_|github_pat_)[A-Za-z0-9_-]{16,}|v1\.[A-Za-z0-9_-]{30,}\.[A-Za-z0-9_-]+|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)/g, "[credential redacted]")
     .replace(/\b(api[_ -]?key|password|secret|access[_ -]?token)\s*[:=]\s*[^\s,;]+/gi, "$1=[redacted]");
 }
 const compact = (value: string | undefined, max = 2000) => redactReasonAIText(value ?? "").slice(0, max);
