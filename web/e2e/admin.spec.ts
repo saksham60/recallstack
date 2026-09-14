@@ -28,6 +28,7 @@ test.describe('Admin access and overview', () => {
       return route.fulfill({ json: createAdminOverview() });
     });
     await page.goto('/admin');
+    await expect(page.getByRole('link', { name: 'ReasonAI Admin', exact: true })).toBeVisible();
     await expect(page.getByText('1,234')).toBeVisible();
     await expect(page.getByText('60%')).toBeVisible();
     await page.getByRole('button', { name: 'Refresh' }).click();

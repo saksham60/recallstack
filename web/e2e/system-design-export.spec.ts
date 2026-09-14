@@ -417,6 +417,8 @@ test.describe("interactive system-design HTML export", () => {
       createDocument(),
       problem,
     );
+    expect(exported.html).toContain("ReasonAI / read-only architecture");
+    expect(exported.html).not.toContain("Recall Stack");
 
     expect(exported.filename).toBe("url-shortener-system-design.html");
     expect(exported.html).toContain(

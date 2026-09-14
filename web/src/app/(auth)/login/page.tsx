@@ -17,9 +17,9 @@ function LoginContent() {
 
   useEffect(() => {
     if (user) {
-      router.replace(nextPath);
+      router.replace("/dsa");
     }
-  }, [user, router, nextPath]);
+  }, [user, router]);
 
   const handleSignIn = async () => {
     setSignInError(false);
@@ -46,7 +46,7 @@ function LoginContent() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm rounded-xl border border-border bg-surface p-8 shadow-sm">
         <div className="flex flex-col space-y-2 text-center">
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">RecallStack</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">ReasonAI</h1>
           <p className="text-sm text-muted">Technical learning and active recall</p>
         </div>
         

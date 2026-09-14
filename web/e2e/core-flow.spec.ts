@@ -5,6 +5,7 @@ test.describe('Core Flow', () => {
     await page.goto('/');
 
     await expect(page).toHaveURL(/.*\/$/);
+    await expect(page.getByRole('navigation').getByText('ReasonAI', { exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: /Think\. Connect\. Reason\./ })).toBeVisible();
     await expect(page.getByRole('navigation')).toContainText('Login');
     await expect(page.getByRole('navigation')).toContainText('Canvas');

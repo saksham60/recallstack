@@ -221,7 +221,7 @@ export function parseDiagramDocument(
     const migrated = migrate(value);
     if (migrated) return validateDiagramDocument(migrated);
   }
-  throw new DiagramImportError("This file is not a supported Recall Stack diagram.");
+  throw new DiagramImportError("This file is not a supported ReasonAI diagram.");
 }
 
 export function serializeDiagramDocument(document: DiagramDocument): string {

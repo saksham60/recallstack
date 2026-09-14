@@ -14,7 +14,7 @@ export function TopNavigation({
       <div className="max-w-7xl mx-auto flex h-14 items-center justify-between px-4 sm:px-6 lg:px-8 gap-2 sm:gap-4">
         
         <Link href="/" className="flex items-center space-x-2 shrink-0">
-          <span className="font-bold sm:inline-block text-accent">RecallStack</span>
+          <span className="font-bold sm:inline-block text-accent">ReasonAI</span>
         </Link>
         
         <div className="flex items-center gap-2 md:gap-6 shrink-0">
@@ -23,9 +23,6 @@ export function TopNavigation({
           </Link>
           <Link href="/dsa" className="text-sm font-medium text-muted hover:text-foreground transition-colors sm:hidden">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-          </Link>
-          <Link href="/bookmarks" className="text-sm font-medium text-muted hover:text-foreground transition-colors hidden md:block">
-            Bookmarks
           </Link>
           <Link href="/revise" className="text-sm font-medium text-muted hover:text-foreground transition-colors flex items-center gap-1">
             <span className="hidden sm:inline">Revise</span>

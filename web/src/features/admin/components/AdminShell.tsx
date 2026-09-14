@@ -44,7 +44,7 @@ export function AdminGate({
           <p className="text-xs font-semibold uppercase tracking-widest text-danger">403 · Access denied</p>
           <h1 className="mt-3 text-2xl font-bold">Administrator access is required</h1>
           <p className="mt-2 text-sm text-muted">Your account is signed in, but it does not have an active admin role.</p>
-          <Link href="/" className="mt-6 inline-flex rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground">Back to Recall Stack</Link>
+          <Link href="/" className="mt-6 inline-flex rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground">Back to ReasonAI</Link>
         </div>
       </main>
     );
@@ -87,12 +87,12 @@ function AdminShell({
       <header className="sticky top-0 z-40 border-b border-border bg-surface/95 backdrop-blur">
         <div className="mx-auto flex min-h-14 max-w-[1600px] flex-wrap items-center justify-between gap-3 px-4 py-2 lg:px-6">
           <div className="flex items-center gap-3">
-            <Link href="/admin" className="font-bold text-accent">RecallStack Admin</Link>
+            <Link href="/admin" className="font-bold text-accent">ReasonAI Admin</Link>
             <span className="rounded border border-warning/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-warning">Admin area</span>
           </div>
           <div className="flex items-center gap-4 text-sm">
             <span className="hidden text-muted sm:inline">Signed in as <strong className="text-foreground">{identity}</strong></span>
-            <Link href="/" className="rounded-md border border-border px-3 py-1.5 hover:border-accent">← Back to Recall Stack</Link>
+            <Link href="/" className="rounded-md border border-border px-3 py-1.5 hover:border-accent">← Back to ReasonAI</Link>
           </div>
         </div>
       </header>

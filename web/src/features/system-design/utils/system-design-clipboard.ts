@@ -225,7 +225,7 @@ export function parseSystemDesignClipboardFragment(
     !value.sourceDiagramId.trim()
   ) {
     throw new SystemDesignClipboardError(
-      "The clipboard does not contain a Recall Stack diagram fragment.",
+      "The clipboard does not contain a ReasonAI diagram fragment.",
     );
   }
 

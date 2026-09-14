@@ -38,6 +38,9 @@ export function UserMenu() {
           <Link href="/profile" className="block px-4 py-2 text-sm text-foreground hover:bg-surface hover:text-accent">
             Profile Settings
           </Link>
+          <Link href="/bookmarks" className="block px-4 py-2 text-sm text-foreground hover:bg-surface hover:text-accent">
+            Bookmarks
+          </Link>
           <button 
             onClick={handleSignOut}
             className="block w-full text-left px-4 py-2 text-sm text-danger hover:bg-surface"

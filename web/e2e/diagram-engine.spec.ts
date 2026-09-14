@@ -314,6 +314,7 @@ test.describe("generic diagram engine", () => {
     expect(svg).toContain("data-plane=\"connectors\"");
     expect(svg).not.toContain("data:image/png");
     const drawio = createDrawioXml(page);
+    expect(drawio).toContain('host="ReasonAI"');
     expect(drawio).toContain("<mxGraphModel>");
     expect(drawio).toContain("source=\"rectangle\"");
     expect(drawio).toContain("target=\"database\"");

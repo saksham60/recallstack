@@ -12,14 +12,26 @@ test.describe('Authentication and Route Protection', () => {
         await expect(page).toHaveURL(/.*\/login/);
       });
     }
+
+    test('shows ReasonAI branding on login', async ({ page }) => {
+      await page.goto('/login');
+      await expect(page.getByRole('heading', { name: 'ReasonAI', exact: true })).toBeVisible();
+      await expect(page.getByText('RecallStack', { exact: true })).toHaveCount(0);
+    });
   });
 
   test.describe('Authenticated User', () => {
+    test('redirects from the landing page to /dsa', async ({ page }) => {
+      await setupAuth(page);
+      await page.goto('/');
+      await expect(page).toHaveURL(/.*\/dsa$/);
+      await expect(page.getByRole('heading', { name: /Think\. Connect\. Reason\./ })).toHaveCount(0);
+    });
+
     test('redirects from login to /dsa', async ({ page }) => {
       await setupAuth(page);
-      await page.goto('/login');
-      // Should redirect to /dsa since user is authenticated
-      await expect(page).toHaveURL(/.*\/dsa/);
+      await page.goto('/login?next=/profile');
+      await expect(page).toHaveURL(/.*\/dsa$/);
     });
   });
 

@@ -307,13 +307,13 @@ export function prepareInteractiveSystemDesignHtml(
   };
   const viewerTitle =
     options.mode === "full"
-      ? `${options.problem.title} - Recall Stack System Design`
+      ? `${options.problem.title} - ReasonAI System Design`
       : options.title ?? parsedDocument.title;
   const viewerBody =
     options.mode === "full"
       ? `<main class="app">
     <header class="topbar">
-      <div class="brand"><strong>${escapeHtml(options.problem.title)}</strong><span>Recall Stack / read-only architecture</span></div>
+      <div class="brand"><strong>${escapeHtml(options.problem.title)}</strong><span>ReasonAI / read-only architecture</span></div>
       <input id="search" class="search" type="search" placeholder="Search components..." aria-label="Search components">
       <div class="tools">
         <button id="back" type="button" title="Back to parent diagram">&larr; <span>Back</span></button>
