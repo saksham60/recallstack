@@ -38,6 +38,10 @@ export function UserMenu() {
           <Link href="/profile" className="block px-4 py-2 text-sm text-foreground hover:bg-surface hover:text-accent">
             Profile Settings
           </Link>
+          <Link href="/revise" className="flex items-center justify-between px-4 py-2 text-sm text-foreground hover:bg-surface hover:text-accent">
+            <span>Revise</span>
+            <span className="rounded-full bg-accent/20 px-1.5 text-[10px] text-accent">New</span>
+          </Link>
           <Link href="/bookmarks" className="block px-4 py-2 text-sm text-foreground hover:bg-surface hover:text-accent">
             Bookmarks
           </Link>

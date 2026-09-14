@@ -17,7 +17,7 @@ test.describe('Bookmarks Flow', () => {
     });
   });
 
-  test('appears in the user menu instead of the top navigation', async ({ authenticatedPage: page }) => {
+  test('places Revise and Bookmarks in the user menu in the expected order', async ({ authenticatedPage: page }) => {
     await page.route('**/api/v1/me', async route => {
       await route.fulfill({ json: { id: 'test-user-id', email: 'test@example.com', display_name: 'Student', roles: [] } });
     });
@@ -25,18 +25,23 @@ test.describe('Bookmarks Flow', () => {
 
     const header = page.locator('header');
     await expect(header.getByText('ReasonAI', { exact: true })).toBeVisible();
+    await expect(header.locator('a[href="/revise"]')).toHaveCount(1);
     await expect(header.locator('a[href="/bookmarks"]')).toHaveCount(1);
+    await expect(header.locator('a[href="/revise"]')).not.toBeVisible();
     await expect(header.locator('a[href="/bookmarks"]')).not.toBeVisible();
 
     await header.locator('a[href="/profile"]').first().hover();
+    const revise = header.getByRole('link', { name: /Revise/, exact: false });
     const bookmarks = header.getByRole('link', { name: 'Bookmarks', exact: true });
     const signOut = header.getByRole('button', { name: 'Sign Out', exact: true });
+    await expect(revise).toBeVisible();
     await expect(bookmarks).toBeVisible();
     await expect(signOut).toBeVisible();
+    expect(await revise.evaluate((element, link) => element.nextElementSibling === link, await bookmarks.elementHandle())).toBe(true);
     expect(await bookmarks.evaluate((element, button) => element.nextElementSibling === button, await signOut.elementHandle())).toBe(true);
 
-    await bookmarks.click();
-    await expect(page).toHaveURL(/.*\/bookmarks$/);
+    await revise.click();
+    await expect(page).toHaveURL(/.*\/revise$/);
   });
 
   test('lists bookmarks and handles empty state', async ({ authenticatedPage: page }) => {
