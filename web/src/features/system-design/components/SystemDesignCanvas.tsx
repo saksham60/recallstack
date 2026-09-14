@@ -1978,8 +1978,8 @@ export const SystemDesignCanvas = forwardRef<
               />
             ))}
           </Layer>
-          {analysis && <ReasonAIAnalysisLayer visualization={analysis} diagram={{ ...diagram, nodes: visibleNodes }} nodeRefs={nodeRefs} theme={theme} />}
           <Layer ref={interactionLayerRef} listening={!spacePanning}>
+            {analysis && <ReasonAIAnalysisLayer visualization={analysis} diagram={{ ...diagram, nodes: visibleNodes }} nodeRefs={nodeRefs} theme={theme} />}
             {remoteStrokePreviews.map((stroke) => (
               <Line
                 key={stroke.key}

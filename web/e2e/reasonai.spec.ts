@@ -284,6 +284,9 @@ test("analysis highlights the existing canvas, clears safely, and stays out of p
   await expect(canvas).toBeVisible();
   const before = await page.evaluate((key) => localStorage.getItem(key), key);
   const layerCount = await canvas.locator("canvas").count();
+  const canvasBounds = (await canvas.boundingBox())!;
+  const ringClip = { x: canvasBounds.x + 453, y: canvasBounds.y + 380, width: 8, height: 30 };
+  const beforeRing = await page.screenshot({ clip: ringClip });
   await page.route("**/api/reasonai/chat", (route) => route.fulfill({ json: { text: analysisResponse.summary, visualization: analysisResponse, sources: [{ id: 1, title: "Postgres availability", url: "https://www.postgresql.org/docs/current/high-availability.html" }] } }));
   await page.getByRole("button", { name: "Open ReasonAI" }).click();
   await page.getByLabel("Message ReasonAI").fill("What happens if Postgres fails?");
@@ -291,7 +294,8 @@ test("analysis highlights the existing canvas, clears safely, and stays out of p
   const overlay = page.getByRole("region", { name: "ReasonAI analysis", exact: true });
   await expect(overlay).toBeVisible();
   await expect(overlay).toContainText("Hypothetical");
-  await expect(canvas.locator("canvas")).toHaveCount(layerCount + 1);
+  await expect(canvas.locator("canvas")).toHaveCount(layerCount);
+  expect(await page.screenshot({ clip: ringClip })).not.toEqual(beforeRing);
   await page.screenshot({ path: "test-results/reasonai-analysis.png" });
   await expect(page.getByRole("button", { name: "Undo", exact: true })).toBeDisabled();
   await expect(page.getByRole("link", { name: /Postgres availability/ })).toHaveAttribute("rel", "noopener noreferrer");

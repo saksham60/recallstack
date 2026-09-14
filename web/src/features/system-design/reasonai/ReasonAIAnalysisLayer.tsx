@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, type RefObject } from "react";
 import type Konva from "konva";
-import { Group, Layer, Line, Rect, Text } from "react-konva";
+import { Group, Line, Rect, Text } from "react-konva";
 import type { SystemDesignDiagram, SystemDesignNode } from "../types/system-design.types";
 import type { SystemDesignCanvasTheme } from "../components/SystemDesignNodeRenderer";
 import { getNodePortPosition } from "../components/SystemDesignEdgeRenderer";
@@ -14,7 +14,7 @@ export function ReasonAIAnalysisLayer({ visualization, diagram, nodeRefs, theme 
   visualization: ReasonAIVisualization; diagram: SystemDesignDiagram;
   nodeRefs: RefObject<Map<string, Konva.Group>>; theme: SystemDesignCanvasTheme;
 }) {
-  const layer = useRef<Konva.Layer>(null);
+  const overlay = useRef<Konva.Group>(null);
   const groups = useRef(new Map<string, Konva.Group>());
   const lines = useRef(new Map<string, Konva.Line>());
   const colors: Record<ReasonAISeverity, string> = { critical: theme.danger, warning: theme.warning, healthy: theme.success, info: theme.accent };
@@ -43,14 +43,16 @@ export function ReasonAIAnalysisLayer({ visualization, diagram, nodeRefs, theme 
           const from = frames.get(edge.sourceNodeId), to = frames.get(edge.targetNodeId);
           if (from && to) lines.current.get(edge.id)?.points(getSystemDesignConnectionPoints(getNodePortPosition(from, edge.sourcePort), getNodePortPosition(to, edge.targetPort), resolveSystemDesignEdgeStyle(edge).routing));
         }
-        layer.current?.batchDraw();
+        overlay.current?.getLayer()?.batchDraw();
       }
       animation = requestAnimationFrame(refresh);
     }
     refresh();
     return () => cancelAnimationFrame(animation);
   }, [diagram.nodes, diagram.edges, nodeRefs, visualization]);
-  return <Layer ref={layer} name="reasonai-analysis" listening={false}>
+  // Share the existing interaction layer: passive annotations do not allocate
+  // another full-size canvas or force static architecture nodes to redraw.
+  return <Group ref={overlay} name="reasonai-analysis" listening={false}>
     {visualization.edges.map((annotation) => {
       const edge = diagram.edges.find((edge) => edge.id === annotation.edgeId);
       if (!edge) return null;
@@ -69,5 +71,5 @@ export function ReasonAIAnalysisLayer({ visualization, diagram, nodeRefs, theme 
         <Text x={2} y={-22} width={30} align="center" text={String(index + 1)} fill={color} fontSize={12} />
       </Group>;
     })}
-  </Layer>;
+  </Group>;
 }

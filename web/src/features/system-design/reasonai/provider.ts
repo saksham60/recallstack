@@ -7,13 +7,14 @@ import { parseResearchQuery, REASONAI_SEARCH_TOOL } from "./research";
 import { parseReasonAIVisualization, REASONAI_VISUALIZATION_TOOL } from "./visualization";
 import { SYSTEM_DESIGN_REASONAI_PROMPT, reasonAITurnRules } from "./system-prompt";
 import type { ReasonAISource } from "./sources";
+import { normalizeVisualizationArguments } from "./visualization-arguments";
 
 export interface ReasonAIProvider { complete(request: ReasonAIRequest, signal?: AbortSignal): Promise<ReasonAIResponse> }
 export class ReasonAIProviderError extends Error {
   constructor(message: string, public readonly status = 502) { super(message); }
 }
 const INCOMPLETE_RESPONSE = "ReasonAI could not complete that response. Please try again.";
-type Diagnostic = "INVALID_CHOICES" | "FINISH_REASON_REJECTED" | "RESPONSE_TRUNCATED" | "INVALID_CONTENT" | "INVALID_TOOL_CALL" | "TOOL_ARGUMENT_JSON_INVALID" | "PROPOSAL_VALIDATION_FAILED" | "EMPTY_RESPONSE" | "RESPONSE_TOO_LARGE" | "INVALID_RESPONSE_JSON" | "SECRET_IN_RESPONSE" | "PROVIDER_HTTP_ERROR" | "TIMEOUT" | "PROVIDER_UNAVAILABLE";
+type Diagnostic = "INVALID_CHOICES" | "FINISH_REASON_REJECTED" | "RESPONSE_TRUNCATED" | "INVALID_CONTENT" | "INVALID_TOOL_CALL" | "TOOL_ARGUMENT_JSON_INVALID" | "PROPOSAL_VALIDATION_FAILED" | "VISUALIZATION_VALIDATION_FAILED" | "EMPTY_RESPONSE" | "RESPONSE_TOO_LARGE" | "INVALID_RESPONSE_JSON" | "SECRET_IN_RESPONSE" | "PROVIDER_HTTP_ERROR" | "TIMEOUT" | "PROVIDER_UNAVAILABLE";
 type DiagnosticMetadata = { choices?: number; toolCalls?: number; finishReason?: string; status?: number; reason?: string };
 function diagnostic(category: Diagnostic, metadata: DiagnosticMetadata = {}) {
   // Call sites only supply counts, known enum values, and fixed validator messages.
@@ -50,7 +51,7 @@ function hasSecret(value: unknown, keys: string[]): boolean {
   const text = typeof value === "string" ? value : JSON.stringify(value);
   return keys.some((key) => text?.includes(key));
 }
-function normalizeResponse(raw: unknown, request: ReasonAIRequest, keys: string[], evidence: (TavilyEvidence & { id: number })[]): ReasonAIResponse {
+function normalizeResponse(raw: unknown, request: ReasonAIRequest, keys: string[], evidence: (TavilyEvidence & { id: number })[], onInvalidVisualization: (reason: string) => void): ReasonAIResponse {
   const choice = selectChoice(raw), message = object(choice.message)!;
   const finishReason = safeFinishReason(choice.finish_reason);
   if (finishReason === "length") diagnostic("RESPONSE_TRUNCATED", { finishReason });
@@ -69,6 +70,7 @@ function normalizeResponse(raw: unknown, request: ReasonAIRequest, keys: string[
       catch {
         if (fn.name === "propose_canvas_changes") return reject("TOOL_ARGUMENT_JSON_INVALID", finishReason === "length" ? INCOMPLETE_RESPONSE : REASONAI_INVALID_PROPOSAL, { finishReason });
         notice = "The analysis overlay could not be displayed. Your architecture is unchanged.";
+        onInvalidVisualization("Tool arguments must be valid JSON.");
       }
       if (hasSecret(value, keys)) return reject("SECRET_IN_RESPONSE");
       if (fn.name === "propose_canvas_changes") {
@@ -78,19 +80,34 @@ function normalizeResponse(raw: unknown, request: ReasonAIRequest, keys: string[
       } else {
         const summary = object(value)?.summary;
         if (typeof summary === "string" && summary.length <= 2400) visualSummary = summary;
-        try { visualization = parseReasonAIVisualization(value, request.context, evidence.length); }
-        catch { notice = "The analysis overlay could not be displayed. Your architecture is unchanged."; }
+        try { visualization = parseReasonAIVisualization(normalizeVisualizationArguments(value, request.context), request.context, evidence.length); }
+        catch (error) {
+          notice = "The analysis overlay could not be displayed. Your architecture is unchanged.";
+          onInvalidVisualization(error instanceof ReasonAIValidationError ? error.message : "Invalid analysis structure.");
+        }
       }
     }
   }
   let text = normalizeReasonAIVisibleText(content || proposal?.summary || visualSummary || (notice ? "I could not prepare the visual analysis. Try a narrower question about the current architecture." : ""), request.context, proposal);
+  if (!text && (visualSummary || proposal?.summary)) text = normalizeReasonAIVisibleText(visualSummary || proposal!.summary, request.context, proposal);
   // Only citations backed by this request's retrieved evidence can survive.
   const cited = new Set<number>();
-  const normalizeCitations = (text: string) => text.replace(/(?:\[(?:source\s*)?(\d{1,2})\]|\u3010(\d{1,2})\u3011)/gi, (_match, a, b) => {
+  const normalizeCitations = (text: string, keepMarkers = true) => text.replace(/(?:\[(?:source\s*)?(\d{1,2})\]|\u3010(\d{1,2})\u3011)/gi, (_match, a, b) => {
     const id = Number(a || b); if (!evidence.some((source) => source.id === id)) return "";
-    cited.add(id); return `[${id}]`;
+    cited.add(id); return keepMarkers ? `[${id}]` : "";
   });
   text = normalizeCitations(text);
+  if (proposal) {
+    proposal = JSON.parse(JSON.stringify(proposal, (field, value) => {
+      if (typeof value !== "string") return value;
+      if (field === "summary") return normalizeCitations(value);
+      // Source numbers belong to this conversation turn, not to persisted
+      // architecture text. Collect evidence while preserving exact graph refs.
+      if (!["label", "subtitle", "description", "technology", "protocol"].includes(field)) return value;
+      const cleaned = normalizeCitations(value, false);
+      return cleaned === value ? value : cleaned.trimEnd();
+    })) as NonNullable<ReasonAIResponse["proposal"]>;
+  }
   if (visualization) {
     visualization = JSON.parse(JSON.stringify(visualization, (field, value) =>
       typeof value === "string" && !["nodeId", "edgeId", "type", "severity", "basis"].includes(field) ? normalizeCitations(value) : value,
@@ -127,16 +144,21 @@ export const reasonAIProvider: ReasonAIProvider = {
     ];
     const evidence: (TavilyEvidence & { id: number })[] = [];
     let searches = 0, researchFailed = false;
+    let analysisFallback: ReasonAIResponse | undefined;
+    let repairReason: string | undefined;
     try {
       // Two research attempts plus a bounded final synthesis/recovery call.
       for (let round = 0; round < 4; round++) {
-        const tools = [REASONAI_VISUALIZATION_TOOL, ...(allowsReasonAIProposal(request) ? [REASONAI_TOOL] : []), ...(searches < 2 && round < 3 ? [REASONAI_SEARCH_TOOL] : [])];
+        const repairing = Boolean(repairReason);
+        const tools = [REASONAI_VISUALIZATION_TOOL, ...(!repairing && allowsReasonAIProposal(request) ? [REASONAI_TOOL] : []), ...(!repairing && searches < 2 && round < 3 ? [REASONAI_SEARCH_TOOL] : [])];
         const response = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
           method: "POST", cache: "no-store", redirect: "error", signal: combined,
           headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
           body: JSON.stringify({ model, temperature: 0.2, max_tokens: 8192, stream: false,
-            messages: [...messages, { role: "system", content: reasonAITurnRules(request, searches) + (round === 3 ? " Final response now; do not call tools. State any remaining uncertainty." : "") }],
-            tools, tool_choice: round === 3 ? "none" : "auto",
+            messages: [...messages, { role: "system", content: reasonAITurnRules(request, searches) + (repairing
+              ? ` The previous visual analysis failed validation: ${repairReason} Correct it once using show_architecture_analysis, with exact current canvas IDs and only the schema's supported fields and enums. Include all required fields; omit unused optional fields rather than sending null. Put the useful answer in summary. For this correction only visual analysis is permitted: no search and no proposal. If the diagram has no applicable elements, explain that in text.`
+              : round === 3 ? " Final response now; do not call tools. State any remaining uncertainty." : "") }],
+            tools, tool_choice: round === 3 && !repairing ? "none" : "auto",
           }),
         });
         if (!response.ok) {
@@ -150,9 +172,16 @@ export const reasonAIProvider: ReasonAIProvider = {
         const calls = message.tool_calls;
         const call = Array.isArray(calls) && calls.length === 1 ? object(calls[0]) : undefined;
         const fn = object(call?.function);
+        if (repairing && fn?.name && fn.name !== "show_architecture_analysis") return analysisFallback!;
         if (fn?.name !== "search_web") {
-          const result = normalizeResponse(raw, request, keys, evidence);
+          let invalidReason: string | undefined;
+          const result = normalizeResponse(raw, request, keys, evidence, (reason) => { invalidReason = reason; });
           if (researchFailed) result.notice = [result.notice, "Some current external facts could not be verified. Treat unsupported limits or prices as unknown."].filter(Boolean).join(" ");
+          if (invalidReason) {
+            diagnostic("VISUALIZATION_VALIDATION_FAILED", { reason: invalidReason });
+            if (!repairing && round < 3) { analysisFallback = result; repairReason = invalidReason; continue; }
+          }
+          if (repairing && !result.visualization) return analysisFallback!;
           return result;
         }
         if (call?.type !== "function" || typeof call.id !== "string" || !/^[a-zA-Z0-9_-]{1,100}$/.test(call.id) || typeof fn.arguments !== "string" || fn.arguments.length > 3000 || safeFinishReason(choice.finish_reason) === "length") return reject("INVALID_TOOL_CALL");
@@ -186,6 +215,10 @@ export const reasonAIProvider: ReasonAIProvider = {
       }
       return reject("EMPTY_RESPONSE");
     } catch (error) {
+      if (analysisFallback) {
+        if (!(error instanceof ReasonAIProviderError)) diagnostic(combined.aborted ? "TIMEOUT" : "PROVIDER_UNAVAILABLE");
+        return analysisFallback;
+      }
       if (error instanceof ReasonAIProviderError) throw error;
       if (combined.aborted) { diagnostic("TIMEOUT"); throw new ReasonAIProviderError("ReasonAI timed out. Please try again.", 504); }
       if (error instanceof BodyReadError) return reject(error.category);

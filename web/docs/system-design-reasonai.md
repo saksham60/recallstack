@@ -1,4 +1,4 @@
-﻿# System Design ReasonAI research and visual analysis
+# System Design ReasonAI research and visual analysis
 
 System Design keeps its existing ReasonAI drawer, Nemotron configuration and individual canvas-suggestion workflow. Research and visual analysis extend that feature; they do not create another canvas or change the saved diagram schema.
 
@@ -24,9 +24,9 @@ The existing `NEBIUS_API_KEY`, `REASONAI_MODEL`, `REASONAI_BASE_URL` and `TAVILY
 
 `show_architecture_analysis` returns a strict semantic contract in `reasonai/visualization.ts`: analysis type, title, summary, assumptions, existing node/edge IDs, optional severity, label, reason and metric evidence. Supported types are **bottleneck, failure, capacity, reliability, traffic and cost**. The model cannot specify CSS, colors, HTML or arbitrary canvas properties.
 
-Both server and client validate the result. Unknown IDs are discarded; wholly invalid or oversized overlays are omitted while useful text is retained. Metrics require a basis and evidence. Documented metrics also require current-request source IDs. Architecture costs must be estimates or unknown; unknown metrics do not display invented numbers. Failure views are explicitly hypothetical, and missing infrastructure icons do not prove missing capabilities.
+Both server and client validate the result. A server-only adapter handles observed Nemotron serialization quirks (stringified arrays, an unambiguous existing edge ID under the nodeId key, exact redundant endpoints, and empty optional fields) before strict validation. It does not invent IDs, measurements or evidence. Empty unknown metrics are omitted; unsupported numeric claims still fail validation. Unknown IDs are discarded; invalid overlays receive at most one model correction within the same four-call/60-second budget, with search and proposals disabled for that correction. If correction is unsuccessful, useful text is retained without an overlay. Oversized upstream bodies are rejected. Metrics require a basis and evidence. Documented metrics also require current-request source IDs. Architecture costs must be estimates or unknown; unknown metrics do not display invented numbers. Failure views are explicitly hypothetical, and missing infrastructure icons do not prove missing capabilities.
 
-`ReasonAIAnalysisLayer.tsx` draws a passive Konva layer over the original nodes/connections. Semantic severity maps to existing theme colors. Numbered node rings and highlighted paths correspond to expandable explanations in `ReasonAIAnalysisPanel.tsx`; selecting an annotated element reveals its explanation. The layer follows viewport transforms, local drags and remote position previews without intercepting pointer events.
+`ReasonAIAnalysisLayer.tsx` draws a passive Konva group over the original nodes/connections in the existing interaction layer, without allocating another full-size canvas. Semantic severity maps to existing theme colors. Numbered node rings and highlighted paths correspond to expandable explanations in `ReasonAIAnalysisPanel.tsx`; selecting an annotated element reveals its explanation. The layer follows viewport transforms, local drags and remote position previews without intercepting pointer events.
 
 Analysis lives only in workspace React state. It never enters the document, reducer, history, persistence, exports or realtime operation stream. Clear analysis removes it. Topology or architectural text changes invalidate it; geometry changes preserve it. A response based on an older diagram is discarded. Switching diagrams clears the view, and undo cannot resurrect obsolete analysis.
 
@@ -52,6 +52,8 @@ Configured credentials are redacted from incoming model context and retrieved ev
 - `components/SystemDesignWorkspace.tsx`, `SystemDesignCanvas.tsx`: local analysis lifecycle and canvas integration.
 - `src/app/api/reasonai/chat/route.ts`: existing authenticated endpoint, now propagating cancellation.
 
-Tests cover model-selected/no-search paths, unavailable search, strict loop bounds, safe errors, secret redaction, citation integrity, visualization types/metrics/IDs, proposal authority, stale results, canvas interaction, persistence/undo and private Live Share overlays. Existing System Design and DSA regressions are also run. Live configuration checks verified Nemotron failure visualization and automatic Tavily research followed by a sourced synthesis.
+Tests cover model-selected/no-search paths, unavailable search, strict loop bounds, safe errors, secret redaction, citation integrity, visualization types/metrics/IDs, proposal authority, stale results, canvas interaction, persistence/undo and private Live Share overlays. Existing System Design and DSA regressions are also run. Live configuration checks verified all six Nemotron visualization types and automatic Tavily research followed by a sourced synthesis. The browser regression run passed 63 tests; the full state/provider run passed 214 tests, including serialization repair and safe correction failures.
 
 The final prompt review and full reviewed prompt are recorded in [system-design-reasonai-prompt-review.md](system-design-reasonai-prompt-review.md).
+
+Final verification: TypeScript, full lint, focused lint after the final provider correction, production build, 214 state/provider tests and 63 browser regression tests passed. Astra approved the system prompt unchanged; its provider citation finding was fixed and covered by regression tests.

@@ -4,6 +4,8 @@ import { REASONAI_INVALID_PROPOSAL, type ReasonAIProposal, type ReasonAIRequest 
 import { normalizeReasonAIVisibleText } from "../src/features/system-design/reasonai/visible-text";
 import { parseResearchQuery } from "../src/features/system-design/reasonai/research";
 import { searchTavily } from "../src/lib/tavily/search";
+import { normalizeVisualizationArguments } from "../src/features/system-design/reasonai/visualization-arguments";
+import { parseReasonAIVisualization } from "../src/features/system-design/reasonai/visualization";
 
 const KEY = "private-test-provider-credential";
 const request: ReasonAIRequest = { mode: "chat", message: "Propose improvements to this architecture.", history: [], context: {
@@ -328,4 +330,69 @@ test("citations inside overlay evidence appear beneath the answer and unsupporte
   expect(result.sources?.map((source) => source.id)).toEqual([1]);
   expect(result.visualization?.summary).toContain("[1]");
   expect(result.visualization?.summary).not.toContain("[9]");
+});
+
+test("a malformed overlay gets one schema correction without search or proposal authority", async () => {
+  const malformed = { ...analysis, nodes: [{ nodeId: "node_sql", severity: "failed" }] };
+  const calls = sequence([completion("The database is assumed unavailable.", [tool(JSON.stringify(malformed), "show_architecture_analysis")], "tool_calls"), completion(null, [tool(JSON.stringify(analysis), "show_architecture_analysis")], "tool_calls")]);
+  const result = await reasonAIProvider.complete(request);
+  expect(result.visualization).toEqual(analysis);
+  expect(result.notice).toBeUndefined();
+  expect(calls).toHaveLength(2);
+  expect(JSON.stringify(calls[1].body.tools)).not.toMatch(/search_web|propose_canvas_changes/);
+  expect(JSON.stringify(calls[1].body.messages)).toContain("Unsupported analysis severity");
+});
+
+test("failed overlay correction preserves useful text and cannot return a proposal", async () => {
+  const calls = sequence([completion("The supplied read path depends on the database.", [tool("{", "show_architecture_analysis")], "tool_calls"), completion(null, [tool()], "tool_calls")]);
+  const result = await reasonAIProvider.complete(request);
+  expect(result.proposal).toBeUndefined();
+  expect(result.visualization).toBeUndefined();
+  expect(result.text).toContain("read path depends");
+  expect(calls).toHaveLength(2);
+});
+
+test("observed model serialization quirks normalize without inventing data", () => {
+  const input = { ...analysis, assumptions: "Read-heavy traffic is an assumption.", nodes: JSON.stringify([{ nodeId: "node_sql", severity: "warning", assumption: null, metric: { label: "Throughput", value: "Unknown", basis: "unknown", evidence: "" } }]), edges: [{ nodeId: "edge_read", sourceNodeId: "node_redirect", targetNodeId: "node_sql", severity: "warning" }] };
+  const normalized = normalizeVisualizationArguments(input, request.context);
+  const visual = parseReasonAIVisualization(normalized, request.context);
+  expect(visual.assumptions).toEqual([input.assumptions]);
+  expect(visual.nodes).toEqual([{ nodeId: "node_sql", severity: "warning" }]);
+  expect(visual.edges).toEqual([{ edgeId: "edge_read", severity: "warning" }]);
+  expect(typeof input.nodes).toBe("string");
+});
+
+test("serialization normalization never accepts arbitrary styles, changed endpoints, invented IDs or unsupported metrics", () => {
+  for (const input of [
+    { ...analysis, edges: [{ nodeId: "node_sql" }] },
+    { ...analysis, edges: [{ edgeId: "edge_read", sourceNodeId: "node_sql" }] },
+    { ...analysis, nodes: [{ nodeId: "node_sql", fill: "red" }] },
+    { ...analysis, nodes: [{ nodeId: "node_sql", metric: { label: "Capacity", value: "100k", basis: "estimated", evidence: "" } }] },
+    { ...analysis, nodes: JSON.stringify([{ nodeId: "missing" }]), edges: [] },
+    { ...analysis, nodes: "[malformed" },
+  ]) expect(() => parseReasonAIVisualization(normalizeVisualizationArguments(input, request.context), request.context)).toThrow();
+});
+
+test("a failed model correction retains the already validated explanation", async () => {
+  sequence([completion("The API depends on SQL.", [tool("{", "show_architecture_analysis")], "tool_calls"), new Error("private upstream failure")]);
+  const result = await reasonAIProvider.complete(request);
+  expect(result.text).toBe("The API depends on SQL.");
+  expect(result.visualization).toBeUndefined();
+  expect(result.notice).toContain("overlay");
+});
+
+test("empty cleaned tool preamble falls back to the useful visualization summary", async () => {
+  mock(completion("<div></div>", [tool(JSON.stringify(analysis), "show_architecture_analysis")], "tool_calls"));
+  expect((await reasonAIProvider.complete(request)).text).toBe(analysis.summary);
+});
+
+test("proposal-only citations have sources, preserve operation refs, and never persist transient source numbers", async () => {
+  const researched = { ...proposal, summary: "Consider the documented tradeoff [source 1] [9]", operations: proposal.operations.map((op) => op.op === "update_node" ? { ...op, description: "Documented service limits [1]" } : op) };
+  sequence([completion(null, [searchCall()], "tool_calls"), results, completion("Here are suggestions to review.", [tool(JSON.stringify(researched))], "tool_calls")]);
+  const result = await reasonAIProvider.complete(request);
+  expect(result.sources?.map((source) => source.id)).toEqual([1]);
+  expect(result.proposal?.summary).toContain("[1]");
+  expect(result.proposal?.summary).not.toContain("[9]");
+  expect(result.proposal?.operations[2]).toEqual({ op: "update_node", nodeId: "node_redirect", description: "Documented service limits" });
+  expect(result.proposal?.operations.slice(0, 2)).toEqual(proposal.operations.slice(0, 2));
 });
