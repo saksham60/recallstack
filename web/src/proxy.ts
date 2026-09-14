@@ -6,6 +6,10 @@ const PUBLIC_LIVE_CANVAS_PATH =
   /^\/system-design\/live\/[A-Za-z0-9_-]{20,128}\/?$/u
 
 export async function proxy(request: NextRequest) {
+  // Demo login validates its own same-origin POST before creating a session.
+  if (request.nextUrl.pathname === '/api/auth/demo') {
+    return NextResponse.next({ request })
+  }
   // Both tutors authenticate in their handlers. Avoid duplicate auth/refresh
   // requests and always return API JSON, rather than a login-page redirect.
   if (['/api/reasonai/dsa/chat', '/api/reasonai/chat'].includes(request.nextUrl.pathname)) {

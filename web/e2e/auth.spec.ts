@@ -17,6 +17,34 @@ test.describe('Authentication and Route Protection', () => {
       await page.goto('/login');
       await expect(page.getByRole('heading', { name: 'ReasonAI', exact: true })).toBeVisible();
       await expect(page.getByText('RecallStack', { exact: true })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Continue as Hackathon Judge' })).toHaveCount(0);
+    });
+
+    test('disabled judge access stays signed out and explains the failure', async ({ page }) => {
+      const response = await page.request.post('/api/auth/demo', {
+        headers: { origin: 'http://localhost:3000' },
+        maxRedirects: 0,
+      });
+      expect(response.status()).toBe(303);
+      expect(response.headers().location).toBe('http://localhost:3000/login?error=demo-disabled');
+
+      await page.goto('/login?error=demo-disabled');
+      await expect(page.getByRole('alert').filter({ hasText: 'Hackathon judge access is currently unavailable.' })).toHaveText('Hackathon judge access is currently unavailable. Continue with Google.');
+      await page.goto('/dsa');
+      await expect(page).toHaveURL(/\/login\?next=%2Fdsa$/);
+    });
+
+    test('judge authentication failures have a safe user-facing message', async ({ page }) => {
+      await page.goto('/login?error=demo-auth-failed');
+      await expect(page.getByRole('alert').filter({ hasText: 'Hackathon judge sign-in failed.' })).toHaveText('Hackathon judge sign-in failed. Please try again or continue with Google.');
+    });
+
+    test('judge endpoint accepts POST only and rejects cross-origin requests', async ({ page }) => {
+      expect((await page.request.get('/api/auth/demo', { maxRedirects: 0 })).status()).toBe(405);
+      expect((await page.request.post('/api/auth/demo', {
+        headers: { origin: 'https://attacker.test' },
+        maxRedirects: 0,
+      })).status()).toBe(403);
     });
   });
 

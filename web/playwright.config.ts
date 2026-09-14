@@ -6,6 +6,7 @@ loadEnvConfig(process.cwd());
 export default defineConfig({
   testDir: './e2e',
   testIgnore: [
+    '**/demo-auth.spec.ts',
     '**/reasonai-auth.spec.ts',
     '**/dsa-reasonai-provider.spec.ts',
     '**/reasonai-provider.spec.ts',
@@ -40,6 +41,7 @@ export default defineConfig({
     reuseExistingServer: process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === '1',
     timeout: 120 * 1000,
     env: {
+      DEMO_ACCESS_ENABLED: '0',
       E2E_BYPASS_AUTH: '1',
       SYSTEM_DESIGN_ENABLED: '1',
       NEXT_PUBLIC_REALTIME_BASE_URL: 'http://realtime.test',
