@@ -8,7 +8,7 @@ export function DSATutorComposer({ tutor }: { tutor: DSATutor }) {
       onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submit(); } }}
       className="w-full resize-none bg-transparent text-sm leading-6 outline-none placeholder:text-muted" />
     <div className="flex items-center justify-between gap-2 pt-2">
-      <button type="button" aria-pressed={tutor.searchWeb} onClick={() => tutor.setSearchWeb(!tutor.searchWeb)} title="Retrieve web context for this question. Powered by Tavily."
+      <button type="button" aria-pressed={tutor.searchWeb} onClick={() => tutor.setSearchWeb(!tutor.searchWeb)} title="Search fresh web references. Linked problem context is retrieved automatically when needed. Powered by Tavily."
         className={`flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs transition-colors ${tutor.searchWeb ? "bg-accent/15 text-accent" : "text-muted hover:bg-surface-elevated"}`}><Globe size={14} />Search web</button>
       <div className="flex items-center gap-3"><span className="text-[11px] text-muted">Nemotron</span>
         {tutor.pending ? <button type="button" onClick={tutor.stop} aria-label="Stop response" className="rounded-lg bg-surface-elevated p-2"><Square size={16} /></button>

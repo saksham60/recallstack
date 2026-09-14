@@ -1,0 +1,21 @@
+.dsa-tutor-prose { line-height: 1.85; }
+.dsa-tutor-prose > :first-child { margin-top: 0; }
+.dsa-tutor-prose p { margin: .65em 0; }
+.dsa-tutor-prose h1, .dsa-tutor-prose h2, .dsa-tutor-prose h3, .dsa-tutor-prose h4 { font-size: 1.05em; font-weight: 600; margin: 1.3em 0 .4em; line-height: 1.5; }
+.dsa-tutor-prose ul, .dsa-tutor-prose ol { padding-left: 1.5em; margin: .7em 0; }
+.dsa-tutor-prose ul { list-style: disc; }
+.dsa-tutor-prose ol { list-style: decimal; }
+.dsa-tutor-prose li { margin: .35em 0; padding-left: .15em; }
+.dsa-tutor-prose strong { font-weight: 600; color: var(--foreground); }
+.dsa-tutor-prose code { font-size: .88em; background: var(--surface-elevated); border-radius: 4px; padding: .15em .35em; }
+.dsa-tutor-prose pre { overflow-x: auto; max-width: 100%; background: var(--background); border: 1px solid var(--border); border-radius: 10px; padding: 1em; margin: 1em 0; }
+.dsa-tutor-prose pre code { padding: 0; background: none; white-space: pre; }
+.dsa-tutor-prose blockquote { border-left: 2px solid var(--accent); padding-left: 1em; margin: 1em 0; color: var(--muted); }
+.dsa-tutor-prose th, .dsa-tutor-prose td { padding: .7em 1em; min-width: 130px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.dsa-tutor-prose th { background: var(--surface-elevated); font-weight: 500; }
+.dsa-tutor-prose tbody tr:last-child td { border-bottom: 0; }
+.dsa-tutor-prose hr { margin: 1em 0; border-color: var(--border); }
+
+@media (min-width: 1024px) {
+  .dsa-adjustable-split { grid-template-columns: minmax(0, var(--workspace-width, 60%)) 20px minmax(0, 1fr); gap: 0; }
+}

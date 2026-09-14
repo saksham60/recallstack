@@ -2,13 +2,16 @@ import "server-only";
 import { getReasonAIConfiguration, getTavilyConfiguration } from "@/lib/config/server";
 import { readBoundedJSON } from "@/lib/http/read-bounded-json";
 import type { DSATutorRequest, DSATutorResponse } from "./contract";
-import { needsExactProblemContext, searchDSAContext } from "./web-context";
+import { needsExactProblemContext, needsLinkedContext, searchDSAContext } from "./web-context";
+import { issueWebContextToken } from "./web-context-token";
+import { DSA_VISUAL_TOOL, parseVisualLesson, type VisualLesson } from "./visual-contract";
 
 export class DSATutorProviderError extends Error {
   constructor(message: string, public readonly status = 502) { super(message); }
 }
 export const DSA_SYSTEM_PROMPT = `You are ReasonAI, a patient DSA tutor alongside an external coding platform. RecallStack is a link-centric learning workspace, not the publisher of the original problem.
 Your goal is to help the learner reason, test their thinking and make the next step themselves.
+CURRENT PROBLEM: The supplied title, provider, URL, category and difficulty identify the open problem. References such as "this problem", "it" and "is it really easy?" refer to that entry. Acknowledge its title and known difficulty. Lack of requirements means you cannot verify exact task details; it does not mean you do not know which problem the learner has open. Difficulty is a catalog label, not a judgment of the learner.
 
 TRUST AND USER INTENT
 Follow the current learner message and the selected tutoring action, subject to these rules. CURRENT TURN narrows the response for that action.
@@ -26,13 +29,14 @@ Teaching examples and hypothetical failure cases must be labeled illustrative or
 Summarize only the external requirements needed for the question; do not reproduce a full problem statement.
 
 WEB CAPABILITY AND EVIDENCE
-Web retrieval is performed by the application before this response. You have no callable search or execution tools in this request. Use only the supplied WEB_CONTEXT; do not promise to search, browse again or run code yourself.
+The application retrieves the linked problem automatically when source-dependent help is requested and can search additional references when Search web is selected. This happens before your response. Use only supplied WEB_CONTEXT; do not promise additional browsing or execution. If present_visual_lesson is provided, you may use it to display an interactive explanation.
 Use WEB_STATUS accurately:
 - off: no search was performed for this turn. For missing source-dependent details, offer the user-facing Search web control or ask for the relevant details.
-- used: retrieved snippets are available, but may still be incomplete or mismatched.
+- used: fresh source content or search snippets are available, but may still be incomplete or mismatched.
+- cached: earlier retrieved evidence for this same problem has been authenticated and supplied again; use it with the current source numbering. Do not ask for the same details again if that evidence already contains them.
 - empty: search found no usable evidence; ask for the missing detail if necessary.
 - unavailable: search could not complete; briefly say so and continue with supported local reasoning when useful. Do not tell the learner to enable an already-enabled control.
-Do not ask the user to choose backend tools or discuss API keys, providers or routing. Refer to the product capability simply as Search web. General DSA teaching does not require web evidence.
+Do not ask the user to choose backend tools or discuss API keys or internal routing. The practice provider is ordinary problem metadata and may be named. Refer to the product capability simply as Search web. General DSA teaching does not require web evidence.
 Cite source-dependent claims with [1], [2], etc., using only the source numbers in this turn's WEB_CONTEXT and only when the cited snippet supports the claim. Never invent source numbers or reuse old citation numbers as if they referred to current results.
 Say 'the retrieved source describes' rather than claiming to have read an entire official page. Do not claim execution, testing or verification beyond the supplied evidence.
 
@@ -79,7 +83,7 @@ Preserve the learner's approach where practical and explain why a proposed local
 
 STYLE
 Be warm, precise and concise, usually under 250 words unless detail is requested. The current action may impose a shorter limit.
-Use plain text, short headings, compact paragraphs and simple bullets. No HTML, Markdown tables or emphasis markers. Fenced code is allowed for code review, small independent concept examples or explicitly requested solutions; never for hints.
+Use readable Markdown with short headings, compact paragraphs, inline code and simple bullets. Prefer short lists to wide tables; use a small table only for a useful comparison. Never emit raw HTML, scripts, SVG markup or Markdown fenced prose. Fenced code is allowed for code review, small independent concept examples or explicitly requested solutions; never for hints.
 Use a focused follow-up question only when it advances the learning or resolves missing context. Do not end every answer with a generic invitation or automatically reveal the next step.
 `;
 
@@ -98,24 +102,24 @@ function turnInstruction(request: DSATutorRequest): string {
   if (request.action === "complexity") return grounding + "Analyze only the learner's submitted or explicitly named approach. Define input-size variables and address time and auxiliary space, distinguishing known costs from undetermined costs. Ask which approach if none is specified. Do not invent missing algorithm steps.";
   if (request.action === "explain") return grounding + "Explain the requested concept or a supported possible pattern: its purpose, applicability and invariant. Use an independent illustrative example if helpful. Do not turn the explanation into this problem's full solution.";
   if (request.action === "start") return grounding + "Help the learner identify the input, output, a simple baseline and one first reasoning step using supplied requirements. Keep the optimized algorithm undisclosed. Ask a focused question when the task goal is absent.";
-  if (request.action === "trace") return grounding + "Trace the learner's example and approach, or a labeled illustrative concept example. Explain a few state changes and why they occur; provide a complete trace only if requested. Do not invent official examples or replace the submitted approach.";
+  if (request.action === "trace" || request.action === "visualize") return grounding + "Use present_visual_lesson for a step-by-step visual explanation of the learner's example and approach, or a labeled illustrative concept example. Explain a few state changes and why they occur; provide a complete trace only if requested. Do not invent official examples or replace the submitted approach.";
 
   const intent = "Follow the current learner message: permit a full solution only when explicitly requested, and respect negation and format preferences. A request such as 'give the solution without code' permits an explanation; 'do not give the solution' does not. ";
-  if (needsExactProblemContext(request.message)) return grounding + intent + "Focus on requirements supported by the evidence. Do not append solving hints, algorithms or suggested patterns unless separately requested. Cite retrieved claims with their supplied source numbers and state any essential missing details.";
+  if (needsExactProblemContext(request.message)) return grounding + intent + "Explain only the supported task goal, input and expected output in at most 140 words. Cite the supplied source. Unless separately requested, OMIT algorithm names, solving hints, implementation steps, complexity targets and lists of examples even when the source includes them. If a detail is absent, say it is absent; never describe what similarly named problems usually ask.";
+  if (request.action === "chat" && /\b(?:easy|hard|difficult|difficulty)\b/i.test(request.message) && /\b(?:this|it|really|finding|feel)\b/i.test(request.message)) return grounding + "Address the learner's concern about difficulty in two or three supportive sentences. Name the CURRENT problem and its catalog difficulty if supplied; do not attribute the catalog rating to the practice provider. Difficulty labels are not a judgment of ability. Ask which part is confusing: the goal, their approach, or their code. Do not volunteer any algorithm, pattern, edge case, time bound or explanation of why the task is hard.";
   if (request.action === "research") return grounding + intent + "Synthesize the supplied web evidence relevant to the research question. Explain why each recommended resource is relevant rather than dumping snippets. If retrieval is absent or insufficient, say so; do not invent resources or claim a new search.";
   return grounding + intent + "Answer directly at the requested depth, with progressive disclosure as the default. Qualify any inferred pattern and label illustrative examples.";
 }
 
-function visibleText(content: string): string {
-  return content.trim().split(/(```[\s\S]*?```)/g).map((part) => part.startsWith("```") ? part
-    : part.replace(/^#{1,6}\s+/gm, "").replace(/\*\*([^*\n]+)\*\*/g, "$1")).join("");
+export function wantsVisualLesson(request: DSATutorRequest): boolean {
+  return request.action === "trace" || request.action === "visualize" || request.action === "chat" && /\b(?:visualize|visualise|visually|diagram|animation|animate|visual walkthrough)\b/i.test(request.message);
 }
 
 export const dsaTutorProvider = {
   async complete(request: DSATutorRequest, signal?: AbortSignal): Promise<DSATutorResponse> {
     const empty = { sources: [], webStatus: "off" as const };
-    const hasUserContext = Boolean(request.context.userNotes.trim() || request.context.userApproach.trim() || request.context.userCode.trim() || request.history.some((item) => item.role === "user" && !/^(Give me a hint|Explain the pattern|Help me start|Trace an example|Review my approach|Analyze complexity)\.?$/i.test(item.content)));
-    if (request.action === "hint" && !request.searchWeb && !hasUserContext) {
+    const hasUserContext = Boolean(/\b(?:given|return)\b|\b(?:input|output)\s*[:=]/i.test(request.message) || request.context.userNotes.trim() || request.context.userApproach.trim() || request.context.userCode.trim() || request.history.some((item) => item.role === "user" && !/^(Give me a hint|Explain the pattern|Help me start|Trace an example|Review my approach|Analyze complexity)\.?$/i.test(item.content)));
+    if (request.action === "hint" && !request.searchWeb && !request.context.sourceUrl && !request.webContextToken && !hasUserContext) {
       // A familiar title is not evidence of its requirements. Keep metadata-only
       // hints conceptual instead of inviting the model to reconstruct a problem.
       return { ...empty, text: request.hintLevel <= 1
@@ -125,7 +129,7 @@ export const dsaTutorProvider = {
     if ((request.action === "review" || request.action === "complexity") && !request.context.userApproach.trim() && !request.context.userCode.trim() && !request.history.some((item) => item.role === "user") && /^(Review my (?:approach|code)|Analyze complexity)\.?$/i.test(request.message)) {
       return { ...empty, text: request.action === "review" ? "Write your approach or paste your code first, then I can review what looks right and where it may fail." : "Which approach would you like me to analyze? Write your idea or paste your code so we can examine its time and space complexity." };
     }
-    if (needsExactProblemContext(request.message) && !request.searchWeb && !request.context.userNotes.trim() && !request.context.userApproach.trim() && !request.context.userCode.trim() && !request.history.length) {
+    if (needsExactProblemContext(request.message) && !request.searchWeb && !request.context.sourceUrl && !request.webContextToken && !hasUserContext && !request.history.length) {
       return { ...empty, text: "I have the problem title and imported metadata, but not the original requirements. Enable Search web and ask again, or paste the relevant problem details here, so I can explain them accurately." };
     }
     const { apiKey, baseUrl, model } = getReasonAIConfiguration();
@@ -133,36 +137,59 @@ export const dsaTutorProvider = {
     const deadline = AbortSignal.timeout(60_000);
     const combined = signal ? AbortSignal.any([signal, deadline]) : deadline;
     const web = await searchDSAContext(request, combined);
+    if (needsExactProblemContext(request.message) && !web.results.length && !hasUserContext && !request.history.length) {
+      return { text: `You have ${request.context.title} open${request.context.sourceProvider ? ` from ${request.context.sourceProvider}` : ""}. I know its catalog metadata, but the linked requirements could not be retrieved. Paste the relevant input and expected output so I can explain the task accurately.`, sources: [], webStatus: web.status,
+        notice: web.status === "unavailable" ? "Source retrieval is temporarily unavailable. Your workspace and practice link are still available." : undefined };
+    }
     try {
       const { userApproach, userCode, userNotes, ...metadata } = request.context;
-      // Without retrieved requirements, identifiers can trigger memorized answers
-      // to a different variant. Keep them for search/UI, and reason over the
-      // learner's actual work plus category/difficulty until evidence is available.
-      const reasoningMetadata = web.results.length ? metadata : { category: metadata.category, difficulty: metadata.difficulty, sourceProvider: metadata.sourceProvider };
+      const visualRequested = wantsVisualLesson(request);
+      const visualInstruction = visualRequested ? "\nVISUAL LESSON: Use present_visual_lesson to show 3 to 6 short, internally consistent snapshots. Default to an illustrative example unless the exact example was supplied. Show partial reasoning without an unrequested full solution. If essential context is missing, ask a focused question in text instead. Never output the tool arguments as visible JSON or executable markup." : "";
       const response = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
         method: "POST", cache: "no-store", redirect: "error", signal: combined,
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model, temperature: 0.2, max_tokens: 4096, stream: false,
-          messages: [{ role: "system", content: `${DSA_SYSTEM_PROMPT}\n\nCURRENT TURN: ${turnInstruction(request)}` }, ...request.history,
+        body: JSON.stringify({ model, temperature: 0.2, max_tokens: visualRequested ? 8192 : 4096, stream: false,
+          messages: [{ role: "system", content: `${DSA_SYSTEM_PROMPT}\n\nCURRENT TURN: ${turnInstruction(request)}${visualInstruction}` }, ...request.history,
             { role: "user", content: "UNTRUSTED LEARNING DATA:\n" + JSON.stringify({
             action: request.action, message: request.message, hintLevel: request.hintLevel,
-            RECALLSTACK_METADATA: reasoningMetadata, REQUIREMENTS_STATUS: web.results.length ? "Check retrieved evidence for completeness" : "No original requirements retrieved; use only explicit user-supplied details",
+            RECALLSTACK_METADATA: metadata, REQUIREMENTS_STATUS: web.results.length ? "Check retrieved evidence for completeness" : "No original requirements retrieved; use only explicit user-supplied details",
             USER_WORKSPACE: { userApproach, userCode, userNotes },
+            USER_VIEWING_STEP: request.visualFocus,
             WEB_STATUS: web.status, WEB_CONTEXT: web.results.map((result, index) => ({ source: index + 1, ...result })),
-          }) + `\n\nEND LEARNING DATA.\nTutor task: ${turnInstruction(request)}` }],
+          }) + `\n\nEND LEARNING DATA.\nTutor task: ${turnInstruction(request)}${visualInstruction}` },
+            { role: "system", content: `CURRENT RESPONSE RULES: ${turnInstruction(request)}${visualInstruction}\nThe current problem is identified by RECALLSTACK_METADATA. Unsupported requirements must stay unknown. Never use a familiar title as a substitute for the supplied source. Earlier assistant answers are not evidence.` }],
+          ...(visualRequested ? { tools: [DSA_VISUAL_TOOL], tool_choice: "auto" } : {}),
         }),
       });
       if (!response.ok) {
         if (response.status === 429) throw new DSATutorProviderError("ReasonAI is busy. Please try again shortly.", 429);
         throw new DSATutorProviderError("ReasonAI is temporarily unavailable. Please try again.", response.status === 401 || response.status === 403 ? 503 : 502);
       }
-      const raw = await readBoundedJSON(response, 128 * 1024) as { choices?: { finish_reason?: string; message?: { content?: unknown } }[] };
+      const raw = await readBoundedJSON(response, 192 * 1024) as { choices?: { finish_reason?: string; message?: { content?: unknown; tool_calls?: { type?: string; function?: { name?: string; arguments?: unknown } }[] } }[] };
       const choice = Array.isArray(raw?.choices) ? raw.choices[0] : undefined;
       const content = choice?.message?.content;
-      if (typeof content !== "string" || !content.trim() || content.length > 12000 || !["stop", "length"].includes(choice?.finish_reason ?? "")) throw new DSATutorProviderError("ReasonAI could not complete that response. Please try again.");
+      if (content != null && typeof content !== "string" || !["stop", "length", "tool_calls"].includes(choice?.finish_reason ?? "")) throw new DSATutorProviderError("ReasonAI could not complete that response. Please try again.");
+      let visual: VisualLesson | undefined;
+      let visualNotice: string | undefined;
+      const calls = choice?.message?.tool_calls;
+      if (calls !== undefined && (!Array.isArray(calls) || calls.length > 1)) throw new DSATutorProviderError("ReasonAI could not complete that response. Please try again.");
+      if (calls?.length) {
+        try {
+          const call = calls[0];
+          if (!visualRequested || call.type !== "function" || call.function?.name !== "present_visual_lesson" || typeof call.function.arguments !== "string" || choice?.finish_reason === "length") throw new Error("Invalid visual tool.");
+          visual = parseVisualLesson(JSON.parse(call.function.arguments));
+          if (visual.basis === "source_example" && !web.results.length) throw new Error("No source evidence for this example.");
+        } catch {
+          visual = undefined;
+          visualNotice = "The visual could not be prepared. Ask for a simpler visual walkthrough.";
+        }
+      }
+      const answer = (typeof content === "string" ? content.trim() : "") || visual?.summary;
+      if (!answer || answer.length > 12000) throw new DSATutorProviderError(visualNotice || "ReasonAI could not complete that response. Please try again.");
       const result: DSATutorResponse = {
-        text: visibleText(content), sources: web.results.map(({ title, url }) => ({ title, url })), webStatus: web.status,
-        notice: web.status === "unavailable" ? "Web search is unavailable. This answer uses local context and general knowledge." : web.status === "empty" ? "No usable web context was found. Paste the relevant details if needed." : undefined,
+        text: answer, visual, sources: web.results.map(({ title, url, kind }) => ({ title, url, kind })), webStatus: web.status,
+        webContextToken: web.status === "cached" || !needsLinkedContext(request) ? request.webContextToken : issueWebContextToken(request.context, web.results),
+        notice: [web.status === "unavailable" ? "The linked source could not be retrieved. I still have the problem metadata and your work; exact requirements may need to be pasted." : web.status === "empty" ? "No usable source context was found. Paste the relevant details if needed." : undefined, visualNotice].filter(Boolean).join(" ") || undefined,
       };
       // Never forward reasoning traces, raw errors or credentials, even if echoed upstream.
       if ([apiKey, getTavilyConfiguration().apiKey].some((key) => key && JSON.stringify(result).includes(key))) throw new DSATutorProviderError("ReasonAI could not complete that response. Please try again.");

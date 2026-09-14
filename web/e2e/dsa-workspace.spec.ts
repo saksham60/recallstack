@@ -1,6 +1,7 @@
 import { expect, test } from "./fixtures/authenticated-test";
 import { createPagination, createProfile, createStudyNoteResponse } from "./helpers/factories";
 import type { DSATutorRequest } from "../src/features/dsa/reasonai/contract";
+import { visualLesson, visualStep } from "./helpers/dsa-visual";
 
 const problem = createStudyNoteResponse({
   title: "3Sum", slug: "3sum", difficulty: "medium", topics: [], primary_topic: null,
@@ -31,6 +32,7 @@ test("3Sum workspace sends approach, code, notes and progressive hints through t
   await expect(page.getByText("Tutor response 1", { exact: true })).toBeVisible();
   expect(requests[0]).toMatchObject({ action: "review", searchWeb: false, context: { title: "3Sum", category: "Arrays", userApproach: "I think I'll sort the array and loop over each value...", userNotes: "Remember to check assumptions" } });
   expect(requests[0].context).not.toHaveProperty("studyText");
+  await page.getByText("Learning actions", { exact: true }).click();
   await page.getByRole("button", { name: "Give me a hint" }).click();
   await expect(page.getByText("Tutor response 2", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Give me a hint" }).click();
@@ -175,4 +177,112 @@ test("desktop workspace visual and metadata integrity", async ({ authenticatedPa
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "ReasonAI", exact: true }).click();
   await page.screenshot({ path: testInfo.outputPath("dsa-mobile.png"), fullPage: true });
+});
+
+test("resize, focus and Escape preserve the workspace, draft and conversation", async ({ authenticatedPage: page }, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.route("**/api/reasonai/dsa/chat", (route) => route.fulfill({ json: { text: "## A useful observation\n\n**Sorted order** lets us predict which way a value changes.\n\n| Move | Effect |\n| --- | --- |\n| Left pointer forward | Value increases |\n| Right pointer backward | Value decreases |\n\nKeep this invariant in mind.", sources: [], webStatus: "off" } }));
+  await page.goto("/dsa/problem/3sum");
+  await page.getByLabel("My approach", { exact: true }).fill("Keep this idea while I focus.");
+  const panel = page.getByRole("region", { name: "ReasonAI AI Tutor", exact: true });
+  const original = await panel.boundingBox();
+  const divider = page.getByRole("separator", { name: "Resize learning workspace" });
+  await divider.focus(); await page.keyboard.press("Home");
+  await expect(divider).toHaveAttribute("aria-valuenow", "30");
+  expect((await panel.boundingBox())!.width).toBeGreaterThan(original!.width + 200);
+  const handle = (await divider.boundingBox())!;
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + 70); await page.mouse.down();
+  await page.mouse.move(handle.x + 150, handle.y + 70); await page.mouse.up();
+  expect(Number(await divider.getAttribute("aria-valuenow"))).toBeGreaterThan(35);
+  await page.getByRole("button", { name: "Explain the pattern", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "A useful observation" })).toBeVisible();
+  await expect(panel.locator("table th")).toHaveCount(2);
+  await expect(panel.locator("strong")).toHaveText("Sorted order");
+  await page.getByLabel("Ask ReasonAI", { exact: true }).fill("Keep this draft too");
+  await page.getByRole("button", { name: "Focus on tutor", exact: true }).click();
+  expect((await panel.boundingBox())!.width).toBe(1440);
+  expect(await page.locator("#dsa-approach").evaluate((element) => Boolean(element.closest("[inert]")))).toBe(true);
+  await expect(page.getByRole("link", { name: "LeetCode", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Larger text" }).click();
+  await expect(page.getByRole("button", { name: "Larger text" })).toHaveAttribute("aria-pressed", "true");
+  await page.screenshot({ path: testInfo.outputPath("dsa-focus-reading.png") });
+  await page.keyboard.press("Escape");
+  await expect(page.getByLabel("Ask ReasonAI", { exact: true })).toHaveValue("Keep this draft too");
+  await expect(page.getByLabel("My approach", { exact: true })).toHaveValue("Keep this idea while I focus.");
+  expect((await panel.boundingBox())!.width).toBeLessThan(1440);
+});
+
+test("visual walkthrough expands the stage, steps through state and reuses source context", async ({ authenticatedPage: page }, testInfo) => {
+  const sent: DSATutorRequest[] = [];
+  await page.route("**/api/reasonai/dsa/chat", (route) => {
+    sent.push(route.request().postDataJSON());
+    return route.fulfill({ json: { text: visualLesson.summary, visual: visualLesson, sources: [{ title: "3Sum", url: problem.practice_resources[0].url }], webStatus: sent.length === 1 ? "used" : "cached", webContextToken: "signed-memory-context" } });
+  });
+  await page.goto("/dsa/problem/3sum");
+  await page.getByRole("button", { name: "Visual walkthrough", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Return to split view" })).toBeVisible();
+  const visual = page.getByRole("region", { name: "Visual walkthrough: Reading sorted order" });
+  await expect(visual).toBeVisible();
+  expect(sent[0].action).toBe("visualize");
+  await expect(visual.getByText("Illustrative example · not an official test case")).toBeVisible();
+  await expect(visual.getByText("Compare the endpoints", { exact: true })).toBeVisible();
+  await visual.getByRole("button", { name: "Next step" }).click();
+  await expect(visual.getByText("Move one position", { exact: true })).toBeVisible();
+  await expect(visual.getByRole("slider", { name: "Walkthrough step" })).toHaveValue("2");
+  const diagram = await visual.locator("header").boundingBox();
+  const controls = await visual.getByRole("button", { name: "Next step" }).boundingBox();
+  expect(diagram!.y).toBeGreaterThan(150);
+  expect(controls!.y + controls!.height).toBeLessThan(720);
+  await page.screenshot({ path: testInfo.outputPath("dsa-visual-focus.png") });
+  await page.getByRole("button", { name: "Return to split view" }).click();
+  await page.getByRole("button", { name: "Focus on tutor", exact: true }).click();
+  await expect(visual.getByRole("slider", { name: "Walkthrough step" })).toHaveValue("2");
+  await visual.getByRole("button", { name: "Play walkthrough" }).click();
+  await page.getByRole("button", { name: "Conversation", exact: true }).click();
+  await page.getByRole("button", { name: "Walkthrough", exact: true }).click();
+  await expect(visual.getByRole("button", { name: "Play walkthrough" })).toBeVisible();
+  await visual.getByRole("button", { name: "Play walkthrough" }).click();
+  await expect(visual.getByText("Notice the invariant", { exact: true })).toBeVisible();
+  await expect(visual.getByRole("button", { name: "Replay walkthrough" })).toBeVisible();
+  await page.getByRole("button", { name: "Ask about this step" }).click();
+  await page.getByLabel("Ask ReasonAI", { exact: true }).fill("Why did that pointer move?");
+  await page.getByRole("button", { name: "Send message" }).click();
+  await expect(page.getByText("Sources · Retrieved earlier", { exact: true })).toBeVisible();
+  expect(sent[1].webContextToken).toBe("signed-memory-context");
+  expect(sent[1].history[1].content).toContain("Move one position");
+  expect(sent[1].visualFocus).toMatchObject({ stepNumber: 3, stepTitle: "Notice the invariant" });
+  await page.getByRole("button", { name: "Clear chat" }).click();
+  await page.getByRole("button", { name: "Help me start", exact: true }).click();
+  await expect.poll(() => sent.length).toBe(3);
+  expect(sent[2].webContextToken).toBeUndefined();
+});
+
+test("tutor Markdown treats HTML and unsafe URLs as inert text", async ({ authenticatedPage: page }) => {
+  await page.route("**/api/reasonai/dsa/chat", (route) => route.fulfill({ json: { text: "## Read safely\n\n<script>window.pwned=true</script>\n\n[bad](javascript:alert(1)) ![tracking](https://tracker.invalid/pixel.png)\n\n[Good resource](https://example.com/lesson)\n\n```python\nx = 2**3**2\n```", sources: [], webStatus: "off" } }));
+  await page.goto("/dsa/problem/3sum");
+  await page.getByRole("button", { name: "Explain the pattern" }).click();
+  const panel = page.getByRole("region", { name: "ReasonAI AI Tutor", exact: true });
+  await expect(panel.getByRole("heading", { name: "Read safely" })).toBeVisible();
+  await expect(panel.locator("script, img, a[href^='javascript:']")).toHaveCount(0);
+  await expect(panel.getByRole("link", { name: "Good resource" })).toHaveAttribute("rel", "noopener noreferrer");
+  await expect(panel.locator("pre code")).toHaveText("x = 2**3**2\n");
+});
+
+test("graph and grid scenes remain usable in the mobile teaching stage", async ({ authenticatedPage: page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  let graph = true;
+  await page.route("**/api/reasonai/dsa/chat", (route) => route.fulfill({ json: { text: "An illustrative state transition.", sources: [], webStatus: "off", visual: { ...visualLesson, title: graph ? "Explore a tree" : "Read a DP table", kind: graph ? "graph" : "grid", steps: [{ ...visualStep, values: [], highlights: [], pointers: [], nodes: graph ? [{ id: "a", label: "A", x: 50, y: 10, state: "active" }, { id: "b", label: "B", x: 20, y: 80, state: "default" } ] : [], edges: graph ? [{ from: "a", to: "b", label: "visit" }] : [], rows: graph ? [] : [["0", "1"], ["1", "2"]], activeCells: graph ? [] : [{ row: 1, column: 1 }] }] } } }));
+  await page.goto("/dsa/problem/3sum");
+  await page.getByRole("button", { name: "ReasonAI", exact: true }).click();
+  await page.getByRole("button", { name: "Visual walkthrough", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Visual walkthrough: Explore a tree" }).getByRole("img")).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("dsa-mobile-graph.png") });
+  graph = false;
+  await page.getByRole("button", { name: "Clear chat" }).click();
+  await page.getByRole("button", { name: "Visual walkthrough", exact: true }).click();
+  await expect(page.getByRole("table", { name: "Algorithm grid" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.getByRole("button", { name: "Return to split view" }).click();
+  await page.getByRole("button", { name: "Learning workspace", exact: true }).click();
+  await expect(page.getByLabel("My approach", { exact: true })).toBeVisible();
 });

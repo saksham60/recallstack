@@ -20,7 +20,7 @@ export async function POST(request: Request) {
   } catch { return reply({ error: "Unable to verify your session. Please sign in again." }, 401); }
   if (!request.headers.get("content-type")?.includes("application/json")) return reply({ error: "Expected JSON." }, 415);
   let input;
-  try { input = parseDSATutorRequest(await readBoundedJSON(request, 256 * 1024)); }
+  try { input = parseDSATutorRequest(await readBoundedJSON(request, 512 * 1024)); }
   catch (error) { return reply({ error: error instanceof DSAValidationError ? error.message : "Invalid or oversized request." }, 400); }
   try { return reply(await dsaTutorProvider.complete(input, request.signal)); }
   catch (error) {

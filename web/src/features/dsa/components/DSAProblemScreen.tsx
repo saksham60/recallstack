@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { ArrowUpRight, ChevronRight, Code2, Info, PencilLine, Sparkles } from "lucide-react";
 import { BookmarkButton } from "@/features/bookmarks";
@@ -31,6 +31,9 @@ export function DSAProblemWorkspace({ note }: { note: PublishedStudyNoteResponse
   const [editorError, setEditorError] = useState<string>();
   const [tutorOpen, setTutorOpen] = useState(true);
   const [mobileTutor, setMobileTutor] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [workspaceWidth, setWorkspaceWidth] = useState(60);
+  const split = useRef<HTMLDivElement>(null);
   const { data: notes } = useNotes(note.content_item_id);
   const problem = getDSAProblemContext(note);
   const tutor = useDSATutor({ ...problem, userApproach: approach, userCode: code, userNotes: (notes?.items.map((item) => item.body).join("\n\n") ?? "").slice(0, 12000) });
@@ -44,15 +47,15 @@ export function DSAProblemWorkspace({ note }: { note: PublishedStudyNoteResponse
   const category = note.categories[0];
   const button = "inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors disabled:opacity-40";
   return <div className="dsa-workspace">
-    <nav aria-label="Breadcrumb" className="mb-5 flex flex-wrap items-center gap-2 text-xs text-muted"><Link href="/dsa" className="hover:text-accent">DSA</Link><ChevronRight size={12} />{category && <><Link href={`/dsa/${category.id}`} className="hover:text-accent">{category.name}</Link><ChevronRight size={12} /></>}<span className="text-foreground/80">{note.title}</span></nav>
-    <header className="mb-7 flex flex-wrap items-center justify-between gap-5">
+    <nav inert={focused} aria-hidden={focused} aria-label="Breadcrumb" className="mb-5 flex flex-wrap items-center gap-2 text-xs text-muted"><Link href="/dsa" className="hover:text-accent">DSA</Link><ChevronRight size={12} />{category && <><Link href={`/dsa/${category.id}`} className="hover:text-accent">{category.name}</Link><ChevronRight size={12} /></>}<span className="text-foreground/80">{note.title}</span></nav>
+    <header inert={focused} aria-hidden={focused} className="mb-7 flex flex-wrap items-center justify-between gap-5">
       <div><h1 className="text-3xl font-semibold tracking-tight">{note.title}</h1><div className="mt-3 flex flex-wrap items-center gap-2">{note.difficulty && <DifficultyBadge difficulty={note.difficulty} />}{note.categories.map((item) => <span key={item.id} className="rounded-full bg-surface-elevated/70 px-2.5 py-1 text-xs text-muted">{item.name}</span>)}{problem.sourceProvider && <span className="ml-1 text-xs text-muted">via {problem.sourceProvider}</span>}</div></div>
       <div className="flex flex-wrap items-center gap-2">{problem.sourceUrl ? <a href={problem.sourceUrl} target="_blank" rel="noopener noreferrer" className={`${button} bg-accent text-accent-foreground hover:bg-accent/90 !px-4 !py-2.5 !text-sm`}>Open {problem.sourceProvider ? `on ${problem.sourceProvider}` : "Problem"}<ArrowUpRight size={16} /></a> : <span className="text-sm text-muted">No practice link available</span>}<BookmarkButton contentId={note.content_item_id} isBookmarked={note.is_bookmarked} />
         {!tutorOpen && <button className={`${button} border border-border text-accent`} onClick={() => { setTutorOpen(true); setMobileTutor(true); }}><Sparkles size={16} />ReasonAI</button>}</div>
     </header>
-    <div className="mb-4 flex gap-2 lg:hidden" aria-label="Workspace view"><button onClick={() => setMobileTutor(false)} aria-pressed={!mobileTutor} className={`${button} ${!mobileTutor ? "bg-surface-elevated" : "text-muted"}`}>Learning workspace</button><button onClick={() => { setMobileTutor(true); setTutorOpen(true); }} aria-pressed={mobileTutor} className={`${button} ${mobileTutor ? "bg-accent/15 text-accent" : "text-muted"}`}><Sparkles size={14} />ReasonAI</button></div>
-    <div className={`grid items-start gap-7 ${tutorOpen ? "lg:grid-cols-[minmax(0,1.6fr)_minmax(340px,1fr)]" : "grid-cols-1"}`}>
-      <div className={`min-w-0 ${mobileTutor ? "hidden lg:block" : ""}`}>
+    <div inert={focused} aria-hidden={focused} className="mb-4 flex gap-2 lg:hidden" aria-label="Workspace view"><button onClick={() => setMobileTutor(false)} aria-pressed={!mobileTutor} className={`${button} ${!mobileTutor ? "bg-surface-elevated" : "text-muted"}`}>Learning workspace</button><button onClick={() => { setMobileTutor(true); setTutorOpen(true); }} aria-pressed={mobileTutor} className={`${button} ${mobileTutor ? "bg-accent/15 text-accent" : "text-muted"}`}><Sparkles size={14} />ReasonAI</button></div>
+    <div ref={split} style={{ "--workspace-width": `${workspaceWidth}%` } as CSSProperties} className={`grid items-start gap-5 ${tutorOpen ? "dsa-adjustable-split" : "grid-cols-1"}`}>
+      <div inert={focused} aria-hidden={focused} className={`min-w-0 ${mobileTutor ? "hidden lg:block" : ""}`}>
         <div role="tablist" aria-label="Problem workspace" className="mb-6 flex gap-7 border-b border-border/60">{(["Workspace", "Notes", "Similar"] as const).map((item, index, items) => <button key={item} id={`dsa-tab-${item}`} role="tab" aria-selected={tab === item} aria-controls={`dsa-panel-${item}`} tabIndex={tab === item ? 0 : -1} onClick={() => setTab(item)}
           onKeyDown={(event) => { const next = event.key === "ArrowRight" ? items[(index + 1) % items.length] : event.key === "ArrowLeft" ? items[(index + items.length - 1) % items.length] : event.key === "Home" ? items[0] : event.key === "End" ? items[items.length - 1] : undefined; if (next) { event.preventDefault(); setTab(next); document.getElementById(`dsa-tab-${next}`)?.focus(); } }}
           className={`border-b-2 pb-3 text-sm transition-colors ${tab === item ? "border-accent text-foreground" : "border-transparent text-muted hover:text-foreground"}`}>{item}</button>)}</div>
@@ -75,7 +78,15 @@ export function DSAProblemWorkspace({ note }: { note: PublishedStudyNoteResponse
           <div className="mt-5 flex flex-wrap gap-3">{category && <Link href={`/dsa/${category.id}`} className={`${button} bg-surface-elevated`}>Explore {category.name}</Link>}<button onClick={() => ask("research", "Find related problems and explain what makes them useful practice.", true)} disabled={tutor.pending} className={`${button} bg-accent/10 text-accent`}>Find related problems on the web<ArrowUpRight size={14} /></button></div>
         </div>
       </div>
-      {tutorOpen && <aside className={`min-w-0 h-[calc(100dvh-340px)] min-h-[440px] lg:sticky lg:top-20 lg:h-[calc(100dvh-260px)] lg:max-h-[820px] lg:min-h-[520px] ${mobileTutor ? "block" : "hidden lg:block"}`}><DSATutorPanel tutor={tutor} slug={note.slug} onClose={() => { setTutorOpen(false); setMobileTutor(false); }} /></aside>}
+      {tutorOpen && <div role="separator" aria-label="Resize learning workspace" aria-orientation="vertical" aria-valuemin={30} aria-valuemax={64} aria-valuenow={Math.round(workspaceWidth)} aria-valuetext={`${Math.round(workspaceWidth)} percent workspace`} tabIndex={focused ? -1 : 0} aria-hidden={focused}
+        title="Drag to resize · arrow keys to adjust · double-click to reset"
+        onDoubleClick={() => setWorkspaceWidth(60)}
+        onKeyDown={(event) => { const next = event.key === "ArrowLeft" ? workspaceWidth - 3 : event.key === "ArrowRight" ? workspaceWidth + 3 : event.key === "Home" ? 30 : event.key === "End" ? 64 : undefined; if (next !== undefined) { event.preventDefault(); setWorkspaceWidth(Math.max(30, Math.min(64, next))); } }}
+        onPointerDown={(event) => { if (event.button === 0) { event.preventDefault(); event.currentTarget.focus(); event.currentTarget.setPointerCapture(event.pointerId); } }}
+        onPointerMove={(event) => { if (!event.currentTarget.hasPointerCapture(event.pointerId) || !split.current) return; const bounds = split.current.getBoundingClientRect(); setWorkspaceWidth(Math.max(30, Math.min(64, (event.clientX - bounds.left) / bounds.width * 100))); }}
+        onPointerUp={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}
+        className="group sticky top-20 hidden h-[calc(100dvh-260px)] min-h-[520px] touch-none cursor-col-resize items-center justify-center rounded-lg outline-none focus-visible:bg-accent/10 lg:flex"><span className="h-14 w-1 rounded-full bg-border/50 transition-colors group-hover:bg-accent group-focus-visible:bg-accent" /></div>}
+      <aside className={focused ? "fixed inset-x-0 bottom-0 top-14 z-40 min-w-0 bg-background" : `${tutorOpen ? (mobileTutor ? "block" : "hidden lg:block") : "hidden"} min-w-0 h-[calc(100dvh-340px)] min-h-[440px] lg:sticky lg:top-20 lg:h-[calc(100dvh-260px)] lg:min-h-[520px]`}><DSATutorPanel tutor={tutor} slug={note.slug} problem={{ ...problem, userApproach: approach, userCode: code, userNotes: "" }} focused={focused} onFocusChange={setFocused} onClose={() => { setTutorOpen(false); setMobileTutor(false); }} /></aside>
     </div>
   </div>;
 }
