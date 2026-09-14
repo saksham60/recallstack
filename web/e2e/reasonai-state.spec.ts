@@ -18,6 +18,15 @@ function fixture() {
 }
 const newNode = { op: "add_node", ref: "new:redis", type: "cache", label: "Redis", technology: "redis", x: 500, y: 250 } as const;
 
+test("conversational component requests enable existing cards without enabling explanation-only edits", () => {
+  for (const message of ["can u give me a mongo db component", "Can you give me an AWS VPC boundary?", "please provide a VPC boundary", "I need a Redis node", "Could you show me a MongoDB component?", "Give me a draggable database card"]) {
+    expect(allowsReasonAIProposal({ mode: "chat", message }), message).toBe(true);
+  }
+  for (const message of ["Can u give me an explanation of the MongoDB component?", "Show me the component JSON", "Give me an example of a Redis node", "Explain why I need a Redis node", "I need a review of the database", "Give me a component, but do not change the canvas", "Show bottlenecks in this architecture"]) {
+    expect(allowsReasonAIProposal({ mode: "chat", message }), message).toBe(false);
+  }
+});
+
 test("individual drops override AI layout, resolve refs privately, and never add sibling suggestions", () => {
   const { state, diagram } = fixture();
   const refs = new Map<string, string>();

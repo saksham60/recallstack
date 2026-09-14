@@ -78,6 +78,48 @@ test("ReasonAI floats above the canvas, can be moved, resized, and preserves dra
   await expect(page.getByLabel("Diagram status")).toContainText(/Nodes\s+0/);
 });
 
+test("conversational component request recovers an expired token and returns a draggable MongoDB card", async ({ authenticatedPage: page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  const requests: { message: string; authorization?: string }[] = [];
+  let refreshes = 0;
+  page.on("request", (request) => { if (request.url().includes("/auth/v1/token?grant_type=refresh_token")) refreshes++; });
+  await page.route("**/api/reasonai/chat", (route) => {
+    requests.push({ message: route.request().postDataJSON().message, authorization: route.request().headers().authorization });
+    return requests.length === 1
+      ? route.fulfill({ status: 401, json: { error: "Session expired", code: "AUTH_REQUIRED" } })
+      : route.fulfill({ json: { text: "Drag MongoDB onto the canvas.", proposal: { summary: "MongoDB component", operations: [
+        { op: "add_node", ref: "new:mongodb", type: "nosql_database", label: "MongoDB", technology: "mongodb", x: 200, y: 200 },
+      ] } } });
+  });
+  await page.getByRole("button", { name: "Open ReasonAI" }).click();
+  const dialog = page.getByRole("dialog", { name: "ReasonAI", exact: true });
+  await page.getByLabel("Message ReasonAI").fill("can u give me a mongo db component");
+  await page.getByLabel("Message ReasonAI").press("Enter");
+  const card = dialog.getByRole("region", { name: "Suggestion: MongoDB", exact: true });
+  await expect(card).toBeVisible();
+  expect(requests).toHaveLength(2);
+  expect(requests[0].message).toBe(requests[1].message);
+  expect(requests.every((request) => request.authorization?.startsWith("Bearer "))).toBe(true);
+  expect(refreshes).toBe(1);
+  await expect(dialog.getByText("can u give me a mongo db component", { exact: true })).toHaveCount(1);
+  await expect(dialog.getByRole("alert")).toHaveCount(0);
+  await expect(page.getByLabel("Diagram status")).toContainText(/Nodes\s+0/);
+  await card.getByRole("button", { name: "Drag MongoDB to canvas" }).dragTo(page.getByTestId("system-design-canvas"), { targetPosition: { x: 200, y: 250 } });
+  await expect(card).toHaveAttribute("data-suggestion-status", "added");
+  await expect(page.getByLabel("Diagram status")).toContainText(/Nodes\s+1/);
+});
+
+test("temporary session verification failure offers retry without reporting a sign-out", async ({ authenticatedPage: page }) => {
+  await page.route("**/api/reasonai/chat", (route) => route.fulfill({ status: 503, json: { error: "Session verification is temporarily unavailable. Please try again.", code: "AUTH_UNAVAILABLE" } }));
+  await page.getByRole("button", { name: "Open ReasonAI" }).click();
+  const dialog = page.getByRole("dialog", { name: "ReasonAI", exact: true });
+  await page.getByLabel("Message ReasonAI").fill("Analyze capacity risks in this architecture.");
+  await page.getByLabel("Message ReasonAI").press("Enter");
+  await expect(dialog.getByRole("alert")).toContainText("Session verification is temporarily unavailable");
+  await expect(dialog.getByRole("button", { name: "Retry", exact: true })).toBeVisible();
+  await expect(dialog.getByRole("link", { name: /Sign in/i })).toHaveCount(0);
+});
+
 test("independent generated cards use native canvas drops, dependencies, private refs and history", async ({ authenticatedPage: page }) => {
   test.setTimeout(60_000);
   await page.setViewportSize({ width: 1600, height: 1000 });

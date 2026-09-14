@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { fetchReasonAI } from "@/lib/reasonai/client";
 import { parseDSATutorRequest, type DSAProblemContext, type DSATutorAction, type DSATutorRequest, type DSATutorResponse } from "./contract";
 import { parseVisualLesson } from "./visual-contract";
 
@@ -32,10 +33,7 @@ export function useDSATutor(context: DSAProblemContext) {
     setPending(true); setError(undefined); setAuthExpired(false);
     const timeout = setTimeout(() => controller.abort(), 65_000);
     try {
-      const response = await fetch("/api/reasonai/dsa/chat", {
-        method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal,
-        body: JSON.stringify(request),
-      });
+      const response = await fetchReasonAI("/api/reasonai/dsa/chat", JSON.stringify(request), controller.signal);
       const result = await response.json();
       if (inFlight.current !== controller) return;
       if (!response.ok) {

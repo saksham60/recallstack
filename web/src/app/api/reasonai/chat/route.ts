@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { createClient } from "@/lib/supabase/server";
+import { authenticateApiRequest } from "@/lib/supabase/api-auth";
 import { isE2EAuthBypassEnabled, isSystemDesignEnabled } from "@/lib/config/server";
 import { parseReasonAIRequest } from "@/features/system-design/reasonai/contract";
 import { readBoundedJSON, reasonAIProvider, ReasonAIProviderError } from "@/features/system-design/reasonai/provider";
@@ -14,10 +14,10 @@ export async function POST(request: Request) {
   if (origin && origin !== new URL(request.url).origin) return reply({ error: "Invalid request origin." }, 403);
   try {
     if (!(isE2EAuthBypassEnabled() && (await cookies()).has("e2e-bypass-auth"))) {
-      const { data: { user }, error } = await (await createClient()).auth.getUser();
-      if (error || !user) return reply({ error: "Sign in to use ReasonAI." }, 401);
+      const authError = await authenticateApiRequest(request);
+      if (authError) return authError;
     }
-  } catch { return reply({ error: "Unable to verify your session. Please sign in again." }, 401); }
+  } catch { return reply({ error: "Session verification is temporarily unavailable. Please try again." }, 503); }
   if (!request.headers.get("content-type")?.includes("application/json")) return reply({ error: "Expected JSON." }, 415);
   let input;
   try { input = parseReasonAIRequest(await readBoundedJSON(request, 512 * 1024)); }

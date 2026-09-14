@@ -38,7 +38,15 @@ export interface ReasonAIRequest {
 export function allowsReasonAIProposal(request: Pick<ReasonAIRequest, "mode" | "message">): boolean {
   if (/\b(?:do not|don['\u2019]t|without|never)\s+(?:\w+\s+){0,3}(?:chang(?:e[sd]?|ing)|modif(?:y|ying|ications?)|add(?:ing)?|remov(?:e|ing)|delet(?:e|ing)|propos(?:e|ing|als?)|fix(?:ing)?)\b|\b(?:analysis|explanation|review) only\b|\bno\s+(?:(?:structural|canvas|architectural?)\s+)?(?:changes|modifications|proposals)\b/i.test(request.message)) return false;
   if (request.mode === "fix") return true;
-  return /(?:^|[.!?]\s+)(?:(?:please|can you|could you|would you|help me|i want(?: you)? to|let's)\s+)*(?:add|remove|delete|create|build|design|fix|improve|replace|update|move|connect|propose|optimize|redesign|suggest (?:changes|improvements))\b/i.test(request.message.trim());
+  const message = request.message.trim().replace(/\bu\b/gi, "you");
+  const prefix = /^(?:(?:please|can you|could you|would you|will you|help me|i want(?: you)? to|let's)\s+)*/i;
+  const intent = message.replace(prefix, "");
+  // Asking for an addable component is an explicit request for a suggestion,
+  // even when phrased conversationally. Acceptance/drop still owns mutation.
+  const componentRequest = /^(?:(?:give|provide|send|get|show|offer)\s+(?:(?:me|us)\s+)?|(?:i need|i want|i would like|i'd like|can i have|could i have)\s+)/i.test(intent)
+    && /\b(?:components?|nodes?|cards?|blocks?|boundar(?:y|ies))\b/i.test(intent)
+    && !/\b(?:explain|explanation|example|hint|analysis|overview|definition|json|code)\b/i.test(intent);
+  return componentRequest || /(?:^|[.!?]\s+)(?:(?:please|can you|could you|would you|help me|i want(?: you)? to|let's)\s+)*(?:add|remove|delete|create|build|design|fix|improve|replace|update|move|connect|propose|optimize|redesign|suggest (?:changes|improvements))\b/i.test(message);
 }
 export class ReasonAIValidationError extends Error {}
 export function record(value: unknown): Record<string, unknown> {

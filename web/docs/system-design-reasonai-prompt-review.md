@@ -45,6 +45,8 @@ This was a provider correctness issue, not a reason to change the system prompt.
 
 The complete reviewed source follows, including per-turn mode/search rules. The maintained implementation is `src/features/system-design/reasonai/system-prompt.ts`.
 
+Post-review regression fix (2026-09-14): the maintained prompt now explicitly maps conversational requests such as "can u give me a MongoDB component" to the existing `propose_canvas_changes` tool and draggable cards, and rejects the earlier manual JSON-copy instructions. The request intent filter was corrected alongside it. This narrow addition is not part of the Astra-reviewed snapshot below; it is covered by provider tests and live MongoDB/VPC checks.
+
 ## Final reviewed system prompt
 
 ```typescript

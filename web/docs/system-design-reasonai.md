@@ -36,6 +36,14 @@ A visual analysis is never a change proposal. Chat/Review/Eagle default to analy
 
 The existing suggestion preview, component drag/drop, connection dependency handling, accepted operations, undo and Live Share flow remain intact. There is no new Apply All operation. One terminal structured tool response is supported: a proposal or an overlay. Research can precede either.
 
+## Session recovery and component-card regression fix
+
+Both ReasonAI clients now send the browser Supabase client's current access token. The server verifies it with `getUser(token)` using a stateless client; existing cookie clients remain supported. Both API routes authenticate in their own handlers, without a duplicate proxy session refresh. A 401 triggers one shared browser refresh and at most one retry of the same request. Cancellation prevents resubmission, and non-401 failures are never automatically retried. Genuine invalid sessions return `AUTH_REQUIRED` (401); temporary verification, network and rate-limit failures return `AUTH_UNAVAILABLE` (503), without misreporting a sign-out. Page authentication is unchanged. This follows Supabase's [server-side session guidance](https://supabase.com/docs/guides/auth/server-side/advanced-guide); server authorization still requires a verified user.
+
+Conversational requests such as "can u give me a mongo db component", "provide a VPC boundary" and "I need a Redis node" enable the existing proposal tool. The prompt directs Nemotron to return the existing draggable cards instead of manual JSON instructions. Explanation-only requests remain separate, and accepting or dropping each card remains the mutation boundary. Live Nemotron checks returned validated MongoDB and AWS VPC cards even with earlier manual-copy instructions in history.
+
+Regression verification (2026-09-14): TypeScript, full lint, production build, 240 state/provider tests and 49 browser tests passed. Browser coverage includes token-refresh recovery into a draggable MongoDB card, temporary authentication failures, existing suggestion drops/undo, movable/resizable analysis, DSA, protected routes, bookmarks, notes and revisions. Both API routes also returned 401 for unauthenticated requests. These checks validate the repaired paths; they do not establish the exact cause of an earlier production 401 without its server-side diagnostics.
+
 ## Trust boundaries
 
 Canvas metadata, history, user text and external snippets are untrusted data. They cannot redefine tools, system instructions or authorization. Search arguments are limited and checked for credentials, opaque payloads, internal domains and copied private descriptions/history. These checks reduce accidental disclosure; they cannot prove that arbitrary natural-language text contains no private information. The prompt restricts queries to public technology facts.

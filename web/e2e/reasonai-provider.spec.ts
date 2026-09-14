@@ -54,6 +54,14 @@ async function fails(category: string, message?: string) {
   expect(JSON.stringify(diagnostics)).not.toContain("NEVER_SHOW_REASONING");
 }
 
+for (const message of ["can u give me a mongo db component", "provide a VPC boundary", "I need a Redis node"]) test(`component request exposes and validates the existing proposal tool: ${message}`, async () => {
+  mock(completion("Drag the card onto the canvas.", [tool()]));
+  const result = await reasonAIProvider.complete({ ...request, message, history: [{ role: "assistant", content: "Copy this JSON into the canvas to add a node." }] });
+  expect(result.proposal?.operations[0].op).toBe("add_node");
+  expect(JSON.stringify(sentBody.tools)).toContain("propose_canvas_changes");
+  expect(JSON.stringify(sentBody.messages)).toContain("EXISTING draggable component cards");
+});
+
 test("normal text, exact request tool fields, concise prompt and no reasoning traces", async () => {
   const result = await reasonAIProvider.complete(request);
   expect(result).toEqual({ text: "Observed\n• Redirect Service reads SQL Database." });

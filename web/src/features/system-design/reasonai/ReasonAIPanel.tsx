@@ -26,6 +26,7 @@ import { ReasonAISuggestions, type ReasonAISuggestionActions } from "./ReasonAIS
 import { parseReasonAISources, type ReasonAISource } from "./sources";
 import { ReasonAISources } from "./ReasonAISources";
 import { parseReasonAIVisualization, reasonAIAnalysisScope, type ReasonAIVisualization } from "./visualization";
+import { fetchReasonAI } from "@/lib/reasonai/client";
 
 interface Turn extends ReasonAIMessage { id: string; proposal?: ReasonAIProposal; sources?: ReasonAISource[]; notice?: string }
 interface Generation { question: string; mode: ReasonAIMode; history: ReasonAIMessage[] }
@@ -232,17 +233,12 @@ export function ReasonAIPanel({
         selectedNodeIds,
         selectedEdgeIds,
       );
-      const response = await fetch("/api/reasonai/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        signal: controller.signal,
-        body: JSON.stringify({
+      const response = await fetchReasonAI("/api/reasonai/chat", JSON.stringify({
           mode: generation.mode,
           message: generation.question,
           history: generation.history,
           context,
-        }),
-      });
+        }), controller.signal);
       if (response.redirected || response.status === 401) {
         throw new Error("Sign in to use ReasonAI, then try again.");
       }
