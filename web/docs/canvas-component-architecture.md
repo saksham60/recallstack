@@ -1,6 +1,6 @@
 # Canvas component architecture
 
-Recall Stack has two related canvas surfaces. The reusable diagram studio lives
+ReasonAI has two related canvas surfaces. The reusable diagram studio lives
 under `src/features/diagram`; the system-design practice editor lives under
 `src/features/system-design`. Both use React 19, Next.js, Konva, and
 React-Konva. They do not use a second drag-and-drop package: Konva handles

@@ -1,12 +1,12 @@
-# RecallStack Web
+# ReasonAI Web
 
-The RecallStack web application is a Next.js App Router client for the RecallStack API. It uses Supabase authentication, TanStack Query for server state, and generated OpenAPI types for API contracts.
+The ReasonAI web application is a Next.js App Router client for the ReasonAI API. It uses Supabase authentication, TanStack Query for server state, and generated OpenAPI types for API contracts.
 
 ## Requirements
 
 - Node.js 22 or newer
 - npm
-- A running RecallStack API and Supabase project (local or hosted)
+- A running ReasonAI API and Supabase project (local or hosted)
 
 Copy `.env.example` to `.env.local` and set:
 
@@ -20,7 +20,7 @@ SYSTEM_DESIGN_ENABLED=1
 
 Only public browser configuration belongs in `NEXT_PUBLIC_*` variables. Server-only or test-only values must be read from `src/lib/config/server.ts` and must not be re-exported into client modules.
 
-## ReasonAI Stage 1
+## ReasonAI configuration
 
 Add `NEBIUS_API_KEY` to the ignored `.env.local` and restart Next.js. The default
 server provider uses `https://api.tokenfactory.nebius.com/v1` and
@@ -52,10 +52,12 @@ before applying; locked nodes and invalid/stale references reject the whole batc
 Node deletion uses existing behavior, including deleting incident edges and child
 diagrams. Undo remains one step per committed operation.
 
-Stage 1 limits: 4,000-character messages, last 10 history messages, 200 nodes,
+Current limits: 4,000-character messages, last 10 history messages, 200 nodes,
 400 edges and 50 proposed operations. AI can reason about image/freehand nodes
-through their text, but does not generate image or ink assets. Graphical previews,
-heatmaps, streaming, persistent AI history and external search are deferred.
+through their text, but does not generate image or ink assets. Streaming,
+persistent AI history and arbitrary heatmaps remain deferred. Tavily-backed
+external research is implemented for linked-page and explicit DSA search and for
+current System Design facts; grounded responses include compact source links.
 
 ReasonAI tests use the existing Playwright tooling and mocked AI responses:
 `npm run test:system-design-state` and
@@ -157,7 +159,7 @@ inside the admin area.
 
 Live Share creates rooms through `NEXT_PUBLIC_REALTIME_BASE_URL`. The public,
 capability-token guest route is `/system-design/live/[roomToken]`; it does not
-require a RecallStack account and is marked `noindex`.
+require a ReasonAI account and is marked `noindex`.
 
 System Design Live Share synchronizes structural node/edge/module operations and
 uses transient messages for drag, resize, freehand, and cursor previews. QR codes
