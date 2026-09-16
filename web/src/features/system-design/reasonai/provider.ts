@@ -15,10 +15,23 @@ export class ReasonAIProviderError extends Error {
 }
 const INCOMPLETE_RESPONSE = "ReasonAI could not complete that response. Please try again.";
 type Diagnostic = "INVALID_CHOICES" | "FINISH_REASON_REJECTED" | "RESPONSE_TRUNCATED" | "INVALID_CONTENT" | "INVALID_TOOL_CALL" | "TOOL_ARGUMENT_JSON_INVALID" | "PROPOSAL_VALIDATION_FAILED" | "VISUALIZATION_VALIDATION_FAILED" | "EMPTY_RESPONSE" | "RESPONSE_TOO_LARGE" | "INVALID_RESPONSE_JSON" | "SECRET_IN_RESPONSE" | "PROVIDER_HTTP_ERROR" | "TIMEOUT" | "PROVIDER_UNAVAILABLE";
-type DiagnosticMetadata = { choices?: number; toolCalls?: number; finishReason?: string; status?: number; reason?: string };
+type DiagnosticStage = "tool_argument_json" | "proposal_validation";
+type DiagnosticMetadata = {
+  choices?: number;
+  toolCalls?: number;
+  finishReason?: string;
+  status?: number;
+  reason?: string;
+  provider?: string;
+  model?: string;
+  stage?: DiagnosticStage;
+  toolName?: string;
+  topLevelKeys?: string[];
+};
 function diagnostic(category: Diagnostic, metadata: DiagnosticMetadata = {}) {
-  // Call sites only supply counts, known enum values, and fixed validator messages.
-  // Never log caught fetch/JSON errors: their messages can contain response data.
+  // Call sites only supply counts, known enum values, fixed validator messages,
+  // model/provider identifiers and field names. Never log raw model arguments or
+  // caught fetch/JSON errors: their values can contain user data or credentials.
   console.warn(`[ReasonAI] ${category}`, metadata);
 }
 function reject(category: Diagnostic, message = INCOMPLETE_RESPONSE, metadata?: DiagnosticMetadata): never {
@@ -30,6 +43,13 @@ function object(value: unknown): Record<string, unknown> | undefined {
 }
 function safeFinishReason(value: unknown): string {
   return typeof value === "string" && ["stop", "tool_calls", "length", "content_filter", "function_call"].includes(value) ? value : value == null ? "missing" : "unknown";
+}
+function providerLabel(baseUrl: string): string {
+  return baseUrl.toLowerCase().includes("nebius") ? "nebius" : "configured-provider";
+}
+function topLevelKeys(value: unknown): string[] | undefined {
+  const input = object(value);
+  return input ? Object.keys(input).sort().slice(0, 20) : undefined;
 }
 
 function selectChoice(raw: unknown): Record<string, unknown> {
@@ -51,7 +71,7 @@ function hasSecret(value: unknown, keys: string[]): boolean {
   const text = typeof value === "string" ? value : JSON.stringify(value);
   return keys.some((key) => text?.includes(key));
 }
-function normalizeResponse(raw: unknown, request: ReasonAIRequest, keys: string[], evidence: (TavilyEvidence & { id: number })[], onInvalidVisualization: (reason: string) => void): ReasonAIResponse {
+function normalizeResponse(raw: unknown, request: ReasonAIRequest, keys: string[], evidence: (TavilyEvidence & { id: number })[], provider: string, model: string, onInvalidVisualization: (reason: string) => void): ReasonAIResponse {
   const choice = selectChoice(raw), message = object(choice.message)!;
   const finishReason = safeFinishReason(choice.finish_reason);
   if (finishReason === "length") diagnostic("RESPONSE_TRUNCATED", { finishReason });
@@ -68,7 +88,7 @@ function normalizeResponse(raw: unknown, request: ReasonAIRequest, keys: string[
       let value: unknown;
       try { value = JSON.parse(fn.arguments); }
       catch {
-        if (fn.name === "propose_canvas_changes") return reject("TOOL_ARGUMENT_JSON_INVALID", finishReason === "length" ? INCOMPLETE_RESPONSE : REASONAI_INVALID_PROPOSAL, { finishReason });
+        if (fn.name === "propose_canvas_changes") return reject("TOOL_ARGUMENT_JSON_INVALID", finishReason === "length" ? INCOMPLETE_RESPONSE : REASONAI_INVALID_PROPOSAL, { finishReason, provider, model, stage: "tool_argument_json", toolName: "propose_canvas_changes" });
         notice = "The analysis overlay could not be displayed. Your architecture is unchanged.";
         onInvalidVisualization("Tool arguments must be valid JSON.");
       }
@@ -76,7 +96,16 @@ function normalizeResponse(raw: unknown, request: ReasonAIRequest, keys: string[
       if (fn.name === "propose_canvas_changes") {
         if (!allowsReasonAIProposal(request)) return reject("INVALID_TOOL_CALL", REASONAI_INVALID_PROPOSAL);
         try { proposal = parseReasonAIProposal(value, request.context); }
-        catch (error) { return reject("PROPOSAL_VALIDATION_FAILED", REASONAI_INVALID_PROPOSAL, { reason: error instanceof ReasonAIValidationError ? error.message : "Proposal validation failed." }); }
+        catch (error) {
+          return reject("PROPOSAL_VALIDATION_FAILED", REASONAI_INVALID_PROPOSAL, {
+            reason: error instanceof ReasonAIValidationError ? error.message : "Proposal validation failed.",
+            provider,
+            model,
+            stage: "proposal_validation",
+            toolName: "propose_canvas_changes",
+            topLevelKeys: topLevelKeys(value),
+          });
+        }
       } else {
         const summary = object(value)?.summary;
         if (typeof summary === "string" && summary.length <= 2400) visualSummary = summary;
@@ -130,6 +159,7 @@ export const reasonAIProvider: ReasonAIProvider = {
   async complete(request, signal) {
     const { apiKey: key, baseUrl, model } = getReasonAIConfiguration();
     if (!key) throw new ReasonAIProviderError("ReasonAI is not configured. Add the server API key.", 503);
+    const provider = providerLabel(baseUrl);
     const keys = [key, getTavilyConfiguration().apiKey].filter((key): key is string => Boolean(key));
     // Defense in depth for opaque configured credentials pasted into otherwise
     // valid input. Configuration values never become model or tool context.
@@ -175,7 +205,7 @@ export const reasonAIProvider: ReasonAIProvider = {
         if (repairing && fn?.name && fn.name !== "show_architecture_analysis") return analysisFallback!;
         if (fn?.name !== "search_web") {
           let invalidReason: string | undefined;
-          const result = normalizeResponse(raw, request, keys, evidence, (reason) => { invalidReason = reason; });
+          const result = normalizeResponse(raw, request, keys, evidence, provider, model, (reason) => { invalidReason = reason; });
           if (researchFailed) result.notice = [result.notice, "Some current external facts could not be verified. Treat unsupported limits or prices as unknown."].filter(Boolean).join(" ");
           if (invalidReason) {
             diagnostic("VISUALIZATION_VALIDATION_FAILED", { reason: invalidReason });
