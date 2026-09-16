@@ -6,6 +6,7 @@ import { parseResearchQuery } from "../src/features/system-design/reasonai/resea
 import { searchTavily } from "../src/lib/tavily/search";
 import { normalizeVisualizationArguments } from "../src/features/system-design/reasonai/visualization-arguments";
 import { parseReasonAIVisualization } from "../src/features/system-design/reasonai/visualization";
+import { parseSanitizedAIProposal, sanitizeAIProposal } from "../src/features/system-design/reasonai/sanitizeAIProposal";
 
 const KEY = "private-test-provider-credential";
 const request: ReasonAIRequest = { mode: "chat", message: "Propose improvements to this architecture.", history: [], context: {
@@ -21,7 +22,7 @@ const proposal: ReasonAIProposal = { summary: "**Cache**: reduce reads from node
 const tool = (args = JSON.stringify(proposal), name = "propose_canvas_changes") => ({ type: "function", function: { name, arguments: args } });
 const completion = (content: unknown = "Observed\n• Redirect Service reads SQL Database.", calls?: unknown, finishReason: unknown = "stop") => ({ choices: [{ message: { content, tool_calls: calls, reasoning_content: "NEVER_SHOW_REASONING" }, finish_reason: finishReason }] });
 const originalFetch = globalThis.fetch, originalWarn = console.warn, originalTimeout = globalThis.setTimeout;
-const originalEnv = { NEBIUS_API_KEY: process.env.NEBIUS_API_KEY, REASONAI_BASE_URL: process.env.REASONAI_BASE_URL, REASONAI_MODEL: process.env.REASONAI_MODEL, TAVILY_API_KEY: process.env.TAVILY_API_KEY };
+const originalEnv = { NODE_ENV: process.env.NODE_ENV, NEBIUS_API_KEY: process.env.NEBIUS_API_KEY, REASONAI_BASE_URL: process.env.REASONAI_BASE_URL, REASONAI_MODEL: process.env.REASONAI_MODEL, TAVILY_API_KEY: process.env.TAVILY_API_KEY };
 let diagnostics: unknown[][];
 let sentBody: Record<string, unknown>;
 test.beforeEach(() => {
@@ -87,6 +88,61 @@ test("selects a usable choice despite harmless extra choices and metadata", asyn
   const good = completion().choices[0];
   mock({ choices: [null, { message: "not a message" }, completion("").choices[0], good, { message: { content: "Secondary" }, finish_reason: "stop" }], usage: {}, model: "metadata" });
   expect((await reasonAIProvider.complete(request)).text).toContain("Redirect Service");
+});
+
+test("provider repairs representation errors with the same deterministic browser sanitizer", async () => {
+  const raw = { summary: "Cache", operations: [
+    { op: "add_node", id: "model-cache", type: "cache", label: "Cache", x: null, y: "bad", subtitle: null },
+    { op: "add_node", ref: "new:repaired_0", type: "system_boundary" },
+    { op: "add_edge", type: "read", sourceNodeId: "node_redirect", targetNodeId: "model-cache", protocol: null },
+    { op: "add_edge", type: "database_read", sourceNodeId: "node_redirect", targetNodeId: "model-cache" },
+  ] };
+  const before = structuredClone(raw);
+  mock(completion(null, [tool(JSON.stringify(raw))], "tool_calls"));
+  const result = await reasonAIProvider.complete(request);
+  expect(result.proposal?.operations).toHaveLength(3);
+  expect(result.proposal?.operations[2]).toMatchObject({ type: "database_read", targetNodeId: "new:repaired_1", protocol: "" });
+  expect(result.proposal).toEqual(parseSanitizedAIProposal(raw, request.context));
+  expect(parseSanitizedAIProposal(result.proposal, request.context)).toEqual(result.proposal);
+  expect(sanitizeAIProposal(raw, request.context)).toEqual(sanitizeAIProposal(raw, request.context));
+  expect(raw).toEqual(before);
+});
+
+for (const [name, args, expected] of [
+  ["full canvas", JSON.stringify({ title: "PRIVATE_USER_TEXT", requirements: [], scaleAssumptions: [], nodes: [], edges: [] }), { stage: "normalization", code: "WRONG_PROPOSAL_CONTRACT", topLevelKeys: ["title", "requirements", "scaleAssumptions", "nodes", "edges"] }],
+  ["malformed JSON", '{"summary":"PRIVATE_USER_TEXT",', { stage: "tool_argument_json", code: "MALFORMED_TOOL_ARGUMENT_JSON", topLevelKeys: [] }],
+  ["unknown operation", JSON.stringify({ summary: "PRIVATE_USER_TEXT", operations: [{ op: "execute_PRIVATE_USER_TEXT" }] }), { stage: "strict_validation", code: "UNKNOWN_OPERATION", operationIndex: 0 }],
+  ["invalid field after filtered node", JSON.stringify({ summary: "PRIVATE_USER_TEXT", operations: [{ op: "add_node", type: "unsupported" }, { ...proposal.operations[0], label: "PRIVATE_USER_TEXT".repeat(30) }] }), { stage: "strict_validation", code: "INVALID_OPERATION_FIELD", operationIndex: 1, field: "label" }],
+  ["missing required field", JSON.stringify({ summary: "PRIVATE_USER_TEXT", operations: [{ op: "delete_node" }] }), { stage: "strict_validation", code: "MISSING_OPERATION_FIELD", operationIndex: 0, field: "nodeId" }],
+  ["unknown top-level field", JSON.stringify({ summary: "PRIVATE_USER_TEXT", operations: [], PRIVATE_USER_TEXT: true }), { stage: "normalization", code: "WRONG_PROPOSAL_CONTRACT", topLevelKeys: ["summary", "operations", "[unknown]"] }],
+] as const) {
+  test(`development proposal diagnostics distinguish ${name} without logging contents`, async () => {
+    Object.assign(process.env, { NODE_ENV: "development" });
+    mock(completion(null, [tool(args)], "tool_calls"));
+    await expect(reasonAIProvider.complete(request)).rejects.toMatchObject({ message: REASONAI_INVALID_PROPOSAL, status: 502 });
+    expect(diagnostics.find(([name]) => name === "[ReasonAI] PROPOSAL_DIAGNOSTIC")?.[1]).toMatchObject({
+      provider: "reasonAIProvider (OpenAI-compatible)", model: "mock-model", ...expected,
+      rawToolArguments: "[omitted by provider logging policy]",
+    });
+    expect(JSON.stringify(diagnostics)).not.toContain("PRIVATE_USER_TEXT");
+  });
+}
+
+test("production errors preserve safe user behavior and exclude development diagnostics", async () => {
+  Object.assign(process.env, { NODE_ENV: "production" });
+  mock(completion(null, [tool(JSON.stringify({ nodes: [], edges: [] }))], "tool_calls"));
+  await fails("PROPOSAL_VALIDATION_FAILED", REASONAI_INVALID_PROPOSAL);
+  expect(diagnostics.some(([name]) => name === "[ReasonAI] PROPOSAL_DIAGNOSTIC")).toBe(false);
+});
+
+test("development repair metadata never uses the browser raw-payload logger", async () => {
+  Object.assign(process.env, { NODE_ENV: "development" });
+  mock(completion(null, [tool(JSON.stringify({ summary: "PRIVATE_USER_TEXT", operations: [
+    { ...proposal.operations[0], label: "PRIVATE_USER_TEXT", ref: null },
+  ] }))], "tool_calls"));
+  expect((await reasonAIProvider.complete(request)).proposal?.operations).toHaveLength(1);
+  expect(diagnostics).toContainEqual(["[ReasonAI] PROPOSAL_NORMALIZED", { repairs: [{ code: "REPAIRED_NODE_REFERENCE", operationIndex: 0 }] }]);
+  expect(JSON.stringify(diagnostics)).not.toContain("PRIVATE_USER_TEXT");
 });
 for (const choices of [undefined, null, [], {}, [null, { message: "invalid" }]]) {
   test(`rejects malformed choices: ${JSON.stringify(choices)}`, async () => { mock({ choices }); await fails("INVALID_CHOICES"); });

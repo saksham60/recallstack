@@ -7,6 +7,7 @@ import { applyCanvasOperation } from "../src/features/system-design/realtime/app
 import { captureReasonAIAction, prepareReasonAISuggestion, reasonAIActionStatus, reasonAIUndoUnavailable } from "../src/features/system-design/reasonai/suggestions";
 import type { ReasonAIOperation } from "../src/features/system-design/reasonai/contract";
 import { allowsReasonAIProposal } from "../src/features/system-design/reasonai/contract";
+import { parseSanitizedAIProposal, sanitizeAIProposal } from "../src/features/system-design/reasonai/sanitizeAIProposal";
 import { parseReasonAIVisualization, reasonAIAnalysisScope, REASONAI_VISUALIZATION_TYPES } from "../src/features/system-design/reasonai/visualization";
 
 function fixture() {
@@ -17,6 +18,98 @@ function fixture() {
   return { document, diagram, state: createSystemDesignEditorState(document, { loadStatus: "ready" }), context: buildReasonAIContext(diagram, document.title) };
 }
 const newNode = { op: "add_node", ref: "new:redis", type: "cache", label: "Redis", technology: "redis", x: 500, y: 250 } as const;
+
+test("AI receipt repairs aliases, unknown relationships, duplicate and dangling edges before validation", () => {
+  const { context, state, diagram } = fixture();
+  const read = { op: "add_edge", sourceNodeId: "service-a", targetNodeId: "new:redis", type: "read", label: "Lookup" };
+  const raw = { summary: "Cache", operations: [newNode, read, { ...read, type: "database_read" },
+    { ...read, type: "new_relationship", label: "Other" },
+    { ...read, targetNodeId: "missing" },
+    { ...read, type: "http_request", targetNodeId: "database-b" },
+  ] };
+  const before = structuredClone(raw);
+  const parsed = parseSanitizedAIProposal(raw, context);
+  expect(parsed.operations).toHaveLength(3);
+  expect(parsed.operations[1]).toMatchObject({ type: "database_read" });
+  expect(parsed.operations[2]).toMatchObject({ type: "custom" });
+  expect(sanitizeAIProposal(raw, context).warnings.map((warning) => warning.code)).toEqual(expect.arrayContaining(["INVALID_EDGE_TYPE", "DUPLICATE_EDGE", "DANGLING_EDGE"]));
+  expect(prepareReasonAIApply(parsed, state, diagram.id)).toHaveLength(3);
+  expect(raw).toEqual(before);
+  expect(diagram.nodes).toHaveLength(2);
+});
+
+test("AI boundaries use existing factory dimensions; unsupported nodes and their edges are removed", () => {
+  const { context, state, diagram } = fixture();
+  const parsed = parseSanitizedAIProposal({ operations: [
+    { op: "add_node", ref: "new:boundary", type: "system_boundary", width: null, height: -1 },
+    { ...newNode, ref: "new:decoration", type: "unsupported_decoration" },
+    { op: "add_edge", type: "read", sourceNodeId: "new:boundary", targetNodeId: "new:decoration" },
+  ] }, context);
+  expect(parsed.operations).toHaveLength(1);
+  const [operation] = prepareReasonAIApply(parsed, state, diagram.id);
+  expect(operation.kind).toBe("node.add");
+  if (operation.kind !== "node.add") throw new Error("Expected node");
+  const boundary = createSystemDesignNode("system_boundary", { x: 0, y: 0 });
+  expect(operation.node).toMatchObject({ type: "system_boundary", width: boundary.width, height: boundary.height, label: boundary.label });
+});
+
+test("AI coordinate repair is finite and deterministic and optional null strings are harmless", () => {
+  const { context } = fixture();
+  for (const value of [undefined, null, NaN, Infinity, -Infinity, "50", 100_001]) {
+    const raw = { operations: [{ ...newNode, x: value, y: value, label: null, subtitle: null, technology: null, description: null }] };
+    const parsed = parseSanitizedAIProposal(raw, context);
+    expect(parsed).toEqual(parseSanitizedAIProposal(raw, context));
+    expect(parsed.operations[0]).toMatchObject({ label: "Cache", subtitle: "", technology: "", description: "" });
+    const node = parsed.operations[0];
+    if (node.op !== "add_node") throw new Error("Expected node");
+    expect(Number.isFinite(node.x) && Number.isFinite(node.y)).toBe(true);
+  }
+});
+
+test("AI duplicate refs keep their first node and missing IDs use trusted factories", () => {
+  const { context, state, diagram } = fixture();
+  const parsed = parseSanitizedAIProposal({ operations: [
+    newNode, { ...newNode, label: "Duplicate" },
+    { op: "add_node", id: "ai-id", type: "service" },
+    { op: "add_node", type: "service" },
+    { op: "add_edge", id: "duplicate-edge-id", sourceNodeId: "ai-id", targetNodeId: "new:redis", type: "db_read" },
+    { op: "add_edge", id: "duplicate-edge-id", sourceNodeId: "service-a", targetNodeId: "new:redis", type: "queue" },
+  ] }, context);
+  expect(parsed.operations).toHaveLength(5);
+  const additions = parsed.operations.filter((op) => op.op === "add_node");
+  expect(new Set(additions.map((op) => op.ref)).size).toBe(3);
+  expect(additions[0].ref).toBe(newNode.ref);
+  const prepared = prepareReasonAIApply(parsed, state, diagram.id);
+  const ids = prepared.flatMap((op) => op.kind === "node.add" ? [op.node.id] : op.kind === "edge.add" ? [op.edge.id] : []);
+  expect(new Set(ids).size).toBe(5);
+  expect(ids.every((id) => /^(node|edge)_[a-f0-9-]{36}$/.test(id))).toBe(true);
+});
+
+test("sanitization leaves a valid proposal unchanged and rejects unsafe/empty payloads without mutation", () => {
+  const { context, state, diagram } = fixture();
+  const valid = { summary: "Cache", operations: [newNode] };
+  expect(parseSanitizedAIProposal(valid, context)).toEqual(valid);
+  const before = structuredClone(state);
+  for (const raw of [null, "invalid json", [], {}, { operations: {} }, { operations: [] },
+    { operations: [{ ...newNode, type: "image" }] },
+    { operations: [{ op: "execute", code: "alert(1)" }] },
+    { operations: [{ ...newNode, metadata: { script: "execute" } }] },
+    { operations: [{ op: "delete_node", nodeId: "missing" }] },
+    { operations: Array.from({ length: 51 }, () => newNode) },
+  ]) expect(() => prepareReasonAIApply(parseSanitizedAIProposal(raw, context), state, diagram.id)).toThrow();
+  expect(state).toEqual(before);
+});
+
+test("AI normalization tracks edge deletions and updates without changing manual edges", () => {
+  const { context } = fixture();
+  const parsed = parseSanitizedAIProposal({ operations: [
+    { op: "delete_edge", edgeId: "edge-a" },
+    { op: "add_edge", sourceNodeId: "service-a", targetNodeId: "database-b", type: "request" },
+    { op: "add_edge", sourceNodeId: "service-a", targetNodeId: "database-b", type: "http", label: "Different label" },
+  ] }, context);
+  expect(parsed.operations).toHaveLength(2);
+  expect(context.edges[0].type).toBe("http_request");
+});
 
 test("conversational component requests enable existing cards without enabling explanation-only edits", () => {
   for (const message of ["can u give me a mongo db component", "Can you give me an AWS VPC boundary?", "please provide a VPC boundary", "I need a Redis node", "Could you show me a MongoDB component?", "Give me a draggable database card"]) {

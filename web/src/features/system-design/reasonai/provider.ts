@@ -8,6 +8,7 @@ import { parseReasonAIVisualization, REASONAI_VISUALIZATION_TOOL } from "./visua
 import { SYSTEM_DESIGN_REASONAI_PROMPT, reasonAITurnRules } from "./system-prompt";
 import type { ReasonAISource } from "./sources";
 import { normalizeVisualizationArguments } from "./visualization-arguments";
+import { sanitizeAIProposal } from "./sanitizeAIProposal";
 
 export interface ReasonAIProvider { complete(request: ReasonAIRequest, signal?: AbortSignal): Promise<ReasonAIResponse> }
 export class ReasonAIProviderError extends Error {
@@ -51,7 +52,26 @@ function hasSecret(value: unknown, keys: string[]): boolean {
   const text = typeof value === "string" ? value : JSON.stringify(value);
   return keys.some((key) => text?.includes(key));
 }
-function normalizeResponse(raw: unknown, request: ReasonAIRequest, keys: string[], evidence: (TavilyEvidence & { id: number })[], onInvalidVisualization: (reason: string) => void): ReasonAIResponse {
+function proposalDiagnostic(stage: "tool_argument_json" | "normalization" | "strict_validation", model: string, keys: string[], argumentLength: number, value: unknown, error?: unknown, operationIndexes?: number[]) {
+  if (process.env.NODE_ENV !== "development") return;
+  const details = error instanceof ReasonAIValidationError ? error.diagnostic : undefined;
+  const returned = object(value);
+  const knownKeys = new Set(["summary", "operations", "title", "requirements", "scaleAssumptions", "nodes", "edges"]);
+  const safeModel = redactResearchText(keys.reduce((name, key) => name.replaceAll(key, "[redacted]"), model)).replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 160);
+  console.warn("[ReasonAI] PROPOSAL_DIAGNOSTIC", {
+    provider: "reasonAIProvider (OpenAI-compatible)", model: safeModel, stage,
+    code: stage === "tool_argument_json" ? "MALFORMED_TOOL_ARGUMENT_JSON" : details?.code ?? "WRONG_PROPOSAL_CONTRACT",
+    operationIndex: details?.operationIndex === undefined ? undefined : operationIndexes?.[details.operationIndex] ?? details.operationIndex,
+    field: details?.field,
+    // Unknown property names can themselves contain secrets or user text.
+    topLevelKeys: returned ? Object.keys(returned).slice(0, 30).map((key) => knownKeys.has(key) ? key : "[unknown]") : [],
+    argumentLength,
+    // Server logging policy permits metadata, never model/user response contents.
+    // Even malformed JSON can contain arbitrary private text or encoded secrets.
+    rawToolArguments: "[omitted by provider logging policy]",
+  });
+}
+function normalizeResponse(raw: unknown, request: ReasonAIRequest, keys: string[], evidence: (TavilyEvidence & { id: number })[], onInvalidVisualization: (reason: string) => void, model: string): ReasonAIResponse {
   const choice = selectChoice(raw), message = object(choice.message)!;
   const finishReason = safeFinishReason(choice.finish_reason);
   if (finishReason === "length") diagnostic("RESPONSE_TRUNCATED", { finishReason });
@@ -68,15 +88,27 @@ function normalizeResponse(raw: unknown, request: ReasonAIRequest, keys: string[
       let value: unknown;
       try { value = JSON.parse(fn.arguments); }
       catch {
-        if (fn.name === "propose_canvas_changes") return reject("TOOL_ARGUMENT_JSON_INVALID", finishReason === "length" ? INCOMPLETE_RESPONSE : REASONAI_INVALID_PROPOSAL, { finishReason });
+        if (fn.name === "propose_canvas_changes") {
+          proposalDiagnostic("tool_argument_json", model, keys, fn.arguments.length, undefined);
+          return reject("TOOL_ARGUMENT_JSON_INVALID", finishReason === "length" ? INCOMPLETE_RESPONSE : REASONAI_INVALID_PROPOSAL, { finishReason });
+        }
         notice = "The analysis overlay could not be displayed. Your architecture is unchanged.";
         onInvalidVisualization("Tool arguments must be valid JSON.");
       }
       if (hasSecret(value, keys)) return reject("SECRET_IN_RESPONSE");
       if (fn.name === "propose_canvas_changes") {
         if (!allowsReasonAIProposal(request)) return reject("INVALID_TOOL_CALL", REASONAI_INVALID_PROPOSAL);
-        try { proposal = parseReasonAIProposal(value, request.context); }
-        catch (error) { return reject("PROPOSAL_VALIDATION_FAILED", REASONAI_INVALID_PROPOSAL, { reason: error instanceof ReasonAIValidationError ? error.message : "Proposal validation failed." }); }
+        let normalized: ReturnType<typeof sanitizeAIProposal> | undefined;
+        try {
+          normalized = sanitizeAIProposal(value, request.context);
+          proposal = parseReasonAIProposal(normalized.proposal, request.context);
+          if (process.env.NODE_ENV === "development" && normalized.warnings.length) console.warn("[ReasonAI] PROPOSAL_NORMALIZED", {
+            repairs: normalized.warnings.map(({ code, operationIndex }) => ({ code, operationIndex })),
+          });
+        } catch (error) {
+          proposalDiagnostic(normalized ? "strict_validation" : "normalization", model, keys, fn.arguments.length, value, error, normalized?.operationIndexes);
+          return reject("PROPOSAL_VALIDATION_FAILED", REASONAI_INVALID_PROPOSAL, { reason: error instanceof ReasonAIValidationError ? error.message : "Proposal validation failed." });
+        }
       } else {
         const summary = object(value)?.summary;
         if (typeof summary === "string" && summary.length <= 2400) visualSummary = summary;
@@ -175,7 +207,7 @@ export const reasonAIProvider: ReasonAIProvider = {
         if (repairing && fn?.name && fn.name !== "show_architecture_analysis") return analysisFallback!;
         if (fn?.name !== "search_web") {
           let invalidReason: string | undefined;
-          const result = normalizeResponse(raw, request, keys, evidence, (reason) => { invalidReason = reason; });
+          const result = normalizeResponse(raw, request, keys, evidence, (reason) => { invalidReason = reason; }, model);
           if (researchFailed) result.notice = [result.notice, "Some current external facts could not be verified. Treat unsupported limits or prices as unknown."].filter(Boolean).join(" ");
           if (invalidReason) {
             diagnostic("VISUALIZATION_VALIDATION_FAILED", { reason: invalidReason });

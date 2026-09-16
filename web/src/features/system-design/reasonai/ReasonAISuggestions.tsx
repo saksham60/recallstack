@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Check, GripVertical, Undo2 } from "lucide-react";
 import {
   editorGhostButtonClass,
@@ -9,8 +9,8 @@ import {
 import { SystemDesignNodeIcon } from "../components/SystemDesignIcons";
 import { getSystemDesignNodeDefinition } from "../constants/system-design-palette";
 import type { SystemDesignDiagram, SystemDesignPoint } from "../types/system-design.types";
-import { buildReasonAIContext, parseReasonAIProposal, type ReasonAIOperation, type ReasonAIProposal } from "./contract";
-import { normalizeReasonAIVisibleText } from "./visible-text";
+import { parseReasonAIProposal, type ReasonAIOperation, type ReasonAIProposal } from "./contract";
+import { createReasonAIVisibleTextNormalizer } from "./visible-text";
 import { REASONAI_NODE_DRAG_MIME, reasonAIActionStatus, resolveReasonAISuggestion, type ReasonAIAction, type ReasonAIRefs } from "./suggestions";
 
 export interface ReasonAISuggestionActions {
@@ -29,26 +29,35 @@ export function ReasonAISuggestions({ proposal, diagram, canApply, live, onCommi
   const current = useRef(states);
   const [refs, setRefs] = useState(new Map<string, string>());
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  const { nodes, edges } = diagram;
+  // Local validation needs no network redaction; share the snapshot across all cards.
+  const validationContext = useMemo(() => {
+    if (nodes.length > 200 || edges.length > 400) return null;
+    return { nodes: nodes.map((node) => ({ ...node, technology: node.technology?.name })), edges };
+  }, [nodes, edges]);
+  const nodesById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
+  const edgesById = useMemo(() => new Map(edges.map((edge) => [edge.id, edge])), [edges]);
+  const proposedNodes = useMemo(() => new Map(proposal.operations.flatMap((op) => op.op === "add_node" ? [[op.ref, op] as const] : [])), [proposal]);
   function update(index: number, patch: Partial<SuggestionState>) {
     current.current = { ...current.current, [index]: { ...current.current[index], ...patch } };
     setStates(current.current);
   }
-  const clean = (text: string) => normalizeReasonAIVisibleText(text, diagram, proposal);
+  const clean = useMemo(() => createReasonAIVisibleTextNormalizer({ nodes, edges }, proposal), [nodes, edges, proposal]);
   const nodeName = (id: string) => {
-    const added = proposal.operations.find((op) => op.op === "add_node" && op.ref === id);
-    return diagram.nodes.find((n) => n.id === (refs.get(id) ?? id))?.label ?? (added?.op === "add_node" ? added.label : "Component");
+    return nodesById.get(refs.get(id) ?? id)?.label ?? proposedNodes.get(id)?.label ?? "Component";
   };
-  const edgeName = (id: string) => { const edge = diagram.edges.find((e) => e.id === id); return edge ? `${nodeName(edge.sourceNodeId)} → ${nodeName(edge.targetNodeId)}` : "Connection"; };
+  const edgeName = (id: string) => { const edge = edgesById.get(id); return edge ? `${nodeName(edge.sourceNodeId)} → ${nodeName(edge.targetNodeId)}` : "Connection"; };
   function unavailable(op: ReasonAIOperation): string | null {
     if (!canApply) return "Return to edit mode and connect to the live session to make changes.";
     if (op.op === "add_edge" || op.op === "update_edge") {
-      const missing = [op.sourceNodeId, op.targetNodeId].filter((id): id is string => Boolean(id?.startsWith("new:") && !diagram.nodes.some((n) => n.id === refs.get(id!))));
+      const missing = [op.sourceNodeId, op.targetNodeId].filter((id): id is string => Boolean(id?.startsWith("new:") && !nodesById.has(refs.get(id!) ?? "")));
       if (missing.length) return clean(`Waiting for ${missing.map(nodeName).join(" and ")} to be added`);
     }
     try {
       const resolved = resolveReasonAISuggestion(op, refs);
-      parseReasonAIProposal({ summary: "Suggestion", operations: [resolved] }, buildReasonAIContext(diagram, diagram.name));
-      if ("nodeId" in op && diagram.nodes.find((n) => n.id === op.nodeId)?.locked) return "Unlock this component first.";
+      if (!validationContext) return "Unavailable: this canvas exceeds the supported proposal size.";
+      parseReasonAIProposal({ summary: "Suggestion", operations: [resolved] }, validationContext);
+      if ("nodeId" in op && nodesById.get(op.nodeId)?.locked) return "Unlock this component first.";
       return null;
     } catch { return "Unavailable: the canvas has changed. Ask for an updated suggestion."; }
   }

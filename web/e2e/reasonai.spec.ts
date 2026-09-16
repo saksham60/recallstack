@@ -184,6 +184,39 @@ test("independent generated cards use native canvas drops, dependencies, private
   await page.screenshot({ path: "test-results/reasonai-conversation.png" });
 });
 
+test("imperfect AI proposals produce usable cards, one connection and undoable changes", async ({ authenticatedPage: page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  const edge = { op: "add_edge", type: "read", sourceNodeId: "new:service", targetNodeId: "new:redis" };
+  await page.route("**/api/reasonai/chat", (route) => route.fulfill({ json: {
+    text: "Add the components, then connect them.",
+    proposal: { summary: "Cache", operations: [
+      { op: "add_node", ref: "new:service", type: "service", label: "URL Service", x: null, y: "bad" },
+      { op: "add_node", ref: "new:redis", type: "cache", label: "Redis" },
+      { op: "add_node", ref: "new:boundary", type: "system_boundary", label: "System" },
+      { op: "add_node", ref: "new:decoration", type: "unsupported" },
+      edge, { ...edge, type: "database_read" }, { ...edge, targetNodeId: "new:decoration" },
+    ] },
+  } }));
+  await page.getByRole("button", { name: "Open ReasonAI" }).click();
+  const dialog = page.getByRole("dialog", { name: "ReasonAI", exact: true });
+  await page.getByLabel("Message ReasonAI").fill("Build a cached service");
+  await page.getByLabel("Message ReasonAI").press("Enter");
+  await expect(dialog.getByRole("region", { name: /^Suggestion:/ })).toHaveCount(4);
+  await expect(dialog.getByRole("alert")).toHaveCount(0);
+  await expect(page.getByLabel("Diagram status")).toContainText(/Nodes\s+0/);
+  for (const name of ["URL Service", "Redis", "System"]) {
+    const card = dialog.getByRole("region", { name: `Suggestion: ${name}`, exact: true });
+    await card.getByRole("button", { name: "Add to canvas", exact: true }).click();
+    await expect(card).toHaveAttribute("data-suggestion-status", "added");
+  }
+  await dialog.getByRole("button", { name: "Connect", exact: true }).click();
+  await expect(page.getByLabel("Diagram status")).toContainText(/Nodes\s+3/);
+  await expect(page.getByLabel("Diagram status")).toContainText(/Connections\s+1/);
+  const connection = dialog.getByRole("region", { name: "Suggestion: URL Service → Redis", exact: true });
+  await connection.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(page.getByLabel("Diagram status")).toContainText(/Connections\s+0/);
+});
+
 test("discard, errors, and malicious proposals never change the canvas", async ({ authenticatedPage: page }) => {
   let attempt = 0;
   await page.route("**/api/reasonai/chat", (route) => {
@@ -197,7 +230,7 @@ test("discard, errors, and malicious proposals never change the canvas", async (
   await page.getByRole("button", { name: "Send to ReasonAI" }).click();
   await expect(page.getByRole("dialog", { name: "ReasonAI", exact: true }).getByRole("alert")).toContainText("ReasonAI is busy");
   await page.getByRole("button", { name: "Retry", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "ReasonAI", exact: true }).getByRole("alert")).toHaveText("ReasonAI returned an invalid canvas proposal. No changes were applied.");
+  await expect(page.getByRole("dialog", { name: "ReasonAI", exact: true }).getByRole("alert")).toHaveText("ReasonAI couldn't safely apply this canvas update.");
   await page.getByRole("button", { name: "Retry", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "ReasonAI", exact: true }).getByRole("alert")).toHaveText("ReasonAI could not complete that response. Please try again.");
   await page.getByRole("button", { name: "Retry", exact: true }).click();

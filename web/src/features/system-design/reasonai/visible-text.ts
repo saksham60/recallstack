@@ -7,6 +7,25 @@ export function normalizeReasonAIVisibleText(
   context: ReasonAIContext | Pick<SystemDesignDiagram, "nodes" | "edges">,
   proposal?: ReasonAIProposal,
 ): string {
+  return createReasonAIVisibleTextNormalizer(context, proposal)(value);
+}
+
+/** Precompile graph ID replacements once for a group of labels in the same render. */
+export function createReasonAIVisibleTextNormalizer(
+  context: ReasonAIContext | Pick<SystemDesignDiagram, "nodes" | "edges">,
+  proposal?: ReasonAIProposal,
+): (value: string) => string {
+  const labels = new Map(context.nodes.map((node) => [node.id, node.label || "Component"]));
+  for (const edge of context.edges) labels.set(edge.id, edge.label || `${labels.get(edge.sourceNodeId) ?? "Component"} → ${labels.get(edge.targetNodeId) ?? "Component"}`);
+  for (const op of proposal?.operations ?? []) if (op.op === "add_node") labels.set(op.ref, op.label);
+  const replacements = [...labels].sort(([a], [b]) => b.length - a.length).map(([id, label]) => {
+    const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return { pattern: new RegExp(`(?<![\\w-])${escaped}(?![\\w-])`, "g"), label };
+  });
+  return (value) => normalizeText(value, replacements);
+}
+
+function normalizeText(value: string, replacements: { pattern: RegExp; label: string }[]): string {
   const entities: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
   let text = value.replace(/\r\n?/g, "\n");
   for (let pass = 0; pass < 2; pass++) {
@@ -16,14 +35,8 @@ export function normalizeReasonAIVisibleText(
       return (code >= 32 && code <= 0x10ffff && !(code >= 0xd800 && code <= 0xdfff)) || code === 10 || code === 9 ? String.fromCodePoint(code) : "";
     });
   }
-  const labels = new Map(context.nodes.map((node) => [node.id, node.label || "Component"]));
-  for (const edge of context.edges) labels.set(edge.id, edge.label || `${labels.get(edge.sourceNodeId) ?? "Component"} → ${labels.get(edge.targetNodeId) ?? "Component"}`);
-  for (const op of proposal?.operations ?? []) if (op.op === "add_node") labels.set(op.ref, op.label);
   // Match complete IDs, not substrings of ordinary words or other IDs.
-  for (const [id, label] of [...labels].sort(([a], [b]) => b.length - a.length)) {
-    const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    text = text.replace(new RegExp(`(?<![\\w-])${escaped}(?![\\w-])`, "g"), () => label);
-  }
+  for (const { pattern, label } of replacements) text = text.replace(pattern, () => label);
   text = text
     .replace(/\bnode_[\w-]+\b/g, "component")
     .replace(/\bedge_[\w-]+\b/g, "connection")

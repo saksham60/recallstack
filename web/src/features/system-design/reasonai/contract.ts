@@ -48,7 +48,9 @@ export function allowsReasonAIProposal(request: Pick<ReasonAIRequest, "mode" | "
     && !/\b(?:explain|explanation|example|hint|analysis|overview|definition|json|code)\b/i.test(intent);
   return componentRequest || /(?:^|[.!?]\s+)(?:(?:please|can you|could you|would you|help me|i want(?: you)? to|let's)\s+)*(?:add|remove|delete|create|build|design|fix|improve|replace|update|move|connect|propose|optimize|redesign|suggest (?:changes|improvements))\b/i.test(message);
 }
-export class ReasonAIValidationError extends Error {}
+export class ReasonAIValidationError extends Error {
+  constructor(message: string, public readonly diagnostic: { code: string; operationIndex?: number; field?: string } = { code: "VALIDATION_FAILED" }) { super(message); }
+}
 export function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new ReasonAIValidationError("Expected an object.");
   return value as Record<string, unknown>;
@@ -72,7 +74,7 @@ function member<T extends string>(value: unknown, values: readonly T[]): T {
   if (typeof value !== "string" || !values.includes(value as T)) throw new ReasonAIValidationError("Unsupported type.");
   return value as T;
 }
-function array<T>(value: unknown, max: number, parse: (item: unknown) => T): T[] {
+function array<T>(value: unknown, max: number, parse: (item: unknown, index: number) => T): T[] {
   if (!Array.isArray(value) || value.length > max) throw new ReasonAIValidationError("Too many or invalid items.");
   return value.map(parse);
 }
@@ -155,47 +157,66 @@ export const REASONAI_TOOL = {
 };
 export function parseReasonAIProposal(value: unknown, context: Pick<ReasonAIContext, "nodes" | "edges">): ReasonAIProposal {
   const proposal = record(value);
-  if (Object.keys(proposal).some((k) => k !== "summary" && k !== "operations")) throw new ReasonAIValidationError("Unsupported proposal field.");
-  const summary = string(proposal.summary);
-  const operations = array(proposal.operations, 50, (value) => {
-    const operation = record(value);
-    const schema = operationSchemas.find((s) => s.properties.op.enum[0] === operation.op);
-    if (!schema || schema.required.some((k) => !(k in operation))) throw new ReasonAIValidationError("Malformed proposal operation.");
-    const properties: Record<string, object> = schema.properties;
-    for (const [key, value] of Object.entries(operation)) {
-      if (!Object.hasOwn(properties, key)) throw new ReasonAIValidationError("Unsupported operation field.");
-      const rule = properties[key] as { type: string; maxLength?: number; enum?: readonly string[]; pattern?: string };
-      if (rule.type === "number") coordinate(value);
-      else {
-        const parsed = string(value, rule.maxLength ?? 256);
-        if (rule.enum) member(parsed, rule.enum);
-        if (rule.pattern && !new RegExp(rule.pattern).test(parsed)) throw new ReasonAIValidationError("Invalid new node reference.");
-        if (key.endsWith("Id")) identifier(parsed);
+  if (Object.keys(proposal).some((k) => k !== "summary" && k !== "operations")) throw new ReasonAIValidationError("Unsupported proposal field.", { code: "WRONG_PROPOSAL_CONTRACT" });
+  let summary: string;
+  try { summary = string(proposal.summary); }
+  catch { throw new ReasonAIValidationError("Invalid or oversized text.", { code: "INVALID_PROPOSAL_FIELD", field: "summary" }); }
+  const operations = array(proposal.operations, 50, (value, operationIndex) => {
+    try {
+      const operation = record(value);
+      const schema = operationSchemas.find((s) => s.properties.op.enum[0] === operation.op);
+      if (!schema) throw new ReasonAIValidationError("Malformed proposal operation.", { code: "UNKNOWN_OPERATION" });
+      const missingField = schema.required.find((key) => !(key in operation));
+      if (missingField) throw new ReasonAIValidationError("Malformed proposal operation.", { code: "MISSING_OPERATION_FIELD", field: missingField });
+      const properties: Record<string, object> = schema.properties;
+      for (const [key, value] of Object.entries(operation)) {
+        if (!Object.hasOwn(properties, key)) throw new ReasonAIValidationError("Unsupported operation field.", { code: "UNSUPPORTED_OPERATION_FIELD" });
+        try {
+          const rule = properties[key] as { type: string; maxLength?: number; enum?: readonly string[]; pattern?: string };
+          if (rule.type === "number") coordinate(value);
+          else {
+            const parsed = string(value, rule.maxLength ?? 256);
+            if (rule.enum) member(parsed, rule.enum);
+            if (rule.pattern && !new RegExp(rule.pattern).test(parsed)) throw new ReasonAIValidationError("Invalid new node reference.");
+            if (key.endsWith("Id")) identifier(parsed);
+          }
+        } catch (error) {
+          if (error instanceof ReasonAIValidationError) { error.diagnostic.code = "INVALID_OPERATION_FIELD"; error.diagnostic.field = key; }
+          throw error;
+        }
       }
+      if ((operation.op === "update_node" || operation.op === "update_edge") && Object.keys(operation).length < 3) throw new ReasonAIValidationError("An update must include changes.", { code: "EMPTY_OPERATION" });
+      return operation as unknown as ReasonAIOperation;
+    } catch (error) {
+      if (error instanceof ReasonAIValidationError) error.diagnostic.operationIndex = operationIndex;
+      throw error;
     }
-    if ((operation.op === "update_node" || operation.op === "update_edge") && Object.keys(operation).length < 3) throw new ReasonAIValidationError("An update must include changes.");
-    return operation as unknown as ReasonAIOperation;
   });
-  if (!summary.trim() || !operations.length) throw new ReasonAIValidationError("Empty proposal.");
+  if (!summary.trim() || !operations.length) throw new ReasonAIValidationError("Empty proposal.", { code: "EMPTY_PROPOSAL" });
   const nodes = new Set(context.nodes.map((n) => n.id));
   const refs = new Set<string>();
   const edges = new Map(context.edges.map((e) => [e.id, { ...e }]));
-  for (const op of operations) {
-    if (op.op === "add_node") {
-      if (refs.has(op.ref) || nodes.has(op.ref)) throw new ReasonAIValidationError("Duplicate new node reference.");
-      refs.add(op.ref); nodes.add(op.ref);
-    } else if ("nodeId" in op) {
-      if (!nodes.has(op.nodeId) || refs.has(op.nodeId)) throw new ReasonAIValidationError("The proposal targets a missing existing node. Ask ReasonAI again.");
-      if (op.op === "delete_node") {
-        nodes.delete(op.nodeId);
-        for (const [id, edge] of edges) if (edge.sourceNodeId === op.nodeId || edge.targetNodeId === op.nodeId) edges.delete(id);
+  for (const [operationIndex, op] of operations.entries()) {
+    try {
+      if (op.op === "add_node") {
+        if (refs.has(op.ref) || nodes.has(op.ref)) throw new ReasonAIValidationError("Duplicate new node reference.");
+        refs.add(op.ref); nodes.add(op.ref);
+      } else if ("nodeId" in op) {
+        if (!nodes.has(op.nodeId) || refs.has(op.nodeId)) throw new ReasonAIValidationError("The proposal targets a missing existing node. Ask ReasonAI again.");
+        if (op.op === "delete_node") {
+          nodes.delete(op.nodeId);
+          for (const [id, edge] of edges) if (edge.sourceNodeId === op.nodeId || edge.targetNodeId === op.nodeId) edges.delete(id);
+        }
+      } else {
+        if ("edgeId" in op && !edges.has(op.edgeId)) throw new ReasonAIValidationError("The proposal targets a missing connection. Ask ReasonAI again.");
+        if (op.op === "delete_edge") { edges.delete(op.edgeId); continue; }
+        const edge = op.op === "update_edge" ? { ...edges.get(op.edgeId)!, ...op } : op;
+        if (!nodes.has(edge.sourceNodeId) || !nodes.has(edge.targetNodeId) || edge.sourceNodeId === edge.targetNodeId) throw new ReasonAIValidationError("Invalid connection endpoints.");
+        if (op.op === "update_edge") edges.set(op.edgeId, { ...edges.get(op.edgeId)!, ...op });
       }
-    } else {
-      if ("edgeId" in op && !edges.has(op.edgeId)) throw new ReasonAIValidationError("The proposal targets a missing connection. Ask ReasonAI again.");
-      if (op.op === "delete_edge") { edges.delete(op.edgeId); continue; }
-      const edge = op.op === "update_edge" ? { ...edges.get(op.edgeId)!, ...op } : op;
-      if (!nodes.has(edge.sourceNodeId) || !nodes.has(edge.targetNodeId) || edge.sourceNodeId === edge.targetNodeId) throw new ReasonAIValidationError("Invalid connection endpoints.");
-      if (op.op === "update_edge") edges.set(op.edgeId, { ...edges.get(op.edgeId)!, ...op });
+    } catch (error) {
+      if (error instanceof ReasonAIValidationError) { error.diagnostic.code = "INVALID_OPERATION_REFERENCE"; error.diagnostic.operationIndex = operationIndex; }
+      throw error;
     }
   }
   return { summary, operations };

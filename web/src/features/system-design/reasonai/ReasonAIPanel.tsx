@@ -20,7 +20,8 @@ import {
 } from "lucide-react";
 import { buttonClass } from "@/features/admin/components/AdminPrimitives";
 import type { SystemDesignDiagram, SystemDesignPoint, SystemDesignProblem } from "../types/system-design.types";
-import { buildReasonAIContext, parseReasonAIProposal, record, REASONAI_INVALID_PROPOSAL, REASONAI_MODES, type ReasonAIMessage, type ReasonAIMode, type ReasonAIProposal } from "./contract";
+import { buildReasonAIContext, record, REASONAI_INVALID_PROPOSAL, REASONAI_MODES, type ReasonAIMessage, type ReasonAIMode, type ReasonAIProposal } from "./contract";
+import { parseSanitizedAIProposal, REASONAI_CANVAS_UPDATE_FAILED } from "./sanitizeAIProposal";
 import { normalizeReasonAIVisibleText } from "./visible-text";
 import { ReasonAISuggestions, type ReasonAISuggestionActions } from "./ReasonAISuggestions";
 import { parseReasonAISources, type ReasonAISource } from "./sources";
@@ -251,7 +252,7 @@ export function ReasonAIPanel({
       if (!response.ok) {
         throw new Error(
           typeof data.error === "string"
-            ? data.error
+            ? data.error === REASONAI_INVALID_PROPOSAL ? REASONAI_CANVAS_UPDATE_FAILED : data.error
             : "ReasonAI is unavailable. Please try again.",
         );
       }
@@ -261,10 +262,10 @@ export function ReasonAIPanel({
       let proposal;
       try {
         proposal = data.proposal
-          ? parseReasonAIProposal(data.proposal, context)
+          ? parseSanitizedAIProposal(data.proposal, context)
           : undefined;
       } catch {
-        throw new Error(REASONAI_INVALID_PROPOSAL);
+        throw new Error(REASONAI_CANVAS_UPDATE_FAILED);
       }
       const content = normalizeReasonAIVisibleText(data.text, context, proposal);
       if (pending.current !== controller) return;

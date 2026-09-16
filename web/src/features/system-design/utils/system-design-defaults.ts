@@ -30,7 +30,7 @@ export const MAX_ZOOM = 2;
 export const MIN_NODE_WIDTH = 120;
 export const MIN_NODE_HEIGHT = 72;
 export const SYSTEM_DESIGN_HISTORY_LIMIT = 50;
-export const SYSTEM_DESIGN_PASTE_OFFSET = 32;
+export { SYSTEM_DESIGN_PASTE_OFFSET } from "../constants/system-design-layout";
 
 export const DEFAULT_SYSTEM_DESIGN_VIEWPORT: Readonly<SystemDesignViewport> = {
   x: 0,
