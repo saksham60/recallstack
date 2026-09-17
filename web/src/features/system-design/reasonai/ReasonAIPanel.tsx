@@ -29,7 +29,9 @@ import { ReasonAISources } from "./ReasonAISources";
 import { parseReasonAIVisualization, reasonAIAnalysisScope, type ReasonAIVisualization } from "./visualization";
 import { fetchReasonAI } from "@/lib/reasonai/client";
 
-interface Turn extends ReasonAIMessage { id: string; proposal?: ReasonAIProposal; sources?: ReasonAISource[]; notice?: string }
+import { createReasonAITrace, REASONAI_SUGGESTIONS_UNAVAILABLE } from "./trace";
+
+interface Turn extends ReasonAIMessage { id: string; proposal?: ReasonAIProposal; sources?: ReasonAISource[]; notice?: string; diagramId?: string; traceId?: string; suggestionsUnavailable?: boolean }
 interface Generation { question: string; mode: ReasonAIMode; history: ReasonAIMessage[] }
 export interface ReasonAIPanelHandle { dropSuggestion: (token: string, position: SystemDesignPoint) => void }
 
@@ -202,8 +204,9 @@ export function ReasonAIPanel({
     requestAnimationFrame(() => input.current?.focus());
   }
 
-  async function send(retry?: Generation) {
-    if (pending.current || (!retry && !message.trim())) return;
+  async function send(retry?: Generation, explicitQuestion?: string) {
+    const question = explicitQuestion ?? message.trim();
+    if (pending.current || (!retry && !question)) return;
     setError(null);
     const controller = new AbortController();
     pending.current = controller;
@@ -212,7 +215,7 @@ export function ReasonAIPanel({
     const generation =
       retry ??
       {
-        question: message.trim(),
+        question,
         mode,
         history: turns
           .slice(-10)
@@ -224,7 +227,7 @@ export function ReasonAIPanel({
         ...previous,
         { id: crypto.randomUUID(), role: "user", content: generation.question },
       ]);
-      setMessage("");
+      if (explicitQuestion === undefined) setMessage("");
     }
     try {
       const context = buildReasonAIContext(
@@ -240,6 +243,10 @@ export function ReasonAIPanel({
           history: generation.history,
           context,
         }), controller.signal);
+      const headerTrace = response.headers.get("X-ReasonAI-Trace-Id") ?? "";
+      const traceId = /^[a-f0-9-]{36}$/i.test(headerTrace) ? headerTrace : undefined;
+      const trace = createReasonAITrace(traceId ?? "", true);
+      trace("CLIENT_RESPONSE_RECEIVED", { status: response.ok ? "success" : "failed" });
       if (response.redirected || response.status === 401) {
         throw new Error("Sign in to use ReasonAI, then try again.");
       }
@@ -259,25 +266,30 @@ export function ReasonAIPanel({
       if (typeof data.text !== "string" || data.text.length > 16_000) {
         throw new Error("ReasonAI returned an invalid response. Please try again.");
       }
-      let proposal;
+      let proposal: ReasonAIProposal | undefined;
+      let notice = typeof data.notice === "string" ? data.notice.slice(0, 1000) : undefined;
+      let suggestionsUnavailable = notice?.includes(REASONAI_SUGGESTIONS_UNAVAILABLE) ?? false;
       try {
+        if (data.proposal) trace("CLIENT_PROPOSAL_VALIDATE", { status: "started" });
         proposal = data.proposal
           ? parseSanitizedAIProposal(data.proposal, context)
           : undefined;
       } catch {
-        throw new Error(REASONAI_CANVAS_UPDATE_FAILED);
+        notice = [notice, REASONAI_SUGGESTIONS_UNAVAILABLE].filter(Boolean).join(" ");
+        suggestionsUnavailable = true;
+        trace("CLIENT_PROPOSAL_REJECTED", { status: "failed", errorCode: "INVALID_PROPOSAL" });
       }
+      if (proposal) trace("SUGGESTIONS_RENDERED", { status: "success", operationCount: proposal.operations.length });
       const content = normalizeReasonAIVisibleText(data.text, context, proposal);
       if (pending.current !== controller) return;
       const sources = parseReasonAISources(data.sources);
-      let notice = typeof data.notice === "string" ? data.notice.slice(0, 1000) : undefined;
       if (data.visualization) {
         try { onVisualization?.(parseReasonAIVisualization(data.visualization, context, sources.map((source) => source.id)), reasonAIAnalysisScope(diagram)); }
-        catch { notice = "The analysis overlay could not be displayed. Your architecture is unchanged."; }
+        catch { notice = [notice, "The analysis overlay could not be displayed. Your architecture is unchanged."].filter(Boolean).join(" "); }
       }
       setTurns((previous) => [
         ...previous,
-        { id: crypto.randomUUID(), role: "assistant", content, proposal, sources, notice },
+        { id: crypto.randomUUID(), role: "assistant", content, proposal, sources, notice, diagramId: diagram.id, traceId, suggestionsUnavailable },
       ]);
     } catch (error) {
       if (pending.current === controller) {
@@ -542,6 +554,7 @@ export function ReasonAIPanel({
         {turns.map((turn, index) => (
           <article
             key={turn.id}
+            data-trace-id={turn.traceId}
             className={
               turn.role === "user"
                 ? "ml-8 space-y-2 rounded-xl bg-background/70 px-3 py-2.5"
@@ -560,6 +573,7 @@ export function ReasonAIPanel({
             {turn.proposal && (
               <ReasonAISuggestions
                 proposal={turn.proposal}
+                traceId={turn.traceId}
                 diagram={diagram}
                 canApply={canApply}
                 live={live}
@@ -580,20 +594,31 @@ export function ReasonAIPanel({
               !turn.proposal &&
               index === turns.length - 1 &&
               !busy && (
-                <button
-                  type="button"
-                  className="flex items-center gap-1 text-xs text-muted hover:text-foreground"
-                  onClick={() => {
-                    const generation = lastGeneration.current;
-                    if (generation) {
-                      setTurns((previous) => previous.slice(0, -1));
-                      void send(generation);
-                    }
-                  }}
-                >
-                  <RotateCcw className="h-3 w-3" aria-hidden="true" />
-                  Regenerate
-                </button>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                  {turn.diagramId === diagram.id && diagram.nodes.length > 0 && (
+                    <button
+                      type="button"
+                      className="text-xs text-accent hover:underline"
+                      onClick={() => void send(undefined, "Propose the highest-impact actionable changes from the previous analysis as canvas suggestion cards.")}
+                    >
+                      {turn.suggestionsUnavailable ? "Retry suggestions" : "Create suggested changes"}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="flex items-center gap-1 text-xs text-muted hover:text-foreground"
+                    onClick={() => {
+                      const generation = lastGeneration.current;
+                      if (generation) {
+                        setTurns((previous) => previous.slice(0, -1));
+                        void send(generation);
+                      }
+                    }}
+                  >
+                    <RotateCcw className="h-3 w-3" aria-hidden="true" />
+                    Regenerate
+                  </button>
+                </div>
               )}
           </article>
         ))}

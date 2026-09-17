@@ -13,6 +13,8 @@ import { parseReasonAIProposal, type ReasonAIOperation, type ReasonAIProposal } 
 import { createReasonAIVisibleTextNormalizer } from "./visible-text";
 import { REASONAI_NODE_DRAG_MIME, reasonAIActionStatus, resolveReasonAISuggestion, type ReasonAIAction, type ReasonAIRefs } from "./suggestions";
 
+import { createReasonAITrace } from "./trace";
+
 export interface ReasonAISuggestionActions {
   onCommit: (op: ReasonAIOperation, refs: ReasonAIRefs, position?: SystemDesignPoint) => ReasonAIAction;
   onUndo: (action: ReasonAIAction) => void;
@@ -20,8 +22,8 @@ export interface ReasonAISuggestionActions {
 }
 interface SuggestionState { dismissed?: boolean; dragging?: boolean; action?: ReasonAIAction; error?: string }
 
-export function ReasonAISuggestions({ proposal, diagram, canApply, live, onCommit, onUndo, undoUnavailable, onStartDrag, onEndDrag }: ReasonAISuggestionActions & {
-  proposal: ReasonAIProposal; diagram: SystemDesignDiagram; canApply: boolean; live: boolean;
+export function ReasonAISuggestions({ traceId, proposal, diagram, canApply, live, onCommit, onUndo, undoUnavailable, onStartDrag, onEndDrag }: ReasonAISuggestionActions & {
+  traceId?: string; proposal: ReasonAIProposal; diagram: SystemDesignDiagram; canApply: boolean; live: boolean;
   onStartDrag: (token: string, drop: (position: SystemDesignPoint) => void) => void;
   onEndDrag: () => void;
 }) {
@@ -64,11 +66,14 @@ export function ReasonAISuggestions({ proposal, diagram, canApply, live, onCommi
   function apply(index: number, position?: SystemDesignPoint) {
     const op = proposal.operations[index], state = current.current[index];
     if (state?.dismissed || (state?.action && reasonAIActionStatus(state.action, diagram) !== "undone")) return;
+    const trace = createReasonAITrace(traceId ?? "", true);
+    trace("ACCEPT_PREFLIGHT", { status: "started", operationIndex: index });
     try {
       const action = onCommit(op, refs, position);
+      trace("CANVAS_OPERATION_APPLIED", { status: "success", operationIndex: index });
       if (op.op === "add_node" && action.operation.kind === "node.add") setRefs(new Map(refs).set(op.ref, action.operation.node.id));
       update(index, { action, dragging: false, error: undefined });
-    } catch { update(index, { dragging: false, error: "Could not make this change. The canvas may have changed; check the components and try again." }); }
+    } catch { trace("CANVAS_OPERATION_REJECTED", { status: "failed", operationIndex: index }); update(index, { dragging: false, error: "Could not make this change. The canvas may have changed; check the components and try again." }); }
     setConfirmDelete(null);
   }
   return <div className="mt-3 space-y-2" aria-label="Suggested changes">

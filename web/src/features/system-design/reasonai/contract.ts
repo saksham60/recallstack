@@ -36,17 +36,24 @@ export interface ReasonAIRequest {
   context: ReasonAIContext;
 }
 export function allowsReasonAIProposal(request: Pick<ReasonAIRequest, "mode" | "message">): boolean {
-  if (/\b(?:do not|don['\u2019]t|without|never)\s+(?:\w+\s+){0,3}(?:chang(?:e[sd]?|ing)|modif(?:y|ying|ications?)|add(?:ing)?|remov(?:e|ing)|delet(?:e|ing)|propos(?:e|ing|als?)|fix(?:ing)?)\b|\b(?:analysis|explanation|review) only\b|\bno\s+(?:(?:structural|canvas|architectural?)\s+)?(?:changes|modifications|proposals)\b/i.test(request.message)) return false;
+  const message = request.message.trim().replace(/\bu\b/gi, "you").replace(/\s+/g, " ");
+  // Negative instructions override every positive pattern, including Fix mode.
+  if (/\b(?:do not|don['\u2019]t|without|never)\s+(?:\w+\s+){0,3}(?:chang(?:e[sd]?|ing)|modif(?:y|ying|ications?)|add(?:ing)?|remov(?:e|ing)|delet(?:e|ing)|propos(?:e|ing|als?)|fix(?:ing)?|mov(?:e|ing)|improv(?:e|ing)|clean(?:ing)?|reorganiz(?:e|ing)|regroup(?:ing)?|suggest(?:ions?|ing)?|recommend(?:ations?|ing)?)\b|\b(?:analysis|explanation|review) only\b|\bno\s+(?:(?:structural|canvas|architectural?)\s+)?(?:changes|modifications|proposals|suggestions)\b/i.test(message)) return false;
   if (request.mode === "fix") return true;
-  const message = request.message.trim().replace(/\bu\b/gi, "you");
-  const prefix = /^(?:(?:please|can you|could you|would you|will you|help me|i want(?: you)? to|let's)\s+)*/i;
+  const prefix = /^(?:(?:please[, :]?|can you|could you|would you|will you|help me|i want(?: you)? to|let's)\s+)*/i;
   const intent = message.replace(prefix, "");
   // Asking for an addable component is an explicit request for a suggestion,
   // even when phrased conversationally. Acceptance/drop still owns mutation.
   const componentRequest = /^(?:(?:give|provide|send|get|show|offer)\s+(?:(?:me|us)\s+)?|(?:i need|i want|i would like|i'd like|can i have|could i have)\s+)/i.test(intent)
     && /\b(?:components?|nodes?|cards?|blocks?|boundar(?:y|ies))\b/i.test(intent)
     && !/\b(?:explain|explanation|example|hint|analysis|overview|definition|json|code)\b/i.test(intent);
-  return componentRequest || /(?:^|[.!?]\s+)(?:(?:please|can you|could you|would you|help me|i want(?: you)? to|let's)\s+)*(?:add|remove|delete|create|build|design|fix|improve|replace|update|move|connect|propose|optimize|redesign|suggest (?:changes|improvements))\b/i.test(message);
+  // Match requests, not a bare mention of suggestions or an explanation of changes.
+  // This intentionally uses only the current message; "yes" needs context we do not have.
+  const suggestionRequest = /^(?:(?:give|provide|show|offer)(?:\s+(?:me|us))?|suggest|recommend)\s+(?:(?:some|a few|the|those|your|actionable|concrete|architectural?|canvas|design)\s+)*(?:suggestions?|improvements?|changes)\b/i.test(intent)
+    && !/\b(?:for|on|about)\s+(?:explain(?:ing)?|explanation|examples?|hints?|definitions?|json|code)\b/i.test(intent);
+  const improvementQuestion = /^(?:what should (?:i|we) change|how (?:can|could|should) (?:i|we) (?:improve|clean|reorganize|regroup))\b/i.test(intent);
+  const layoutRequest = /^(?:make\s+(?:(?:this|the)\s+(?:(?:architecture|diagram|design|canvas)\s+)?|it\s+)(?:cleaner|better|clearer)|(?:reorganize|regroup)\s+(?:this|the|these|my|our)\s+(?:architecture|diagram|design|canvas|components|nodes|services))\b/i.test(intent);
+  return componentRequest || suggestionRequest || improvementQuestion || layoutRequest || /(?:^|[.!?]\s+)(?:(?:please|can you|could you|would you|help me|i want(?: you)? to|let's)\s+)*(?:add|remove|delete|create|build|design|fix|improve|replace|update|move|connect|propose|optimize|redesign|suggest (?:changes|improvements))\b/i.test(message);
 }
 export class ReasonAIValidationError extends Error {
   constructor(message: string, public readonly diagnostic: { code: string; operationIndex?: number; field?: string } = { code: "VALIDATION_FAILED" }) { super(message); }

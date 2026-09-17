@@ -111,6 +111,41 @@ test("AI normalization tracks edge deletions and updates without changing manual
   expect(context.edges[0].type).toBe("http_request");
 });
 
+test("actionable suggestion intent enables cards across non-Fix modes", () => {
+  const messages = [
+    "can u give some suggestions?", "give me some suggestions", "suggest improvements", "suggest some changes",
+    "recommend some improvements", "what should I change here?", "how can I improve this architecture?",
+    "how can I clean this diagram up?", "make this architecture cleaner", "reorganize this architecture", "regroup these components",
+    "CAN U GIVE SOME SUGGESTIONS?!", "Please, provide some improvements.", "Could you show me some changes?",
+    "How can I reorganize these components?", "How can I regroup this diagram?", "Make this clearer.", "make the diagram better",
+    "give me those changes", "Add a cache", "Please move the database", "Connect the service to Redis",
+  ];
+  for (const mode of ["chat", "review", "eagle"] as const) for (const message of messages) {
+    expect(allowsReasonAIProposal({ mode, message }), `${mode}: ${message}`).toBe(true);
+  }
+});
+
+test("explanation and ambiguous acknowledgments do not authorize proposal tools", () => {
+  for (const mode of ["chat", "review", "eagle"] as const) for (const message of [
+    "explain this architecture", "review this architecture", "analysis only", "what problems do you see?",
+    "why is this architecture cluttered?", "explain how I could improve this", "Explain what should I change here?",
+    "What does 'suggest improvements' mean?", "These suggestions are useful", "Do you have suggestions?",
+    "give me suggestions for explaining this architecture", "yes", "do it", "go ahead", "apply those suggestions",
+    "The diagram is dense around the core services causing overlapping labels and hard-to-follow flows.",
+  ]) expect(allowsReasonAIProposal({ mode, message }), `${mode}: ${message}`).toBe(false);
+});
+
+test("explicit negative intent overrides suggestions and Fix mode", () => {
+  for (const mode of ["chat", "review", "eagle", "fix"] as const) for (const message of [
+    "give me suggestions but do not change anything", "review only, no changes", "don't propose changes", "do not modify the canvas",
+    "analysis only", "suggest improvements, but don't add anything", "Make this cleaner, without moving components",
+    "Recommend improvements but do not regroup anything", "NO SUGGESTIONS. Explain only.", "Don't reorganize this architecture",
+  ]) expect(allowsReasonAIProposal({ mode, message }), `${mode}: ${message}`).toBe(false);
+  for (const message of ["can u give some suggestions?", "explain this architecture", "what problems do you see?"]) {
+    expect(allowsReasonAIProposal({ mode: "fix", message }), message).toBe(true);
+  }
+});
+
 test("conversational component requests enable existing cards without enabling explanation-only edits", () => {
   for (const message of ["can u give me a mongo db component", "Can you give me an AWS VPC boundary?", "please provide a VPC boundary", "I need a Redis node", "Could you show me a MongoDB component?", "Give me a draggable database card"]) {
     expect(allowsReasonAIProposal({ mode: "chat", message }), message).toBe(true);
@@ -350,4 +385,57 @@ test("analysis modes do not authorize proposals, while explicit changes preserve
   expect(allowsReasonAIProposal({ mode: "fix", message: "Analysis only. Do not change the design." })).toBe(false);
   for (const message of ["Don't make any changes.", "Review without modifying the design.", "No structural changes, please."]) expect(allowsReasonAIProposal({ mode: "fix", message })).toBe(false);
   expect(allowsReasonAIProposal({ mode: "chat", message: "I want to add a queue." })).toBe(true);
+});
+
+// Exercise the actual per-card preflight, factories, reducers and history after sanitation.
+test("large chained suggestions remain valid after each acceptance, stale dependencies refuse, undo restores", () => {
+  const { state, diagram, context } = fixture();
+  const raw = { summary: "Introduce async processing and ingress limits; retain the database", operations: [
+    { ...newNode, ref: "new:queue", type: "message_queue", label: "Async Queue" },
+    { ...newNode, ref: "new:limiter", type: "service", label: "Rate Limiter" },
+    { op: "add_edge", type: "async_message", sourceNodeId: "service-a", targetNodeId: "new:queue" },
+    { op: "add_edge", type: "async_message", sourceNodeId: "service-a", targetNodeId: "new:queue" },
+    { op: "add_edge", type: "http_request", sourceNodeId: "new:limiter", targetNodeId: "service-a" },
+    { op: "add_edge", type: "custom", sourceNodeId: "service-a", targetNodeId: "service-a" },
+    { op: "add_node", ref: "new:bad", type: "unsupported" },
+    { op: "update_node", nodeId: "service-a", description: "Async work is queued; measure latency and recovery." },
+    { op: "move_node", nodeId: "database-b", x: 700, y: 200 },
+    { op: "update_edge", edgeId: "edge-a", label: "Retained primary read path" },
+  ] };
+  const parsed = parseSanitizedAIProposal(raw, context);
+  expect(parsed.operations).toHaveLength(7);
+  expect(parseSanitizedAIProposal(raw, context)).toEqual(parsed);
+  let current = state;
+  const refs = new Map<string, string>();
+  const pendingEdge = parsed.operations[2];
+  expect(() => prepareReasonAISuggestion(pendingEdge, refs, current, diagram.id)).toThrow();
+  for (const suggestion of parsed.operations) {
+    const operation = prepareReasonAISuggestion(suggestion, refs, current, diagram.id);
+    current = applyCanvasOperation(current, operation).state;
+    if (suggestion.op === "add_node" && operation.kind === "node.add") refs.set(suggestion.ref, operation.node.id);
+    const graph = current.document.diagrams[diagram.id];
+    const ids = graph.nodes.map((node) => node.id);
+    expect(new Set([...ids, ...graph.edges.map((edge) => edge.id)]).size).toBe(graph.nodes.length + graph.edges.length);
+    for (const edge of graph.edges) {
+      expect(ids).toContain(edge.sourceNodeId); expect(ids).toContain(edge.targetNodeId);
+      expect(edge.sourceNodeId).not.toBe(edge.targetNodeId);
+    }
+  }
+  const changed = applyCanvasOperation(current, { kind: "node.delete", diagramId: diagram.id, nodeIds: [refs.get("new:queue")!] }).state;
+  expect(() => prepareReasonAISuggestion(pendingEdge, refs, changed, diagram.id)).toThrow();
+  expect(() => prepareReasonAISuggestion(pendingEdge, refs, current, diagram.id)).toThrow(); // now duplicate
+  for (let i = 0; i < parsed.operations.length; i++) current = systemDesignEditorReducer(current, { type: "history/undo" });
+  expect(current.document).toEqual(state.document);
+});
+
+test("browser sanitizer diagnostics never log raw proposals or private warning values", () => {
+  const { context } = fixture();
+  const warn = console.warn, error = console.error;
+  const logs: unknown[] = [];
+  try {
+    console.warn = (...args) => logs.push(args); console.error = (...args) => logs.push(args);
+    expect(() => parseSanitizedAIProposal({ operations: [{ op: "PRIVATE_OP", secret: "PRIVATE_PAYLOAD" }] }, context)).toThrow();
+    parseSanitizedAIProposal({ operations: [{ ...newNode, x: "PRIVATE_COORDINATE" }] }, context);
+    expect(logs).toEqual([]);
+  } finally { console.warn = warn; console.error = error; }
 });

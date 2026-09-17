@@ -145,20 +145,7 @@ export function sanitizeAIProposal(value: unknown, context: Context): { proposal
 
 /** Normalize at receipt, then retain the original strict allowlist/reference validator. */
 export function parseSanitizedAIProposal(rawProposal: unknown, context: Context): ReasonAIProposal {
-  let sanitizedProposal: unknown;
-  let warnings: ProposalDiagnostic[] = [];
-  try {
-    const result = sanitizeAIProposal(rawProposal, context);
-    sanitizedProposal = result.proposal;
-    warnings = result.warnings;
-    const proposal = parseReasonAIProposal(sanitizedProposal, context);
-    if (process.env.NODE_ENV === "development" && warnings.length) console.warn("ReasonAI canvas proposal normalized", { warnings });
-    return proposal;
-  } catch (error) {
-    if (process.env.NODE_ENV === "development") console.error("ReasonAI canvas proposal validation failed", {
-      errors: [...warnings, { code: "INVALID_PROPOSAL", reason: error instanceof ReasonAIValidationError ? error.message : "Proposal normalization failed." }],
-      rawProposal, sanitizedProposal,
-    });
-    throw error;
-  }
+  const result = sanitizeAIProposal(rawProposal, context);
+  // Payloads and warning values may contain private canvas text. Never log them.
+  return parseReasonAIProposal(result.proposal, context);
 }

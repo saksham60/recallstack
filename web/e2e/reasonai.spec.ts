@@ -1,4 +1,5 @@
 import { test, expect } from "./fixtures/authenticated-test";
+import { extremeAnswers, extremePrompts } from "./helpers/reasonai-extreme";
 import { createProfile } from "./helpers/factories";
 import { analysisDocument, analysisResponse } from "./helpers/reasonai-analysis";
 import { LocalStorageSystemDesignRepository } from "../src/features/system-design/repository/LocalStorageSystemDesignRepository";
@@ -230,8 +231,10 @@ test("discard, errors, and malicious proposals never change the canvas", async (
   await page.getByRole("button", { name: "Send to ReasonAI" }).click();
   await expect(page.getByRole("dialog", { name: "ReasonAI", exact: true }).getByRole("alert")).toContainText("ReasonAI is busy");
   await page.getByRole("button", { name: "Retry", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "ReasonAI", exact: true }).getByRole("alert")).toHaveText("ReasonAI couldn't safely apply this canvas update.");
-  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "ReasonAI", exact: true }).getByRole("alert")).toHaveCount(0);
+  await expect(page.getByText("Suggested design", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Canvas suggestions could not be prepared safely/)).toBeVisible();
+  await page.getByRole("button", { name: "Regenerate", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "ReasonAI", exact: true }).getByRole("alert")).toHaveText("ReasonAI could not complete that response. Please try again.");
   await page.getByRole("button", { name: "Retry", exact: true }).click();
   await page.getByRole("button", { name: "Dismiss", exact: true }).first().click();
@@ -318,6 +321,63 @@ test("conversation supports multiline input, immediate user turns, regenerate, s
   await expect(input).toHaveValue("");
   await expect(page.getByLabel("Diagram status")).toContainText(/Nodes\s+0/);
 });
+
+for (const followup of ["natural request", "guided action"] as const) {
+  test(`dense-diagram analysis leads to individually accepted cards via ${followup}`, async ({ authenticatedPage: page }) => {
+    test.setTimeout(60_000);
+    const document = analysisDocument();
+    const key = LocalStorageSystemDesignRepository.storageKey("url-shortener");
+    await page.evaluate(({ key, document }) => localStorage.setItem(key, JSON.stringify(document)), { key, document });
+    await page.goto("/system-design/url-shortener");
+    await expect(page.getByTestId("system-design-canvas")).toBeVisible();
+    const before = await page.evaluate((key) => localStorage.getItem(key), key);
+    const requests: { message: string; mode: string; history: { role: string; content: string }[] }[] = [];
+    const question = "The diagram is dense around the core services causing overlapping labels and hard-to-follow flows.";
+    const analysis = "Space the core services further apart and separate the database flow.";
+    await page.route("**/api/reasonai/chat", (route) => {
+      requests.push(route.request().postDataJSON());
+      return route.fulfill({ json: requests.length === 1 ? { text: analysis } : {
+        text: "Review these layout suggestions.", proposal: { summary: "Separate the services", operations: [
+          { op: "move_node", nodeId: "api", x: 80, y: 350 },
+          { op: "move_node", nodeId: "postgres", x: 640, y: 350 },
+        ] },
+      } });
+    });
+    await page.getByRole("button", { name: "Open ReasonAI" }).click();
+    const dialog = page.getByRole("dialog", { name: "ReasonAI", exact: true });
+    const input = page.getByLabel("Message ReasonAI");
+    await input.fill(question);
+    await input.press("Enter");
+    await expect(dialog.getByRole("log")).toContainText(analysis);
+    const action = dialog.getByRole("button", { name: "Create suggested changes", exact: true });
+    await expect(action).toBeVisible();
+    await expect(dialog.getByRole("alert")).toHaveCount(0);
+    if (followup === "natural request") {
+      await input.fill("can u give some suggestions?");
+      await input.press("Enter");
+    } else {
+      await input.fill("Keep this draft");
+      await action.click();
+      await expect(input).toHaveValue("Keep this draft");
+    }
+    const first = dialog.getByRole("region", { name: "Suggestion: Move API", exact: true });
+    const second = dialog.getByRole("region", { name: "Suggestion: Move Postgres", exact: true });
+    await expect(first).toHaveAttribute("data-suggestion-status", "pending");
+    await expect(second).toHaveAttribute("data-suggestion-status", "pending");
+    await expect(action).toHaveCount(0);
+    expect(requests).toHaveLength(2);
+    expect(requests[1].message).toBe(followup === "natural request" ? "can u give some suggestions?" : "Propose the highest-impact actionable changes from the previous analysis as canvas suggestion cards.");
+    expect(requests[1].history).toEqual([{ role: "user", content: question }, { role: "assistant", content: analysis }]);
+    expect(requests[1].mode).toBe("chat");
+    expect(await page.evaluate((key) => localStorage.getItem(key), key)).toBe(before);
+    await first.getByRole("button", { name: "Apply", exact: true }).click();
+    await expect(first).toHaveAttribute("data-suggestion-status", "added");
+    await expect(second).toHaveAttribute("data-suggestion-status", "pending");
+    await expect.poll(async () => JSON.parse((await page.evaluate((key) => localStorage.getItem(key), key))!).diagrams[document.rootDiagramId].nodes.find((node: { id: string }) => node.id === "api").x).toBe(80);
+    const saved = JSON.parse((await page.evaluate((key) => localStorage.getItem(key), key))!);
+    expect(saved.diagrams[document.rootDiagramId].nodes.find((node: { id: string }) => node.id === "postgres").x).toBe(460);
+  });
+}
 
 test("a connection suggestion becomes unavailable when an endpoint is deleted", async ({ authenticatedPage: page }) => {
   let attempt = 0;
@@ -493,4 +553,68 @@ test("analysis panel moves, resizes, remembers expanded size and stays inside th
   expect(await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!).diagrams, key)).toEqual(document.diagrams);
   await panel.getByRole("button", { name: "Clear analysis" }).click();
   await expect(panel).toHaveCount(0);
+});
+
+
+for (const [index, prompt] of extremePrompts.entries()) test(`extreme browser prompt ${index + 1}: useful answer, safe optional cards, no automatic mutation`, async ({ authenticatedPage: page }) => {
+  test.setTimeout(60_000);
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  const document = analysisDocument();
+  const key = LocalStorageSystemDesignRepository.storageKey("url-shortener");
+  await page.evaluate(({ key, document }) => localStorage.setItem(key, JSON.stringify(document)), { key, document });
+  await page.goto("/system-design/url-shortener");
+  await expect(page.getByTestId("system-design-canvas")).toBeVisible();
+  const traceId = "12345678-1234-1234-1234-123456789abc";
+  const proposed = index === 0 ? { nodes: [], edges: [] } : index === 1
+    ? { summary: "Separate the API flow", operations: [{ op: "move_node", nodeId: "api", x: 120, y: 200 }] }
+    : index === 2 ? proposal : undefined;
+  await page.route("**/api/reasonai/chat", (route) => {
+    expect(route.request().postDataJSON().message).toBe(prompt);
+    return route.fulfill({ headers: { "X-ReasonAI-Trace-Id": traceId }, json: { text: extremeAnswers[index], proposal: proposed, notice: index === 3 ? "Current external facts could not be verified. Review workload and recovery requirements first." : undefined } });
+  });
+  await page.getByRole("button", { name: "Open ReasonAI" }).click();
+  const dialog = page.getByRole("dialog", { name: "ReasonAI", exact: true });
+  await page.getByLabel("Message ReasonAI").fill(prompt);
+  await page.getByLabel("Message ReasonAI").press("Enter");
+  await expect(dialog.getByRole("log")).toContainText(extremeAnswers[index]);
+  await expect(dialog.getByRole("alert")).toHaveCount(0);
+  await expect(dialog.locator(`article[data-trace-id="${traceId}"]`)).toHaveCount(1);
+  const readGraph = () => page.evaluate((key) => JSON.parse(localStorage.getItem(key)!).diagrams, key);
+  expect(await readGraph()).toEqual(document.diagrams);
+  if (index === 0) {
+    await expect(dialog.getByText(/Canvas suggestions could not be prepared safely/)).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Retry suggestions" })).toBeVisible();
+    await expect(dialog.getByLabel("Suggested changes")).toHaveCount(0);
+  } else if (index === 1) {
+    const card = dialog.getByRole("region", { name: "Suggestion: Move API", exact: true });
+    await card.getByRole("button", { name: "Apply", exact: true }).click();
+    await expect(card).toHaveAttribute("data-suggestion-status", "added");
+    await card.getByRole("button", { name: "Undo", exact: true }).click();
+    await expect.poll(readGraph).toEqual(document.diagrams);
+  } else if (index === 2) {
+    const service = dialog.getByRole("region", { name: "Suggestion: URL Service", exact: true });
+    const cache = dialog.getByRole("region", { name: "Suggestion: Redis", exact: true });
+    const edge = dialog.getByRole("region", { name: "Suggestion: URL Service \u2192 Redis", exact: true });
+    await expect(edge.getByRole("button", { name: "Connect", exact: true })).toBeDisabled();
+    await service.getByRole("button", { name: "Add to canvas", exact: true }).click();
+    await expect(edge.getByRole("button", { name: "Connect", exact: true })).toBeDisabled();
+    await cache.getByRole("button", { name: "Add to canvas", exact: true }).click();
+    await edge.getByRole("button", { name: "Connect", exact: true }).click();
+    await expect(edge).toHaveAttribute("data-suggestion-status", "added");
+    await edge.getByRole("button", { name: "Undo", exact: true }).click();
+    await cache.getByRole("button", { name: "Undo", exact: true }).click();
+    await expect(edge.getByRole("button", { name: "Connect", exact: true })).toBeDisabled();
+    await service.getByRole("button", { name: "Undo", exact: true }).click();
+    await expect.poll(readGraph).toEqual(document.diagrams);
+  } else {
+    await expect(dialog.getByLabel("Suggested changes")).toHaveCount(0);
+  }
+});
+
+test("ReasonAI rejected API requests have distinct server-generated trace headers", async ({ authenticatedPage: page }) => {
+  const responses = await Promise.all([1, 2].map(() => page.request.post("/api/reasonai/chat", { headers: { "X-ReasonAI-Trace-Id": "USER_CONTROLLED_TRACE" }, data: {} })));
+  const ids = responses.map((response) => response.headers()["x-reasonai-trace-id"]);
+  for (const response of responses) { expect(response.status()).toBe(400); expect(response.headers()["cache-control"]).toBe("no-store"); }
+  for (const id of ids) expect(id).toMatch(/^[a-f0-9-]{36}$/i);
+  expect(new Set(ids).size).toBe(2);
 });
