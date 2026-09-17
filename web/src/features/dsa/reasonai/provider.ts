@@ -271,7 +271,20 @@ export const dsaTutorProvider = {
           response.status === 401 || response.status === 403 ? 503 : 502,
         );
       }
-      const raw = await readBoundedJSON(response, 192 * 1024) as { choices?: { finish_reason?: string; message?: { content?: unknown; tool_calls?: { type?: string; function?: { name?: string; arguments?: unknown } }[] } }[] };
+      const raw = await readBoundedJSON(response, 192 * 1024) as {
+        choices?: {
+          finish_reason?: string;
+          message?: {
+            content?: unknown;
+            reasoning_content?: unknown;
+            tool_calls?: {
+              type?: string;
+              function?: { name?: string; arguments?: unknown };
+            }[] | null;
+          };
+        }[];
+      };
+
       const choice = Array.isArray(raw?.choices) ? raw.choices[0] : undefined;
 
       console.info("[DSA_TRACE]", {
@@ -279,64 +292,212 @@ export const dsaTutorProvider = {
         stage: "TOKEN_FACTORY_RESPONSE_PARSED",
         model,
         finishReason: choice?.finish_reason,
+        choicesCount: Array.isArray(raw?.choices) ? raw.choices.length : 0,
         latencyMs: Date.now() - providerStartedAt,
       });
 
-      const content = choice?.message?.content;
-      const diagnosticMessage = choice?.message as Record<string, unknown> | undefined;
+      if (!choice?.message) {
+        console.error("[DSA_VALIDATION_FAILED]", {
+          traceId,
+          stage: "CHOICE_OR_MESSAGE_MISSING",
+          choicesCount: Array.isArray(raw?.choices) ? raw.choices.length : 0,
+        });
 
-console.info("[DSA_RESPONSE_SHAPE]", {
-  traceId,
-  contentType:
-    content === null ? "null" : typeof content,
+        throw new DSATutorProviderError(
+          "ReasonAI could not complete that response. Please try again.",
+        );
+      }
 
-  contentLength:
-    typeof content === "string" ? content.length : undefined,
+      const content = choice.message.content;
+      const diagnosticMessage = choice.message as Record<string, unknown>;
 
-  hasReasoningContent:
-    typeof diagnosticMessage?.reasoning_content === "string",
+      console.info("[DSA_RESPONSE_SHAPE]", {
+        traceId,
+        contentType: content === null ? "null" : typeof content,
+        contentLength: typeof content === "string" ? content.length : undefined,
+        hasReasoningContent:
+          typeof diagnosticMessage.reasoning_content === "string",
+        reasoningContentLength:
+          typeof diagnosticMessage.reasoning_content === "string"
+            ? diagnosticMessage.reasoning_content.length
+            : undefined,
+        toolCallsType:
+          diagnosticMessage.tool_calls === null
+            ? "null"
+            : Array.isArray(diagnosticMessage.tool_calls)
+              ? "array"
+              : typeof diagnosticMessage.tool_calls,
+        toolCallCount: Array.isArray(diagnosticMessage.tool_calls)
+          ? diagnosticMessage.tool_calls.length
+          : 0,
+        finishReason: choice.finish_reason,
+      });
 
-  reasoningContentLength:
-    typeof diagnosticMessage?.reasoning_content === "string"
-      ? diagnosticMessage.reasoning_content.length
-      : undefined,
+      if (content != null && typeof content !== "string") {
+        console.error("[DSA_VALIDATION_FAILED]", {
+          traceId,
+          stage: "INVALID_CONTENT_TYPE",
+          contentType: typeof content,
+        });
 
-  toolCallCount:
-    Array.isArray(diagnosticMessage?.tool_calls)
-      ? diagnosticMessage.tool_calls.length
-      : 0,
+        throw new DSATutorProviderError(
+          "ReasonAI could not complete that response. Please try again.",
+        );
+      }
 
-  finishReason: choice?.finish_reason,
-});
+      if (!["stop", "length", "tool_calls"].includes(choice.finish_reason ?? "")) {
+        console.error("[DSA_VALIDATION_FAILED]", {
+          traceId,
+          stage: "INVALID_FINISH_REASON",
+          finishReason: choice.finish_reason ?? "missing",
+        });
 
+        throw new DSATutorProviderError(
+          "ReasonAI could not complete that response. Please try again.",
+        );
+      }
 
-
-      if (content != null && typeof content !== "string" || !["stop", "length", "tool_calls"].includes(choice?.finish_reason ?? "")) throw new DSATutorProviderError("ReasonAI could not complete that response. Please try again.");
       let visual: VisualLesson | undefined;
       let visualNotice: string | undefined;
-      const calls = choice?.message?.tool_calls;
-      if (calls !== undefined && (!Array.isArray(calls) || calls.length > 1)) throw new DSATutorProviderError("ReasonAI could not complete that response. Please try again.");
+      const calls = choice.message.tool_calls;
+
+      // OpenAI-compatible providers may return tool_calls: null when no tool
+      // was used. Treat null and undefined as "no tool calls".
+      if (calls != null && (!Array.isArray(calls) || calls.length > 1)) {
+        console.error("[DSA_VALIDATION_FAILED]", {
+          traceId,
+          stage: "INVALID_TOOL_CALLS",
+          toolCallsType: Array.isArray(calls) ? "array" : typeof calls,
+          toolCallCount: Array.isArray(calls) ? calls.length : undefined,
+        });
+
+        throw new DSATutorProviderError(
+          "ReasonAI could not complete that response. Please try again.",
+        );
+      }
+
       if (calls?.length) {
         try {
           const call = calls[0];
-          if (!visualRequested || call.type !== "function" || call.function?.name !== "present_visual_lesson" || typeof call.function.arguments !== "string" || choice?.finish_reason === "length") throw new Error("Invalid visual tool.");
+
+          if (
+            !visualRequested ||
+            call.type !== "function" ||
+            call.function?.name !== "present_visual_lesson" ||
+            typeof call.function.arguments !== "string" ||
+            choice.finish_reason === "length"
+          ) {
+            throw new Error("Invalid visual tool.");
+          }
+
           visual = parseVisualLesson(JSON.parse(call.function.arguments));
-          if (visual.basis === "source_example" && !web.results.length) throw new Error("No source evidence for this example.");
+
+          if (visual.basis === "source_example" && !web.results.length) {
+            throw new Error("No source evidence for this example.");
+          }
         } catch {
+          console.warn("[DSA_VISUAL_VALIDATION_FAILED]", {
+            traceId,
+            stage: "VISUAL_TOOL",
+            visualRequested,
+            finishReason: choice.finish_reason,
+          });
+
           visual = undefined;
-          visualNotice = "The visual could not be prepared. Ask for a simpler visual walkthrough.";
+          visualNotice =
+            "The visual could not be prepared. Ask for a simpler visual walkthrough.";
         }
       }
-      const answer = (typeof content === "string" ? content.trim() : "") || visual?.summary;
-      if (!answer || answer.length > 12000) throw new DSATutorProviderError(visualNotice || "ReasonAI could not complete that response. Please try again.");
+
+      const answer =
+        (typeof content === "string" ? content.trim() : "") || visual?.summary;
+
+      if (!answer) {
+        console.error("[DSA_VALIDATION_FAILED]", {
+          traceId,
+          stage: "EMPTY_ANSWER",
+          contentLength: typeof content === "string" ? content.length : 0,
+          hasVisualSummary: Boolean(visual?.summary),
+        });
+
+        throw new DSATutorProviderError(
+          visualNotice || "ReasonAI could not complete that response. Please try again.",
+        );
+      }
+
+      if (answer.length > 12000) {
+        console.error("[DSA_VALIDATION_FAILED]", {
+          traceId,
+          stage: "ANSWER_TOO_LARGE",
+          answerLength: answer.length,
+        });
+
+        throw new DSATutorProviderError(
+          "ReasonAI could not complete that response. Please try again.",
+        );
+      }
+
       const result: DSATutorResponse = {
-        text: answer, visual, sources: web.results.map(({ title, url, kind }) => ({ title, url, kind })), webStatus: web.status,
-        webContextToken: web.status === "cached" || !needsLinkedContext(request) ? request.webContextToken : issueWebContextToken(request.context, web.results),
-        notice: [web.status === "unavailable" ? "The linked source could not be retrieved. I still have the problem metadata and your work; exact requirements may need to be pasted." : web.status === "empty" ? "No usable source context was found. Paste the relevant details if needed." : undefined, visualNotice].filter(Boolean).join(" ") || undefined,
+        text: answer,
+        visual,
+        sources: web.results.map(({ title, url, kind }) => ({
+          title,
+          url,
+          kind,
+        })),
+        webStatus: web.status,
+        webContextToken:
+          web.status === "cached" || !needsLinkedContext(request)
+            ? request.webContextToken
+            : issueWebContextToken(request.context, web.results),
+        notice:
+          [
+            web.status === "unavailable"
+              ? "The linked source could not be retrieved. I still have the problem metadata and your work; exact requirements may need to be pasted."
+              : web.status === "empty"
+                ? "No usable source context was found. Paste the relevant details if needed."
+                : undefined,
+            visualNotice,
+          ]
+            .filter(Boolean)
+            .join(" ") || undefined,
       };
-      // Never forward reasoning traces, raw errors or credentials, even if echoed upstream.
-      if ([apiKey, getTavilyConfiguration().apiKey].some((key) => key && JSON.stringify(result).includes(key))) throw new DSATutorProviderError("ReasonAI could not complete that response. Please try again.");
-      if (choice?.finish_reason === "length") result.text = result.text.slice(0, 11800) + "\n\nThis response was cut short. Ask me to continue.";
+
+      // Never forward reasoning traces, raw errors or credentials, even if
+      // echoed upstream.
+      const serializedResult = JSON.stringify(result);
+      const secretDetected = [
+        apiKey,
+        getTavilyConfiguration().apiKey,
+      ].some((key) => key && serializedResult.includes(key));
+
+      if (secretDetected) {
+        console.error("[DSA_VALIDATION_FAILED]", {
+          traceId,
+          stage: "SECRET_DETECTED",
+        });
+
+        throw new DSATutorProviderError(
+          "ReasonAI could not complete that response. Please try again.",
+        );
+      }
+
+      if (choice.finish_reason === "length") {
+        result.text =
+          result.text.slice(0, 11800) +
+          "\n\nThis response was cut short. Ask me to continue.";
+      }
+
+      console.info("[DSA_TRACE]", {
+        traceId,
+        stage: "REQUEST_SUCCEEDED",
+        model,
+        answerLength: result.text.length,
+        sourceCount: result.sources.length,
+        hasVisual: Boolean(result.visual),
+        latencyMs: Date.now() - providerStartedAt,
+      });
+
       return result;
     } catch (error) {
       if (error instanceof DSATutorProviderError) {
