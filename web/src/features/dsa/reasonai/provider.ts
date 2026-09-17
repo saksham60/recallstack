@@ -283,6 +283,34 @@ export const dsaTutorProvider = {
       });
 
       const content = choice?.message?.content;
+      const diagnosticMessage = choice?.message as Record<string, unknown> | undefined;
+
+console.info("[DSA_RESPONSE_SHAPE]", {
+  traceId,
+  contentType:
+    content === null ? "null" : typeof content,
+
+  contentLength:
+    typeof content === "string" ? content.length : undefined,
+
+  hasReasoningContent:
+    typeof diagnosticMessage?.reasoning_content === "string",
+
+  reasoningContentLength:
+    typeof diagnosticMessage?.reasoning_content === "string"
+      ? diagnosticMessage.reasoning_content.length
+      : undefined,
+
+  toolCallCount:
+    Array.isArray(diagnosticMessage?.tool_calls)
+      ? diagnosticMessage.tool_calls.length
+      : 0,
+
+  finishReason: choice?.finish_reason,
+});
+
+
+
       if (content != null && typeof content !== "string" || !["stop", "length", "tool_calls"].includes(choice?.finish_reason ?? "")) throw new DSATutorProviderError("ReasonAI could not complete that response. Please try again.");
       let visual: VisualLesson | undefined;
       let visualNotice: string | undefined;
