@@ -9,6 +9,32 @@ import { DSA_VISUAL_TOOL, parseVisualLesson, type VisualLesson } from "./visual-
 export class DSATutorProviderError extends Error {
   constructor(message: string, public readonly status = 502) { super(message); }
 }
+
+function safeProviderError(value: unknown): {
+  type?: string;
+  code?: string;
+  message?: string;
+} {
+  if (!value || typeof value !== "object") return {};
+
+  const root = value as Record<string, unknown>;
+  const nested =
+    root.error && typeof root.error === "object"
+      ? (root.error as Record<string, unknown>)
+      : root;
+
+  const safeText = (value: unknown, max = 500) =>
+    typeof value === "string" ? value.slice(0, max) : undefined;
+
+  return {
+    type: safeText(nested.type),
+    code: safeText(nested.code),
+    message: safeText(nested.message ?? nested.detail),
+  };
+}
+
+
+
 export const DSA_SYSTEM_PROMPT = `You are ReasonAI, a patient DSA tutor alongside an external coding platform. RecallStack is a link-centric learning workspace, not the publisher of the original problem.
 Your goal is to help the learner reason, test their thinking and make the next step themselves.
 CURRENT PROBLEM: The supplied title, provider, URL, category and difficulty identify the open problem. References such as "this problem", "it" and "is it really easy?" refer to that entry. Acknowledge its title and known difficulty. Lack of requirements means you cannot verify exact task details; it does not mean you do not know which problem the learner has open. Difficulty is a catalog label, not a judgment of the learner.
@@ -141,32 +167,121 @@ export const dsaTutorProvider = {
       return { text: `You have ${request.context.title} open${request.context.sourceProvider ? ` from ${request.context.sourceProvider}` : ""}. I know its catalog metadata, but the linked requirements could not be retrieved. Paste the relevant input and expected output so I can explain the task accurately.`, sources: [], webStatus: web.status,
         notice: web.status === "unavailable" ? "Source retrieval is temporarily unavailable. Your workspace and practice link are still available." : undefined };
     }
+
+    const traceId = crypto.randomUUID();
+    const providerStartedAt = Date.now();
+
     try {
       const { userApproach, userCode, userNotes, ...metadata } = request.context;
       const visualRequested = wantsVisualLesson(request);
       const visualInstruction = visualRequested ? "\nVISUAL LESSON: Use present_visual_lesson to show 3 to 6 short, internally consistent snapshots. Default to an illustrative example unless the exact example was supplied. Show partial reasoning without an unrequested full solution. If essential context is missing, ask a focused question in text instead. Never output the tool arguments as visible JSON or executable markup." : "";
-      const response = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
-        method: "POST", cache: "no-store", redirect: "error", signal: combined,
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model, temperature: 0.2, max_tokens: visualRequested ? 8192 : 4096, stream: false,
-          messages: [{ role: "system", content: `${DSA_SYSTEM_PROMPT}\n\nCURRENT TURN: ${turnInstruction(request)}${visualInstruction}` }, ...request.history,
-            { role: "user", content: "UNTRUSTED LEARNING DATA:\n" + JSON.stringify({
-            action: request.action, message: request.message, hintLevel: request.hintLevel,
-            RECALLSTACK_METADATA: metadata, REQUIREMENTS_STATUS: web.results.length ? "Check retrieved evidence for completeness" : "No original requirements retrieved; use only explicit user-supplied details",
-            USER_WORKSPACE: { userApproach, userCode, userNotes },
-            USER_VIEWING_STEP: request.visualFocus,
-            WEB_STATUS: web.status, WEB_CONTEXT: web.results.map((result, index) => ({ source: index + 1, ...result })),
-          }) + `\n\nEND LEARNING DATA.\nTutor task: ${turnInstruction(request)}${visualInstruction}` },
-            { role: "system", content: `CURRENT RESPONSE RULES: ${turnInstruction(request)}${visualInstruction}\nThe current problem is identified by RECALLSTACK_METADATA. Unsupported requirements must stay unknown. Never use a familiar title as a substitute for the supplied source. Earlier assistant answers are not evidence.` }],
-          ...(visualRequested ? { tools: [DSA_VISUAL_TOOL], tool_choice: "auto" } : {}),
-        }),
+      console.info("[DSA_TRACE]", {
+        traceId,
+        stage: "TOKEN_FACTORY_REQUEST_STARTED",
+        model,
+        action: request.action,
+        webStatus: web.status,
+        visualRequested,
       });
+
+      let response: Response;
+
+      try {
+        response = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
+          method: "POST", cache: "no-store", redirect: "error", signal: combined,
+          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ model, temperature: 0.2, max_tokens: visualRequested ? 8192 : 4096, stream: false,
+            messages: [{ role: "system", content: `${DSA_SYSTEM_PROMPT}\n\nCURRENT TURN: ${turnInstruction(request)}${visualInstruction}` }, ...request.history,
+              { role: "user", content: "UNTRUSTED LEARNING DATA:\n" + JSON.stringify({
+              action: request.action, message: request.message, hintLevel: request.hintLevel,
+              RECALLSTACK_METADATA: metadata, REQUIREMENTS_STATUS: web.results.length ? "Check retrieved evidence for completeness" : "No original requirements retrieved; use only explicit user-supplied details",
+              USER_WORKSPACE: { userApproach, userCode, userNotes },
+              USER_VIEWING_STEP: request.visualFocus,
+              WEB_STATUS: web.status, WEB_CONTEXT: web.results.map((result, index) => ({ source: index + 1, ...result })),
+            }) + `\n\nEND LEARNING DATA.\nTutor task: ${turnInstruction(request)}${visualInstruction}` },
+              { role: "system", content: `CURRENT RESPONSE RULES: ${turnInstruction(request)}${visualInstruction}\nThe current problem is identified by RECALLSTACK_METADATA. Unsupported requirements must stay unknown. Never use a familiar title as a substitute for the supplied source. Earlier assistant answers are not evidence.` }],
+            ...(visualRequested ? { tools: [DSA_VISUAL_TOOL], tool_choice: "auto" } : {}),
+          }),
+        });
+      } catch (error) {
+        console.error("[DSA_PROVIDER_FETCH_FAILED]", {
+          traceId,
+          model,
+          latencyMs: Date.now() - providerStartedAt,
+          aborted: combined.aborted,
+          errorName: error instanceof Error ? error.name : "unknown",
+          errorMessage: error instanceof Error ? error.message.slice(0, 500) : "unknown",
+        });
+        throw error;
+      }
+
+      const providerRequestId =
+        response.headers.get("x-request-id") ??
+        response.headers.get("request-id") ??
+        response.headers.get("x-nebius-request-id");
+
+      console.info("[DSA_TRACE]", {
+        traceId,
+        stage: "TOKEN_FACTORY_RESPONSE",
+        model,
+        providerStatus: response.status,
+        providerRequestId,
+        latencyMs: Date.now() - providerStartedAt,
+      });
+
       if (!response.ok) {
-        if (response.status === 429) throw new DSATutorProviderError("ReasonAI is busy. Please try again shortly.", 429);
-        throw new DSATutorProviderError("ReasonAI is temporarily unavailable. Please try again.", response.status === 401 || response.status === 403 ? 503 : 502);
+        let providerError: {
+          type?: string;
+          code?: string;
+          message?: string;
+        } = {};
+
+        try {
+          providerError = safeProviderError(await response.clone().json());
+        } catch {
+          // Do not log arbitrary raw response bodies.
+        }
+
+        const configuredSecrets = [apiKey, getTavilyConfiguration().apiKey]
+          .filter((key): key is string => Boolean(key));
+
+        const sanitizedMessage = configuredSecrets.reduce(
+          (message, key) => message?.replaceAll(key, "[redacted]"),
+          providerError.message,
+        );
+
+        console.error("[DSA_PROVIDER_ERROR]", {
+          traceId,
+          model,
+          providerStatus: response.status,
+          providerStatusText: response.statusText,
+          providerRequestId,
+          latencyMs: Date.now() - providerStartedAt,
+          errorType: providerError.type,
+          errorCode: providerError.code,
+          errorMessage: sanitizedMessage,
+        });
+
+        if (response.status === 429) {
+          throw new DSATutorProviderError("ReasonAI is busy. Please try again shortly.", 429);
+        }
+
+        throw new DSATutorProviderError(
+          "ReasonAI is temporarily unavailable. Please try again.",
+          response.status === 401 || response.status === 403 ? 503 : 502,
+        );
       }
       const raw = await readBoundedJSON(response, 192 * 1024) as { choices?: { finish_reason?: string; message?: { content?: unknown; tool_calls?: { type?: string; function?: { name?: string; arguments?: unknown } }[] } }[] };
       const choice = Array.isArray(raw?.choices) ? raw.choices[0] : undefined;
+
+      console.info("[DSA_TRACE]", {
+        traceId,
+        stage: "TOKEN_FACTORY_RESPONSE_PARSED",
+        model,
+        finishReason: choice?.finish_reason,
+        latencyMs: Date.now() - providerStartedAt,
+      });
+
       const content = choice?.message?.content;
       if (content != null && typeof content !== "string" || !["stop", "length", "tool_calls"].includes(choice?.finish_reason ?? "")) throw new DSATutorProviderError("ReasonAI could not complete that response. Please try again.");
       let visual: VisualLesson | undefined;
@@ -196,8 +311,35 @@ export const dsaTutorProvider = {
       if (choice?.finish_reason === "length") result.text = result.text.slice(0, 11800) + "\n\nThis response was cut short. Ask me to continue.";
       return result;
     } catch (error) {
-      if (error instanceof DSATutorProviderError) throw error;
-      if (combined.aborted) throw new DSATutorProviderError("ReasonAI timed out. Please try again.", 504);
+      if (error instanceof DSATutorProviderError) {
+        console.error("[DSA_REQUEST_FAILED]", {
+          traceId,
+          errorType: "DSATutorProviderError",
+          returnedStatus: error.status,
+          message: error.message,
+          latencyMs: Date.now() - providerStartedAt,
+        });
+        throw error;
+      }
+
+      if (combined.aborted) {
+        console.error("[DSA_REQUEST_FAILED]", {
+          traceId,
+          errorType: "timeout",
+          returnedStatus: 504,
+          latencyMs: Date.now() - providerStartedAt,
+        });
+        throw new DSATutorProviderError("ReasonAI timed out. Please try again.", 504);
+      }
+
+      console.error("[DSA_REQUEST_FAILED]", {
+        traceId,
+        errorType: error instanceof Error ? error.name : "unknown",
+        message: error instanceof Error ? error.message.slice(0, 500) : "unknown",
+        returnedStatus: 502,
+        latencyMs: Date.now() - providerStartedAt,
+      });
+
       throw new DSATutorProviderError("ReasonAI is temporarily unavailable. Please try again.");
     }
   },
