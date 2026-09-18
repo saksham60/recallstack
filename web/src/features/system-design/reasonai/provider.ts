@@ -1,6 +1,6 @@
 import "server-only";
 import { getReasonAIConfiguration, getTavilyConfiguration } from "@/lib/config/server";
-import { allowsReasonAIProposal, parseReasonAIProposal, REASONAI_INVALID_PROPOSAL, REASONAI_TOOL, ReasonAIValidationError, type ReasonAIRequest, type ReasonAIResponse } from "./contract";
+import { allowsReasonAIProposal, parseReasonAIProposal, REASONAI_TOOL, ReasonAIValidationError, type ReasonAIRequest, type ReasonAIResponse } from "./contract";
 import { normalizeReasonAIVisibleText } from "./visible-text";
 import { redactResearchText, searchTavily, type TavilyEvidence } from "@/lib/tavily/search";
 import { parseResearchQuery, REASONAI_SEARCH_TOOL } from "./research";
@@ -82,20 +82,28 @@ function normalizeResponse(raw: unknown, request: ReasonAIRequest, keys: string[
   if (hasSecret(content, keys)) return reject("SECRET_IN_RESPONSE");
   if (content.length > 16_000 && finishReason !== "length") return reject("RESPONSE_TOO_LARGE");
   let proposal: ReasonAIResponse["proposal"], visualization: ReasonAIResponse["visualization"], notice: string | undefined, visualSummary = "";
-  const withoutTools = () => ({
-    ...normalizeResponse({ choices: [{ ...choice, message: { content } }] }, request, keys, evidence, onInvalidVisualization, model, onInvalidProposal, trace),
-    notice: REASONAI_SUGGESTIONS_UNAVAILABLE,
-  });
+  const withoutTools = (errorCode = "INVALID_TOOL_CALL", unauthorizedProposal = false) => {
+    trace("TOOL_CALL_REJECTED", { status: "failed", errorCode, ...(unauthorizedProposal ? { tool: "propose_canvas_changes" as const } : {}) });
+    const fallback = unauthorizedProposal
+      ? "I can review the current diagram and explain its dependencies without changing it. Which flow should I focus on?"
+      : "I could not prepare the optional suggestions. Tell me which component or flow to focus on, and I can help you review it.";
+    const visible = normalizeReasonAIVisibleText(content, request.context) || fallback;
+    return {
+      ...normalizeResponse({ choices: [{ ...choice, message: { content: visible } }] }, request, keys, evidence, onInvalidVisualization, model, onInvalidProposal, trace),
+      notice: unauthorizedProposal ? "No canvas changes were prepared because this turn does not authorize edits." : REASONAI_SUGGESTIONS_UNAVAILABLE,
+    };
+  };
   if (message.tool_calls != null) {
     if (!Array.isArray(message.tool_calls) || message.tool_calls.length > 1) {
-      if (content) return withoutTools();
-      return reject("INVALID_TOOL_CALL", REASONAI_INVALID_PROPOSAL, { toolCalls: Array.isArray(message.tool_calls) ? message.tool_calls.length : undefined });
+      return withoutTools();
     }
     if (message.tool_calls.length) {
       const call = object(message.tool_calls[0]), fn = object(call?.function);
+      // Discard unauthorized arguments before parsing, repairing, or using their
+      // summary. Tool-contract mismatches must not fail a read-only conversation.
+      if (fn?.name === "propose_canvas_changes" && !allowsReasonAIProposal(request)) return withoutTools("PROPOSAL_NOT_AUTHORIZED", true);
       if (call?.type !== "function" || !["propose_canvas_changes", "show_architecture_analysis"].includes(String(fn?.name)) || typeof fn?.arguments !== "string") {
-        if (content) return withoutTools();
-        return reject("INVALID_TOOL_CALL", REASONAI_INVALID_PROPOSAL);
+        return withoutTools();
       }
       if (hasSecret(fn.arguments, keys)) {
         if (content) return withoutTools();
@@ -123,10 +131,7 @@ function normalizeResponse(raw: unknown, request: ReasonAIRequest, keys: string[
         return reject("SECRET_IN_RESPONSE");
       }
       if (fn.name === "propose_canvas_changes") {
-        if (!allowsReasonAIProposal(request)) {
-          if (!content) return reject("INVALID_TOOL_CALL", REASONAI_INVALID_PROPOSAL);
-          notice = REASONAI_SUGGESTIONS_UNAVAILABLE;
-        } else if (value !== undefined) {
+        if (value !== undefined) {
           let normalized: ReturnType<typeof sanitizeAIProposal> | undefined;
           try {
             normalized = sanitizeAIProposal(value, request.context);

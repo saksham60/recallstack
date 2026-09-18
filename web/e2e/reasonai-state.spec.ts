@@ -138,8 +138,7 @@ test("explanation and ambiguous acknowledgments do not authorize proposal tools"
 test("explicit negative intent overrides suggestions and Fix mode", () => {
   for (const mode of ["chat", "review", "eagle", "fix"] as const) for (const message of [
     "give me suggestions but do not change anything", "review only, no changes", "don't propose changes", "do not modify the canvas",
-    "analysis only", "suggest improvements, but don't add anything", "Make this cleaner, without moving components",
-    "Recommend improvements but do not regroup anything", "NO SUGGESTIONS. Explain only.", "Don't reorganize this architecture",
+    "analysis only", "NO SUGGESTIONS. Explain only.", "Don't reorganize this architecture",
   ]) expect(allowsReasonAIProposal({ mode, message }), `${mode}: ${message}`).toBe(false);
   for (const message of ["can u give some suggestions?", "explain this architecture", "what problems do you see?"]) {
     expect(allowsReasonAIProposal({ mode: "fix", message }), message).toBe(true);
@@ -438,4 +437,32 @@ test("browser sanitizer diagnostics never log raw proposals or private warning v
     parseSanitizedAIProposal({ operations: [{ ...newNode, x: "PRIVATE_COORDINATE" }] }, context);
     expect(logs).toEqual([]);
   } finally { console.warn = warn; console.error = error; }
+});
+
+
+for (const message of [
+  "Correct the current diagram so the data flow is technically accurate and easy to understand, without changing the overall design.",
+  "Correct the current diagram without changing the overall design.",
+  "Keep the existing layout but fix the incorrect connections.",
+  "Fix the arrows without moving unrelated components.",
+  "Fix the arrows but keep the existing layout.",
+  "Correct only the incorrect connections.",
+  "Remove crossing arrows without redesigning everything.",
+  "Adjust the connections.", "Reconnect the database.", "Rewire the queue.", "Reroute the arrows.", "Align the components.",
+  "suggest improvements, but don't add anything", "Make this cleaner, without moving components",
+  "Recommend improvements but do not regroup anything",
+]) test(`scoped edit intent allows proposals: ${message}`, () => {
+  for (const mode of ["chat", "review", "eagle", "fix"] as const) expect(allowsReasonAIProposal({ mode, message }), mode).toBe(true);
+});
+
+for (const message of [
+  "Review this architecture without changing anything.", "Analysis only.", "Do not modify the canvas.",
+  "Review only, do not change anything.", "Explain the issue but make no changes.",
+  "Correct the diagram, but do not change anything.", "Adjust the arrows. Review only.",
+  "Do not correct the diagram.", "Don't reconnect anything.", "Explain how to reroute the arrows.",
+  "Explain how to correct arrows and align components.", "Do not correct arrows and align components.",
+  "Correct the diagram but make no changes please.", "Fix the arrows, but do not change anything and preserve the layout.", "Correct the arrows but do not modify the canvas in any way.",
+]) test(`read-only or negated edit never gains proposal authority: ${message}`, () => {
+  const modes = message.startsWith("Explain how") ? ["chat", "review", "eagle"] as const : ["chat", "review", "eagle", "fix"] as const;
+  for (const mode of modes) expect(allowsReasonAIProposal({ mode, message }), mode).toBe(false);
 });

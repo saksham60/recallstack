@@ -35,13 +35,47 @@ export interface ReasonAIRequest {
   history: ReasonAIMessage[];
   context: ReasonAIContext;
 }
+// These are whole-canvas restrictions. Named components, layout, and the
+// "overall design" instead constrain the scope of an explicit edit request.
+function isWholeCanvasTarget(target: string): boolean {
+  const subject = target.trim().split(/\s+(?:and|or|because|while)\b/, 1)[0]
+    .replace(/^(?:(?:to|any|the|this|my|our|current|existing)\s+)+/i, "")
+    .replace(/(?:^|\s+)(?:at all|in any way|whatsoever|for now|please)$/i, "");
+  return ["", "anything", "everything", "canvas", "diagram", "architecture", "design", "it", "this", "changes", "edits", "modifications", "proposals", "suggestions", "improvements"].includes(subject);
+}
+
+function isGlobalProposalRestriction(restriction: string): boolean {
+  const action = /^(?:(?:make|making)\s+(?:any\s+)?(?:changes|edits|modifications)|change|changing|modify|modifying|edit|editing|propose|proposing|suggest|suggesting|recommend|recommending)\b\s*/i.exec(restriction);
+  return Boolean(action && isWholeCanvasTarget(restriction.slice(action[0].length)));
+}
+
 export function allowsReasonAIProposal(request: Pick<ReasonAIRequest, "mode" | "message">): boolean {
-  const message = request.message.trim().replace(/\bu\b/gi, "you").replace(/\s+/g, " ");
-  // Negative instructions override every positive pattern, including Fix mode.
-  if (/\b(?:do not|don['\u2019]t|without|never)\s+(?:\w+\s+){0,3}(?:chang(?:e[sd]?|ing)|modif(?:y|ying|ications?)|add(?:ing)?|remov(?:e|ing)|delet(?:e|ing)|propos(?:e|ing|als?)|fix(?:ing)?|mov(?:e|ing)|improv(?:e|ing)|clean(?:ing)?|reorganiz(?:e|ing)|regroup(?:ing)?|suggest(?:ions?|ing)?|recommend(?:ations?|ing)?)\b|\b(?:analysis|explanation|review) only\b|\bno\s+(?:(?:structural|canvas|architectural?)\s+)?(?:changes|modifications|proposals|suggestions)\b/i.test(message)) return false;
-  if (request.mode === "fix") return true;
+  const message = request.message.trim().toLowerCase().replace(/\bu\b/g, "you").replace(/\u2019/g, "'").replace(/\s+/g, " ");
+  const clauses = message.split(/[.!?;,]\s*|\b(?:but|however)\s+|(?=\bwithout\s+)/).filter(Boolean);
+  let explicitEdit = false, hasRestriction = false;
+  for (const clause of clauses) {
+    if (/\b(?:analysis|explanation|review|read)[ -]only\b|\bonly\s+(?:analy[sz]e|explain|review)\b|\bexplain only\b/.test(clause)) return false;
+    const noChanges = /\b(?:make\s+)?no\s+(?:(?:structural|canvas|architectural?)\s+)?(?:changes|modifications|edits|proposals|suggestions)\b\s*/.exec(clause);
+    const negative = /\b(?:do not|don't|never|without)\s+/.exec(clause);
+    if (noChanges && isWholeCanvasTarget(clause.slice(noChanges.index + noChanges[0].length))) return false;
+    if (negative && isGlobalProposalRestriction(clause.slice(negative.index + negative[0].length))) return false;
+    const restriction = negative ?? noChanges;
+    hasRestriction ||= Boolean(restriction);
+    // Negated verbs cannot themselves grant edit authority. A separate positive
+    // clause is required to edit while preserving another part of the diagram.
+    explicitEdit ||= hasReasonAIEditIntent(restriction ? clause.slice(0, restriction.index) : clause);
+  }
+  return explicitEdit || (request.mode === "fix" && !hasRestriction);
+}
+
+const reasonAIEditVerbs = new Set([
+  "add", "remove", "delete", "create", "build", "design", "fix", "improve", "replace", "update", "move", "connect", "propose", "optimize", "redesign",
+  "correct", "adjust", "reconnect", "rewire", "reroute", "align",
+]);
+
+function hasReasonAIEditIntent(message: string): boolean {
   const prefix = /^(?:(?:please[, :]?|can you|could you|would you|will you|help me|i want(?: you)? to|let's)\s+)*/i;
-  const intent = message.replace(prefix, "");
+  const intent = message.trim().replace(prefix, "");
   // Asking for an addable component is an explicit request for a suggestion,
   // even when phrased conversationally. Acceptance/drop still owns mutation.
   const componentRequest = /^(?:(?:give|provide|send|get|show|offer)\s+(?:(?:me|us)\s+)?|(?:i need|i want|i would like|i'd like|can i have|could i have)\s+)/i.test(intent)
@@ -53,7 +87,8 @@ export function allowsReasonAIProposal(request: Pick<ReasonAIRequest, "mode" | "
     && !/\b(?:for|on|about)\s+(?:explain(?:ing)?|explanation|examples?|hints?|definitions?|json|code)\b/i.test(intent);
   const improvementQuestion = /^(?:what should (?:i|we) change|how (?:can|could|should) (?:i|we) (?:improve|clean|reorganize|regroup))\b/i.test(intent);
   const layoutRequest = /^(?:make\s+(?:(?:this|the)\s+(?:(?:architecture|diagram|design|canvas)\s+)?|it\s+)(?:cleaner|better|clearer)|(?:reorganize|regroup)\s+(?:this|the|these|my|our)\s+(?:architecture|diagram|design|canvas|components|nodes|services))\b/i.test(intent);
-  return componentRequest || suggestionRequest || improvementQuestion || layoutRequest || /(?:^|[.!?]\s+)(?:(?:please|can you|could you|would you|help me|i want(?: you)? to|let's)\s+)*(?:add|remove|delete|create|build|design|fix|improve|replace|update|move|connect|propose|optimize|redesign|suggest (?:changes|improvements))\b/i.test(message);
+  const firstVerb = /^[a-z]+/i.exec(intent)?.[0];
+  return componentRequest || suggestionRequest || improvementQuestion || layoutRequest || Boolean(firstVerb && reasonAIEditVerbs.has(firstVerb));
 }
 export class ReasonAIValidationError extends Error {
   constructor(message: string, public readonly diagnostic: { code: string; operationIndex?: number; field?: string } = { code: "VALIDATION_FAILED" }) { super(message); }

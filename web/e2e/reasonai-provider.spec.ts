@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { extremeAnswers, extremePrompts } from "./helpers/reasonai-extreme";
 import { reasonAIProvider, ReasonAIProviderError } from "../src/features/system-design/reasonai/provider";
-import { REASONAI_INVALID_PROPOSAL, type ReasonAIProposal, type ReasonAIRequest } from "../src/features/system-design/reasonai/contract";
+import { type ReasonAIProposal, type ReasonAIRequest } from "../src/features/system-design/reasonai/contract";
 import { normalizeReasonAIVisibleText } from "../src/features/system-design/reasonai/visible-text";
 import { parseResearchQuery } from "../src/features/system-design/reasonai/research";
 import { searchTavily } from "../src/lib/tavily/search";
@@ -188,8 +188,20 @@ test("malformed tool JSON is diagnosed without logging its contents", async () =
   expect(result.proposal).toBeUndefined();
   expect(JSON.stringify(diagnostics)).not.toContain("PRIVATE_USER_TEXT");
 });
-test("unsupported tool never runs", async () => { mock(completion(null, [tool("{}", "execute_code")], "tool_calls")); await fails("INVALID_TOOL_CALL", REASONAI_INVALID_PROPOSAL); });
-test("multiple tools are rejected", async () => { mock(completion(null, [tool(), tool()], "tool_calls")); await fails("INVALID_TOOL_CALL"); });
+test("unsupported tool never runs and degrades to guidance", async () => {
+  const calls = sequence([completion(null, [tool("{}", "execute_code")], "tool_calls")]);
+  const result = await reasonAIProvider.complete(request);
+  expect(result.text).toContain("focus on");
+  expect(result.proposal).toBeUndefined();
+  expect(calls).toHaveLength(1);
+});
+test("multiple tools are discarded without failing the conversation", async () => {
+  const calls = sequence([completion(null, [tool(), tool()], "tool_calls")]);
+  const result = await reasonAIProvider.complete(request);
+  expect(result.text).toContain("focus on");
+  expect(result.proposal).toBeUndefined();
+  expect(calls).toHaveLength(1);
+});
 test("invalid proposal preserves useful text with a safe notice", async () => {
   mock(completion("The database needs workload measurements.", [tool(JSON.stringify({ ...proposal, operations: [...proposal.operations, { op: "delete_node", nodeId: "missing-secret-node" }] }))], "tool_calls"));
   const result = await reasonAIProvider.complete(request);
@@ -229,7 +241,9 @@ for (const mode of ["review", "eagle"] as const) {
     expect(JSON.stringify(sentBody.tools)).toContain("show_architecture_analysis");
     expect(JSON.stringify(sentBody.tools)).not.toContain("propose_canvas_changes");
     mock(completion(null, [tool()], "tool_calls"));
-    await expect(reasonAIProvider.complete(analysisRequest)).rejects.toThrow(REASONAI_INVALID_PROPOSAL);
+    const result = await reasonAIProvider.complete(analysisRequest);
+    expect(result.proposal).toBeUndefined();
+    expect(result.notice).toContain("No canvas changes were prepared");
   });
 }
 for (const status of [401, 403, 429, 503]) {
@@ -654,3 +668,32 @@ test("proposal repair has its own short deadline and no retry after timeout", as
     expect(count).toBe(2);
   } finally { AbortSignal.timeout = deadline; }
 });
+
+
+test("production scoped correction exposes the proposal tool and strictly validates its output", async () => {
+  const message = "Correct the current diagram so the data flow is technically accurate and easy to understand, without changing the overall design.";
+  const correction = { summary: "Clarify the existing read flow", operations: [{ op: "update_edge", edgeId: "edge_read", type: "read", label: "Database lookup" }] };
+  const calls = sequence([completion(null, [tool(JSON.stringify(correction))], "tool_calls")]);
+  const result = await reasonAIProvider.complete({ ...request, message });
+  expect(JSON.stringify(calls[0].body.tools)).toContain("propose_canvas_changes");
+  expect(result.proposal).toEqual(parseSanitizedAIProposal(correction, request.context));
+  expect(result.proposal?.operations[0]).toMatchObject({ type: "database_read", edgeId: "edge_read" });
+  expect(calls).toHaveLength(1);
+});
+
+for (const content of [null, "The database is on the read path."]) for (const args of [JSON.stringify(proposal), "{", JSON.stringify({ summary: KEY })]) {
+  test(`read-only tool mismatch degrades without repair or 502: content=${content !== null}, args=${args === "{" ? "malformed" : args.includes(KEY) ? "secret" : "valid"}`, async () => {
+    const readOnly = { ...request, message: "Review this architecture without changing anything." };
+    const before = structuredClone(readOnly);
+    const calls = sequence([completion(content, [tool(args)], "tool_calls")]);
+    const result = await reasonAIProvider.complete(readOnly);
+    expect(result.text).toBe(content ?? "I can review the current diagram and explain its dependencies without changing it. Which flow should I focus on?");
+    expect(result.proposal).toBeUndefined();
+    expect(result.notice).toContain("No canvas changes were prepared");
+    expect(readOnly).toEqual(before);
+    expect(calls).toHaveLength(1);
+    expect(JSON.stringify(calls[0].body.tools)).not.toContain("propose_canvas_changes");
+    expect(traces).toContainEqual(["[ReasonAI trace]", expect.objectContaining({ stage: "TOOL_CALL_REJECTED", errorCode: "PROPOSAL_NOT_AUTHORIZED", tool: "propose_canvas_changes" })]);
+    expect(JSON.stringify([result, traces, diagnostics])).not.toContain(KEY);
+  });
+}
