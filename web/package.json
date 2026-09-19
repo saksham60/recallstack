@@ -18,6 +18,8 @@
     "verify": "npm run typecheck && npm run lint && npm run build && npm run test:system-design-state && npm run test:e2e && npm run test:e2e:system-design-disabled"
   },
   "dependencies": {
+    "@langchain/core": "^1.2.11",
+    "@langchain/langgraph": "^1.4.16",
     "@likec4/icons": "^1.46.4",
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.110.7",

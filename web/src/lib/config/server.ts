@@ -12,6 +12,11 @@ export function getReasonAIConfiguration() {
   };
 }
 
+export function isReasonAIDSAStreamingEnabled(): boolean {
+  const mode = process.env.REASONAI_V2_MODE?.trim().toLowerCase() ?? "off";
+  return mode === "dsa" || mode === "all";
+}
+
 export function isE2EAuthBypassEnabled(): boolean {
   return (
     process.env.NODE_ENV !== "production" &&

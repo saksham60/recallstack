@@ -5,6 +5,27 @@ import type { DSATutorRequest, DSATutorResponse } from "./contract";
 import { needsExactProblemContext, needsLinkedContext, searchDSAContext } from "./web-context";
 import { issueWebContextToken } from "./web-context-token";
 import { DSA_VISUAL_TOOL, parseVisualLesson, type VisualLesson } from "./visual-contract";
+import { decodeTokenFactorySSE, DSAProviderStreamError } from "./provider-sse";
+
+interface TokenFactoryToolCall {
+  type?: string;
+  function?: { name?: string; arguments?: unknown };
+}
+
+interface TokenFactoryCompletion {
+  choices?: {
+    finish_reason?: string;
+    message?: {
+      content?: unknown;
+      reasoning_content?: unknown;
+      tool_calls?: TokenFactoryToolCall[] | null;
+    };
+  }[];
+}
+
+export type DSATutorProviderStreamEvent =
+  | { type: "text.delta"; delta: string }
+  | { type: "result"; result: DSATutorResponse };
 
 export class DSATutorProviderError extends Error {
   constructor(message: string, public readonly status = 502) { super(message); }
@@ -31,6 +52,14 @@ function safeProviderError(value: unknown): {
     code: safeText(nested.code),
     message: safeText(nested.message ?? nested.detail),
   };
+}
+
+function safeDiagnosticMessage(error: unknown): string {
+  const raw = error instanceof Error ? error.message : "unknown";
+  return [getReasonAIConfiguration().apiKey, getTavilyConfiguration().apiKey]
+    .filter((key): key is string => Boolean(key))
+    .reduce((message, key) => message.replaceAll(key, "[redacted]"), raw)
+    .slice(0, 500);
 }
 
 
@@ -142,21 +171,24 @@ export function wantsVisualLesson(request: DSATutorRequest): boolean {
 }
 
 export const dsaTutorProvider = {
-  async complete(request: DSATutorRequest, signal?: AbortSignal): Promise<DSATutorResponse> {
+  async *stream(request: DSATutorRequest, signal?: AbortSignal): AsyncGenerator<DSATutorProviderStreamEvent> {
     const empty = { sources: [], webStatus: "off" as const };
     const hasUserContext = Boolean(/\b(?:given|return)\b|\b(?:input|output)\s*[:=]/i.test(request.message) || request.context.userNotes.trim() || request.context.userApproach.trim() || request.context.userCode.trim() || request.history.some((item) => item.role === "user" && !/^(Give me a hint|Explain the pattern|Help me start|Trace an example|Review my approach|Analyze complexity)\.?$/i.test(item.content)));
     if (request.action === "hint" && !request.searchWeb && !request.context.sourceUrl && !request.webContextToken && !hasUserContext) {
       // A familiar title is not evidence of its requirements. Keep metadata-only
       // hints conceptual instead of inviting the model to reconstruct a problem.
-      return { ...empty, text: request.hintLevel <= 1
+      yield { type: "result", result: { ...empty, text: request.hintLevel <= 1
         ? "Start by asking: what makes a candidate answer valid? Read the original problem and try expressing that rule in one sentence. Share it here, or enable Search web, and we can build the next hint from the actual requirements."
-        : "A stronger direction needs the problem's actual requirements. Paste the relevant input and expected output, share your approach, or enable Search web. Then we can look for work your first idea repeats, without jumping to a solution." };
+        : "A stronger direction needs the problem's actual requirements. Paste the relevant input and expected output, share your approach, or enable Search web. Then we can look for work your first idea repeats, without jumping to a solution." } };
+      return;
     }
     if ((request.action === "review" || request.action === "complexity") && !request.context.userApproach.trim() && !request.context.userCode.trim() && !request.history.some((item) => item.role === "user") && /^(Review my (?:approach|code)|Analyze complexity)\.?$/i.test(request.message)) {
-      return { ...empty, text: request.action === "review" ? "Write your approach or paste your code first, then I can review what looks right and where it may fail." : "Which approach would you like me to analyze? Write your idea or paste your code so we can examine its time and space complexity." };
+      yield { type: "result", result: { ...empty, text: request.action === "review" ? "Write your approach or paste your code first, then I can review what looks right and where it may fail." : "Which approach would you like me to analyze? Write your idea or paste your code so we can examine its time and space complexity." } };
+      return;
     }
     if (needsExactProblemContext(request.message) && !request.searchWeb && !request.context.sourceUrl && !request.webContextToken && !hasUserContext && !request.history.length) {
-      return { ...empty, text: "I have the problem title and imported metadata, but not the original requirements. Enable Search web and ask again, or paste the relevant problem details here, so I can explain them accurately." };
+      yield { type: "result", result: { ...empty, text: "I have the problem title and imported metadata, but not the original requirements. Enable Search web and ask again, or paste the relevant problem details here, so I can explain them accurately." } };
+      return;
     }
     const { apiKey, baseUrl, model } = getReasonAIConfiguration();
     if (!apiKey) throw new DSATutorProviderError("ReasonAI is currently unavailable. Please try again later.", 503);
@@ -164,8 +196,9 @@ export const dsaTutorProvider = {
     const combined = signal ? AbortSignal.any([signal, deadline]) : deadline;
     const web = await searchDSAContext(request, combined);
     if (needsExactProblemContext(request.message) && !web.results.length && !hasUserContext && !request.history.length) {
-      return { text: `You have ${request.context.title} open${request.context.sourceProvider ? ` from ${request.context.sourceProvider}` : ""}. I know its catalog metadata, but the linked requirements could not be retrieved. Paste the relevant input and expected output so I can explain the task accurately.`, sources: [], webStatus: web.status,
-        notice: web.status === "unavailable" ? "Source retrieval is temporarily unavailable. Your workspace and practice link are still available." : undefined };
+      yield { type: "result", result: { text: `You have ${request.context.title} open${request.context.sourceProvider ? ` from ${request.context.sourceProvider}` : ""}. I know its catalog metadata, but the linked requirements could not be retrieved. Paste the relevant input and expected output so I can explain the task accurately.`, sources: [], webStatus: web.status,
+        notice: web.status === "unavailable" ? "Source retrieval is temporarily unavailable. Your workspace and practice link are still available." : undefined } };
+      return;
     }
 
     const traceId = crypto.randomUUID();
@@ -190,7 +223,7 @@ export const dsaTutorProvider = {
         response = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
           method: "POST", cache: "no-store", redirect: "error", signal: combined,
           headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ model, temperature: 0.2, max_tokens: visualRequested ? 8192 : 4096, stream: false,
+          body: JSON.stringify({ model, temperature: 0.2, max_tokens: visualRequested ? 8192 : 4096, stream: true,
             messages: [{ role: "system", content: `${DSA_SYSTEM_PROMPT}\n\nCURRENT TURN: ${turnInstruction(request)}${visualInstruction}` }, ...request.history,
               { role: "user", content: "UNTRUSTED LEARNING DATA:\n" + JSON.stringify({
               action: request.action, message: request.message, hintLevel: request.hintLevel,
@@ -210,7 +243,7 @@ export const dsaTutorProvider = {
           latencyMs: Date.now() - providerStartedAt,
           aborted: combined.aborted,
           errorName: error instanceof Error ? error.name : "unknown",
-          errorMessage: error instanceof Error ? error.message.slice(0, 500) : "unknown",
+          errorMessage: safeDiagnosticMessage(error),
         });
         throw error;
       }
@@ -271,19 +304,111 @@ export const dsaTutorProvider = {
           response.status === 401 || response.status === 403 ? 503 : 502,
         );
       }
-      const raw = await readBoundedJSON(response, 192 * 1024) as {
-        choices?: {
-          finish_reason?: string;
-          message?: {
-            content?: unknown;
-            reasoning_content?: unknown;
-            tool_calls?: {
-              type?: string;
-              function?: { name?: string; arguments?: unknown };
-            }[] | null;
-          };
-        }[];
-      };
+      let raw: TokenFactoryCompletion;
+      if (response.headers.get("content-type")?.toLowerCase().includes("text/event-stream")) {
+        if (!response.body) throw new DSAProviderStreamError("ReasonAI provider stream did not include a body.");
+        let content = "";
+        let reasoningContent = "";
+        let finishReason: string | undefined;
+        let sawChoice = false;
+        let pendingDelta = "";
+        const toolCalls = new Map<number, { type?: string; name: string; arguments: string }>();
+        const configuredSecrets = [apiKey, getTavilyConfiguration().apiKey]
+          .filter((key): key is string => Boolean(key));
+        const holdbackLength = configuredSecrets.reduce((length, key) => Math.max(length, key.length), 0);
+
+        for await (const frame of decodeTokenFactorySSE(response.body, combined)) {
+          if (frame.error) {
+            const providerError = safeProviderError(frame);
+            const status = providerError.code === "429" ? 429 : undefined;
+            throw new DSATutorProviderError(
+              status === 429 ? "ReasonAI is busy. Please try again shortly." : "ReasonAI is temporarily unavailable. Please try again.",
+              status ?? 502,
+            );
+          }
+          if (frame.choices === undefined) continue;
+          if (!Array.isArray(frame.choices) || frame.choices.length > 1) {
+            throw new DSAProviderStreamError("ReasonAI provider returned invalid stream choices.");
+          }
+          const streamedChoice = frame.choices[0];
+          if (!streamedChoice) continue;
+          sawChoice = true;
+          const streamedContent = streamedChoice.delta?.content;
+          if (streamedContent !== undefined && streamedContent !== null) {
+            if (typeof streamedContent !== "string") throw new DSAProviderStreamError("ReasonAI provider returned invalid streamed content.");
+            content += streamedContent;
+            if (content.length > 12_000) throw new DSATutorProviderError("ReasonAI could not complete that response. Please try again.");
+            if (configuredSecrets.some((key) => content.includes(key))) {
+              throw new DSATutorProviderError("ReasonAI could not complete that response. Please try again.");
+            }
+            pendingDelta += streamedContent;
+            const releasable = Math.max(0, pendingDelta.length - holdbackLength);
+            if (releasable) {
+              const delta = pendingDelta.slice(0, releasable);
+              pendingDelta = pendingDelta.slice(releasable);
+              if (delta) yield { type: "text.delta", delta };
+            }
+          }
+          const streamedReasoning = streamedChoice.delta?.reasoning_content;
+          if (streamedReasoning !== undefined && streamedReasoning !== null) {
+            if (typeof streamedReasoning !== "string") throw new DSAProviderStreamError("ReasonAI provider returned invalid reasoning content.");
+            reasoningContent = (reasoningContent + streamedReasoning).slice(0, 12_001);
+          }
+          const streamedCalls = streamedChoice.delta?.tool_calls;
+          if (streamedCalls !== undefined && streamedCalls !== null) {
+            if (!Array.isArray(streamedCalls)) throw new DSAProviderStreamError("ReasonAI provider returned invalid tool calls.");
+            for (const value of streamedCalls) {
+              if (!value || typeof value !== "object" || Array.isArray(value)) throw new DSAProviderStreamError("ReasonAI provider returned an invalid tool call.");
+              const fragment = value as Record<string, unknown>;
+              const index = fragment.index;
+              if (!Number.isInteger(index) || Number(index) < 0 || Number(index) > 0) throw new DSAProviderStreamError("ReasonAI provider returned too many tool calls.");
+              const current = toolCalls.get(Number(index)) ?? { name: "", arguments: "" };
+              if (fragment.type !== undefined) {
+                if (fragment.type !== "function") throw new DSAProviderStreamError("ReasonAI provider returned an invalid tool type.");
+                current.type = "function";
+              }
+              if (fragment.function !== undefined) {
+                if (!fragment.function || typeof fragment.function !== "object" || Array.isArray(fragment.function)) throw new DSAProviderStreamError("ReasonAI provider returned an invalid tool function.");
+                const fn = fragment.function as Record<string, unknown>;
+                if (fn.name !== undefined) {
+                  if (typeof fn.name !== "string") throw new DSAProviderStreamError("ReasonAI provider returned an invalid tool name.");
+                  current.name += fn.name;
+                }
+                if (fn.arguments !== undefined) {
+                  if (typeof fn.arguments !== "string") throw new DSAProviderStreamError("ReasonAI provider returned invalid tool arguments.");
+                  current.arguments += fn.arguments;
+                  if (current.arguments.length > 192 * 1024) throw new DSAProviderStreamError("ReasonAI provider tool arguments exceeded their limit.");
+                }
+              }
+              toolCalls.set(Number(index), current);
+            }
+          }
+          if (streamedChoice.finish_reason !== undefined && streamedChoice.finish_reason !== null) {
+            if (typeof streamedChoice.finish_reason !== "string" || finishReason !== undefined) throw new DSAProviderStreamError("ReasonAI provider returned an invalid finish reason.");
+            finishReason = streamedChoice.finish_reason;
+          }
+        }
+        raw = {
+          choices: sawChoice ? [{
+            finish_reason: finishReason,
+            message: {
+              content: content || null,
+              ...(reasoningContent ? { reasoning_content: reasoningContent } : {}),
+              ...(toolCalls.size ? { tool_calls: [...toolCalls.entries()].sort(([a], [b]) => a - b).map(([, call]) => ({
+                type: call.type,
+                function: { name: call.name, arguments: call.arguments },
+              })) } : {}),
+            },
+          }] : [],
+        };
+      } else {
+        raw = await readBoundedJSON(response, 192 * 1024) as TokenFactoryCompletion;
+        const fallbackContent = raw.choices?.[0]?.message?.content;
+        if (typeof fallbackContent === "string" && fallbackContent) {
+          const configuredSecrets = [apiKey, getTavilyConfiguration().apiKey].filter((key): key is string => Boolean(key));
+          if (!configuredSecrets.some((key) => fallbackContent.includes(key))) yield { type: "text.delta", delta: fallbackContent };
+        }
+      }
 
       const choice = Array.isArray(raw?.choices) ? raw.choices[0] : undefined;
 
@@ -498,7 +623,8 @@ export const dsaTutorProvider = {
         latencyMs: Date.now() - providerStartedAt,
       });
 
-      return result;
+      yield { type: "result", result };
+      return;
     } catch (error) {
       if (error instanceof DSATutorProviderError) {
         console.error("[DSA_REQUEST_FAILED]", {
@@ -524,12 +650,20 @@ export const dsaTutorProvider = {
       console.error("[DSA_REQUEST_FAILED]", {
         traceId,
         errorType: error instanceof Error ? error.name : "unknown",
-        message: error instanceof Error ? error.message.slice(0, 500) : "unknown",
+        message: safeDiagnosticMessage(error),
         returnedStatus: 502,
         latencyMs: Date.now() - providerStartedAt,
       });
 
       throw new DSATutorProviderError("ReasonAI is temporarily unavailable. Please try again.");
     }
+  },
+  async complete(request: DSATutorRequest, signal?: AbortSignal): Promise<DSATutorResponse> {
+    let result: DSATutorResponse | undefined;
+    for await (const event of this.stream(request, signal)) {
+      if (event.type === "result") result = event.result;
+    }
+    if (!result) throw new DSATutorProviderError("ReasonAI could not complete that response. Please try again.");
+    return result;
   },
 };

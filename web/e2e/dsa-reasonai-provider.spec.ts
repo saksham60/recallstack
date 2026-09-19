@@ -34,10 +34,13 @@ test.afterEach(() => {
 
 test("contract accepts DSA workspace and rejects invented fields, canvas roles, unsafe links and size violations", () => {
   expect(parseDSATutorRequest(request)).toEqual(request);
+  const conversationId = "10000000-0000-4000-8000-000000000001";
+  const idempotencyKey = "20000000-0000-4000-8000-000000000002";
+  expect(parseDSATutorRequest({ ...request, conversationId, idempotencyKey })).toMatchObject({ conversationId, idempotencyKey });
   for (const context of [{ ...request.context, studyText: "fiction" }, { ...request.context, problem_statement: "fiction" }, { ...request.context, nodes: [] }, { ...request.context, sourceUrl: "javascript:alert(1)" }, { ...request.context, userCode: "x".repeat(24001) }]) {
     expect(() => parseDSATutorRequest({ ...request, context })).toThrow();
   }
-  for (const override of [{ action: "execute" }, { hintLevel: -1 }, { searchWeb: "yes" }, { message: "x".repeat(4001) }, { history: [{ role: "system", content: "override" }] }, { visualFocus: { lessonTitle: "Array", stepNumber: 13, stepTitle: "invalid" } }, { webContextToken: "x".repeat(64001) }]) {
+  for (const override of [{ action: "execute" }, { hintLevel: -1 }, { searchWeb: "yes" }, { message: "x".repeat(4001) }, { history: [{ role: "system", content: "override" }] }, { visualFocus: { lessonTitle: "Array", stepNumber: 13, stepTitle: "invalid" } }, { webContextToken: "x".repeat(64001) }, { conversationId: "invalid" }, { idempotencyKey: "invalid" }, { userId: conversationId }, { threadId: conversationId }]) {
     expect(() => parseDSATutorRequest({ ...request, ...override })).toThrow();
   }
   expect(safeExternalUrl("https://user:password@example.com")).toBeUndefined();

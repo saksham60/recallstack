@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { AuthApiError, AuthRetryableFetchError, type SupabaseClient } from "@supabase/supabase-js";
-import { createAuthenticatedReasonAIRequest, type ReasonAIEndpoint } from "../src/lib/reasonai/authenticated-request";
+import { createAuthenticatedReasonAIFetch, createAuthenticatedReasonAIRequest, type ReasonAIEndpoint } from "../src/lib/reasonai/authenticated-request";
 import { validateApiUser } from "../src/lib/supabase/api-auth-result";
 
 const session = (token: string | null, error: unknown = null) => ({ data: { session: token ? { access_token: token } : null }, error });
@@ -73,6 +73,19 @@ test("cancellation during refresh never resubmits a request", async () => {
   const request = createAuthenticatedReasonAIRequest({ getSession: async () => session("old"), refreshSession: async () => { controller.abort(); return session("fresh"); } }, async () => { calls++; return Response.json({}, { status: 401 }); });
   await expect(request(endpoint, "{}", controller.signal)).rejects.toMatchObject({ name: "AbortError" });
   expect(calls).toBe(1);
+});
+
+test("conversation resources use the same bearer refresh path without changing GET semantics", async () => {
+  const calls: RequestInit[] = [];
+  const request = createAuthenticatedReasonAIFetch({ getSession: async () => session("token"), refreshSession: async () => session("unused") }, async (_url, init) => {
+    calls.push(init!);
+    return Response.json({});
+  });
+  expect((await request("/api/reasonai/conversations/10000000-0000-4000-8000-000000000001", { method: "GET" })).status).toBe(200);
+  expect(calls[0].method).toBe("GET");
+  expect(new Headers(calls[0].headers).get("Authorization")).toBe("Bearer token");
+  expect(calls[0].body).toBeUndefined();
+  await expect(request("/api/reasonai/conversations/not-a-uuid" as never)).rejects.toThrow("Unsupported");
 });
 
 for (const [name, error, status] of [

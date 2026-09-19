@@ -27,6 +27,8 @@ export interface DSATutorRequest {
   history: { role: "user" | "assistant"; content: string }[];
   webContextToken?: string;
   visualFocus?: { lessonTitle: string; stepNumber: number; stepTitle: string };
+  conversationId?: string;
+  idempotencyKey?: string;
 }
 export interface DSATutorSource { title: string; url: string; kind?: "source" | "search" }
 export interface DSATutorResponse {
@@ -60,7 +62,7 @@ function only(value: Record<string, unknown>, fields: string[]) {
 }
 export function parseDSATutorRequest(value: unknown): DSATutorRequest {
   const input = record(value), context = record(input.context);
-  only(input, ["action", "message", "searchWeb", "hintLevel", "context", "history", "webContextToken", "visualFocus"]);
+  only(input, ["action", "message", "searchWeb", "hintLevel", "context", "history", "webContextToken", "visualFocus", "conversationId", "idempotencyKey"]);
   only(context, ["contentId", "slug", "title", "difficulty", "category", "sourceProvider", "sourceUrl", "summary", "companies", "remarks", "userApproach", "userNotes", "userCode"]);
   if (!DSA_ACTIONS.includes(input.action as DSATutorAction)) throw new DSAValidationError("Unknown tutor action.");
   if (typeof input.searchWeb !== "boolean" || !Number.isInteger(input.hintLevel) || Number(input.hintLevel) < 0 || Number(input.hintLevel) > 20) throw new DSAValidationError("Invalid tutor options.");
@@ -94,6 +96,8 @@ export function parseDSATutorRequest(value: unknown): DSATutorRequest {
     action: input.action as DSATutorAction, message, searchWeb: input.searchWeb, hintLevel: Number(input.hintLevel), context: parsed,
     ...(input.webContextToken !== undefined ? { webContextToken: text(input.webContextToken, 64000) } : {}),
     ...(visualFocus ? { visualFocus } : {}),
+    ...(input.conversationId !== undefined ? { conversationId: uuid(input.conversationId, "conversation ID") } : {}),
+    ...(input.idempotencyKey !== undefined ? { idempotencyKey: uuid(input.idempotencyKey, "idempotency key") } : {}),
     history: input.history.map((value) => {
       const item = record(value);
       only(item, ["role", "content"]);
@@ -101,4 +105,12 @@ export function parseDSATutorRequest(value: unknown): DSATutorRequest {
       return { role: item.role, content: text(item.content, 12000) };
     }),
   };
+}
+
+function uuid(value: unknown, label: string): string {
+  const parsed = text(value, 128);
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(parsed)) {
+    throw new DSAValidationError(`Invalid ${label}.`);
+  }
+  return parsed;
 }

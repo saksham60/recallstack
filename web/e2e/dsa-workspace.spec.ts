@@ -2,6 +2,7 @@ import { expect, test } from "./fixtures/authenticated-test";
 import { createPagination, createProfile, createStudyNoteResponse } from "./helpers/factories";
 import type { DSATutorRequest } from "../src/features/dsa/reasonai/contract";
 import { visualLesson, visualStep } from "./helpers/dsa-visual";
+import type { Page } from "@playwright/test";
 
 const problem = createStudyNoteResponse({
   title: "3Sum", slug: "3sum", difficulty: "medium", topics: [], primary_topic: null,
@@ -44,6 +45,103 @@ test("3Sum workspace sends approach, code, notes and progressive hints through t
   await page.getByRole("button", { name: "Review my code" }).click();
   await expect(page.getByText("Tutor response 4", { exact: true })).toBeVisible();
   expect(requests[3].context.userCode).toContain("nums.sort()");
+});
+
+test("V2 renders multiple chunks before EOF and text.final replaces provisional text", async ({ authenticatedPage: page }) => {
+  await installControlledV2Stream(page);
+  await page.goto("/dsa/problem/3sum");
+  await page.getByRole("button", { name: "Explain the pattern", exact: true }).click();
+  await expect(page.getByText("First streamed", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Stop response" })).toBeVisible();
+  await page.evaluate(() => (window as typeof window & { __finishReasonAIStream?: () => void }).__finishReasonAIStream?.());
+  await expect(page.getByText("Final authoritative answer.", { exact: true })).toBeVisible();
+  await expect(page.getByText("First streamed answer", { exact: true })).toHaveCount(0);
+});
+
+test("V2 Stop preserves partial text and retry and clear remain functional", async ({ authenticatedPage: page }) => {
+  await installControlledV2Stream(page, true);
+  await page.goto("/dsa/problem/3sum");
+  await page.getByRole("button", { name: "Explain the pattern", exact: true }).click();
+  await expect(page.getByText("Partial answer remains", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Stop response" }).click();
+  await expect(page.getByText("Partial answer remains", { exact: true })).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "Response stopped" })).toBeVisible();
+  await page.getByRole("button", { name: "Try again", exact: true }).click();
+  await expect(page.getByText("Retry completed.", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Clear chat" }).click();
+  await expect(page.getByText("Retry completed.", { exact: true })).toHaveCount(0);
+});
+
+test("V2 persists a first conversation, replays idempotently and restores it after reload", async ({ authenticatedPage: page }) => {
+  const idempotencyKey = crypto.randomUUID();
+  const body: DSATutorRequest = {
+    action: "chat",
+    message: "What exactly is this problem asking?",
+    searchWeb: false,
+    hintLevel: 0,
+    history: [],
+    idempotencyKey,
+    context: {
+      contentId: problem.content_item_id,
+      slug: problem.slug,
+      title: problem.title,
+      userApproach: "",
+      userNotes: "",
+      userCode: "",
+    },
+  };
+  const first = await page.request.post("/api/reasonai/dsa/chat", {
+    headers: { Accept: "application/x-ndjson" },
+    data: body,
+  });
+  expect(first.status()).toBe(200);
+  const conversationId = first.headers()["x-reasonai-conversation-id"];
+  expect(conversationId).toMatch(/^[0-9a-f-]{36}$/i);
+  expect(await first.text()).toContain('"type":"text.final"');
+
+  const replay = await page.request.post("/api/reasonai/dsa/chat", {
+    headers: { Accept: "application/x-ndjson" },
+    data: { ...body, conversationId },
+  });
+  expect(replay.status()).toBe(200);
+  expect(await replay.json()).toMatchObject({ conversationId, status: "completed", replayed: true });
+
+  const second = await page.request.post("/api/reasonai/dsa/chat", {
+    headers: { Accept: "application/x-ndjson" },
+    data: { ...body, conversationId, idempotencyKey: crypto.randomUUID() },
+  });
+  expect(second.status()).toBe(200);
+  expect(second.headers()["x-reasonai-conversation-id"]).toBe(conversationId);
+  expect(await second.text()).toContain('"type":"run.completed"');
+
+  const persisted = await page.request.get(`/api/reasonai/conversations/${conversationId}`);
+  expect(persisted.status()).toBe(200);
+  const transcript = (await persisted.json()).conversation;
+  expect(transcript.messages).toHaveLength(4);
+  expect(transcript.messages.map((message: { role: string }) => message.role)).toEqual(["user", "assistant", "user", "assistant"]);
+  expect(transcript.messages[3].parts.find((part: { type: string }) => part.type === "text")).toMatchObject({ finalized: true });
+
+  await page.addInitScript(({ key, value }) => localStorage.setItem(key, value), {
+    key: `reasonai:dsa:conversation:${problem.content_item_id}`,
+    value: conversationId,
+  });
+  await page.goto("/dsa/problem/3sum");
+  await expect(page.getByText(/not the original requirements/i).first()).toBeVisible();
+  await page.getByRole("button", { name: "Clear chat" }).click();
+  expect(await page.evaluate((key) => localStorage.getItem(key), `reasonai:dsa:conversation:${problem.content_item_id}`)).toBeNull();
+});
+
+test("conversation APIs create, list, read and delete only bounded authenticated records", async ({ authenticatedPage: page }) => {
+  expect((await page.request.post("/api/reasonai/conversations", { data: { surface: "dsa", userId: crypto.randomUUID() } })).status()).toBe(400);
+  const created = await page.request.post("/api/reasonai/conversations", { data: { surface: "dsa", contextId: "api-context", title: "API conversation" } });
+  expect(created.status()).toBe(201);
+  const { conversationId } = await created.json();
+  const listed = await page.request.get("/api/reasonai/conversations?surface=dsa&contextId=api-context&limit=5");
+  expect(listed.status()).toBe(200);
+  expect((await listed.json()).conversations).toContainEqual(expect.objectContaining({ id: conversationId, title: "API conversation" }));
+  expect((await page.request.get(`/api/reasonai/conversations/${conversationId}`)).status()).toBe(200);
+  expect((await page.request.delete(`/api/reasonai/conversations/${conversationId}`)).status()).toBe(204);
+  expect((await page.request.get(`/api/reasonai/conversations/${conversationId}`)).status()).toBe(404);
 });
 
 test("web search toggle and compact sources, with no raw retrieved content", async ({ authenticatedPage: page }) => {
@@ -119,6 +217,38 @@ test("expired chat session retains the external link and offers login", async ({
   await expect(page.getByRole("link", { name: "Sign in again" })).toHaveAttribute("href", /\/login\?next=/);
   await expect(page.getByRole("link", { name: "Open on LeetCode" })).toBeVisible();
 });
+
+async function installControlledV2Stream(page: Page, retryMode = false) {
+  await page.addInitScript(({ retryMode }) => {
+    const nativeFetch = window.fetch.bind(window);
+    const encoder = new TextEncoder();
+    let attempt = 0;
+    const event = (seq: number, type: string, fields: Record<string, unknown> = {}) => `${JSON.stringify({ protocolVersion: 1, runId: `run-${attempt}`, seq, type, ...fields })}\n`;
+    window.fetch = async (input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (!url.includes("/api/reasonai/dsa/chat")) return nativeFetch(input, init);
+      attempt += 1;
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          const push = (value: string) => controller.enqueue(encoder.encode(value));
+          push(event(1, "run.started") + event(2, "text.delta", { messageId: "message-1", partId: "text-1", delta: retryMode ? "Partial answer remains" : "First streamed " }));
+          const finish = () => {
+            if (retryMode && attempt === 1) return;
+            push(event(3, "text.delta", { messageId: "message-1", partId: "text-1", delta: "answer" }));
+            push(event(4, "text.final", { messageId: "message-1", partId: "text-1", text: retryMode ? "Retry completed." : "Final authoritative answer." }));
+            push(event(5, "sources.ready", { messageId: "message-1", partId: "sources-1", sources: [], retrievalStatus: "off" }));
+            push(event(6, "run.completed"));
+            controller.close();
+          };
+          if (retryMode && attempt > 1) finish();
+          else (window as typeof window & { __finishReasonAIStream?: () => void }).__finishReasonAIStream = finish;
+          init?.signal?.addEventListener("abort", () => controller.error(init.signal?.reason), { once: true });
+        },
+      });
+      return new Response(body, { headers: { "Content-Type": "application/x-ndjson; charset=utf-8" } });
+    };
+  }, { retryMode });
+}
 
 test("category Practice opens the dedicated workspace", async ({ authenticatedPage: page }) => {
   await page.route("**/api/v1/categories/*/content*", (route) => route.fulfill({ json: {
