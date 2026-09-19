@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import type { components } from "@/lib/api/types";
 import { categoryContentKeys } from "./keys";
+import type { CategoryContentSort } from "./category-content-list-state";
 
 export type CategoryContentListResponse = components["schemas"]["CategoryContentListResponse"];
 export type CategoryContentItemResponse = components["schemas"]["CategoryContentItemResponse"];
@@ -15,6 +16,7 @@ interface UseCategoryContentOptions {
   status?: "new" | "learning" | "attempted" | "confident" | "mastered";
   topic?: string;
   search?: string;
+  sort?: CategoryContentSort;
 }
 
 export function useCategoryContent({ categoryId, page = 1, pageSize = 25, ...filters }: UseCategoryContentOptions) {
@@ -31,6 +33,7 @@ export function useCategoryContent({ categoryId, page = 1, pageSize = 25, ...fil
             status: filters.status,
             topic: filters.topic,
             search: filters.search,
+            sort: filters.sort,
           }
         },
       });

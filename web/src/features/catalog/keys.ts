@@ -5,6 +5,7 @@ export interface CategoryContentFilters {
   status?: "new" | "learning" | "attempted" | "confident" | "mastered";
   topic?: string;
   search?: string;
+  sort?: "sort_order" | "title" | "difficulty" | "updated_at";
 }
 
 export const categoryKeys = {
