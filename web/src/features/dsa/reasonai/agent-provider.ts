@@ -828,12 +828,7 @@ async function* parseStreamingResponse(
             );
           }
 
-          const fn =
-            fragment.function
-              as Record<
-                string,
-                unknown
-              >;
+          const fn = fragment.function as Record<string, unknown>;
 
           if (
             fn.name
