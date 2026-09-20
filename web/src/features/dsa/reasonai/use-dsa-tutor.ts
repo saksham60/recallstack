@@ -8,11 +8,19 @@ import { decodeReasonAIEventResponse } from "@/lib/reasonai/streaming-client";
 import { parseDSATutorRequest, type DSAProblemContext, type DSATutorAction, type DSATutorRequest, type DSATutorResponse } from "./contract";
 import { parseVisualLesson } from "./visual-contract";
 
+interface TutorToolActivity {
+  toolCallId: string;
+  toolName: string;
+  summary: string;
+  status: "running" | "completed" | "failed";
+}
+
 export interface TutorMessage {
   id: number;
   role: "user" | "assistant";
   content: string;
   response?: DSATutorResponse;
+  tools?: TutorToolActivity[];
 }
 export const DSA_FIRST_EVENT_TIMEOUT_MS = 65_000;
 export const DSA_IDLE_STREAM_TIMEOUT_MS = 65_000;
@@ -123,10 +131,20 @@ export function useDSATutor(context: DSAProblemContext) {
     };
   }
 
-  function upsertStreamingAssistant(id: number, response: DSATutorResponse) {
+  function upsertStreamingAssistant(
+    id: number,
+    response: DSATutorResponse,
+    tools?: TutorToolActivity[],
+  ) {
     setMessages((current) => {
       const index = current.findIndex((message) => message.id === id);
-      const message: TutorMessage = { id, role: "assistant", content: response.text, response };
+      const message: TutorMessage = {
+        id,
+        role: "assistant",
+        content: response.text,
+        response,
+        ...(tools?.length ? { tools } : {}),
+      };
       if (index < 0) return [...current, message];
       const next = current.slice();
       next[index] = message;
@@ -161,11 +179,35 @@ export function useDSATutor(context: DSAProblemContext) {
         let runtime = createReasonAIRuntimeState();
         const assistantId = ++sequence.current;
         let result: DSATutorResponse | undefined;
+        let toolActivities: TutorToolActivity[] = [];
         for await (const event of decodeReasonAIEventResponse(response)) {
           if (inFlight.current !== controller) return;
           armTimeout("idle", DSA_IDLE_STREAM_TIMEOUT_MS);
           runtime = reduceReasonAIEvent(runtime, event);
-          if (event.type === "tool.started" || event.type === "tool.completed" || event.type === "tool.failed") {
+          if (event.type === "tool.started") {
+            toolActivities = [
+              ...toolActivities.filter((item) => item.toolCallId !== event.toolCallId),
+              {
+                toolCallId: event.toolCallId,
+                toolName: event.toolName,
+                summary: event.summary ?? event.toolName,
+                status: "running",
+              },
+            ];
+            setActivity(event.summary);
+          } else if (event.type === "tool.completed") {
+            toolActivities = toolActivities.map((item) =>
+              item.toolCallId === event.toolCallId
+                ? { ...item, summary: event.summary ?? item.summary, status: "completed" as const }
+                : item,
+            );
+            setActivity(event.summary);
+          } else if (event.type === "tool.failed") {
+            toolActivities = toolActivities.map((item) =>
+              item.toolCallId === event.toolCallId
+                ? { ...item, summary: event.summary ?? item.summary, status: "failed" as const }
+                : item,
+            );
             setActivity(event.summary);
           } else if (event.type === "text.delta" || event.type === "text.final") {
             setActivity(undefined);
@@ -173,7 +215,7 @@ export function useDSATutor(context: DSAProblemContext) {
           const next = runtimeResponse(runtime);
           if (next) {
             result = next;
-            upsertStreamingAssistant(assistantId, next);
+            upsertStreamingAssistant(assistantId, next, toolActivities);
           }
         }
         runtime = interruptReasonAIRun(runtime);

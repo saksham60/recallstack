@@ -78,7 +78,13 @@ export function DSATutorPanel({ tutor, onClose, slug, problem, focused, onFocusC
         <div role="log" aria-label="Tutor conversation" aria-live="polite" className={`space-y-7 ${largeText ? "text-base" : "text-sm"}`}>
           {tutor.messages.map((message, index) => <article key={message.id} ref={index === tutor.messages.length - 1 ? latest : undefined} className={message.role === "user" ? "ml-6 rounded-2xl rounded-tr-sm bg-accent/10 px-4 py-3" : "text-foreground/90"}>
             <p className="mb-2 text-[10px] font-medium uppercase tracking-widest text-muted">{message.role === "user" ? "You" : "ReasonAI"}</p>
-            {message.role === "user" ? <p className="whitespace-pre-wrap break-words leading-7">{message.content}</p> : <DSATutorMarkdown text={message.content} />}
+            {message.role === "user" ? <p className="whitespace-pre-wrap break-words leading-7">{message.content}</p> : <>
+              {message.tools?.map((tool) => <div key={tool.toolCallId} className="mb-2 text-xs text-muted">
+                {tool.toolName === "search_web" ? "\u{1F50E} " : tool.toolName === "create_visual" ? "◈ " : "• "}
+                {tool.summary}
+              </div>)}
+              <DSATutorMarkdown text={message.content} />
+            </>}
             {message.response?.visual && (focused ? <button type="button" onClick={() => { setSelectedVisualId(message.id); setView("lesson"); }} className="mt-3 inline-flex items-center gap-2 rounded-lg bg-accent/10 px-3 py-2 text-xs text-accent"><ScanLine size={14} />View walkthrough</button> : <DSAVisualLesson lesson={message.response.visual} onExpand={() => { setSelectedVisualId(message.id); setView("lesson"); onFocusChange(true); }} />)}
             {message.response?.notice && <p className="mt-3 text-xs leading-5 text-warning">{message.response.notice}</p>}
             {(message.response?.webStatus === "used" || message.response?.webStatus === "cached") && <DSATutorSources sources={message.response.sources} cached={message.response.webStatus === "cached"} />}
