@@ -1,12 +1,12 @@
 import "server-only";
-import { END, START, StateGraph, type BaseCheckpointSaver } from "@langchain/langgraph";
+import { END, START, StateGraph } from "@langchain/langgraph";
 import type { DSATutorRequest } from "@/features/dsa/reasonai/contract";
 import type { DSAAgentProvider } from "@/features/dsa/reasonai/agent-provider";
 import { createDSAFinalizeNode } from "./nodes/finalize";
 import { createDSAModelNode, type DSATutorStreamingProvider } from "./nodes/model";
 import { createDSAToolsNode } from "./nodes/tools";
 import type { DSAGraphStage, DSAGraphStreamEvent } from "./events";
-import { DSAGraphState } from "./state";
+import { DSAGraphState, type DSADurableConversationState } from "./state";
 import type { DSAToolExecutor } from "./tools";
 
 function graphEvent(value: unknown): value is DSAGraphStreamEvent {
@@ -21,54 +21,53 @@ function graphEvent(value: unknown): value is DSAGraphStreamEvent {
 }
 
 export interface DSAGraphExecution {
-  checkpointer: BaseCheckpointSaver;
-  threadId: string;
+  durableState: DSADurableConversationState;
   signal?: AbortSignal;
   provider?: DSATutorStreamingProvider | DSAAgentProvider;
   toolExecutor?: DSAToolExecutor;
   learnerMemory?: string[];
   onStage?: (stage: DSAGraphStage, toolName?: string) => void;
   toolTimeoutMs?: number;
+  onConversationState?: (state: DSADurableConversationState) => void;
 }
 
 export function createDSAGraph(
-  checkpointer: BaseCheckpointSaver,
   provider?: DSATutorStreamingProvider | DSAAgentProvider,
   toolExecutor?: DSAToolExecutor,
   onStage?: (stage: DSAGraphStage, toolName?: string) => void,
   toolTimeoutMs?: number,
+  onCandidate?: (state: DSADurableConversationState) => void,
 ) {
   return new StateGraph(DSAGraphState)
     .addNode("agent", createDSAModelNode(provider, onStage))
     .addNode("tools", createDSAToolsNode(toolExecutor, onStage, toolTimeoutMs))
-    .addNode("finalize", createDSAFinalizeNode())
+    .addNode("finalize", createDSAFinalizeNode(onCandidate))
     .addEdge(START, "agent")
     .addConditionalEdges("agent", (state) => state.pendingToolCalls?.length ? "tools" : "finalize", ["tools", "finalize"])
     .addEdge("tools", "agent")
     .addEdge("finalize", END)
-    .compile({ checkpointer });
+    .compile();
 }
 
-/** Streams provisional deltas and releases the validated final only after a durable checkpoint. */
+/** Streams provisional deltas and exposes validated state only after successful graph completion. */
 export async function* streamDSAGraph(
   request: DSATutorRequest,
   execution: DSAGraphExecution,
 ): AsyncGenerator<DSAGraphStreamEvent> {
+  let candidate: DSADurableConversationState | undefined;
   const graph = createDSAGraph(
-    execution.checkpointer,
     execution.provider,
     execution.toolExecutor,
     execution.onStage,
     execution.toolTimeoutMs,
+    (state) => { candidate = state; },
   );
   execution.onStage?.("graph.started");
   const output = await graph.stream(
-    { request, learnerMemory: execution.learnerMemory ?? [] },
+    { ...execution.durableState, request, learnerMemory: execution.learnerMemory ?? [] },
     {
       signal: execution.signal,
       streamMode: "custom",
-      durability: "sync",
-      configurable: { thread_id: execution.threadId },
     },
   );
   let finalEvent: DSAGraphStreamEvent | undefined;
@@ -77,6 +76,8 @@ export async function* streamDSAGraph(
     if (event.type === "result") finalEvent = event;
     else yield event;
   }
-  execution.onStage?.("checkpoint.persisted");
-  if (finalEvent) yield finalEvent;
+  if (finalEvent && candidate) {
+    execution.onConversationState?.(candidate);
+    yield finalEvent;
+  }
 }

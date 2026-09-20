@@ -42,27 +42,18 @@ The integration uses the [Tavily Extract API](https://docs.tavily.com/documentat
 Automated provider tests mock upstream requests and do not spend API credits. They validate contracts, prompt/data separation, bounded bodies, source-aware queries, secret/error handling and graceful search failures. Browser tests cover workspace review payloads, progressive hint state, sources, editor validation, retries, mobile tabs, legacy URLs and JSON authentication errors. Pedagogical response quality still depends on the configured model.
 ## ReasonAI DSA durable memory
 
-DSA V2 keeps its user-visible transcript in the ReasonAI product tables and its compact model memory in LangGraph checkpoints. Production requires the server-only `DATABASE_URL` and `REASONAI_THREAD_SECRET` variables. `DATABASE_URL` should use Supabase's serverless-compatible pooler connection string with SSL enabled. The thread secret must contain at least 32 bytes and remain stable across deployments.
-
-Initialize or migrate the package-owned checkpoint tables once for each hosted database:
-
-```bash
-npm run reasonai:checkpoint:setup
-```
-
-This creates LangGraph's tables in the `reasonai_graph` schema. Application requests never run checkpoint setup.
+DSA V2 keeps its user-visible transcript and bounded short-term state in the ReasonAI product tables through the existing authenticated Supabase HTTPS client. LangGraph is request scoped. Apply `supabase/migrations/20260922_reasonai_conversation_state.sql` before enabling this runtime in a hosted environment; no native PostgreSQL connection or additional secret is required.
 
 ## ReasonAI DSA tools and learner memory
 
-With `REASONAI_V2_MODE=dsa`, the DSA LangGraph agent exposes two bounded tools to Nemotron: `search_web` and `create_visual`. Ordinary conceptual answers remain a single streaming model pass. Tavily runs only after the model selects `search_web`; results are limited to five public URLs with 1,500-character snippets, treated as untrusted evidence, and removed from checkpoint state after the run. `create_visual` reuses the existing strict visual lesson validator. The server permits at most four tool rounds and emits the shared runtime tool/source/visual events with stable call IDs.
+With `REASONAI_V2_MODE=dsa`, the DSA LangGraph agent exposes two bounded tools to Nemotron: `search_web` and `create_visual`. Ordinary conceptual answers remain a single streaming model pass. Tavily runs only after the model selects `search_web`; results are limited to five public URLs with 1,500-character snippets, treated as untrusted evidence, and excluded from durable conversation state. `create_visual` reuses the existing strict visual lesson validator. The server permits at most four tool rounds and emits the shared runtime tool/source/visual events with stable call IDs.
 
-Cross-conversation learner memory is independent from checkpoint conversation memory. It defaults off. Set `REASONAI_MEMORY_MODE=dsa` to read at most eight user-owned DSA tutoring facts and extract at most three bounded facts after a successful authoritative answer. Cancelled, failed and interrupted runs never write learner memory. The profile stores only tutoring preferences, strengths, misconceptions, goals, strategies and progress; it does not store transcripts, provider reasoning or web payloads.
+Cross-conversation learner memory is independent from per-conversation state. It defaults off. Set `REASONAI_MEMORY_MODE=dsa` to read at most eight user-owned DSA tutoring facts and extract at most three bounded facts after a successful authoritative answer. Cancelled, failed and interrupted runs never write learner memory. The profile stores only tutoring preferences, strengths, misconceptions, goals, strategies and progress; it does not store transcripts, provider reasoning or web payloads.
 
-Apply `supabase/migrations/20260920_reasonai_learner_memory.sql` before enabling learner memory in a hosted environment. The table uses row-level security with `auth.uid() = user_id` and semantic upserts on `(user_id, surface, memory_key)`. This migration and the environment flag are separate from LangGraph checkpoint setup.
-
+Apply `supabase/migrations/20260920_reasonai_learner_memory.sql` before enabling learner memory in a hosted environment. The table uses row-level security with `auth.uid() = user_id` and semantic upserts on `(user_id, surface, memory_key)`. This migration and the environment flag are separate from per-conversation state persistence.
 ## ReasonAI DSA lifecycle hardening
 
-Apply `supabase/migrations/20260921_reasonai_runtime_hardening.sql` after the transcript and learner-memory migrations. It adds the run `heartbeat_at` lease, an atomic acquisition/stale-recovery RPC, and an atomic assistant-transcript/final-run RPC. Both functions are security-invoker functions with an empty `search_path`, enforce ownership through `auth.uid()`, and are executable only by `authenticated`. ReasonAI table grants and RLS policies are explicit; `anon` has no table or RPC access.
+Apply `supabase/migrations/20260921_reasonai_runtime_hardening.sql` after the transcript and learner-memory migrations, followed by `20260922_reasonai_conversation_state.sql`. Acquisition remains security invoker. The terminal RPC is security definer so authenticated callers can commit state without receiving direct table write privileges; it uses an empty `search_path`, fully qualified tables, explicit `auth.uid()` ownership checks, a locked running row, and authenticated-only execute permission.
 
 A running row is a 120-second lease. The server refreshes it at most every 12 seconds while generation is active. A later request atomically changes an expired run to `interrupted` with `RUN_LEASE_EXPIRED` before it acquires a new run. Reusing the expired run's idempotency key replays that interrupted result instead of executing the model or tools again; a new key acquires a new run. Terminal states are immutable, so a late invocation cannot overwrite cancellation or stale recovery.
 

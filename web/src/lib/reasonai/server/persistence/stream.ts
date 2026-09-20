@@ -36,7 +36,8 @@ export async function* persistReasonAITranscript(
   conversationId: string,
   runId: string,
   source: AsyncIterable<ReasonAIKnownEvent> | Iterable<ReasonAIKnownEvent>,
-  onPersisted?: (status: Exclude<PersistedRunStatus, "running">) => void,
+  onPersisted?: (status: Exclude<PersistedRunStatus, "running">) => void | Promise<void>,
+  getNextConversationState?: () => unknown,
 ): AsyncGenerator<ReasonAIKnownEvent> {
   let state = createReasonAIRuntimeState();
   let persisted = false;
@@ -51,15 +52,20 @@ export async function* persistReasonAITranscript(
       : fallbackStatus ?? "interrupted";
     const assistant = usefulAssistant(state.messages);
     const operation = (async () => {
+      const nextConversationState = status === "completed" ? getNextConversationState?.() : undefined;
+      if (status === "completed" && nextConversationState === undefined) {
+        throw new Error("Completed ReasonAI runs require validated conversation state.");
+      }
       const finalized = await repository.finalizeRun(userId, conversationId, runId, {
         status,
         lastSeq: state.lastSeq,
         ...(state.error?.code ? { errorCode: state.error.code } : {}),
         ...(assistant ? { assistant: { id: assistant.id, role: "assistant", parts: transcriptParts(assistant), status } } : {}),
+        ...(status === "completed" ? { nextConversationState } : {}),
       });
       if (!finalized) throw new Error("ReasonAI terminal persistence did not find the run.");
       persisted = true;
-      onPersisted?.(finalized.status === "running" ? status : finalized.status);
+      await onPersisted?.(finalized.status === "running" ? status : finalized.status);
     })();
     persisting = operation;
     try { await operation; }

@@ -1,12 +1,12 @@
 import { expect, test } from "@playwright/test";
-import { MemorySaver } from "@langchain/langgraph";
 import type { DSATutorRequest } from "../src/features/dsa/reasonai/contract";
 import { dsaAgentProvider, type DSAAgentProvider, type DSAAgentRound, type DSAAgentRoundInput } from "../src/features/dsa/reasonai/agent-provider";
 import { streamDSAEvents } from "../src/lib/reasonai/server/dsa-stream";
-import { createDSAGraph, streamDSAGraph } from "../src/lib/reasonai/server/langgraph/dsa/graph";
+import { streamDSAGraph } from "../src/lib/reasonai/server/langgraph/dsa/graph";
+import { defaultDSADurableConversationState } from "../src/lib/reasonai/server/langgraph/dsa/state";
 import { dsaToolExecutor, MAX_TOOL_ROUNDS, type DSAToolExecutor } from "../src/lib/reasonai/server/langgraph/dsa/tools";
 import { MemoryLearnerMemoryRepository } from "../src/lib/reasonai/server/memory/memory-repository";
-import { learnerMemoryExtractor, type LearnerMemoryExtractor } from "../src/lib/reasonai/server/memory/extractor";
+import { learnerMemoryExtractor } from "../src/lib/reasonai/server/memory/extractor";
 import { visualLesson } from "./helpers/dsa-visual";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -94,8 +94,7 @@ function searchExecutor(counter: { calls: number; signals?: AbortSignal[] }): DS
 
 function eventExecution(provider: DSAAgentProvider, toolExecutor?: DSAToolExecutor) {
   return {
-    checkpointer: new MemorySaver(),
-    threadId: crypto.randomUUID(),
+    durableState: defaultDSADurableConversationState(),
     runId: crypto.randomUUID(),
     messageId: crypto.randomUUID(),
     mark: () => undefined,
@@ -215,7 +214,7 @@ for (const [label, name, args] of [
     };
     const events = [];
     for await (const event of streamDSAGraph(request, {
-      checkpointer: new MemorySaver(), threadId: crypto.randomUUID(), provider: scripted([tool(name, args, `invalid-${label}`), final()]), toolExecutor: executor,
+      durableState: defaultDSADurableConversationState(), provider: scripted([tool(name, args, `invalid-${label}`), final()]), toolExecutor: executor,
     })) events.push(event);
     expect(unsafeCalls).toBe(0);
     expect(events.some((event) => event.type === "tool.failed")).toBe(true);
@@ -233,7 +232,7 @@ test("server enforces four tool rounds and forces the next pass to answer", asyn
     },
   };
   for await (const _event of streamDSAGraph(request, {
-    checkpointer: new MemorySaver(), threadId: crypto.randomUUID(), provider, toolExecutor: searchExecutor({ get calls() { return calls; }, set calls(value) { calls = value; } }),
+    durableState: defaultDSADurableConversationState(), provider, toolExecutor: searchExecutor({ get calls() { return calls; }, set calls(value) { calls = value; } }),
   })) void _event;
   expect(calls).toBe(MAX_TOOL_ROUNDS);
   expect(allowTools).toEqual([true, true, true, true, false]);
@@ -286,46 +285,6 @@ test("visual tool validates structure and rejects invalid payloads", async () =>
   expect(invalid).toMatchObject({ ok: false, reason: "The visualization was invalid." });
 });
 
-test("successful final writes bounded learner memory after text.final and deduplicates", async () => {
-  process.env.REASONAI_MEMORY_MODE = "dsa";
-  const repository = new MemoryLearnerMemoryRepository();
-  const order: string[] = [];
-  const extractor: LearnerMemoryExtractor = {
-    async extract() {
-      order.push("extract");
-      return [{ memoryType: "misconception", memoryKey: "dsa:two_pointer:duplicate_handling", content: "Needs reinforcement on duplicate skipping.", confidence: 90 }];
-    },
-  };
-  const run = async (conversationId: string) => {
-    const events = [];
-    for await (const event of streamDSAEvents(request, new AbortController().signal, {
-      ...eventExecution(scripted([final()])), learnerMemoryRepository: repository, learnerMemoryExtractor: extractor,
-      userId: "user-a", conversationId,
-    })) { events.push(event); if (event.type === "text.final") order.push("text.final"); }
-    return events;
-  };
-  await run("conversation-a");
-  await run("conversation-a");
-  const memories = await repository.findRelevant("user-a", { surface: "dsa", limit: 8 });
-  expect(memories).toHaveLength(1);
-  expect(order.slice(0, 2)).toEqual(["text.final", "extract"]);
-});
-
-test("memory mode off performs no read, extraction, or write", async () => {
-  process.env.REASONAI_MEMORY_MODE = "off";
-  let reads = 0, extracts = 0, writes = 0;
-  const repository = {
-    async findRelevant() { reads += 1; return []; },
-    async upsert() { writes += 1; return []; },
-  };
-  const extractor = { async extract() { extracts += 1; return []; } };
-  for await (const _event of streamDSAEvents(request, new AbortController().signal, {
-    ...eventExecution(scripted([final()])), learnerMemoryRepository: repository, learnerMemoryExtractor: extractor,
-    userId: "user-a", conversationId: "conversation-a",
-  })) void _event;
-  expect({ reads, extracts, writes }).toEqual({ reads: 0, extracts: 0, writes: 0 });
-});
-
 test("memory extractor accepts strict bounded pedagogy JSON and rejects extra fields", async () => {
   process.env.NEBIUS_API_KEY = "memory-extractor-key";
   process.env.REASONAI_BASE_URL = "https://provider.test/v1";
@@ -364,70 +323,24 @@ test("learner-memory extraction rejects unrelated sensitive content", async () =
     .resolves.toEqual([]);
 });
 
-test("cancelled and failed runs produce zero learner-memory writes", async () => {
-  process.env.REASONAI_MEMORY_MODE = "dsa";
-  let writes = 0, extracts = 0;
-  const repository = { async findRelevant() { return []; }, async upsert() { writes += 1; return []; } };
-  const extractor = { async extract() { extracts += 1; return []; } };
-  const failedProvider: DSAAgentProvider = { async *streamRound() { throw new Error("provider failed"); } };
-  for await (const _event of streamDSAEvents(request, new AbortController().signal, {
-    ...eventExecution(failedProvider), learnerMemoryRepository: repository, learnerMemoryExtractor: extractor,
-    userId: "user-a", conversationId: "conversation-a",
-  })) void _event;
-  const controller = new AbortController(); controller.abort();
-  for await (const _event of streamDSAEvents(request, controller.signal, {
-    ...eventExecution(scripted([final()])), learnerMemoryRepository: repository, learnerMemoryExtractor: extractor,
-    userId: "user-a", conversationId: "conversation-a",
-  })) void _event;
-  expect({ writes, extracts }).toEqual({ writes: 0, extracts: 0 });
-});
-
-test("memory read, extraction and write failures never fail a completed answer", async () => {
-  process.env.REASONAI_MEMORY_MODE = "dsa";
-  const completeWith = async (repository: { findRelevant(): Promise<never[]>; upsert(): Promise<never[]> }, extractor: LearnerMemoryExtractor) => {
-    const events = [];
-    for await (const event of streamDSAEvents(request, new AbortController().signal, {
-      ...eventExecution(scripted([final()])), learnerMemoryRepository: repository, learnerMemoryExtractor: extractor,
-      userId: "user-a", conversationId: "conversation-a",
-    })) events.push(event);
-    expect(events.at(-1)?.type).toBe("run.completed");
-  };
-  await completeWith(
-    { async findRelevant() { throw new Error("read failed"); }, async upsert() { return []; } },
-    { async extract() { return []; } },
-  );
-  await completeWith(
-    { async findRelevant() { return []; }, async upsert() { return []; } },
-    { async extract() { throw new Error("extract failed"); } },
-  );
-  await completeWith(
-    { async findRelevant() { return []; }, async upsert() { throw new Error("write failed"); } },
-    { async extract() { return [{ memoryType: "goal", memoryKey: "dsa:goal", content: "Practice arrays.", confidence: 90 }]; } },
-  );
-});
-
-test("fresh conversation gets learner traits but no previous transcript or checkpoint", async () => {
-  process.env.REASONAI_MEMORY_MODE = "dsa";
-  const repository = new MemoryLearnerMemoryRepository();
-  await repository.upsert("user-a", {
-    surface: "dsa",
-    candidates: [{ memoryType: "preference", memoryKey: "dsa:explanation_preference", content: "Prefers progressive hints.", confidence: 95 }],
-    sourceConversationId: "conversation-a", sourceRunId: "run-a",
-  });
+test("fresh conversation gets learner traits but no previous transcript", async () => {
   const received: DSAAgentRoundInput[] = [];
-  const saver = new MemorySaver();
-  const threadId = "fresh-thread-b";
-  for await (const _event of streamDSAEvents({ ...request, message: "What exactly did I ask in my previous chat?" }, new AbortController().signal, {
-    ...eventExecution(scripted([final("I do not have the previous chat transcript.")], received)), checkpointer: saver, threadId,
-    learnerMemoryRepository: repository, learnerMemoryExtractor: { async extract() { return []; } }, userId: "user-a", conversationId: "conversation-b",
-  })) void _event;
+  let persistedState: unknown;
+  for await (const _event of streamDSAEvents(
+    { ...request, message: "What exactly did I ask in my previous chat?" },
+    new AbortController().signal,
+    {
+      ...eventExecution(scripted([final("I do not have the previous chat transcript.")], received)),
+      durableState: defaultDSADurableConversationState(),
+      learnerMemory: ["Prefers progressive hints."],
+      onConversationState: (state) => { persistedState = state; },
+    },
+  )) void _event;
   expect(received[0].history).toEqual([]);
   expect(received[0].learnerMemory).toEqual(["Prefers progressive hints."]);
   expect(JSON.stringify(received[0])).not.toContain("conversation-a");
-  const state = await createDSAGraph(saver, scripted([final()])).getState({ configurable: { thread_id: threadId } });
-  expect(state.values).not.toHaveProperty("learnerMemory");
+  expect(persistedState).not.toHaveProperty("learnerMemory");
 });
-
 test("learner-memory repository isolates users", async () => {
   const repository = new MemoryLearnerMemoryRepository();
   await repository.upsert("user-a", {
@@ -445,31 +358,30 @@ test("learner-memory migration enables own-user RLS without changing unrelated t
   expect(sql).not.toMatch(/alter table public\.(?!reasonai_learner_memories)/u);
 });
 
-test("raw web evidence and hidden reasoning never enter checkpoint state", async () => {
-  const saver = new MemorySaver();
-  const secretSnippet = "RAW_TAVILY_SNIPPET_DO_NOT_CHECKPOINT";
+test("raw web evidence and hidden reasoning never enter durable state", async () => {
+  const secretSnippet = "RAW_TAVILY_SNIPPET_DO_NOT_PERSIST";
   const executor: DSAToolExecutor = {
     async execute(call) {
       const evidence = [{ title: "Evidence", url: "https://example.com/evidence", kind: "search" as const, content: secretSnippet }];
       return { ok: true, searchEvidence: evidence, retrievalStatus: "used", message: { role: "tool", tool_call_id: call.id, content: JSON.stringify({ evidence, reasoning_content: "HIDDEN_REASONING" }) } };
     },
   };
+  let state: unknown;
   for await (const _event of streamDSAGraph(request, {
-    checkpointer: saver, threadId: "raw-state", provider: scripted([tool("search_web", { query: "evidence" }), final()]), toolExecutor: executor,
+    durableState: defaultDSADurableConversationState(),
+    provider: scripted([tool("search_web", { query: "evidence" }), final()]),
+    toolExecutor: executor,
+    onConversationState: (value) => { state = value; },
   })) void _event;
-  const tuple = await saver.getTuple({ configurable: { thread_id: "raw-state" } });
-  expect(JSON.stringify(tuple)).not.toContain(secretSnippet);
-  expect(JSON.stringify(tuple)).not.toContain("HIDDEN_REASONING");
+  expect(JSON.stringify(state)).not.toContain(secretSnippet);
+  expect(JSON.stringify(state)).not.toContain("HIDDEN_REASONING");
 });
-
-test("twenty concurrent mocked conversations keep run, checkpoint and provider state isolated", async () => {
-  const saver = new MemorySaver();
-  const runs = await Promise.all(Array.from({ length: 20 }, async (_, index) => {
+test("twenty concurrent mocked conversations keep run, state and provider data isolated", async () => {
+    const runs = await Promise.all(Array.from({ length: 20 }, async (_, index) => {
     const runId = crypto.randomUUID();
     const events = [];
     for await (const event of streamDSAEvents({ ...request, message: `Conversation ${index}` }, new AbortController().signal, {
-      checkpointer: saver,
-      threadId: `burst-thread-${index}`,
+      durableState: defaultDSADurableConversationState(),
       runId,
       messageId: crypto.randomUUID(),
       mark: () => undefined,

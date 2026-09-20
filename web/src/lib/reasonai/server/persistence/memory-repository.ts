@@ -11,6 +11,8 @@ import type {
   RunAcquisition,
 } from "./types";
 import { isRunLeaseExpired, RUN_LEASE_EXPIRED_CODE } from "./lease";
+import { parseDSADurableConversationState } from "../langgraph/dsa/state";
+import type { PersistedReasonAIConversationState } from "./types";
 
 interface OwnedConversation extends ReasonAIConversationSummary { userId: string }
 interface StoredMessage extends PersistedReasonAIMessage { ordinal: number }
@@ -22,6 +24,7 @@ export class MemoryReasonAIPersistenceRepository implements ReasonAIPersistenceR
   private readonly conversations = new Map<string, OwnedConversation>();
   private readonly messages = new Map<string, StoredMessage>();
   private readonly runs = new Map<string, PersistedReasonAIRun>();
+  private readonly states = new Map<string, PersistedReasonAIConversationState>();
   private ordinal = 0;
 
   constructor(private readonly now: () => Date = () => new Date()) {}
@@ -67,11 +70,18 @@ export class MemoryReasonAIPersistenceRepository implements ReasonAIPersistenceR
     return conversation ? clone(this.publicConversation(conversation)) : undefined;
   }
 
+  async getConversationState(userId: string, conversationId: string) {
+    if (!this.owned(userId, conversationId)) return;
+    const state = this.states.get(conversationId);
+    return state ? clone(state) : undefined;
+  }
+
   async deleteConversation(userId: string, conversationId: string) {
     if (!this.owned(userId, conversationId)) return false;
     this.conversations.delete(conversationId);
     for (const [id, message] of this.messages) if (message.conversationId === conversationId) this.messages.delete(id);
     for (const [id, run] of this.runs) if (run.conversationId === conversationId) this.runs.delete(id);
+    this.states.delete(conversationId);
     return true;
   }
 
@@ -117,6 +127,12 @@ export class MemoryReasonAIPersistenceRepository implements ReasonAIPersistenceR
     const run = this.runs.get(runId);
     if (!run || run.conversationId !== conversationId) return;
     if (run.status !== "running") return clone(run);
+    if (input.status === "completed") {
+      if (input.nextConversationState === undefined) throw new Error("Completed runs require conversation state.");
+      parseDSADurableConversationState(input.nextConversationState);
+    } else if (input.nextConversationState !== undefined) {
+      throw new Error("Non-completed runs cannot advance conversation state.");
+    }
     if (input.assistant) {
       const existing = this.messages.get(input.assistant.id);
       const message: StoredMessage = {
@@ -130,6 +146,17 @@ export class MemoryReasonAIPersistenceRepository implements ReasonAIPersistenceR
       status: input.status, lastSeq: input.lastSeq, errorCode: input.errorCode, updatedAt: now,
       ...(input.status === "cancelled" ? { cancelledAt: now } : { completedAt: now }),
     });
+    if (input.status === "completed") {
+      const previous = this.states.get(conversationId);
+      this.states.set(conversationId, {
+        conversationId,
+        state: clone(input.nextConversationState),
+        stateVersion: (previous?.stateVersion ?? 0) + 1,
+        lastRunId: runId,
+        createdAt: previous?.createdAt ?? now,
+        updatedAt: now,
+      });
+    }
     return clone(run);
   }
 

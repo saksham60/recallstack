@@ -4,6 +4,7 @@ import type { ReasonAIMessagePart, ReasonAIMessageStatus } from "@/lib/reasonai/
 import {
   ReasonAIPersistenceError,
   type FinalizeRunInput,
+  type PersistedReasonAIConversationState,
   type PersistedReasonAIMessage,
   type PersistedReasonAIRun,
   type ReasonAIConversation,
@@ -59,6 +60,17 @@ function run(row: Row): PersistedReasonAIRun {
   };
 }
 
+function conversationState(row: Row): PersistedReasonAIConversationState {
+  return {
+    conversationId: String(row.conversation_id),
+    state: row.state,
+    stateVersion: Number(row.state_version),
+    ...(typeof row.last_run_id === "string" ? { lastRunId: row.last_run_id } : {}),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
 const conversationColumns = "id,surface,context_id,title,created_at,updated_at";
 
 /** Uses the authenticated Supabase client directly so every operation remains RLS-scoped. */
@@ -100,6 +112,15 @@ export class SupabaseReasonAIPersistenceRepository implements ReasonAIPersistenc
       .eq("id", conversationId).eq("user_id", userId).maybeSingle();
     if (error) unavailable();
     return data ? conversation(data as Row) : undefined;
+  }
+
+  async getConversationState(userId: string, conversationId: string) {
+    void userId; // Parent ownership is enforced by the state table SELECT policy.
+    const { data, error } = await this.client.from("reasonai_conversation_state")
+      .select("conversation_id,state,state_version,last_run_id,created_at,updated_at")
+      .eq("conversation_id", conversationId).maybeSingle();
+    if (error) unavailable();
+    return data ? conversationState(data as Row) : undefined;
   }
 
   async deleteConversation(userId: string, conversationId: string) {
@@ -155,6 +176,7 @@ export class SupabaseReasonAIPersistenceRepository implements ReasonAIPersistenc
       p_error_code: input.errorCode ?? null,
       p_assistant_id: input.assistant?.id ?? null,
       p_assistant_parts: input.assistant?.parts ?? null,
+      p_next_state: input.nextConversationState ?? null,
     });
     if (error) unavailable();
     const row = (Array.isArray(data) ? data[0] : data) as Row | undefined;

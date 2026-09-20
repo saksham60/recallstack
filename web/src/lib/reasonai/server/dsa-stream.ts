@@ -1,15 +1,12 @@
 import "server-only";
-import type { BaseCheckpointSaver } from "@langchain/langgraph";
-import type { DSATutorRequest } from "@/features/dsa/reasonai/contract";
-import { isReasonAILearnerMemoryEnabled } from "@/lib/config/server";
+import type { DSATutorRequest, DSATutorResponse } from "@/features/dsa/reasonai/contract";
 import { DSATutorProviderError } from "@/features/dsa/reasonai/provider";
 import type { ReasonAIKnownEvent } from "@/lib/reasonai/runtime/events";
-import { learnerMemoryExtractor, type LearnerMemoryExtractor } from "./memory/extractor";
-import type { LearnerMemoryRepository } from "./memory/types";
 import { streamDSAGraph } from "./langgraph/dsa/graph";
 import type { DSAAgentProvider } from "@/features/dsa/reasonai/agent-provider";
 import type { DSATutorStreamingProvider } from "./langgraph/dsa/nodes/model";
 import type { DSAToolExecutor } from "./langgraph/dsa/tools";
+import type { DSADurableConversationState } from "./langgraph/dsa/state";
 
 export type DSAPerformanceStage =
   | "request.accepted"
@@ -26,8 +23,8 @@ export type DSAPerformanceStage =
   | "user_message.persist.started"
   | "user_message.persist.completed"
   | "user_message.persisted"
-  | "checkpoint.load.started"
-  | "checkpoint.load.completed"
+  | "state.load.started"
+  | "state.load.completed"
   | "graph.started"
   | "provider.started"
   | "agent.started"
@@ -44,7 +41,7 @@ export type DSAPerformanceStage =
   | "memory.extract.started"
   | "memory.extract.completed"
   | "memory.write.completed"
-  | "checkpoint.persisted"
+  | "state.persisted"
   | "transcript.persisted"
   | "transcript.persist.started"
   | "transcript.persist.completed"
@@ -53,22 +50,19 @@ export type DSAPerformanceStage =
   | "run.failed";
 
 export interface DSAStreamExecution {
-  checkpointer: BaseCheckpointSaver;
-  threadId: string;
+  durableState: DSADurableConversationState;
   runId: string;
   messageId: string;
   mark: (stage: DSAPerformanceStage, at?: number) => void;
-  learnerMemoryRepository?: LearnerMemoryRepository;
-  learnerMemoryExtractor?: LearnerMemoryExtractor;
-  userId?: string;
-  conversationId?: string;
   learnerMemory?: string[];
   provider?: DSAAgentProvider | DSATutorStreamingProvider;
   toolExecutor?: DSAToolExecutor;
   toolTimeoutMs?: number;
+  onConversationState?: (state: DSADurableConversationState) => void;
+  onFinalResult?: (result: DSATutorResponse) => void;
 }
 
-/** Maps the checkpointed DSA graph stream onto the shared ReasonAI protocol. */
+/** Maps the request-scoped DSA graph stream onto the shared ReasonAI protocol. */
 export async function* streamDSAEvents(
   input: DSATutorRequest,
   signal: AbortSignal,
@@ -81,36 +75,18 @@ export async function* streamDSAEvents(
   let activeTool: { toolCallId: string } | undefined;
   yield { protocolVersion: 1, runId, seq: ++seq, type: "run.started" };
   try {
-    const memoryEnabled = isReasonAILearnerMemoryEnabled("dsa")
-      && Boolean(execution.learnerMemoryRepository && execution.userId && execution.conversationId);
-    let learnerMemory: string[] = execution.learnerMemory ?? [];
-    if (memoryEnabled && execution.learnerMemory === undefined) {
-      mark("memory.read.started");
-      try {
-        const items = await execution.learnerMemoryRepository!.findRelevant(execution.userId!, {
-          surface: "dsa",
-          contextId: input.context.contentId,
-          category: input.context.category,
-          limit: 8,
-        });
-        learnerMemory = items.slice(0, 8).map((item) => item.content.slice(0, 1_000));
-      } catch {
-        console.error("[DSA_V2_MEMORY]", { runId, stage: "memory.read.failed" });
-      }
-      mark("memory.read.completed");
-    }
     let receivedResult = false;
     let sourcesEmitted = false;
     let visualEmitted = false;
     for await (const event of streamDSAGraph(input, {
-      checkpointer: execution.checkpointer,
-      threadId: execution.threadId,
+      durableState: execution.durableState,
       signal,
-      learnerMemory,
+      learnerMemory: execution.learnerMemory ?? [],
       provider: execution.provider,
       toolExecutor: execution.toolExecutor,
       toolTimeoutMs: execution.toolTimeoutMs,
       onStage: (stage) => mark(stage),
+      onConversationState: execution.onConversationState,
     })) {
       if (event.type === "text.delta") {
         if (!firstDeltaAt) { firstDeltaAt = Date.now(); mark("first.text.delta", firstDeltaAt); }
@@ -144,34 +120,9 @@ export async function* streamDSAEvents(
       }
       receivedResult = true;
       const result = event.result;
+      execution.onFinalResult?.(result);
       mark("text.final");
       yield { protocolVersion: 1, runId, seq: ++seq, type: "text.final", messageId, partId, text: result.text };
-      if (memoryEnabled && !signal.aborted) {
-        try {
-          mark("memory.extract.started");
-          const candidates = await (execution.learnerMemoryExtractor ?? learnerMemoryExtractor).extract({
-            userMessage: input.message,
-            assistantAnswer: result.text,
-            action: input.action,
-            hintLevel: input.hintLevel,
-          }, signal);
-          signal.throwIfAborted();
-          mark("memory.extract.completed");
-          if (candidates.length) {
-            await execution.learnerMemoryRepository!.upsert(execution.userId!, {
-              surface: "dsa",
-              candidates,
-              sourceConversationId: execution.conversationId!,
-              sourceRunId: runId,
-            });
-            signal.throwIfAborted();
-          }
-          mark("memory.write.completed");
-        } catch (error) {
-          if (signal.aborted) throw error;
-          console.error("[DSA_V2_MEMORY]", { runId, stage: "memory.extract_or_write.failed" });
-        }
-      }
       if (!sourcesEmitted) {
         yield {
           protocolVersion: 1,

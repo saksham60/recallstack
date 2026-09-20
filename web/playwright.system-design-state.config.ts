@@ -12,7 +12,7 @@ export default defineConfig({
     "**/dsa-reasonai-agent.spec.ts",
     "**/reasonai-provider.spec.ts",
     "**/reasonai-persistence.spec.ts",
-    "**/reasonai-checkpoint.spec.ts",
+    "**/reasonai-conversation-state.spec.ts",
     "**/reasonai-state.spec.ts",
     "**/reasonai-runtime.spec.ts",
     "**/reasonai-transport.spec.ts",

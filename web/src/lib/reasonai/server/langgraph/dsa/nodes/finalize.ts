@@ -2,9 +2,17 @@ import "server-only";
 import { getWriter } from "@langchain/langgraph";
 import { DSATutorProviderError } from "@/features/dsa/reasonai/provider";
 import type { DSAGraphStreamEvent } from "../events";
-import { boundTutorMemory, compactTutorTurn, DSAGraphState } from "../state";
+import {
+  boundTutorMemory,
+  compactTutorTurn,
+  DSAGraphState,
+  parseDSADurableConversationState,
+  type DSADurableConversationState,
+} from "../state";
 
-export function createDSAFinalizeNode(): typeof DSAGraphState.Node {
+export function createDSAFinalizeNode(
+  onCandidate?: (state: DSADurableConversationState) => void,
+): typeof DSAGraphState.Node {
   return async (state, config) => {
     if (!state.result) throw new DSATutorProviderError("ReasonAI could not complete that response. Please try again.");
     const result = {
@@ -16,8 +24,7 @@ export function createDSAFinalizeNode(): typeof DSAGraphState.Node {
       ...state.recentTurns,
       compactTutorTurn({ user: state.request.message, assistant: result.text, action: state.request.action, hintLevel: hintProgress }),
     ]);
-    getWriter(config)?.({ type: "result", result } satisfies DSAGraphStreamEvent);
-    return {
+    const candidate = parseDSADurableConversationState({
       ...memory,
       hintProgress,
       problemIdentity: {
@@ -26,6 +33,11 @@ export function createDSAFinalizeNode(): typeof DSAGraphState.Node {
         title: state.request.context.title,
       },
       lastTutorMode: state.request.action,
+    });
+    onCandidate?.(candidate);
+    getWriter(config)?.({ type: "result", result } satisfies DSAGraphStreamEvent);
+    return {
+      ...candidate,
       pendingToolCalls: undefined,
       agentMessages: undefined,
       searchEvidence: undefined,

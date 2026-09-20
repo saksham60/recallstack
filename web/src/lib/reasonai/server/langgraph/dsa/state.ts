@@ -9,29 +9,51 @@ export const MAX_RECENT_TURNS = 6;
 export const MAX_SUMMARY_CHARS = 4_000;
 export const MAX_TURN_USER_CHARS = 2_000;
 export const MAX_TURN_ASSISTANT_CHARS = 4_000;
+export const MAX_DURABLE_STATE_BYTES = 64 * 1024;
 
-const tutorAction = z.enum([
+export const DSATutorActionSchema = z.enum([
   "chat", "hint", "review", "solution", "complexity", "explain", "start", "trace", "visualize", "research",
 ]);
-const tutorTurn = z.object({
+export const DSATutorTurnSchema = z.object({
   user: z.string().max(MAX_TURN_USER_CHARS),
   assistant: z.string().max(MAX_TURN_ASSISTANT_CHARS),
-  action: tutorAction,
+  action: DSATutorActionSchema,
   hintLevel: z.number().int().min(0).max(20),
 });
-const problemIdentity = z.object({
+export const DSAProblemIdentitySchema = z.object({
   contentId: z.string().max(200),
   slug: z.string().max(200),
   title: z.string().max(300),
 });
 
-/** Durable fields are compact model memory; request and result never enter checkpoints. */
-export const DSAGraphState = new StateSchema({
-  recentTurns: z.array(tutorTurn).max(MAX_RECENT_TURNS).default(() => []),
+export const DSADurableConversationStateSchema = z.object({
+  recentTurns: z.array(DSATutorTurnSchema).max(MAX_RECENT_TURNS).default(() => []),
   summary: z.string().max(MAX_SUMMARY_CHARS).default(""),
   hintProgress: z.number().int().min(0).max(20).default(0),
-  problemIdentity: problemIdentity.optional(),
-  lastTutorMode: tutorAction.optional(),
+  problemIdentity: DSAProblemIdentitySchema.optional(),
+  lastTutorMode: DSATutorActionSchema.optional(),
+}).strict();
+
+export type DSADurableConversationState = z.infer<typeof DSADurableConversationStateSchema>;
+
+export function parseDSADurableConversationState(value: unknown): DSADurableConversationState {
+  const state = DSADurableConversationStateSchema.parse(value);
+  if (new TextEncoder().encode(JSON.stringify(state)).byteLength > MAX_DURABLE_STATE_BYTES) {
+    throw new Error("ReasonAI conversation state exceeds the maximum size.");
+  }
+  return state;
+}
+
+export const defaultDSADurableConversationState = (): DSADurableConversationState =>
+  DSADurableConversationStateSchema.parse({});
+
+/** Durable fields are compact model memory; request and result remain request-scoped. */
+export const DSAGraphState = new StateSchema({
+  recentTurns: z.array(DSATutorTurnSchema).max(MAX_RECENT_TURNS).default(() => []),
+  summary: z.string().max(MAX_SUMMARY_CHARS).default(""),
+  hintProgress: z.number().int().min(0).max(20).default(0),
+  problemIdentity: DSAProblemIdentitySchema.optional(),
+  lastTutorMode: DSATutorActionSchema.optional(),
   request: new UntrackedValue<DSATutorRequest>(),
   result: new UntrackedValue<DSATutorResponse | undefined>(),
   pendingToolCalls: new UntrackedValue<DSAAgentToolCall[] | undefined>(),
@@ -43,7 +65,7 @@ export const DSAGraphState = new StateSchema({
   learnerMemory: new UntrackedValue<string[] | undefined>(),
 });
 
-export type DSATutorTurn = z.infer<typeof tutorTurn>;
+export type DSATutorTurn = z.infer<typeof DSATutorTurnSchema>;
 export type DSAGraphStateValue = typeof DSAGraphState.State;
 
 function compact(value: string, max = 420): string {

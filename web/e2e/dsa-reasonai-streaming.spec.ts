@@ -1,5 +1,4 @@
 import { expect, test } from "@playwright/test";
-import { MemorySaver } from "@langchain/langgraph";
 import type { DSATutorRequest, DSATutorResponse } from "../src/features/dsa/reasonai/contract";
 import {
   dsaTutorProvider,
@@ -11,6 +10,7 @@ import { createReasonAIRuntimeState, reduceReasonAIEvent } from "../src/lib/reas
 import { streamDSAEvents } from "../src/lib/reasonai/server/dsa-stream";
 import { streamDSAGraph } from "../src/lib/reasonai/server/langgraph/dsa/graph";
 import type { DSAGraphStreamEvent } from "../src/lib/reasonai/server/langgraph/dsa/events";
+import { defaultDSADurableConversationState } from "../src/lib/reasonai/server/langgraph/dsa/state";
 import { visualLesson } from "./helpers/dsa-visual";
 
 const request: DSATutorRequest = {
@@ -67,7 +67,7 @@ function standardSSE(text = "  A validated streaming answer with enough content 
 }
 
 function graphExecution() {
-  return { checkpointer: new MemorySaver(), threadId: crypto.randomUUID() };
+  return { durableState: defaultDSADurableConversationState() };
 }
 
 function eventExecution() {
@@ -239,7 +239,7 @@ test("web evidence, filtered sources and signed context retain stream/complete p
   } finally { Date.now = originalNow; }
 });
 
-test("LangGraph agent forwards provider deltas and a checkpointed result", async () => {
+test("LangGraph agent forwards provider deltas and a validated request-scoped result", async () => {
   globalThis.fetch = async () => standardSSE();
   const events: DSAGraphStreamEvent[] = [];
   for await (const event of streamDSAGraph(request, graphExecution())) events.push(event);

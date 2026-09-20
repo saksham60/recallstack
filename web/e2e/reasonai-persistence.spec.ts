@@ -7,6 +7,7 @@ import { MemoryReasonAIPersistenceRepository } from "../src/lib/reasonai/server/
 import { persistReasonAITranscript } from "../src/lib/reasonai/server/persistence/stream";
 import { RUN_LEASE_TIMEOUT_MS } from "../src/lib/reasonai/server/persistence/lease";
 import { createReasonAINDJSONResponse } from "../src/lib/reasonai/runtime/response";
+import { defaultDSADurableConversationState } from "../src/lib/reasonai/server/langgraph/dsa/state";
 
 const userA = "10000000-0000-4000-8000-000000000001";
 const userB = "20000000-0000-4000-8000-000000000002";
@@ -89,7 +90,7 @@ test("run acquisition enforces idempotency and one active run under concurrency"
     repository.acquireRun(userA, conversation.id, crypto.randomUUID()),
   ]);
   expect(competing.every((item) => item.kind === "active")).toBe(true);
-  await repository.finalizeRun(userA, conversation.id, first.run.id, { status: "completed", lastSeq: 7 });
+  await repository.finalizeRun(userA, conversation.id, first.run.id, { status: "completed", lastSeq: 7, nextConversationState: defaultDSADurableConversationState() });
   const replay = await repository.acquireRun(userA, conversation.id, key);
   expect(replay).toMatchObject({ kind: "replay", run: { status: "completed", lastSeq: 7 } });
   expect((await repository.acquireRun(userA, conversation.id, crypto.randomUUID())).kind).toBe("acquired");
@@ -102,7 +103,7 @@ test("DSA preparation creates one user turn and duplicate idempotency never exec
   expect(first.kind).toBe("acquired");
   if (first.kind !== "acquired") throw new Error("Expected acquired run");
   let executions = 1;
-  await repository.finalizeRun(userA, first.conversation.id, first.run.id, { status: "completed", lastSeq: 2 });
+  await repository.finalizeRun(userA, first.conversation.id, first.run.id, { status: "completed", lastSeq: 2, nextConversationState: defaultDSADurableConversationState() });
   const repeated = await prepareDSARun(repository, userA, { ...request, conversationId: first.conversation.id, idempotencyKey });
   if (repeated.kind === "acquired") executions++;
   expect(repeated.kind).toBe("replay");
@@ -127,7 +128,7 @@ test("completed streams persist authoritative final text, sources, visuals and t
     { protocolVersion: 1, runId: prepared.run.id, seq: 6, type: "run.completed" },
   ];
   const delivered = [];
-  for await (const event of persistReasonAITranscript(repository, userA, prepared.conversation.id, prepared.run.id, events)) delivered.push(event);
+  for await (const event of persistReasonAITranscript(repository, userA, prepared.conversation.id, prepared.run.id, events, undefined, defaultDSADurableConversationState)) delivered.push(event);
   expect(delivered).toEqual(events);
   const restored = await repository.getConversation(userA, prepared.conversation.id);
   const assistant = restored?.messages.find((item) => item.role === "assistant");
@@ -210,7 +211,7 @@ test("heartbeats renew only a running lease", async () => {
   expect(await repository.heartbeatRun(userA, conversation.id, acquired.run.id)).toBe(true);
   now += RUN_LEASE_TIMEOUT_MS - 1;
   expect((await repository.acquireRun(userA, conversation.id, crypto.randomUUID())).kind).toBe("active");
-  await repository.finalizeRun(userA, conversation.id, acquired.run.id, { status: "completed", lastSeq: 1 });
+  await repository.finalizeRun(userA, conversation.id, acquired.run.id, { status: "completed", lastSeq: 1, nextConversationState: defaultDSADurableConversationState() });
   expect(await repository.heartbeatRun(userA, conversation.id, acquired.run.id)).toBe(false);
 });
 
@@ -256,7 +257,7 @@ test("failed runs retain visible partial text without representing it as complet
     { protocolVersion: 1, runId: prepared.run.id, seq: 2, type: "text.delta", messageId: prepared.assistantMessageId, partId: "text", delta: "Visible before failure" },
     { protocolVersion: 1, runId: prepared.run.id, seq: 3, type: "run.failed", message: "Safe failure", code: "PROVIDER_FAILURE" },
   ];
-  for await (const event of persistReasonAITranscript(repository, userA, prepared.conversation.id, prepared.run.id, events)) void event;
+  for await (const event of persistReasonAITranscript(repository, userA, prepared.conversation.id, prepared.run.id, events, undefined, defaultDSADurableConversationState)) void event;
   const transcript = await repository.getConversation(userA, prepared.conversation.id);
   expect(transcript?.messages.at(-1)).toMatchObject({ status: "failed", parts: [{ text: "Visible before failure", finalized: false }] });
   const replay = await repository.acquireRun(userA, prepared.conversation.id, prepared.run.idempotencyKey);
@@ -279,7 +280,7 @@ test("terminal persistence retries after a transient finalize failure without du
     { protocolVersion: 1, runId: prepared.run.id, seq: 2, type: "text.final", messageId: prepared.assistantMessageId, partId: "text", text: "Validated answer" },
     { protocolVersion: 1, runId: prepared.run.id, seq: 3, type: "run.completed" },
   ];
-  for await (const event of persistReasonAITranscript(repository, userA, prepared.conversation.id, prepared.run.id, events)) void event;
+  for await (const event of persistReasonAITranscript(repository, userA, prepared.conversation.id, prepared.run.id, events, undefined, defaultDSADurableConversationState)) void event;
   expect(finalizeCalls).toBe(2);
   expect(await repository.acquireRun(userA, prepared.conversation.id, prepared.run.idempotencyKey))
     .toMatchObject({ kind: "replay", run: { status: "completed" } });
@@ -296,7 +297,7 @@ test("abort after text.final cannot leave the run active and the next prompt acq
     { protocolVersion: 1, runId: prepared.run.id, seq: 3, type: "text.final", messageId: prepared.assistantMessageId, partId: "text", text: "answer" },
     { protocolVersion: 1, runId: prepared.run.id, seq: 4, type: "run.completed" },
   ];
-  const persisted = persistReasonAITranscript(repository, userA, prepared.conversation.id, prepared.run.id, events);
+  const persisted = persistReasonAITranscript(repository, userA, prepared.conversation.id, prepared.run.id, events, undefined, defaultDSADurableConversationState);
   const reader = createReasonAINDJSONResponse(persisted).body!.getReader();
   const decoder = new TextDecoder();
   let sawFinal = false;
@@ -310,6 +311,9 @@ test("abort after text.final cannot leave the run active and the next prompt acq
 
   const old = await repository.acquireRun(userA, prepared.conversation.id, prepared.run.idempotencyKey);
   expect(old.run.status).not.toBe("running");
+  const state = await repository.getConversationState(userA, prepared.conversation.id);
+  if (old.run.status === "completed") expect(state).toMatchObject({ stateVersion: 1, lastRunId: prepared.run.id });
+  else expect(state).toBeUndefined();
   const next = await repository.acquireRun(userA, prepared.conversation.id, crypto.randomUUID());
   expect(next.kind).toBe("acquired");
 });

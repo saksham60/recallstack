@@ -41,6 +41,15 @@ export interface PersistedReasonAIRun {
   updatedAt: string;
 }
 
+export interface PersistedReasonAIConversationState<T = unknown> {
+  conversationId: string;
+  state: T;
+  stateVersion: number;
+  lastRunId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type RunAcquisition =
   | { kind: "acquired"; run: PersistedReasonAIRun; recoveredRunId?: string }
   | { kind: "replay"; run: PersistedReasonAIRun; recoveredRunId?: string }
@@ -51,6 +60,7 @@ export interface FinalizeRunInput {
   lastSeq: number;
   errorCode?: string;
   assistant?: Omit<PersistedReasonAIMessage, "conversationId" | "runId" | "createdAt">;
+  nextConversationState?: unknown;
 }
 
 export interface ReasonAIPersistenceRepository {
@@ -58,6 +68,7 @@ export interface ReasonAIPersistenceRepository {
   listConversations(userId: string, filter: { surface?: ReasonAISurface; contextId?: string; limit: number }): Promise<ReasonAIConversationSummary[]>;
   getConversationSummary(userId: string, conversationId: string): Promise<ReasonAIConversationSummary | undefined>;
   getConversation(userId: string, conversationId: string): Promise<ReasonAIConversation | undefined>;
+  getConversationState(userId: string, conversationId: string): Promise<PersistedReasonAIConversationState | undefined>;
   deleteConversation(userId: string, conversationId: string): Promise<boolean>;
   acquireRun(userId: string, conversationId: string, idempotencyKey: string): Promise<RunAcquisition>;
   createMessage(userId: string, input: Omit<PersistedReasonAIMessage, "createdAt">): Promise<PersistedReasonAIMessage>;
@@ -68,7 +79,7 @@ export interface ReasonAIPersistenceRepository {
 
 export class ReasonAIPersistenceError extends Error {
   constructor(
-    readonly code: "NOT_FOUND" | "RUN_IN_PROGRESS" | "PERSISTENCE_UNAVAILABLE",
+    readonly code: "NOT_FOUND" | "RUN_IN_PROGRESS" | "PERSISTENCE_UNAVAILABLE" | "STATE_INVALID" | "STATE_UNAVAILABLE",
     message: string,
   ) {
     super(message);

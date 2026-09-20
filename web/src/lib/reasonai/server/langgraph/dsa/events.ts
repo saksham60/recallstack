@@ -19,5 +19,4 @@ export type DSAGraphStage =
   | "tool.started"
   | "tool.completed"
   | "tool.failed"
-  | "tool.limit_reached"
-  | "checkpoint.persisted";
+  | "tool.limit_reached";

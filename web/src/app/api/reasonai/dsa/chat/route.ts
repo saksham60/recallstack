@@ -4,8 +4,12 @@ import { DSAValidationError, parseDSATutorRequest } from "@/features/dsa/reasona
 import { dsaTutorProvider, DSATutorProviderError } from "@/features/dsa/reasonai/provider";
 import { createReasonAINDJSONResponse, REASONAI_NDJSON_MEDIA_TYPE } from "@/lib/reasonai/runtime/response";
 import { streamDSAEvents, type DSAPerformanceStage } from "@/lib/reasonai/server/dsa-stream";
-import { assertCheckpointAvailable, getReasonAICheckpointer } from "@/lib/reasonai/server/langgraph/checkpointer";
-import { deriveDSAThreadId, getReasonAIThreadSecret } from "@/lib/reasonai/server/langgraph/thread-id";
+import {
+  defaultDSADurableConversationState,
+  parseDSADurableConversationState,
+  type DSADurableConversationState,
+} from "@/lib/reasonai/server/langgraph/dsa/state";
+import { learnerMemoryExtractor } from "@/lib/reasonai/server/memory/extractor";
 import { prepareDSARun, type PreparedDSARun } from "@/lib/reasonai/server/persistence/dsa-run";
 import { getReasonAIPersistenceRequestContext } from "@/lib/reasonai/server/persistence/request-context";
 import { persistReasonAITranscript } from "@/lib/reasonai/server/persistence/stream";
@@ -40,8 +44,6 @@ export async function POST(request: Request) {
     if (!input.idempotencyKey) return reply({ error: "A valid idempotency key is required.", code: "IDEMPOTENCY_KEY_REQUIRED" }, 400);
     let prepared: PreparedDSARun | undefined;
     try {
-      const checkpointer = getReasonAICheckpointer(persistenceContext.testMode);
-      const threadSecret = getReasonAIThreadSecret(persistenceContext.testMode);
       prepared = await prepareDSARun(
         persistenceContext.repository,
         persistenceContext.userId,
@@ -82,9 +84,26 @@ export async function POST(request: Request) {
         return Response.json({ conversationId: prepared.conversation.id, runId: prepared.run.id, status: prepared.run.status, replayed: true }, { headers: { ...headers, "Cache-Control": "no-store" } });
       }
 
-      const threadId = deriveDSAThreadId(prepared.conversation.id, threadSecret);
-      mark("checkpoint.load.started");
-      const checkpointLoad = assertCheckpointAvailable(checkpointer, threadId);
+      mark("state.load.started");
+      const stateRead = (async () => {
+        try {
+          const persisted = await persistenceContext.repository.getConversationState(
+            persistenceContext.userId,
+            prepared!.conversation.id,
+          );
+          return persisted
+            ? parseDSADurableConversationState(persisted.state)
+            : defaultDSADurableConversationState();
+        } catch (error) {
+          console.error("[DSA_V2_STATE]", {
+            runId: prepared!.run.id,
+            stage: "state.read.failed",
+            category: error instanceof Error ? error.name : "unknown",
+          });
+          if (error instanceof ReasonAIPersistenceError) throw error;
+          throw new ReasonAIPersistenceError("STATE_INVALID", "Conversation state is invalid.");
+        }
+      })();
       const memoryEnabled = isReasonAILearnerMemoryEnabled("dsa") && Boolean(persistenceContext.learnerMemoryRepository);
       const memoryRead = (async () => {
         if (!memoryEnabled) return undefined;
@@ -104,18 +123,18 @@ export async function POST(request: Request) {
           mark("memory.read.completed");
         }
       })();
-      const [, learnerMemory] = await Promise.all([checkpointLoad, memoryRead]);
-      mark("checkpoint.load.completed");
+      const [durableState, learnerMemory] = await Promise.all([stateRead, memoryRead]);
+      mark("state.load.completed");
+      let nextConversationState: DSADurableConversationState | undefined;
+      let finalResult: Awaited<ReturnType<typeof dsaTutorProvider.complete>> | undefined;
       const events = streamDSAEvents(input, request.signal, {
-        checkpointer,
-        threadId,
+        durableState,
         runId: prepared.run.id,
         messageId: prepared.assistantMessageId,
         mark,
-        learnerMemoryRepository: persistenceContext.learnerMemoryRepository,
-        userId: persistenceContext.userId,
-        conversationId: prepared.conversation.id,
         ...(learnerMemory ? { learnerMemory } : {}),
+        onConversationState: (state) => { nextConversationState = state; },
+        onFinalResult: (result) => { finalResult = result; },
       });
       mark("transcript.persist.started");
       const persisted = persistReasonAITranscript(
@@ -124,14 +143,45 @@ export async function POST(request: Request) {
         prepared.conversation.id,
         prepared.run.id,
         events,
-        (status) => {
+        async (status) => {
           mark("transcript.persist.completed");
           mark("transcript.persisted");
-          if (status === "completed") mark("run.completed");
+          if (status === "completed") {
+            mark("state.persisted");
+            mark("run.completed");
+            if (memoryEnabled && finalResult && !request.signal.aborted) {
+              try {
+                mark("memory.extract.started");
+                const candidates = await learnerMemoryExtractor.extract({
+                  userMessage: input.message,
+                  assistantAnswer: finalResult.text,
+                  action: input.action,
+                  hintLevel: input.hintLevel,
+                }, request.signal);
+                mark("memory.extract.completed");
+                if (candidates.length) {
+                  await persistenceContext.learnerMemoryRepository!.upsert(persistenceContext.userId, {
+                    surface: "dsa",
+                    candidates,
+                    sourceConversationId: prepared!.conversation.id,
+                    sourceRunId: prepared!.run.id,
+                  });
+                }
+                mark("memory.write.completed");
+              } catch (error) {
+                console.error("[DSA_V2_MEMORY]", {
+                  runId: prepared!.run.id,
+                  stage: "memory.extract_or_write.failed",
+                  category: error instanceof Error ? error.name : "unknown",
+                });
+              }
+            }
+          }
           if (status === "interrupted") {
             console.info("[DSA_V2_LIFECYCLE]", { runId: prepared!.run.id, stage: "run.interrupted", elapsedMs: Date.now() - acceptedAt });
           }
         },
+        () => nextConversationState,
       );
       return createReasonAINDJSONResponse(persisted, { headers }, request.signal);
     } catch (error) {
@@ -141,7 +191,7 @@ export async function POST(request: Request) {
             persistenceContext.userId,
             prepared.conversation.id,
             prepared.run.id,
-            { status: "failed", lastSeq: 0, errorCode: "CHECKPOINT_UNAVAILABLE" },
+            { status: "failed", lastSeq: 0, errorCode: error instanceof ReasonAIPersistenceError ? error.code : "STATE_UNAVAILABLE" },
           );
         } catch (finalizeError) {
           console.error("[DSA_V2_LIFECYCLE]", {
@@ -155,7 +205,10 @@ export async function POST(request: Request) {
         return reply({ error: "Conversation not found.", code: "CONVERSATION_NOT_FOUND" }, 404);
       }
       console.error("[DSA_V2_UNAVAILABLE]", { category: error instanceof Error ? error.name : "unknown" });
-      return reply({ error: "Conversation memory is temporarily unavailable.", code: "CHECKPOINT_UNAVAILABLE" }, 503);
+      return reply({
+        error: "Conversation state is temporarily unavailable.",
+        code: error instanceof ReasonAIPersistenceError && error.code === "STATE_INVALID" ? "STATE_INVALID" : "STATE_UNAVAILABLE",
+      }, 503);
     }
   }
   try { return reply(await dsaTutorProvider.complete(input, request.signal)); }
