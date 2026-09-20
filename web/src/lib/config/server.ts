@@ -17,6 +17,18 @@ export function isReasonAIDSAStreamingEnabled(): boolean {
   return mode === "dsa" || mode === "all";
 }
 
+export type ReasonAIMemoryMode = "off" | "dsa" | "all";
+
+export function getReasonAIMemoryMode(): ReasonAIMemoryMode {
+  const mode = process.env.REASONAI_MEMORY_MODE?.trim().toLowerCase();
+  return mode === "dsa" || mode === "all" ? mode : "off";
+}
+
+export function isReasonAILearnerMemoryEnabled(surface: "dsa" | "system_design"): boolean {
+  const mode = getReasonAIMemoryMode();
+  return mode === "all" || mode === surface;
+}
+
 export function isE2EAuthBypassEnabled(): boolean {
   return (
     process.env.NODE_ENV !== "production" &&

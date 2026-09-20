@@ -50,6 +50,7 @@ function run(row: Row): PersistedReasonAIRun {
     status: row.status as PersistedReasonAIRun["status"],
     lastSeq: Number(row.last_seq),
     ...(typeof row.started_at === "string" ? { startedAt: row.started_at } : {}),
+    heartbeatAt: String(row.heartbeat_at),
     ...(typeof row.completed_at === "string" ? { completedAt: row.completed_at } : {}),
     ...(typeof row.cancelled_at === "string" ? { cancelledAt: row.cancelled_at } : {}),
     ...(typeof row.error_code === "string" ? { errorCode: row.error_code } : {}),
@@ -59,7 +60,6 @@ function run(row: Row): PersistedReasonAIRun {
 }
 
 const conversationColumns = "id,surface,context_id,title,created_at,updated_at";
-const runColumns = "id,conversation_id,idempotency_key,status,last_seq,started_at,completed_at,cancelled_at,error_code,created_at,updated_at";
 
 /** Uses the authenticated Supabase client directly so every operation remains RLS-scoped. */
 export class SupabaseReasonAIPersistenceRepository implements ReasonAIPersistenceRepository {
@@ -110,32 +110,22 @@ export class SupabaseReasonAIPersistenceRepository implements ReasonAIPersistenc
   }
 
   async acquireRun(userId: string, conversationId: string, idempotencyKey: string): Promise<RunAcquisition> {
-    const owned = await this.getConversationSummary(userId, conversationId);
-    if (!owned) throw new ReasonAIPersistenceError("NOT_FOUND", "Conversation not found.");
-    const runId = crypto.randomUUID();
-    const now = new Date().toISOString();
-    const inserted = await this.client.from("reasonai_runs").insert({
-      id: runId,
-      conversation_id: conversationId,
-      idempotency_key: idempotencyKey,
-      status: "running",
-      started_at: now,
-      updated_at: now,
-    }).select(runColumns).single();
-    if (!inserted.error && inserted.data) return { kind: "acquired", run: run(inserted.data as Row) };
-    if (inserted.error?.code !== "23505") unavailable();
-
-    const duplicate = await this.client.from("reasonai_runs").select(runColumns)
-      .eq("conversation_id", conversationId).eq("idempotency_key", idempotencyKey).maybeSingle();
-    if (duplicate.error) unavailable();
-    if (duplicate.data) {
-      const existing = run(duplicate.data as Row);
-      return { kind: existing.status === "running" ? "active" : "replay", run: existing };
-    }
-    const active = await this.client.from("reasonai_runs").select(runColumns)
-      .eq("conversation_id", conversationId).eq("status", "running").maybeSingle();
-    if (active.error || !active.data) unavailable();
-    return { kind: "active", run: run(active.data as Row) };
+    void userId; // Ownership is enforced inside the security-invoker RPC with auth.uid().
+    const { data, error } = await this.client.rpc("reasonai_acquire_run", {
+      p_conversation_id: conversationId,
+      p_idempotency_key: idempotencyKey,
+      p_run_id: crypto.randomUUID(),
+    });
+    if (error) unavailable();
+    const row = (Array.isArray(data) ? data[0] : data) as Row | undefined;
+    if (!row) throw new ReasonAIPersistenceError("NOT_FOUND", "Conversation not found.");
+    const kind = row.acquisition_kind;
+    if (kind !== "acquired" && kind !== "active" && kind !== "replay") unavailable();
+    return {
+      kind,
+      run: run(row),
+      ...(kind !== "active" && typeof row.recovered_run_id === "string" ? { recoveredRunId: row.recovered_run_id } : {}),
+    } as RunAcquisition;
   }
 
   async createMessage(userId: string, input: Omit<PersistedReasonAIMessage, "createdAt">) {
@@ -156,37 +146,29 @@ export class SupabaseReasonAIPersistenceRepository implements ReasonAIPersistenc
   }
 
   async finalizeRun(userId: string, conversationId: string, runId: string, input: FinalizeRunInput) {
-    if (!await this.getConversationSummary(userId, conversationId)) return;
-    const currentResult = await this.client.from("reasonai_runs").select(runColumns)
-      .eq("id", runId).eq("conversation_id", conversationId).maybeSingle();
-    if (currentResult.error) unavailable();
-    if (!currentResult.data) return;
-    const current = run(currentResult.data as Row);
-    const effectiveStatus = current.status === "running" ? input.status : current.status;
-    if (input.assistant) await this.upsertAssistant(conversationId, runId, input.assistant, effectiveStatus);
+    void userId;
+    const { data, error } = await this.client.rpc("reasonai_finalize_run", {
+      p_conversation_id: conversationId,
+      p_run_id: runId,
+      p_status: input.status,
+      p_last_seq: input.lastSeq,
+      p_error_code: input.errorCode ?? null,
+      p_assistant_id: input.assistant?.id ?? null,
+      p_assistant_parts: input.assistant?.parts ?? null,
+    });
+    if (error) unavailable();
+    const row = (Array.isArray(data) ? data[0] : data) as Row | undefined;
+    return row ? run(row) : undefined;
+  }
 
-    let finalRun = current;
-    if (current.status === "running") {
-      const now = new Date().toISOString();
-      const updated = await this.client.from("reasonai_runs").update({
-        status: input.status,
-        last_seq: input.lastSeq,
-        error_code: input.errorCode,
-        updated_at: now,
-        ...(input.status === "cancelled" ? { cancelled_at: now } : { completed_at: now }),
-      }).eq("id", runId).eq("conversation_id", conversationId).eq("status", "running")
-        .select(runColumns).maybeSingle();
-      if (updated.error) unavailable();
-      if (updated.data) finalRun = run(updated.data as Row);
-      else {
-        const raced = await this.client.from("reasonai_runs").select(runColumns).eq("id", runId).maybeSingle();
-        if (raced.error || !raced.data) unavailable();
-        finalRun = run(raced.data as Row);
-        if (input.assistant && finalRun.status !== "running") await this.setAssistantStatus(runId, finalRun.status);
-      }
-    }
-    await this.touchConversation(conversationId);
-    return finalRun;
+  async heartbeatRun(userId: string, conversationId: string, runId: string) {
+    void userId;
+    const now = new Date().toISOString();
+    const { data, error } = await this.client.from("reasonai_runs").update({ heartbeat_at: now, updated_at: now })
+      .eq("id", runId).eq("conversation_id", conversationId).eq("status", "running")
+      .select("id").maybeSingle();
+    if (error) unavailable();
+    return Boolean(data);
   }
 
   async cancelRun(userId: string, conversationId: string, runId: string) {
@@ -194,7 +176,7 @@ export class SupabaseReasonAIPersistenceRepository implements ReasonAIPersistenc
     const now = new Date().toISOString();
     const { data, error } = await this.client.from("reasonai_runs").update({
       status: "cancelled", cancelled_at: now, completed_at: null, updated_at: now,
-    }).eq("id", runId).eq("conversation_id", conversationId).in("status", ["running", "interrupted"])
+    }).eq("id", runId).eq("conversation_id", conversationId).eq("status", "running")
       .select("id").maybeSingle();
     if (error) unavailable();
     if (!data) {
@@ -202,32 +184,8 @@ export class SupabaseReasonAIPersistenceRepository implements ReasonAIPersistenc
       if (existing.error) unavailable();
       return Boolean(existing.data);
     }
-    await this.setAssistantStatus(runId, "cancelled");
     await this.touchConversation(conversationId);
     return true;
-  }
-
-  private async upsertAssistant(
-    conversationId: string,
-    runId: string,
-    assistant: NonNullable<FinalizeRunInput["assistant"]>,
-    status: Exclude<PersistedReasonAIRun["status"], "running">,
-  ) {
-    const { error } = await this.client.from("reasonai_messages").upsert({
-      id: assistant.id,
-      conversation_id: conversationId,
-      run_id: runId,
-      role: "assistant",
-      parts: assistant.parts,
-      status,
-    }, { onConflict: "id" });
-    if (error) unavailable();
-  }
-
-  private async setAssistantStatus(runId: string, status: PersistedReasonAIRun["status"]) {
-    if (status === "running") return;
-    const { error } = await this.client.from("reasonai_messages").update({ status }).eq("run_id", runId).eq("role", "assistant");
-    if (error) unavailable();
   }
 
   private async touchConversation(conversationId: string) {

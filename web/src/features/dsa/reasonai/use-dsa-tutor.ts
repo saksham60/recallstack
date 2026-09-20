@@ -14,12 +14,16 @@ export interface TutorMessage {
   content: string;
   response?: DSATutorResponse;
 }
+export const DSA_FIRST_EVENT_TIMEOUT_MS = 65_000;
+export const DSA_IDLE_STREAM_TIMEOUT_MS = 65_000;
+
 export function useDSATutor(context: DSAProblemContext) {
   const [messages, setMessages] = useState<TutorMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [searchWeb, setSearchWeb] = useState(false);
   const [visualFocus, setVisualFocus] = useState<DSATutorRequest["visualFocus"]>();
   const [pending, setPending] = useState(false);
+  const [activity, setActivity] = useState<string>();
   const [error, setError] = useState<string>();
   const [authExpired, setAuthExpired] = useState(false);
   const [canRetry, setCanRetry] = useState(false);
@@ -31,31 +35,23 @@ export function useDSATutor(context: DSAProblemContext) {
   const activeRun = useRef<{ conversationId: string; runId: string } | undefined>(undefined);
   const lastRequest = useRef<DSATutorRequest | null>(null);
   const webContextToken = useRef<string | undefined>(undefined);
-  const storageKey = `reasonai:dsa:conversation:${context.contentId}`;
   useEffect(() => {
-    const controller = new AbortController();
-    restoring.current = controller;
-    const stored = localStorage.getItem(storageKey);
-    if (stored && /^[0-9a-f-]{36}$/i.test(stored)) void restoreConversation(stored, controller.signal);
     return () => {
-      controller.abort();
-      if (restoring.current === controller) restoring.current = null;
+      restoring.current?.abort();
+      restoring.current = null;
       inFlight.current?.abort();
       inFlight.current = null;
     };
-  // The active transcript is scoped only by the stable problem identity.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storageKey]);
+  }, [context.contentId]);
 
   async function restoreConversation(id: string, signal?: AbortSignal) {
     try {
       const response = await fetchReasonAIConversation(id, signal);
-      if (response.status === 404) { localStorage.removeItem(storageKey); return; }
+      if (response.status === 404) return;
       if (!response.ok) return;
       const body = await response.json() as { conversation?: { id?: unknown; surface?: unknown; contextId?: unknown; messages?: unknown } };
       const restored = body.conversation;
       if (!restored || restored.id !== id || restored.surface !== "dsa" || restored.contextId !== context.contentId || !Array.isArray(restored.messages)) {
-        localStorage.removeItem(storageKey);
         return;
       }
       const next: TutorMessage[] = [];
@@ -142,7 +138,15 @@ export function useDSATutor(context: DSAProblemContext) {
     const controller = new AbortController();
     inFlight.current = controller;
     setPending(true); setError(undefined); setAuthExpired(false);
-    const timeout = setTimeout(() => controller.abort(), 65_000);
+    setActivity(undefined);
+    let timeoutKind: "first-event" | "idle" = "first-event";
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const armTimeout = (kind: typeof timeoutKind, delay: number) => {
+      timeoutKind = kind;
+      if (timeout) clearTimeout(timeout);
+      timeout = setTimeout(() => controller.abort(new DOMException(`ReasonAI ${kind} timeout.`, "TimeoutError")), delay);
+    };
+    armTimeout("first-event", DSA_FIRST_EVENT_TIMEOUT_MS);
     try {
       const response = await fetchReasonAIStreamResponse("/api/reasonai/dsa/chat", JSON.stringify(request), controller.signal);
       if (inFlight.current !== controller) return;
@@ -150,7 +154,6 @@ export function useDSATutor(context: DSAProblemContext) {
       const responseRunId = response.headers.get("X-ReasonAI-Run-Id") ?? undefined;
       if (responseConversationId && /^[0-9a-f-]{36}$/i.test(responseConversationId)) {
         conversationId.current = responseConversationId;
-        localStorage.setItem(storageKey, responseConversationId);
         if (responseRunId && /^[0-9a-f-]{36}$/i.test(responseRunId)) activeRun.current = { conversationId: responseConversationId, runId: responseRunId };
       }
       const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
@@ -160,7 +163,13 @@ export function useDSATutor(context: DSAProblemContext) {
         let result: DSATutorResponse | undefined;
         for await (const event of decodeReasonAIEventResponse(response)) {
           if (inFlight.current !== controller) return;
+          armTimeout("idle", DSA_IDLE_STREAM_TIMEOUT_MS);
           runtime = reduceReasonAIEvent(runtime, event);
+          if (event.type === "tool.started" || event.type === "tool.completed" || event.type === "tool.failed") {
+            setActivity(event.summary);
+          } else if (event.type === "text.delta" || event.type === "text.final") {
+            setActivity(undefined);
+          }
           const next = runtimeResponse(runtime);
           if (next) {
             result = next;
@@ -200,10 +209,11 @@ export function useDSATutor(context: DSAProblemContext) {
       setCanRetry(false);
     } catch (error) {
       if (inFlight.current !== controller) return;
-      setError(controller.signal.aborted ? "ReasonAI timed out. Your work is still here; try again." : error instanceof TypeError ? "Unable to connect to ReasonAI. Check your connection and try again." : error instanceof Error ? error.message : "ReasonAI is unavailable. Please try again.");
+      const timedOut = controller.signal.reason instanceof DOMException && controller.signal.reason.name === "TimeoutError";
+      setError(timedOut ? `ReasonAI ${timeoutKind === "first-event" ? "did not start" : "stopped responding"} in time. Your work is still here; try again.` : controller.signal.aborted ? "Response stopped. You can retry when ready." : error instanceof TypeError ? "Unable to connect to ReasonAI. Check your connection and try again." : error instanceof Error ? error.message : "ReasonAI is unavailable. Please try again.");
     } finally {
-      clearTimeout(timeout);
-      if (inFlight.current === controller) { inFlight.current = null; activeRun.current = undefined; setPending(false); }
+      if (timeout) clearTimeout(timeout);
+      if (inFlight.current === controller) { inFlight.current = null; activeRun.current = undefined; setPending(false); setActivity(undefined); }
     }
   }
   function send(action: DSATutorAction, message: string, webOverride?: boolean) {
@@ -232,19 +242,21 @@ export function useDSATutor(context: DSAProblemContext) {
     if (message === draft) setDraft("");
     void perform(request);
   }
-  function clear() {
+  async function clear() {
     const run = activeRun.current;
-    if (run) void cancelReasonAIRun(run.conversationId, run.runId).catch(() => undefined);
     inFlight.current?.abort(); inFlight.current = null; lastRequest.current = null;
     restoring.current?.abort(); restoring.current = null;
     activeRun.current = undefined; conversationId.current = undefined;
-    localStorage.removeItem(storageKey);
     setCanRetry(false);
     webContextToken.current = undefined;
     setVisualFocus(undefined);
-    hints.current = 0; setPending(false); setMessages([]); setError(undefined); setAuthExpired(false);
+    hints.current = 0; setPending(false); setActivity(undefined); setMessages([]); setError(undefined); setAuthExpired(false);
+    if (run) {
+      try { await cancelReasonAIRun(run.conversationId, run.runId); }
+      catch { /* Stream cleanup and the finite server lease remain authoritative. */ }
+    }
   }
-  return { messages, draft, setDraft, searchWeb, setSearchWeb, visualFocus, setVisualFocus, pending, error, authExpired, send, clear,
+  return { messages, draft, setDraft, searchWeb, setSearchWeb, visualFocus, setVisualFocus, pending, activity, error, authExpired, send, clear,
     canRetry, retry: () => {
       if (!inFlight.current && lastRequest.current) {
         const next = { ...lastRequest.current, idempotencyKey: crypto.randomUUID(), ...(conversationId.current ? { conversationId: conversationId.current } : {}) };
@@ -252,11 +264,14 @@ export function useDSATutor(context: DSAProblemContext) {
         void perform(next);
       }
     },
-    stop: () => {
+    stop: async () => {
       const run = activeRun.current;
-      if (run) void cancelReasonAIRun(run.conversationId, run.runId).catch(() => undefined);
       inFlight.current?.abort(); inFlight.current = null; activeRun.current = undefined;
-      setPending(false); setError("Response stopped. You can retry when ready.");
+      setPending(false); setActivity(undefined); setError("Response stopped. You can retry when ready.");
+      if (run) {
+        try { await cancelReasonAIRun(run.conversationId, run.runId); }
+        catch { /* Stream cleanup and the finite server lease remain authoritative. */ }
+      }
     },
   };
 }

@@ -25,58 +25,79 @@ function asyncIteratorFor(
   };
 }
 
-/** Converts a pull-based event source into an encoded stream and forwards cancellation. */
+/**
+ * Pumps one source iterator for the lifetime of the response. A single pull
+ * owns the pump, so server-side terminal work continues after text.final even
+ * when the client never asks for another chunk.
+ */
 export function createReasonAIEventStream(
   source: AsyncIterable<ReasonAIKnownEvent> | Iterable<ReasonAIKnownEvent>,
   signal?: AbortSignal,
 ): ReadableStream<Uint8Array> {
   const iterator = asyncIteratorFor(source);
   let stopped = false;
-  let streamController: ReadableStreamDefaultController<Uint8Array> | undefined;
+  let closePromise: Promise<void> | undefined;
+  let pumpPromise: Promise<void> | undefined;
+  let abortReason: unknown;
+  let notifyAbort: (() => void) | undefined;
+  const aborted = new Promise<void>((resolve) => { notifyAbort = resolve; });
 
-  const stopIterator = (reason?: unknown) => {
-    if (stopped) return;
+  const closeIterator = (reason?: unknown): Promise<void> => {
+    if (closePromise) return closePromise;
     stopped = true;
     signal?.removeEventListener("abort", onAbort);
-    void iterator.return?.(reason).catch(() => undefined);
+    closePromise = (async () => {
+      try { await iterator.return?.(reason); }
+      catch (error) {
+        console.error("[REASONAI_STREAM_CLEANUP_FAILED]", {
+          stage: "iterator.return",
+          category: error instanceof Error ? error.name : "unknown",
+        });
+      }
+    })();
+    return closePromise;
   };
   const onAbort = () => {
-    if (stopped) return;
-    const reason = signal?.reason ?? new DOMException("The operation was aborted.", "AbortError");
-    stopIterator(reason);
-    streamController?.error(reason);
+    abortReason = signal?.reason ?? new DOMException("The operation was aborted.", "AbortError");
+    notifyAbort?.();
   };
 
-  return new ReadableStream<Uint8Array>({
-    start(controller) {
-      streamController = controller;
-      if (signal?.aborted) onAbort();
-      else signal?.addEventListener("abort", onAbort, { once: true });
-    },
-    async pull(controller) {
-      if (stopped) return;
-      try {
-        const result = await iterator.next();
+  const pump = async (controller: ReadableStreamDefaultController<Uint8Array>) => {
+    try {
+      while (!stopped) {
+        const next = iterator.next();
+        const result = await Promise.race([
+          next.then((value) => ({ kind: "next" as const, value })),
+          aborted.then(() => ({ kind: "abort" as const })),
+        ]);
+        if (result.kind === "abort") throw abortReason;
         if (stopped) return;
-        if (result.done) {
+        if (result.value.done) {
           stopped = true;
           signal?.removeEventListener("abort", onAbort);
           controller.close();
           return;
         }
-        controller.enqueue(encodeReasonAIEvent(result.value));
-      } catch (error) {
-        if (stopped) return;
-        stopped = true;
-        signal?.removeEventListener("abort", onAbort);
-        controller.error(error);
+        controller.enqueue(encodeReasonAIEvent(result.value.value));
       }
+    } catch (error) {
+      if (!stopped) controller.error(error);
+      await closeIterator(error);
+    }
+  };
+
+  return new ReadableStream<Uint8Array>({
+    start() {
+      if (signal?.aborted) onAbort();
+      else signal?.addEventListener("abort", onAbort, { once: true });
+    },
+    pull(controller) {
+      if (!pumpPromise) pumpPromise = pump(controller);
+      return pumpPromise;
     },
     async cancel(reason) {
-      if (stopped) return;
-      stopped = true;
-      signal?.removeEventListener("abort", onAbort);
-      await iterator.return?.(reason);
+      notifyAbort?.();
+      await closeIterator(reason);
     },
   });
 }

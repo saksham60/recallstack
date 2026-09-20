@@ -142,7 +142,7 @@ Use readable Markdown with short headings, compact paragraphs, inline code and s
 Use a focused follow-up question only when it advances the learning or resolves missing context. Do not end every answer with a generic invitation or automatically reveal the next step.
 `;
 
-function turnInstruction(request: DSATutorRequest): string {
+export function turnInstruction(request: DSATutorRequest): string {
   const grounding = "Only user-supplied requirements and WEB_CONTEXT establish exact task facts. Use WEB_STATUS accurately; do not promise tools you cannot call. If requirements are missing, ask for the smallest necessary detail and still address known mechanics. Do not reconstruct a named problem or infer its goal from algorithm steps. ";
   const solution = "The learner explicitly selected a solution. Confirm that requirements are sufficient, then provide it; otherwise ask for the missing requirements. Respect requests for explanation only, code only, or a specific language.";
 

@@ -29,7 +29,7 @@ export function readWebContextToken(context: DSAProblemContext, token?: string):
     if (provided.length !== expected.length || !timingSafeEqual(provided, expected)) return;
     const data = JSON.parse(Buffer.from(parts[0], "base64url").toString("utf8"));
     if (data.version !== 1 || !Number.isFinite(data.expires) || data.expires <= Date.now() || data.expires > Date.now() + LIFETIME || JSON.stringify(data.binding) !== JSON.stringify(binding(context))) return;
-    if (!Array.isArray(data.results) || !data.results.length || data.results.length > 4) return;
+    if (!Array.isArray(data.results) || !data.results.length || data.results.length > 5) return;
     return data.results;
   } catch { return; }
 }

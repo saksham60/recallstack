@@ -29,7 +29,12 @@ function isNDJSON(response: Response): boolean {
 }
 
 async function discardBody(response: Response): Promise<void> {
-  await response.body?.cancel().catch(() => undefined);
+  try { await response.body?.cancel(); }
+  catch (error) {
+    console.error("[REASONAI_CLIENT_STREAM_CLEANUP_FAILED]", {
+      category: error instanceof Error ? error.name : "unknown",
+    });
+  }
 }
 
 /** Validates and incrementally decodes an already-open ReasonAI response. */

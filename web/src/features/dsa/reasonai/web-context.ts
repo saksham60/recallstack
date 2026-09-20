@@ -48,7 +48,46 @@ async function tavily(endpoint: "extract" | "search", body: object, key: string,
     });
     if (!response.ok) return;
     return await readBoundedJSON(response, 256 * 1024) as Record<string, unknown>;
-  } catch { return; }
+  } catch (error) {
+    if (signal.aborted) throw error;
+    return;
+  }
+}
+
+export const MAX_SEARCH_RESULTS = 5;
+export const MAX_SEARCH_SNIPPET_CHARS = 1_500;
+
+/** Executes the PR6 model-selected search tool and returns compact evidence only. */
+export async function searchDSAWebEvidence(query: string, signal: AbortSignal): Promise<WebContext> {
+  const normalized = query.trim();
+  if (!normalized || normalized.length > 500) throw new Error("Invalid search query.");
+  const { apiKey } = getTavilyConfiguration();
+  if (!apiKey) return { status: "unavailable", results: [] };
+  const raw = await tavily("search", {
+    query: normalized,
+    search_depth: "basic",
+    max_results: MAX_SEARCH_RESULTS,
+    include_answer: false,
+    include_raw_content: false,
+  }, apiKey, signal);
+  if (!raw) return { status: "unavailable", results: [] };
+  const results: WebContext["results"] = [];
+  if (Array.isArray(raw.results)) {
+    for (const item of raw.results.slice(0, MAX_SEARCH_RESULTS)) {
+      const url = publicSource(item?.url);
+      const content = usableContent(item?.content)?.slice(0, MAX_SEARCH_SNIPPET_CHARS);
+      if (!url || !content || results.some((result) => result.url === url)) continue;
+      results.push({
+        title: typeof item.title === "string" && item.title.trim()
+          ? item.title.trim().slice(0, 200)
+          : new URL(url).hostname,
+        url,
+        kind: "search",
+        content,
+      });
+    }
+  }
+  return { status: results.length ? "used" : "empty", results };
 }
 
 export async function searchDSAContext(request: DSATutorRequest, signal?: AbortSignal): Promise<WebContext> {

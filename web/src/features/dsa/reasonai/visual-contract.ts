@@ -43,6 +43,12 @@ export const DSA_VISUAL_TOOL = {
   },
 };
 
+/** PR6 graph tool. The legacy provider keeps its existing tool name. */
+export const DSA_CREATE_VISUAL_TOOL = {
+  ...DSA_VISUAL_TOOL,
+  function: { ...DSA_VISUAL_TOOL.function, name: "create_visual", strict: true },
+};
+
 type Schema = { type: string; maxLength?: number; minimum?: number; maximum?: number; minItems?: number; maxItems?: number; items?: Schema; properties?: Record<string, Schema>; enum?: string[] };
 function validate(value: unknown, rule: Schema): void {
   const invalid = () => { throw new Error("Invalid visual lesson."); };

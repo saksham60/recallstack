@@ -33,6 +33,7 @@ export interface PersistedReasonAIRun {
   status: PersistedRunStatus;
   lastSeq: number;
   startedAt?: string;
+  heartbeatAt: string;
   completedAt?: string;
   cancelledAt?: string;
   errorCode?: string;
@@ -41,8 +42,8 @@ export interface PersistedReasonAIRun {
 }
 
 export type RunAcquisition =
-  | { kind: "acquired"; run: PersistedReasonAIRun }
-  | { kind: "replay"; run: PersistedReasonAIRun }
+  | { kind: "acquired"; run: PersistedReasonAIRun; recoveredRunId?: string }
+  | { kind: "replay"; run: PersistedReasonAIRun; recoveredRunId?: string }
   | { kind: "active"; run: PersistedReasonAIRun };
 
 export interface FinalizeRunInput {
@@ -61,6 +62,7 @@ export interface ReasonAIPersistenceRepository {
   acquireRun(userId: string, conversationId: string, idempotencyKey: string): Promise<RunAcquisition>;
   createMessage(userId: string, input: Omit<PersistedReasonAIMessage, "createdAt">): Promise<PersistedReasonAIMessage>;
   finalizeRun(userId: string, conversationId: string, runId: string, input: FinalizeRunInput): Promise<PersistedReasonAIRun | undefined>;
+  heartbeatRun(userId: string, conversationId: string, runId: string): Promise<boolean>;
   cancelRun(userId: string, conversationId: string, runId: string): Promise<boolean>;
 }
 

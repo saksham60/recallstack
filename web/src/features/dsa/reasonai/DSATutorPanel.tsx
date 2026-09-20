@@ -84,7 +84,7 @@ export function DSATutorPanel({ tutor, onClose, slug, problem, focused, onFocusC
             {(message.response?.webStatus === "used" || message.response?.webStatus === "cached") && <DSATutorSources sources={message.response.sources} cached={message.response.webStatus === "cached"} />}
           </article>)}
         </div>
-        {tutor.pending && <p role="status" className="mt-5 flex items-center gap-2 text-xs text-muted"><Sparkles size={14} className="animate-pulse text-accent" />Thinking through your question…</p>}
+        {tutor.pending && <p role="status" className="mt-5 flex items-center gap-2 text-xs text-muted"><Sparkles size={14} className="animate-pulse text-accent" />{tutor.activity ?? "Thinking through your question…"}</p>}
         {tutor.error && <div role="alert" className="mt-4 rounded-lg bg-danger/5 p-3 text-sm"><p>{tutor.error}</p>{tutor.authExpired
           ? <Link href={`/login?next=${encodeURIComponent(`/dsa/problem/${slug}`)}`} className="mt-2 inline-block text-accent">Sign in again</Link>
           : tutor.canRetry && <button type="button" onClick={tutor.retry} disabled={tutor.pending} className="mt-2 text-accent">Try again</button>}</div>}

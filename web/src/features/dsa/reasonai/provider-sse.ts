@@ -2,6 +2,8 @@ import "server-only";
 
 export const MAX_PROVIDER_SSE_FRAME_BYTES = 256 * 1024;
 export const MAX_PROVIDER_SSE_BUFFER_BYTES = 256 * 1024;
+export const PROVIDER_FIRST_EVENT_TIMEOUT_MS = 30_000;
+export const PROVIDER_IDLE_STREAM_TIMEOUT_MS = 30_000;
 
 export class DSAProviderStreamError extends Error {
   constructor(message: string, readonly status?: number) {
@@ -22,6 +24,11 @@ export interface TokenFactoryStreamChoice {
 export interface TokenFactoryStreamFrame {
   choices?: TokenFactoryStreamChoice[];
   error?: unknown;
+}
+
+export interface ProviderStreamTimeouts {
+  firstEventMs?: number;
+  idleMs?: number;
 }
 
 function byteLength(value: string): number {
@@ -49,17 +56,32 @@ function parseFrame(frame: string): TokenFactoryStreamFrame | "done" | undefined
 export async function* decodeTokenFactorySSE(
   stream: ReadableStream<Uint8Array>,
   signal?: AbortSignal,
+  timeouts: ProviderStreamTimeouts = {},
 ): AsyncGenerator<TokenFactoryStreamFrame> {
   const decoder = new TextDecoder("utf-8", { fatal: true });
   const reader = stream.getReader();
   let buffer = "";
   let doneFrame = false;
   let completed = false;
+  let receivedChunk = false;
   try {
     while (true) {
       signal?.throwIfAborted();
-      const { done, value } = await reader.read();
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const timeoutMs = receivedChunk
+        ? timeouts.idleMs ?? PROVIDER_IDLE_STREAM_TIMEOUT_MS
+        : timeouts.firstEventMs ?? PROVIDER_FIRST_EVENT_TIMEOUT_MS;
+      const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new DSAProviderStreamError(receivedChunk
+          ? "ReasonAI provider stream became idle."
+          : "ReasonAI provider did not start streaming in time.")), timeoutMs);
+      });
+      let result: ReadableStreamReadResult<Uint8Array>;
+      try { result = await Promise.race([reader.read(), timeout]); }
+      finally { if (timer) clearTimeout(timer); }
+      const { done, value } = result;
       if (done) break;
+      receivedChunk = true;
       try { buffer += decoder.decode(value, { stream: true }); }
       catch { throw new DSAProviderStreamError("ReasonAI provider returned invalid UTF-8."); }
       if (byteLength(buffer) > MAX_PROVIDER_SSE_BUFFER_BYTES) {
@@ -90,7 +112,14 @@ export async function* decodeTokenFactorySSE(
     if (!doneFrame) throw new DSAProviderStreamError("ReasonAI provider stream ended unexpectedly.");
     completed = true;
   } finally {
-    if (!completed) await reader.cancel().catch(() => undefined);
+    if (!completed) {
+      try { await reader.cancel(); }
+      catch (error) {
+        console.error("[DSA_PROVIDER_STREAM_CLEANUP_FAILED]", {
+          category: error instanceof Error ? error.name : "unknown",
+        });
+      }
+    }
     reader.releaseLock();
   }
 }

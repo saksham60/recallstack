@@ -72,7 +72,7 @@ test("V2 Stop preserves partial text and retry and clear remain functional", asy
   await expect(page.getByText("Retry completed.", { exact: true })).toHaveCount(0);
 });
 
-test("V2 persists a first conversation, replays idempotently and restores it after reload", async ({ authenticatedPage: page }) => {
+test("V2 persists same-page turns but a reload starts a fresh conversation", async ({ authenticatedPage: page }) => {
   const idempotencyKey = crypto.randomUUID();
   const body: DSATutorRequest = {
     action: "chat",
@@ -126,9 +126,14 @@ test("V2 persists a first conversation, replays idempotently and restores it aft
     value: conversationId,
   });
   await page.goto("/dsa/problem/3sum");
-  await expect(page.getByText(/not the original requirements/i).first()).toBeVisible();
+  await expect(page.getByText(/not the original requirements/i)).toHaveCount(0);
+  const nextResponse = page.waitForResponse((response) => response.url().includes("/api/reasonai/dsa/chat") && response.request().method() === "POST");
+  await page.getByLabel("Ask ReasonAI", { exact: true }).fill("What exactly is this problem asking?");
+  await page.getByRole("button", { name: "Send message" }).click();
+  const fresh = await nextResponse;
+  expect(fresh.headers()["x-reasonai-conversation-id"]).not.toBe(conversationId);
   await page.getByRole("button", { name: "Clear chat" }).click();
-  expect(await page.evaluate((key) => localStorage.getItem(key), `reasonai:dsa:conversation:${problem.content_item_id}`)).toBeNull();
+  expect(await page.evaluate((key) => localStorage.getItem(key), `reasonai:dsa:conversation:${problem.content_item_id}`)).toBe(conversationId);
 });
 
 test("conversation APIs create, list, read and delete only bounded authenticated records", async ({ authenticatedPage: page }) => {

@@ -1,4 +1,7 @@
 import { getReasonAIPersistenceRequestContext } from "@/lib/reasonai/server/persistence/request-context";
+import { deleteReasonAIConversation } from "@/lib/reasonai/server/persistence/delete-conversation";
+import { getReasonAICheckpointer } from "@/lib/reasonai/server/langgraph/checkpointer";
+import { getReasonAIThreadSecret } from "@/lib/reasonai/server/langgraph/thread-id";
 import { isReasonAIUUID, ReasonAIPersistenceError } from "@/lib/reasonai/server/persistence/types";
 
 export const runtime = "nodejs";
@@ -28,11 +31,13 @@ export async function DELETE(request: Request, { params }: Context) {
   const context = await getReasonAIPersistenceRequestContext(request);
   if (context instanceof Response) return context;
   try {
-    return await context.repository.deleteConversation(context.userId, id)
+    return await deleteReasonAIConversation(context.repository, context.userId, id, () => ({
+      checkpointer: getReasonAICheckpointer(context.testMode),
+      threadSecret: getReasonAIThreadSecret(context.testMode),
+    }))
       ? new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } })
       : reply({ error: "Conversation not found." }, 404);
   } catch {
     return reply({ error: "Conversation history is temporarily unavailable." }, 503);
   }
 }
-

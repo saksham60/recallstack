@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { MemorySaver } from "@langchain/langgraph";
 import type { DSATutorRequest, DSATutorResponse } from "../src/features/dsa/reasonai/contract";
 import {
   dsaTutorProvider,
@@ -9,6 +10,7 @@ import { isReasonAIDSAStreamingEnabled } from "../src/lib/config/server";
 import { createReasonAIRuntimeState, reduceReasonAIEvent } from "../src/lib/reasonai/runtime/reducer";
 import { streamDSAEvents } from "../src/lib/reasonai/server/dsa-stream";
 import { streamDSAGraph } from "../src/lib/reasonai/server/langgraph/dsa/graph";
+import type { DSAGraphStreamEvent } from "../src/lib/reasonai/server/langgraph/dsa/events";
 import { visualLesson } from "./helpers/dsa-visual";
 
 const request: DSATutorRequest = {
@@ -64,6 +66,19 @@ function standardSSE(text = "  A validated streaming answer with enough content 
   ]);
 }
 
+function graphExecution() {
+  return { checkpointer: new MemorySaver(), threadId: crypto.randomUUID() };
+}
+
+function eventExecution() {
+  return {
+    ...graphExecution(),
+    runId: crypto.randomUUID(),
+    messageId: crypto.randomUUID(),
+    mark: () => undefined,
+  };
+}
+
 async function fold(stream: AsyncIterable<DSATutorProviderStreamEvent>): Promise<DSATutorResponse> {
   let result: DSATutorResponse | undefined;
   for await (const event of stream) if (event.type === "result") result = event.result;
@@ -116,6 +131,25 @@ test("SSE parser handles coalesced frames, split frames, CRLF and split UTF-8", 
   expect(decoded).toHaveLength(2);
   expect(decoded[0].choices?.[0].delta?.content).toBe("Hello 🌍");
   expect(decoded[1].choices?.[0].finish_reason).toBe("stop");
+});
+
+test("SSE parser enforces separate first-event and idle deadlines", async () => {
+  const collect = async (stream: ReadableStream<Uint8Array>, firstEventMs: number, idleMs: number) => {
+    for await (const _frame of decodeTokenFactorySSE(stream, undefined, { firstEventMs, idleMs })) void _frame;
+  };
+  let firstCancelled = false;
+  const silent = new ReadableStream<Uint8Array>({ cancel() { firstCancelled = true; } });
+  await expect(collect(silent, 5, 50)).rejects.toThrow("did not start streaming");
+  expect(firstCancelled).toBe(true);
+
+  let idleCancelled = false;
+  const encoder = new TextEncoder();
+  const stalled = new ReadableStream<Uint8Array>({
+    start(controller) { controller.enqueue(encoder.encode(frame(textChunk("started")))); },
+    cancel() { idleCancelled = true; },
+  });
+  await expect(collect(stalled, 50, 5)).rejects.toThrow("became idle");
+  expect(idleCancelled).toBe(true);
 });
 
 test("provider rejects unexpected EOF, malformed/provider error frames, HTTP 429 and empty content", async () => {
@@ -205,10 +239,10 @@ test("web evidence, filtered sources and signed context retain stream/complete p
   } finally { Date.now = originalNow; }
 });
 
-test("single-node LangGraph shell forwards provider deltas and result without a checkpointer", async () => {
+test("LangGraph agent forwards provider deltas and a checkpointed result", async () => {
   globalThis.fetch = async () => standardSSE();
-  const events: DSATutorProviderStreamEvent[] = [];
-  for await (const event of streamDSAGraph(request)) events.push(event);
+  const events: DSAGraphStreamEvent[] = [];
+  for await (const event of streamDSAGraph(request, graphExecution())) events.push(event);
   expect(events[0].type).toBe("text.delta");
   expect(events.at(-1)?.type).toBe("result");
 });
@@ -216,7 +250,7 @@ test("single-node LangGraph shell forwards provider deltas and result without a 
 test("DSA event adapter emits one ordered terminal sequence and authoritative final replacement", async () => {
   globalThis.fetch = async () => standardSSE();
   const events = [];
-  for await (const event of streamDSAEvents(request, new AbortController().signal)) events.push(event);
+  for await (const event of streamDSAEvents(request, new AbortController().signal, eventExecution())) events.push(event);
   expect(events.map((event) => event.type)).toEqual([
     "run.started",
     "text.delta",
@@ -238,14 +272,14 @@ test("DSA event adapter emits one ordered terminal sequence and authoritative fi
 test("DSA event adapter converts post-establishment provider failure and abort to one terminal event", async () => {
   globalThis.fetch = async () => sseResponse([frame(textChunk("partial content that is long enough to release"))]);
   const failed = [];
-  for await (const event of streamDSAEvents(request, new AbortController().signal)) failed.push(event.type);
+  for await (const event of streamDSAEvents(request, new AbortController().signal, eventExecution())) failed.push(event.type);
   expect(failed.at(-1)).toBe("run.failed");
   expect(failed).not.toContain("run.completed");
 
   const controller = new AbortController();
   controller.abort();
   const cancelled = [];
-  for await (const event of streamDSAEvents(request, controller.signal)) cancelled.push(event.type);
+  for await (const event of streamDSAEvents(request, controller.signal, eventExecution())) cancelled.push(event.type);
   expect(cancelled).toEqual(["run.started", "run.cancelled"]);
 });
 

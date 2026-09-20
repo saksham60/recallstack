@@ -5,6 +5,8 @@ import type { ReasonAIKnownEvent } from "../src/lib/reasonai/runtime/events";
 import { prepareDSARun } from "../src/lib/reasonai/server/persistence/dsa-run";
 import { MemoryReasonAIPersistenceRepository } from "../src/lib/reasonai/server/persistence/memory-repository";
 import { persistReasonAITranscript } from "../src/lib/reasonai/server/persistence/stream";
+import { RUN_LEASE_TIMEOUT_MS } from "../src/lib/reasonai/server/persistence/lease";
+import { createReasonAINDJSONResponse } from "../src/lib/reasonai/runtime/response";
 
 const userA = "10000000-0000-4000-8000-000000000001";
 const userB = "20000000-0000-4000-8000-000000000002";
@@ -35,6 +37,21 @@ test("migration creates transcript tables, RLS ownership policies and database c
   expect(sql).toContain("c.user_id = auth.uid()");
   expect(sql).not.toContain("service_role");
   expect(sql).not.toContain("thread_id");
+});
+
+test("hardening migration adds finite leases, atomic RPCs, explicit RLS roles and minimal grants", () => {
+  const sql = readFileSync("supabase/migrations/20260921_reasonai_runtime_hardening.sql", "utf8");
+  expect(sql).toContain("heartbeat_at timestamptz");
+  expect(sql).toContain("interval '120 seconds'");
+  expect(sql).toContain("for update");
+  expect(sql).toContain("security invoker");
+  expect(sql).toContain("set search_path = ''");
+  expect(sql).toContain("reasonai_acquire_run");
+  expect(sql).toContain("reasonai_finalize_run");
+  expect(sql).toContain("to authenticated");
+  expect(sql).toContain("revoke all on table public.reasonai_conversations");
+  expect(sql).toContain("revoke all on function public.reasonai_acquire_run");
+  expect(sql).not.toMatch(/grant all[\s\S]+(?:anon|public)/iu);
 });
 
 test("conversation CRUD is owner-scoped, bounded, ordered and delete cascades", async () => {
@@ -149,7 +166,85 @@ test("cancelled and disconnected streams retain useful partial assistant output"
   const restored = await repository.getConversation(userA, interrupted.conversation.id);
   expect(restored?.messages.at(-1)).toMatchObject({ status: "interrupted", parts: [{ text: "Disconnected partial" }] });
   expect(await repository.cancelRun(userA, interrupted.conversation.id, interrupted.run.id)).toBe(true);
-  expect((await repository.getConversation(userA, interrupted.conversation.id))?.messages.at(-1)?.status).toBe("cancelled");
+  expect((await repository.getConversation(userA, interrupted.conversation.id))?.messages.at(-1)?.status).toBe("interrupted");
+});
+
+test("expired runs recover without cleanup while same-key retries remain idempotent", async () => {
+  let now = Date.parse("2026-09-20T00:00:00.000Z");
+  const repository = new MemoryReasonAIPersistenceRepository(() => new Date(now));
+  const conversation = await repository.createConversation(userA, { surface: "dsa", contextId: "content-1" });
+  const staleKey = crypto.randomUUID();
+  const stale = await repository.acquireRun(userA, conversation.id, staleKey);
+  expect(stale.kind).toBe("acquired");
+
+  now += RUN_LEASE_TIMEOUT_MS + 1;
+  const sameKey = await repository.acquireRun(userA, conversation.id, staleKey);
+  expect(sameKey).toMatchObject({ kind: "replay", recoveredRunId: stale.run.id, run: { status: "interrupted", errorCode: "RUN_LEASE_EXPIRED" } });
+
+  const next = await repository.acquireRun(userA, conversation.id, crypto.randomUUID());
+  expect(next).toMatchObject({ kind: "acquired", run: { status: "running" } });
+});
+
+test("two stale recoverers produce exactly one new running run", async () => {
+  let now = Date.parse("2026-09-20T00:00:00.000Z");
+  const repository = new MemoryReasonAIPersistenceRepository(() => new Date(now));
+  const conversation = await repository.createConversation(userA, { surface: "dsa", contextId: "content-1" });
+  const stale = await repository.acquireRun(userA, conversation.id, crypto.randomUUID());
+  now += RUN_LEASE_TIMEOUT_MS + 1;
+
+  const results = await Promise.all([
+    repository.acquireRun(userA, conversation.id, crypto.randomUUID()),
+    repository.acquireRun(userA, conversation.id, crypto.randomUUID()),
+  ]);
+  expect(results.filter((item) => item.kind === "acquired")).toHaveLength(1);
+  expect(results.filter((item) => item.kind === "active")).toHaveLength(1);
+  expect(results.find((item) => item.kind === "acquired")).toMatchObject({ recoveredRunId: stale.run.id });
+});
+
+test("heartbeats renew only a running lease", async () => {
+  let now = Date.parse("2026-09-20T00:00:00.000Z");
+  const repository = new MemoryReasonAIPersistenceRepository(() => new Date(now));
+  const conversation = await repository.createConversation(userA, { surface: "dsa", contextId: "content-1" });
+  const acquired = await repository.acquireRun(userA, conversation.id, crypto.randomUUID());
+  now += RUN_LEASE_TIMEOUT_MS - 1;
+  expect(await repository.heartbeatRun(userA, conversation.id, acquired.run.id)).toBe(true);
+  now += RUN_LEASE_TIMEOUT_MS - 1;
+  expect((await repository.acquireRun(userA, conversation.id, crypto.randomUUID())).kind).toBe("active");
+  await repository.finalizeRun(userA, conversation.id, acquired.run.id, { status: "completed", lastSeq: 1 });
+  expect(await repository.heartbeatRun(userA, conversation.id, acquired.run.id)).toBe(false);
+});
+
+test("late finalize cannot resurrect an interrupted run or persist a late assistant", async () => {
+  let now = Date.parse("2026-09-20T00:00:00.000Z");
+  const repository = new MemoryReasonAIPersistenceRepository(() => new Date(now));
+  const prepared = await prepareDSARun(repository, userA, { ...request, idempotencyKey: crypto.randomUUID() });
+  if (prepared.kind !== "acquired") throw new Error("Expected acquired run");
+  now += RUN_LEASE_TIMEOUT_MS + 1;
+  const replacement = await repository.acquireRun(userA, prepared.conversation.id, crypto.randomUUID());
+  expect(replacement.kind).toBe("acquired");
+
+  const late = await repository.finalizeRun(userA, prepared.conversation.id, prepared.run.id, {
+    status: "completed",
+    lastSeq: 9,
+    assistant: {
+      id: prepared.assistantMessageId,
+      role: "assistant",
+      status: "completed",
+      parts: [{ type: "text", partId: "late", text: "late answer", finalized: true }],
+    },
+  });
+  expect(late?.status).toBe("interrupted");
+  expect((await repository.getConversation(userA, prepared.conversation.id))?.messages.filter((item) => item.role === "assistant")).toHaveLength(0);
+  expect(replacement.run.status).toBe("running");
+});
+
+test("terminal transitions are single-winner", async () => {
+  const repository = new MemoryReasonAIPersistenceRepository();
+  const prepared = await prepareDSARun(repository, userA, { ...request, idempotencyKey: crypto.randomUUID() });
+  if (prepared.kind !== "acquired") throw new Error("Expected acquired run");
+  expect(await repository.cancelRun(userA, prepared.conversation.id, prepared.run.id)).toBe(true);
+  const late = await repository.finalizeRun(userA, prepared.conversation.id, prepared.run.id, { status: "completed", lastSeq: 3 });
+  expect(late?.status).toBe("cancelled");
 });
 
 test("failed runs retain visible partial text without representing it as completed", async () => {
@@ -166,4 +261,55 @@ test("failed runs retain visible partial text without representing it as complet
   expect(transcript?.messages.at(-1)).toMatchObject({ status: "failed", parts: [{ text: "Visible before failure", finalized: false }] });
   const replay = await repository.acquireRun(userA, prepared.conversation.id, prepared.run.idempotencyKey);
   expect(replay).toMatchObject({ kind: "replay", run: { status: "failed", errorCode: "PROVIDER_FAILURE", lastSeq: 3 } });
+});
+
+test("terminal persistence retries after a transient finalize failure without duplicating success", async () => {
+  const repository = new MemoryReasonAIPersistenceRepository();
+  const prepared = await prepareDSARun(repository, userA, { ...request, idempotencyKey: crypto.randomUUID() });
+  if (prepared.kind !== "acquired") throw new Error("Expected acquired run");
+  const originalFinalize = repository.finalizeRun.bind(repository);
+  let finalizeCalls = 0;
+  repository.finalizeRun = async (...args) => {
+    finalizeCalls += 1;
+    if (finalizeCalls === 1) throw new Error("transient write failure");
+    return originalFinalize(...args);
+  };
+  const events: ReasonAIKnownEvent[] = [
+    { protocolVersion: 1, runId: prepared.run.id, seq: 1, type: "run.started" },
+    { protocolVersion: 1, runId: prepared.run.id, seq: 2, type: "text.final", messageId: prepared.assistantMessageId, partId: "text", text: "Validated answer" },
+    { protocolVersion: 1, runId: prepared.run.id, seq: 3, type: "run.completed" },
+  ];
+  for await (const event of persistReasonAITranscript(repository, userA, prepared.conversation.id, prepared.run.id, events)) void event;
+  expect(finalizeCalls).toBe(2);
+  expect(await repository.acquireRun(userA, prepared.conversation.id, prepared.run.idempotencyKey))
+    .toMatchObject({ kind: "replay", run: { status: "completed" } });
+  expect((await repository.getConversation(userA, prepared.conversation.id))?.messages.filter((item) => item.role === "assistant")).toHaveLength(1);
+});
+
+test("abort after text.final cannot leave the run active and the next prompt acquires", async () => {
+  const repository = new MemoryReasonAIPersistenceRepository();
+  const prepared = await prepareDSARun(repository, userA, { ...request, idempotencyKey: crypto.randomUUID() });
+  if (prepared.kind !== "acquired") throw new Error("Expected acquired run");
+  const events: ReasonAIKnownEvent[] = [
+    { protocolVersion: 1, runId: prepared.run.id, seq: 1, type: "run.started" },
+    { protocolVersion: 1, runId: prepared.run.id, seq: 2, type: "text.delta", messageId: prepared.assistantMessageId, partId: "text", delta: "answer" },
+    { protocolVersion: 1, runId: prepared.run.id, seq: 3, type: "text.final", messageId: prepared.assistantMessageId, partId: "text", text: "answer" },
+    { protocolVersion: 1, runId: prepared.run.id, seq: 4, type: "run.completed" },
+  ];
+  const persisted = persistReasonAITranscript(repository, userA, prepared.conversation.id, prepared.run.id, events);
+  const reader = createReasonAINDJSONResponse(persisted).body!.getReader();
+  const decoder = new TextDecoder();
+  let sawFinal = false;
+  while (!sawFinal) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    sawFinal = decoder.decode(chunk.value).includes('"type":"text.final"');
+  }
+  expect(sawFinal).toBe(true);
+  await reader.cancel("disconnect after final");
+
+  const old = await repository.acquireRun(userA, prepared.conversation.id, prepared.run.idempotencyKey);
+  expect(old.run.status).not.toBe("running");
+  const next = await repository.acquireRun(userA, prepared.conversation.id, crypto.randomUUID());
+  expect(next.kind).toBe("acquired");
 });

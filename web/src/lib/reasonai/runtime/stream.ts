@@ -111,7 +111,14 @@ export async function* decodeReasonAIStream(
     for (const event of decoder.finish()) yield event;
     completed = true;
   } finally {
-    if (!completed) await reader.cancel().catch(() => undefined);
+    if (!completed) {
+      try { await reader.cancel(); }
+      catch (error) {
+        console.error("[REASONAI_NDJSON_READER_CLEANUP_FAILED]", {
+          category: error instanceof Error ? error.name : "unknown",
+        });
+      }
+    }
     reader.releaseLock();
   }
 }

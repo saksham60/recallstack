@@ -178,3 +178,53 @@ test("server source failures remain stream failures", async () => {
   source.fail(new Error("controlled failure"));
   await expect(pending).rejects.toThrow("controlled failure");
 });
+
+test("ReadableStream cancellation awaits async iterator return", async () => {
+  let returned = false;
+  let releaseReturn!: () => void;
+  const returnGate = new Promise<void>((resolve) => { releaseReturn = resolve; });
+  let calls = 0;
+  const source: AsyncIterable<ReasonAIKnownEvent> = {
+    [Symbol.asyncIterator]() {
+      return {
+        next: async () => calls++ === 0 ? { done: false, value: started() } : new Promise(() => undefined),
+        return: async () => {
+          await returnGate;
+          returned = true;
+          return { done: true, value: undefined };
+        },
+      };
+    },
+  };
+  const reader = createReasonAINDJSONResponse(source).body!.getReader();
+  await reader.read();
+  const cancelling = reader.cancel("test cancellation");
+  await Promise.resolve();
+  expect(returned).toBe(false);
+  releaseReturn();
+  await cancelling;
+  expect(returned).toBe(true);
+});
+
+test("iterator return failures are contained and do not hang cancellation", async () => {
+  let calls = 0;
+  const source: AsyncIterable<ReasonAIKnownEvent> = {
+    [Symbol.asyncIterator]() {
+      return {
+        next: async () => calls++ === 0 ? { done: false, value: started() } : new Promise(() => undefined),
+        return: async () => { throw new Error("controlled cleanup failure"); },
+      };
+    },
+  };
+  const original = console.error;
+  const errors: unknown[][] = [];
+  console.error = (...args: unknown[]) => { errors.push(args); };
+  try {
+    const reader = createReasonAINDJSONResponse(source).body!.getReader();
+    await reader.read();
+    await reader.cancel();
+    expect(errors.some((args) => args[0] === "[REASONAI_STREAM_CLEANUP_FAILED]")).toBe(true);
+  } finally {
+    console.error = original;
+  }
+});

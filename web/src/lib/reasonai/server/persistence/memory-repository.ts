@@ -10,6 +10,7 @@ import type {
   ReasonAISurface,
   RunAcquisition,
 } from "./types";
+import { isRunLeaseExpired, RUN_LEASE_EXPIRED_CODE } from "./lease";
 
 interface OwnedConversation extends ReasonAIConversationSummary { userId: string }
 interface StoredMessage extends PersistedReasonAIMessage { ordinal: number }
@@ -23,8 +24,12 @@ export class MemoryReasonAIPersistenceRepository implements ReasonAIPersistenceR
   private readonly runs = new Map<string, PersistedReasonAIRun>();
   private ordinal = 0;
 
+  constructor(private readonly now: () => Date = () => new Date()) {}
+
+  private timestamp() { return this.now().toISOString(); }
+
   async createConversation(userId: string, input: { surface: ReasonAISurface; contextId?: string; title?: string }) {
-    const now = new Date().toISOString();
+    const now = this.timestamp();
     const conversation: OwnedConversation = { id: crypto.randomUUID(), userId, ...input, createdAt: now, updatedAt: now };
     this.conversations.set(conversation.id, conversation);
     return clone(this.publicConversation(conversation));
@@ -73,23 +78,36 @@ export class MemoryReasonAIPersistenceRepository implements ReasonAIPersistenceR
   async acquireRun(userId: string, conversationId: string, idempotencyKey: string): Promise<RunAcquisition> {
     if (!this.owned(userId, conversationId)) throw new Error("Conversation not found.");
     const existing = [...this.runs.values()].find((run) => run.conversationId === conversationId && run.idempotencyKey === idempotencyKey);
-    if (existing) return { kind: existing.status === "running" ? "active" : "replay", run: clone(existing) };
+    if (existing) {
+      if (existing.status === "running" && isRunLeaseExpired(existing.heartbeatAt, this.now().getTime())) {
+        const now = this.timestamp();
+        Object.assign(existing, { status: "interrupted", errorCode: RUN_LEASE_EXPIRED_CODE, completedAt: now, updatedAt: now });
+        return { kind: "replay", run: clone(existing), recoveredRunId: existing.id };
+      }
+      return { kind: existing.status === "running" ? "active" : "replay", run: clone(existing) };
+    }
     const active = [...this.runs.values()].find((run) => run.conversationId === conversationId && run.status === "running");
-    if (active) return { kind: "active", run: clone(active) };
-    const now = new Date().toISOString();
+    let recoveredRunId: string | undefined;
+    if (active) {
+      if (!isRunLeaseExpired(active.heartbeatAt, this.now().getTime())) return { kind: "active", run: clone(active) };
+      const recoveredAt = this.timestamp();
+      Object.assign(active, { status: "interrupted", errorCode: RUN_LEASE_EXPIRED_CODE, completedAt: recoveredAt, updatedAt: recoveredAt });
+      recoveredRunId = active.id;
+    }
+    const now = this.timestamp();
     const run: PersistedReasonAIRun = {
       id: crypto.randomUUID(), conversationId, idempotencyKey, status: "running", lastSeq: 0,
-      startedAt: now, createdAt: now, updatedAt: now,
+      startedAt: now, heartbeatAt: now, createdAt: now, updatedAt: now,
     };
     this.runs.set(run.id, run);
-    return { kind: "acquired", run: clone(run) };
+    return { kind: "acquired", run: clone(run), ...(recoveredRunId ? { recoveredRunId } : {}) };
   }
 
   async createMessage(userId: string, input: Omit<PersistedReasonAIMessage, "createdAt">) {
     if (!this.owned(userId, input.conversationId)) throw new Error("Conversation not found.");
     const existing = this.messages.get(input.id);
     if (existing) return clone(existing);
-    const message: StoredMessage = { ...clone(input), parts: clone(input.parts as ReasonAIMessagePart[]), createdAt: new Date().toISOString(), ordinal: ++this.ordinal };
+    const message: StoredMessage = { ...clone(input), parts: clone(input.parts as ReasonAIMessagePart[]), createdAt: this.timestamp(), ordinal: ++this.ordinal };
     this.messages.set(message.id, message);
     return clone(message);
   }
@@ -98,31 +116,38 @@ export class MemoryReasonAIPersistenceRepository implements ReasonAIPersistenceR
     if (!this.owned(userId, conversationId)) return;
     const run = this.runs.get(runId);
     if (!run || run.conversationId !== conversationId) return;
-    const effectiveStatus = run.status === "running" ? input.status : run.status;
+    if (run.status !== "running") return clone(run);
     if (input.assistant) {
       const existing = this.messages.get(input.assistant.id);
       const message: StoredMessage = {
-        ...clone(input.assistant), conversationId, runId, status: effectiveStatus,
-        createdAt: existing?.createdAt ?? new Date().toISOString(), ordinal: existing?.ordinal ?? ++this.ordinal,
+        ...clone(input.assistant), conversationId, runId, status: input.status,
+        createdAt: existing?.createdAt ?? this.timestamp(), ordinal: existing?.ordinal ?? ++this.ordinal,
       };
       this.messages.set(message.id, message);
     }
-    if (run.status === "running") {
-      const now = new Date().toISOString();
-      Object.assign(run, {
-        status: input.status, lastSeq: input.lastSeq, errorCode: input.errorCode, updatedAt: now,
-        ...(input.status === "cancelled" ? { cancelledAt: now } : { completedAt: now }),
-      });
-    }
+    const now = this.timestamp();
+    Object.assign(run, {
+      status: input.status, lastSeq: input.lastSeq, errorCode: input.errorCode, updatedAt: now,
+      ...(input.status === "cancelled" ? { cancelledAt: now } : { completedAt: now }),
+    });
     return clone(run);
+  }
+
+  async heartbeatRun(userId: string, conversationId: string, runId: string) {
+    if (!this.owned(userId, conversationId)) return false;
+    const run = this.runs.get(runId);
+    if (!run || run.conversationId !== conversationId || run.status !== "running") return false;
+    const now = this.timestamp();
+    Object.assign(run, { heartbeatAt: now, updatedAt: now });
+    return true;
   }
 
   async cancelRun(userId: string, conversationId: string, runId: string) {
     if (!this.owned(userId, conversationId)) return false;
     const run = this.runs.get(runId);
     if (!run || run.conversationId !== conversationId) return false;
-    if (run.status === "running" || run.status === "interrupted") {
-      const now = new Date().toISOString();
+    if (run.status === "running") {
+      const now = this.timestamp();
       Object.assign(run, { status: "cancelled", cancelledAt: now, completedAt: undefined, updatedAt: now });
       for (const message of this.messages.values()) {
         if (message.runId === runId && message.role === "assistant") message.status = "cancelled";
