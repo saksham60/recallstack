@@ -1,0 +1,48 @@
+name: Build Shani Tracker APK
+
+on:
+  push:
+    branches:
+      - shani-apk-build-20260924
+    paths:
+      - 'tools/shani_tracker/**'
+      - '.github/workflows/shani-apk.yml'
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate Android project
+        working-directory: tools/shani_tracker
+        run: flutter create --platforms=android --org tech.reasonai --project-name shani_tracker .
+
+      - name: Get dependencies
+        working-directory: tools/shani_tracker
+        run: flutter pub get
+
+      - name: Build release APK
+        working-directory: tools/shani_tracker
+        run: flutter build apk --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: shani-tracker-apk
+          path: tools/shani_tracker/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
