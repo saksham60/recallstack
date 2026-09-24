@@ -47,9 +47,14 @@ export async function* persistReasonAITranscript(
     if (persisted) return;
     if (persisting) return persisting;
     if (!state.terminalEventReceived) state = interruptReasonAIRun(state);
-    const status: Exclude<PersistedRunStatus, "running"> = state.status === "completed" || state.status === "failed" || state.status === "cancelled"
+    const observedStatus: Exclude<PersistedRunStatus, "running"> = state.status === "completed" || state.status === "failed" || state.status === "cancelled"
       ? state.status
-      : fallbackStatus ?? "interrupted";
+      : "interrupted";
+    // A fallback status is used only after normal terminal persistence failed or
+    // when the stream ended without a terminal event. It must override a stale
+    // in-memory "completed" status so a persistence error cannot leave the DB
+    // lease permanently running and block the next turn with RUN_IN_PROGRESS.
+    const status: Exclude<PersistedRunStatus, "running"> = fallbackStatus ?? observedStatus;
     const assistant = usefulAssistant(state.messages);
     const operation = (async () => {
       const nextConversationState = status === "completed" ? getNextConversationState?.() : undefined;
@@ -113,7 +118,7 @@ export async function* persistReasonAITranscript(
       if (event.type === "run.completed" || event.type === "run.failed" || event.type === "run.cancelled") {
         try { await persist(); }
         catch (error) {
-          console.error("[DSA_V2_LIFECYCLE]", {
+          console.error("[REASONAI_V2_LIFECYCLE]", {
             runId,
             stage: "run.finalize_failed",
             category: error instanceof Error ? error.name : "unknown",
@@ -127,7 +132,7 @@ export async function* persistReasonAITranscript(
     if (!sourceDone) {
       try { await iterator.return?.(); }
       catch (error) {
-        console.error("[DSA_V2_LIFECYCLE]", {
+        console.error("[REASONAI_V2_LIFECYCLE]", {
           runId,
           stage: "stream.source_cleanup_failed",
           category: error instanceof Error ? error.name : "unknown",
@@ -137,7 +142,7 @@ export async function* persistReasonAITranscript(
     if (!persisted) {
       try { await persist("interrupted"); }
       catch (error) {
-        console.error("[DSA_V2_LIFECYCLE]", {
+        console.error("[REASONAI_V2_LIFECYCLE]", {
           runId,
           stage: "run.finalize_failed",
           category: error instanceof Error ? error.name : "unknown",
