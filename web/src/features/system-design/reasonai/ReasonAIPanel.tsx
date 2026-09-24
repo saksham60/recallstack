@@ -27,11 +27,14 @@ import { ReasonAISuggestions, type ReasonAISuggestionActions } from "./ReasonAIS
 import { parseReasonAISources, type ReasonAISource } from "./sources";
 import { ReasonAISources } from "./ReasonAISources";
 import { parseReasonAIVisualization, reasonAIAnalysisScope, type ReasonAIVisualization } from "./visualization";
-import { fetchReasonAI } from "@/lib/reasonai/client";
+import { cancelReasonAIRun, fetchReasonAIStreamResponse } from "@/lib/reasonai/client";
+import { createReasonAIRuntimeState, interruptReasonAIRun, reduceReasonAIEvent } from "@/lib/reasonai/runtime/reducer";
+import { decodeReasonAIEventResponse } from "@/lib/reasonai/streaming-client";
+import { systemDesignRuntimeResponse, type SystemDesignToolActivity } from "./runtime-client";
 
 import { createReasonAITrace, REASONAI_SUGGESTIONS_UNAVAILABLE } from "./trace";
 
-interface Turn extends ReasonAIMessage { id: string; proposal?: ReasonAIProposal; sources?: ReasonAISource[]; notice?: string; diagramId?: string; traceId?: string; suggestionsUnavailable?: boolean }
+interface Turn extends ReasonAIMessage { id: string; proposal?: ReasonAIProposal; sources?: ReasonAISource[]; notice?: string; tools?: SystemDesignToolActivity[]; diagramId?: string; traceId?: string; suggestionsUnavailable?: boolean }
 interface Generation { question: string; mode: ReasonAIMode; history: ReasonAIMessage[] }
 export interface ReasonAIPanelHandle { dropSuggestion: (token: string, position: SystemDesignPoint) => void }
 
@@ -105,6 +108,9 @@ export function ReasonAIPanel({
   } | null>(null);
   const scroll = useRef<HTMLDivElement>(null);
   const pending = useRef<AbortController | null>(null);
+  const conversationId = useRef<string | undefined>(undefined);
+  const conversationDiagramId = useRef<string | undefined>(undefined);
+  const activeRun = useRef<{ conversationId: string; runId: string } | undefined>(undefined);
   const lastGeneration = useRef<Generation | null>(null);
   const pendingDrop = useRef<{
     token: string;
@@ -211,7 +217,12 @@ export function ReasonAIPanel({
     const controller = new AbortController();
     pending.current = controller;
     setBusy(true);
-    const timeout = setTimeout(() => controller.abort(), 65_000);
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const armTimeout = () => {
+      if (timeout) clearTimeout(timeout);
+      timeout = setTimeout(() => controller.abort(new DOMException("ReasonAI stream timeout.", "TimeoutError")), 65_000);
+    };
+    armTimeout();
     const generation =
       retry ??
       {
@@ -237,11 +248,14 @@ export function ReasonAIPanel({
         selectedNodeIds,
         selectedEdgeIds,
       );
-      const response = await fetchReasonAI("/api/reasonai/chat", JSON.stringify({
+      const currentConversationId = conversationDiagramId.current === diagram.id ? conversationId.current : undefined;
+      const response = await fetchReasonAIStreamResponse("/api/reasonai/chat", JSON.stringify({
           mode: generation.mode,
           message: generation.question,
           history: generation.history,
           context,
+          ...(currentConversationId ? { conversationId: currentConversationId } : {}),
+          idempotencyKey: crypto.randomUUID(),
         }), controller.signal);
       const headerTrace = response.headers.get("X-ReasonAI-Trace-Id") ?? "";
       const traceId = /^[a-f0-9-]{36}$/i.test(headerTrace) ? headerTrace : undefined;
@@ -249,6 +263,54 @@ export function ReasonAIPanel({
       trace("CLIENT_RESPONSE_RECEIVED", { status: response.ok ? "success" : "failed" });
       if (response.redirected || response.status === 401) {
         throw new Error("Sign in to use ReasonAI, then try again.");
+      }
+      const responseConversationId = response.headers.get("X-ReasonAI-Conversation-Id") ?? undefined;
+      const responseRunId = response.headers.get("X-ReasonAI-Run-Id") ?? undefined;
+      if (responseConversationId && /^[0-9a-f-]{36}$/i.test(responseConversationId)) {
+        conversationId.current = responseConversationId;
+        conversationDiagramId.current = diagram.id;
+        if (responseRunId && /^[0-9a-f-]{36}$/i.test(responseRunId)) activeRun.current = { conversationId: responseConversationId, runId: responseRunId };
+      }
+      if (response.headers.get("content-type")?.toLowerCase().includes("application/x-ndjson")) {
+        let runtime = createReasonAIRuntimeState();
+        const assistantId = crypto.randomUUID();
+        let finalText = "";
+        for await (const event of decodeReasonAIEventResponse(response)) {
+          if (pending.current !== controller) return;
+          armTimeout();
+          runtime = reduceReasonAIEvent(runtime, event);
+          const next = systemDesignRuntimeResponse(runtime, context);
+          if (!next) continue;
+          finalText = next.text || finalText;
+          if (event.type === "visual.ready" && next.visualization) {
+            onVisualization?.(next.visualization, reasonAIAnalysisScope(diagram));
+          }
+          const content = normalizeReasonAIVisibleText(next.text, context, next.proposal);
+          setTurns((previous) => {
+            const turn: Turn = {
+              id: assistantId,
+              role: "assistant",
+              content,
+              proposal: next.proposal,
+              sources: next.sources,
+              notice: next.notice,
+              tools: next.tools,
+              diagramId: diagram.id,
+              traceId,
+              suggestionsUnavailable: next.notice?.includes(REASONAI_SUGGESTIONS_UNAVAILABLE) ?? false,
+            };
+            const index = previous.findIndex((item) => item.id === assistantId);
+            if (index < 0) return [...previous, turn];
+            const updated = previous.slice();
+            updated[index] = turn;
+            return updated;
+          });
+        }
+        runtime = interruptReasonAIRun(runtime);
+        if (runtime.status === "failed") throw new Error(runtime.error?.message ?? "ReasonAI is unavailable. Please try again.");
+        if (runtime.status === "cancelled") throw new DOMException("Response stopped.", "AbortError");
+        if (runtime.status !== "completed" || !finalText) throw new Error("ReasonAI stream ended before the answer completed. Please try again.");
+        return;
       }
       let data;
       try {
@@ -302,9 +364,10 @@ export function ReasonAIPanel({
         );
       }
     } finally {
-      clearTimeout(timeout);
+      if (timeout) clearTimeout(timeout);
       if (pending.current === controller) {
         pending.current = null;
+        activeRun.current = undefined;
         setBusy(false);
       }
     }
@@ -312,14 +375,19 @@ export function ReasonAIPanel({
 
   function clearConversation() {
     onClearAnalysis?.();
+    const run = activeRun.current;
     pending.current?.abort();
     pending.current = null;
+    activeRun.current = undefined;
+    conversationId.current = undefined;
+    conversationDiagramId.current = undefined;
     pendingDrop.current = null;
     lastGeneration.current = null;
     setTurns([]);
     setMessage("");
     setError(null);
     setBusy(false);
+    if (run) void cancelReasonAIRun(run.conversationId, run.runId).catch(() => undefined);
   }
 
   const launcherControl = !open ? (
@@ -567,6 +635,12 @@ export function ReasonAIPanel({
               )}
               {turn.role === "user" ? "You" : "ReasonAI"}
             </p>
+            {turn.role === "assistant" && turn.tools?.map((tool) => (
+              <div key={tool.toolCallId} className="text-xs text-muted">
+                {tool.toolName === "search_web" ? "🔎 " : tool.toolName === "show_architecture_analysis" ? "◈ " : tool.toolName === "propose_canvas_changes" ? "◇ " : "• "}
+                {tool.summary}
+              </div>
+            ))}
             <p className="max-w-[65ch] whitespace-pre-wrap break-words leading-6 [overflow-wrap:anywhere]">
               {turn.content}
             </p>
@@ -710,7 +784,11 @@ export function ReasonAIPanel({
                 aria-label="Stop generating"
                 title="Stop generating"
                 className={buttonClass}
-                onClick={() => pending.current?.abort()}
+                onClick={() => {
+                  const run = activeRun.current;
+                  pending.current?.abort();
+                  if (run) void cancelReasonAIRun(run.conversationId, run.runId).catch(() => undefined);
+                }}
               >
                 <Square className="h-4 w-4" aria-hidden="true" />
               </button>

@@ -15,6 +15,36 @@ test.beforeEach(async ({ authenticatedPage: page }) => {
   await expect(page.getByTestId("system-design-canvas")).toBeVisible({ timeout: 30_000 });
 });
 
+test("System Design consumes streamed tool activity and a validated proposal without mutating the canvas", async ({ authenticatedPage: page }) => {
+  const runId = "10000000-0000-4000-8000-000000000001";
+  const messageId = "20000000-0000-4000-8000-000000000002";
+  const partId = "text-1";
+  const base = (seq: number) => ({ protocolVersion: 1, runId, seq });
+  const events = [
+    { ...base(1), type: "run.started" },
+    { ...base(2), type: "tool.started", messageId, toolCallId: "proposal-1", toolName: "propose_canvas_changes", summary: "Preparing canvas suggestions…" },
+    { ...base(3), type: "artifact.proposal", messageId, partId: "artifact-1", proposalId: "proposal-id-1", data: proposal },
+    { ...base(4), type: "tool.completed", messageId, toolCallId: "proposal-1", summary: "Canvas suggestions ready" },
+    { ...base(5), type: "text.delta", messageId, partId, delta: "I prepared a cache suggestion." },
+    { ...base(6), type: "text.final", messageId, partId, text: "I prepared a cache suggestion." },
+    { ...base(7), type: "run.completed" },
+  ];
+  await page.route("**/api/reasonai/chat", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/x-ndjson",
+    headers: { "X-ReasonAI-Conversation-Id": "30000000-0000-4000-8000-000000000003", "X-ReasonAI-Run-Id": runId },
+    body: `${events.map((event) => JSON.stringify(event)).join("\n")}\n`,
+  }));
+  await page.getByRole("button", { name: "Open ReasonAI" }).click();
+  await page.getByRole("button", { name: "Improve", exact: true }).click();
+  await page.getByRole("button", { name: "Send to ReasonAI" }).click();
+  const dialog = page.getByRole("dialog", { name: "ReasonAI", exact: true });
+  await expect(dialog).toContainText("◇ Canvas suggestions ready");
+  await expect(dialog).toContainText("I prepared a cache suggestion.");
+  await expect(dialog.getByRole("region", { name: "Suggestion: URL Service", exact: true })).toBeVisible();
+  await expect(page.getByLabel("Diagram status")).toContainText(/Nodes\s+0/);
+});
+
 test("ReasonAI floats above the canvas, can be moved, resized, and preserves drafts", async ({ authenticatedPage: page }) => {
   await page.setViewportSize({ width: 1600, height: 1000 });
   const canvas = page.getByTestId("system-design-canvas");

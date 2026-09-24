@@ -17,6 +17,11 @@ export function isReasonAIDSAStreamingEnabled(): boolean {
   return mode === "dsa" || mode === "all";
 }
 
+export function isReasonAISystemDesignStreamingEnabled(): boolean {
+  const mode = process.env.REASONAI_V2_MODE?.trim().toLowerCase() ?? "off";
+  return mode === "system_design" || mode === "all";
+}
+
 export type ReasonAIMemoryMode = "off" | "dsa" | "all";
 
 export function getReasonAIMemoryMode(): ReasonAIMemoryMode {

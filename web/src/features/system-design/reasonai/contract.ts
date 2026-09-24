@@ -21,6 +21,7 @@ export interface ReasonAIProposal { summary: string; operations: ReasonAIOperati
 export interface ReasonAIResponse { text: string; proposal?: ReasonAIProposal; visualization?: ReasonAIVisualization; sources?: ReasonAISource[]; notice?: string }
 export const REASONAI_INVALID_PROPOSAL = "ReasonAI returned an invalid canvas proposal. No changes were applied.";
 export interface ReasonAIContext {
+  diagramId?: string;
   title: string;
   requirements: string[];
   scaleAssumptions: string[];
@@ -34,6 +35,8 @@ export interface ReasonAIRequest {
   message: string;
   history: ReasonAIMessage[];
   context: ReasonAIContext;
+  conversationId?: string;
+  idempotencyKey?: string;
 }
 // These are whole-canvas restrictions. Named components, layout, and the
 // "overall design" instead constrain the scope of an explicit edit request.
@@ -133,6 +136,7 @@ const compact = (value: string | undefined, max = 2000) => redactReasonAIText(va
 export function buildReasonAIContext(diagram: SystemDesignDiagram, title: string, problem?: SystemDesignProblem, selectedNodeIds: string[] = [], selectedEdgeIds: string[] = []): ReasonAIContext {
   if (diagram.nodes.length > 200 || diagram.edges.length > 400) throw new ReasonAIValidationError("ReasonAI Stage 1 supports up to 200 nodes and 400 connections in the active diagram.");
   return {
+    diagramId: diagram.id,
     title: compact(title, 300),
     requirements: (problem?.requirements ?? []).slice(0, 30).map((item) => compact(item)),
     scaleAssumptions: (problem?.scaleAssumptions ?? []).slice(0, 30).map((item) => compact(item)),
@@ -160,11 +164,21 @@ export function parseReasonAIRequest(value: unknown): ReasonAIRequest {
   return {
     mode: member(input.mode, Object.keys(REASONAI_MODES) as ReasonAIMode[]), message,
     history: input.history.slice(-10).map((value) => { const m = record(value); return { role: member(m.role, ["user", "assistant"] as const), content: text(m.content, 8000) }; }),
-    context: { title: text(context.title, 300), requirements: array(context.requirements ?? [], 30, (v) => text(v)), scaleAssumptions: array(context.scaleAssumptions ?? [], 30, (v) => text(v)), nodes, edges,
+    context: { ...(context.diagramId === undefined ? {} : { diagramId: identifier(context.diagramId) }), title: text(context.title, 300), requirements: array(context.requirements ?? [], 30, (v) => text(v)), scaleAssumptions: array(context.scaleAssumptions ?? [], 30, (v) => text(v)), nodes, edges,
       selectedNodeIds: array(context.selectedNodeIds ?? [], 200, identifier).filter((id) => nodeIds.has(id)),
       selectedEdgeIds: array(context.selectedEdgeIds ?? [], 400, identifier).filter((id) => edgeIds.has(id)),
     },
+    ...(input.conversationId === undefined ? {} : { conversationId: uuid(input.conversationId, "conversation ID") }),
+    ...(input.idempotencyKey === undefined ? {} : { idempotencyKey: uuid(input.idempotencyKey, "idempotency key") }),
   };
+}
+
+function uuid(value: unknown, label: string): string {
+  const parsed = string(value, 128);
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(parsed)) {
+    throw new ReasonAIValidationError(`Invalid ${label}.`);
+  }
+  return parsed;
 }
 
 // These flat schemas also drive validation, keeping the tool and Apply in sync.
