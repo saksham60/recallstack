@@ -15,18 +15,6 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
-_TABLES = (
-    "knowledge_sources",
-    "knowledge_stories",
-    "knowledge_story_topics",
-    "user_knowledge_preferences",
-    "user_knowledge_topics",
-    "user_knowledge_sources",
-    "user_story_events",
-    "user_story_state",
-)
-
-
 def upgrade() -> None:
     # CREATE IF NOT EXISTS makes this safe for production, where Supabase schema ownership
     # preceded the repository migration. Fresh environments get the same contract.
@@ -218,8 +206,18 @@ def upgrade() -> None:
         """
     )
 
-    for table in _TABLES:
-        op.execute(f"ALTER TABLE public.{table} ENABLE ROW LEVEL SECURITY")
+    op.execute(
+        """
+        ALTER TABLE public.knowledge_sources ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.knowledge_stories ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.knowledge_story_topics ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.user_knowledge_preferences ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.user_knowledge_topics ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.user_knowledge_sources ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.user_story_events ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.user_story_state ENABLE ROW LEVEL SECURITY;
+        """
+    )
 
     # Production uses these tables only through FastAPI's PostgreSQL connection.
     op.execute(
