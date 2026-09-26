@@ -16,6 +16,9 @@ def test_all_approved_tables_have_module_owned_persistence_models() -> None:
     from recallstack.modules.identity.infrastructure import (
         sqlalchemy_models as identity,  # noqa: F401
     )
+    from recallstack.modules.knowledge.infrastructure import (
+        sqlalchemy_models as knowledge,  # noqa: F401
+    )
     from recallstack.modules.learning.infrastructure import (
         sqlalchemy_models as learning,  # noqa: F401
     )
@@ -26,7 +29,7 @@ def test_all_approved_tables_have_module_owned_persistence_models() -> None:
     from recallstack.modules.sync.infrastructure import sqlalchemy_models as sync  # noqa: F401
     from recallstack.shared.database.base import Base
 
-    assert len(Base.metadata.tables) == 39
+    assert len(Base.metadata.tables) == 47
 
 
 def test_domain_and_application_packages_do_not_import_sqlalchemy() -> None:

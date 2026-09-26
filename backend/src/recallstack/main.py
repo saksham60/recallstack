@@ -11,6 +11,7 @@ from recallstack.composition.category_content_list_uow import (
     SqlAlchemyCategoryContentReadUnitOfWork,
 )
 from recallstack.composition.category_dashboard_uow import SqlAlchemyCategoryDashboardUnitOfWork
+from recallstack.composition.knowledge_uow import SqlAlchemyKnowledgeUnitOfWork
 from recallstack.composition.learning_uow import SqlAlchemyLearningUnitOfWork
 from recallstack.composition.practice_attempt_uow import SqlAlchemyPracticeAttemptUnitOfWork
 from recallstack.composition.published_study_note_uow import SqlAlchemyPublishedStudyNoteUnitOfWork
@@ -42,6 +43,11 @@ from recallstack.modules.identity.application.services import IdentityService
 from recallstack.modules.identity.application.unit_of_work import IdentityUnitOfWork
 from recallstack.modules.identity.infrastructure.unit_of_work import SqlAlchemyIdentityUnitOfWork
 from recallstack.modules.identity.presentation.routes import router as identity_router
+from recallstack.modules.knowledge.application.cursor import CursorCodec
+from recallstack.modules.knowledge.application.events import EventService
+from recallstack.modules.knowledge.application.feed import FeedService
+from recallstack.modules.knowledge.application.preferences import PreferenceService
+from recallstack.modules.knowledge.presentation.routes import router as knowledge_router
 from recallstack.modules.learning.application.learning_state import LearningService
 from recallstack.modules.learning.infrastructure.activity_event_recorder import (
     SqlAlchemyActivityEventRecorder,
@@ -86,6 +92,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
         )
         app.state.database = database
+        if resolved.knowledge_enabled:
+            assert resolved.knowledge_cursor_secret is not None
+
+            def knowledge_uow() -> SqlAlchemyKnowledgeUnitOfWork:
+                return SqlAlchemyKnowledgeUnitOfWork(database.session_factory)
+
+            app.state.knowledge_feed_service = FeedService(
+                knowledge_uow,
+                CursorCodec(resolved.knowledge_cursor_secret.get_secret_value()),
+                default_limit=resolved.knowledge_feed_default_limit,
+                max_limit=resolved.knowledge_feed_max_limit,
+            )
+            app.state.knowledge_preference_service = PreferenceService(knowledge_uow)
+            app.state.knowledge_event_service = EventService(knowledge_uow)
 
         def identity_uow() -> IdentityUnitOfWork:
             return SqlAlchemyIdentityUnitOfWork(database.session_factory)
@@ -187,6 +207,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(admin_analytics_router, prefix="/api/v1")
     app.include_router(sync_router, prefix="/api/v1")
     app.include_router(diagram_router, prefix="/api/v1")
+    if resolved.knowledge_enabled:
+        app.include_router(knowledge_router, prefix="/api/v1")
     return app
 
 

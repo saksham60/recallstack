@@ -1,5 +1,8 @@
 # RecallStack backend
 
+Knowledge Shorts feed, refresh job, schema contract, and verification:
+[`docs/knowledge-shorts.md`](docs/knowledge-shorts.md).
+
 Read-only Admin Panel setup, endpoints, and metric definitions:
 [`docs/admin-panel-backend.md`](docs/admin-panel-backend.md).
 
