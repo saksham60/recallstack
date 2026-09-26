@@ -40,6 +40,37 @@ class IngestionResult:
     previews: tuple[KnowledgeStory, ...]
 
 
+def _interleave_by_source(
+    candidates: list[DiscoveryCandidate],
+    sources: dict[str, KnowledgeSource],
+    now: datetime,
+) -> list[DiscoveryCandidate]:
+    """Round-robin eligible sources so one high-weight provider cannot monopolize a run."""
+    grouped: dict[str, list[DiscoveryCandidate]] = {}
+    for candidate in candidates:
+        grouped.setdefault(candidate.source_key, []).append(candidate)
+    for group in grouped.values():
+        group.sort(key=lambda item: (item.published_at or now, item.url), reverse=True)
+    source_order = sorted(
+        grouped,
+        key=lambda key: (sources[key].quality_weight, key),
+        reverse=True,
+    )
+    positions = {key: 0 for key in source_order}
+    result: list[DiscoveryCandidate] = []
+    while True:
+        progressed = False
+        for key in source_order:
+            position = positions[key]
+            if position >= len(grouped[key]):
+                continue
+            result.append(grouped[key][position])
+            positions[key] = position + 1
+            progressed = True
+        if not progressed:
+            return result
+
+
 class IngestionService:
     def __init__(
         self,
@@ -193,11 +224,8 @@ class IngestionService:
                 counts["duplicates"] += 1
             else:
                 shortlist.append(enriched_candidate)
-        # Stable cheap priority before paid calls; only process enough chunks to fill the run limit.
-        shortlist.sort(
-            key=lambda c: (sources[c.source_key].quality_weight, c.published_at or now, c.url),
-            reverse=True,
-        )
+        # Keep quality within each source, but interleave sources before paid model calls.
+        shortlist = _interleave_by_source(shortlist, sources, now)
         previews: list[KnowledgeStory] = []
         offset = 0
         while offset < len(shortlist):
