@@ -108,13 +108,14 @@ class SqlAlchemyKnowledgeRepository:
         anchor: datetime,
         now: datetime,
         topic: str | None,
+        source: str | None,
         after: FeedPosition | None,
         limit: int,
         policy: RankingPolicy,
     ) -> tuple[RankedStory, ...]:
         score = rank_expression(preferences, anchor, policy).label("score")
         statement = (
-            select(Story, Source, score)
+            select(Story, Source, State, score)
             .join(Source, Story.source_id == Source.id)
             .outerjoin(State, and_(State.story_id == Story.id, State.profile_id == profile_id))
             .where(
@@ -143,6 +144,8 @@ class SqlAlchemyKnowledgeRepository:
             statement = statement.where(
                 exists().where(Topic.story_id == Story.id, Topic.topic == topic)
             )
+        if source is not None:
+            statement = statement.where(Source.key == source)
         if after is not None:
             statement = statement.where(
                 tuple_(score, Story.published_at, Story.id)
@@ -159,15 +162,24 @@ class SqlAlchemyKnowledgeRepository:
         ).all()
         topics = await self._topics(tuple(row[0].id for row in rows))
         return tuple(
-            RankedStory(story_to_domain(story, source, topics[story.id]), value)
-            for story, source, value in rows
+            RankedStory(story_to_domain(story, source_model, topics[story.id], state), value)
+            for story, source_model, state, value in rows
         )
 
-    async def story(self, story_id: UUID, now: datetime) -> KnowledgeStory | None:
+    async def story(
+        self,
+        story_id: UUID,
+        now: datetime,
+        profile_id: UUID | None = None,
+    ) -> KnowledgeStory | None:
         row = (
             await self._session.execute(
-                select(Story, Source)
+                select(Story, Source, State)
                 .join(Source, Story.source_id == Source.id)
+                .outerjoin(
+                    State,
+                    and_(State.story_id == Story.id, State.profile_id == profile_id),
+                )
                 .where(
                     Story.id == story_id,
                     Story.status == "active",
@@ -180,4 +192,4 @@ class SqlAlchemyKnowledgeRepository:
         if row is None:
             return None
         topics = await self._topics((story_id,))
-        return story_to_domain(row[0], row[1], topics[story_id])
+        return story_to_domain(row[0], row[1], topics[story_id], row[2])
