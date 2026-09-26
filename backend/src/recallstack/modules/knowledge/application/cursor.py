@@ -45,13 +45,15 @@ class CursorCodec:
         *,
         profile_id: UUID,
         topic: str | None,
+        source: str | None,
         fingerprint: str,
     ) -> str:
         payload = json.dumps(
             {
-                "v": 1,
+                "v": 2,
                 "u": str(profile_id),
                 "t": topic,
+                "r": source,
                 "f": fingerprint,
                 "a": cursor.anchor.isoformat(),
                 "s": str(cursor.position.score),
@@ -69,6 +71,7 @@ class CursorCodec:
         *,
         profile_id: UUID,
         topic: str | None,
+        source: str | None,
         fingerprint: str,
         now: datetime,
     ) -> FeedCursor:
@@ -80,7 +83,12 @@ class CursorCodec:
             if not hmac.compare_digest(signature, hmac.digest(self._secret, payload, "sha256")):
                 raise ValueError
             data = json.loads(payload)
-            if data["v"] != 1 or data["u"] != str(profile_id) or data["t"] != topic:
+            if (
+                data["v"] != 2
+                or data["u"] != str(profile_id)
+                or data["t"] != topic
+                or data["r"] != source
+            ):
                 raise ValueError
             anchor, published = datetime.fromisoformat(data["a"]), datetime.fromisoformat(data["p"])
             score = Decimal(data["s"])
