@@ -45,6 +45,7 @@ class FeedService:
         limit: int | None = None,
         cursor: str | None = None,
         topic: str | None = None,
+        source: str | None = None,
     ) -> FeedPage:
         started = time.perf_counter()
         limit = self._default_limit if limit is None else limit
@@ -54,16 +55,20 @@ class FeedService:
             topic = normalize_topic(topic) if topic is not None else None
         except ValueError as exc:
             raise invalid(str(exc)) from None
+        source = source.strip().lower() if source is not None else None
         now = datetime.now(UTC)
         async with self._uow() as uow:
             preferences = await uow.repository.preferences(profile_id)
             sources = await uow.repository.sources()
+            if source is not None and source not in {item.key for item in sources}:
+                raise invalid("Unknown knowledge source")
             fingerprint = preference_fingerprint(preferences, sources, self._policy)
             decoded = (
                 self._codec.decode(
                     cursor,
                     profile_id=profile_id,
                     topic=topic,
+                    source=source,
                     fingerprint=fingerprint,
                     now=now,
                 )
@@ -77,6 +82,7 @@ class FeedService:
                 anchor=anchor,
                 now=now,
                 topic=topic,
+                source=source,
                 after=decoded.position if decoded else None,
                 limit=limit + 1,
                 policy=self._policy,
@@ -91,6 +97,7 @@ class FeedService:
                 ),
                 profile_id=profile_id,
                 topic=topic,
+                source=source,
                 fingerprint=fingerprint,
             )
         logger.info(
@@ -103,9 +110,14 @@ class FeedService:
         )
         return FeedPage(tuple(row.story for row in rows), next_cursor, has_more)
 
-    async def story(self, story_id: UUID) -> KnowledgeStory:
+    async def story(
+        self,
+        story_id: UUID,
+        *,
+        profile_id: UUID | None = None,
+    ) -> KnowledgeStory:
         async with self._uow() as uow:
-            story = await uow.repository.story(story_id, datetime.now(UTC))
+            story = await uow.repository.story(story_id, datetime.now(UTC), profile_id)
         if story is None:
             raise AppError(
                 error_type="knowledge-story-not-found",
