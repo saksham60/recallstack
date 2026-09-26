@@ -41,8 +41,9 @@ const authMiddleware: Middleware = {
 // Custom fetch implementation with timeout
 const fetchWithTimeout: typeof fetch = async (input, init) => {
   const timeoutMs = 15000;
+  const signal = init?.signal ?? (input instanceof Request ? input.signal : undefined);
 
-  if (init?.signal?.aborted) {
+  if (signal?.aborted) {
     throw new DOMException("Aborted", "AbortError");
   }
 
@@ -50,11 +51,11 @@ const fetchWithTimeout: typeof fetch = async (input, init) => {
   const id = setTimeout(() => controller.abort(new Error(`Request timed out after ${timeoutMs}ms`)), timeoutMs);
 
   const abortHandler = () => {
-    controller.abort(init?.signal?.reason ?? new DOMException("Aborted", "AbortError"));
+    controller.abort(signal?.reason ?? new DOMException("Aborted", "AbortError"));
   };
 
-  if (init?.signal) {
-    init.signal.addEventListener("abort", abortHandler, { once: true });
+  if (signal) {
+    signal.addEventListener("abort", abortHandler, { once: true });
   }
 
   try {
@@ -64,15 +65,15 @@ const fetchWithTimeout: typeof fetch = async (input, init) => {
     });
     return response;
   } catch (error: unknown) {
-    if (controller.signal.aborted && !init?.signal?.aborted) {
+    if (controller.signal.aborted && !signal?.aborted) {
       // It was our timeout
       throw new Error(`Request timed out after ${timeoutMs}ms`);
     }
     throw error;
   } finally {
     clearTimeout(id);
-    if (init?.signal) {
-      init.signal.removeEventListener("abort", abortHandler);
+    if (signal) {
+      signal.removeEventListener("abort", abortHandler);
     }
   }
 };

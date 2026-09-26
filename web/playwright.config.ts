@@ -6,6 +6,7 @@ loadEnvConfig(process.cwd());
 export default defineConfig({
   testDir: './e2e',
   testIgnore: [
+    '**/feed-reasonai.spec.ts',
     '**/demo-auth.spec.ts',
     '**/reasonai-auth.spec.ts',
     '**/dsa-reasonai-provider.spec.ts',

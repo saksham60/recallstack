@@ -6,6 +6,7 @@ import { needsExactProblemContext, needsLinkedContext, searchDSAContext } from "
 import { issueWebContextToken } from "./web-context-token";
 import { DSA_VISUAL_TOOL, parseVisualLesson, type VisualLesson } from "./visual-contract";
 import { decodeTokenFactorySSE, DSAProviderStreamError } from "./provider-sse";
+import { requestReasonAICompletion } from "@/lib/reasonai/server/provider";
 
 interface TokenFactoryToolCall {
   type?: string;
@@ -190,7 +191,7 @@ export const dsaTutorProvider = {
       yield { type: "result", result: { ...empty, text: "I have the problem title and imported metadata, but not the original requirements. Enable Search web and ask again, or paste the relevant problem details here, so I can explain them accurately." } };
       return;
     }
-    const { apiKey, baseUrl, model } = getReasonAIConfiguration();
+    const { apiKey, model } = getReasonAIConfiguration();
     if (!apiKey) throw new DSATutorProviderError("ReasonAI is currently unavailable. Please try again later.", 503);
     const deadline = AbortSignal.timeout(60_000);
     const combined = signal ? AbortSignal.any([signal, deadline]) : deadline;
@@ -220,10 +221,7 @@ export const dsaTutorProvider = {
       let response: Response;
 
       try {
-        response = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
-          method: "POST", cache: "no-store", redirect: "error", signal: combined,
-          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ model, temperature: 0.2, max_tokens: visualRequested ? 8192 : 4096, stream: true,
+        response = await requestReasonAICompletion({ temperature: 0.2, max_tokens: visualRequested ? 8192 : 4096, stream: true,
             messages: [{ role: "system", content: `${DSA_SYSTEM_PROMPT}\n\nCURRENT TURN: ${turnInstruction(request)}${visualInstruction}` }, ...request.history,
               { role: "user", content: "UNTRUSTED LEARNING DATA:\n" + JSON.stringify({
               action: request.action, message: request.message, hintLevel: request.hintLevel,
@@ -234,8 +232,7 @@ export const dsaTutorProvider = {
             }) + `\n\nEND LEARNING DATA.\nTutor task: ${turnInstruction(request)}${visualInstruction}` },
               { role: "system", content: `CURRENT RESPONSE RULES: ${turnInstruction(request)}${visualInstruction}\nThe current problem is identified by RECALLSTACK_METADATA. Unsupported requirements must stay unknown. Never use a familiar title as a substitute for the supplied source. Earlier assistant answers are not evidence.` }],
             ...(visualRequested ? { tools: [DSA_VISUAL_TOOL], tool_choice: "auto" } : {}),
-          }),
-        });
+        }, combined);
       } catch (error) {
         console.error("[DSA_PROVIDER_FETCH_FAILED]", {
           traceId,

@@ -83,7 +83,8 @@ async def contract(contract_url):
                 found = set(
                     await connection.scalars(
                         text(
-                            "SELECT table_name FROM information_schema.tables WHERE table_schema='public'"
+                            "SELECT table_name FROM information_schema.tables "
+                            "WHERE table_schema='public'"
                         )
                     )
                 )

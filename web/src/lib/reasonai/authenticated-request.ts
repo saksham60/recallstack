@@ -1,6 +1,6 @@
 type SessionResult = { data: { session: { access_token: string } | null }; error: unknown };
 interface SessionAuth { getSession(): Promise<SessionResult>; refreshSession(): Promise<SessionResult> }
-export type ReasonAIEndpoint = "/api/reasonai/chat" | "/api/reasonai/dsa/chat";
+export type ReasonAIEndpoint = "/api/reasonai/chat" | "/api/reasonai/dsa/chat" | "/api/reasonai/knowledge/chat";
 export type ReasonAIResourceEndpoint = ReasonAIEndpoint
   | "/api/reasonai/conversations"
   | `/api/reasonai/conversations/${string}`;
@@ -10,6 +10,7 @@ const unavailable = () => new Error("Session verification is temporarily unavail
 function allowedEndpoint(endpoint: string): endpoint is ReasonAIResourceEndpoint {
   return endpoint === "/api/reasonai/chat"
     || endpoint === "/api/reasonai/dsa/chat"
+    || endpoint === "/api/reasonai/knowledge/chat"
     || endpoint === "/api/reasonai/conversations"
     || /^\/api\/reasonai\/conversations\/[0-9a-f-]{36}(?:\/runs\/[0-9a-f-]{36}\/cancel)?$/i.test(endpoint);
 }

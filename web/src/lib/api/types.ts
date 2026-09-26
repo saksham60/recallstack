@@ -937,6 +937,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/knowledge/feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Feed */
+        get: operations["getKnowledgeFeed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/knowledge/stories/{storyId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Story */
+        get: operations["getKnowledgeStory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/knowledge/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Preferences */
+        get: operations["getKnowledgePreferences"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Patch Preferences */
+        patch: operations["patchKnowledgePreferences"];
+        trace?: never;
+    };
+    "/api/v1/knowledge/events/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Events */
+        post: operations["recordKnowledgeEvents"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1688,6 +1757,51 @@ export interface components {
             items: components["schemas"]["DueItem"][];
             pagination: components["schemas"]["Pagination"];
         };
+        /** EventBatch */
+        EventBatch: {
+            /** Events */
+            events: components["schemas"]["EventInput"][];
+        };
+        /** EventInput */
+        EventInput: {
+            /**
+             * Eventid
+             * Format: uuid
+             */
+            eventId: string;
+            /**
+             * Storyid
+             * Format: uuid
+             */
+            storyId: string;
+            type: components["schemas"]["EventType"];
+            /**
+             * Occurredat
+             * Format: date-time
+             */
+            occurredAt: string;
+        };
+        /** EventResult */
+        EventResult: {
+            /** Accepted */
+            accepted: number;
+            /** Duplicates */
+            duplicates: number;
+        };
+        /**
+         * EventType
+         * @enum {string}
+         */
+        EventType: "VIEW" | "OPEN" | "SAVE" | "UNSAVE" | "HIDE" | "UNHIDE" | "SHARE" | "ASK_REASONAI";
+        /** FeedResponse */
+        FeedResponse: {
+            /** Items */
+            items: components["schemas"]["StoryResponse"][];
+            /** Nextcursor */
+            nextCursor: string | null;
+            /** Hasmore */
+            hasMore: boolean;
+        };
         /** FullResyncAckRequest */
         FullResyncAckRequest: {
             /**
@@ -2123,6 +2237,24 @@ export interface components {
             revision: number;
             /** Resources */
             resources: components["schemas"]["PracticeResourceResponse"][];
+        };
+        /** PreferencesPatch */
+        PreferencesPatch: {
+            /** Minimumimportance */
+            minimumImportance?: number | string | null;
+            /** Topics */
+            topics?: components["schemas"]["TopicInput-Input"][] | null;
+            /** Sources */
+            sources?: components["schemas"]["SourceInput-Input"][] | null;
+        };
+        /** PreferencesResponse */
+        PreferencesResponse: {
+            /** Minimumimportance */
+            minimumImportance: number;
+            /** Topics */
+            topics: components["schemas"]["TopicInput-Output"][];
+            /** Sources */
+            sources: components["schemas"]["SourceInput-Output"][];
         };
         /** PrimaryPracticeResourceResponse */
         PrimaryPracticeResourceResponse: {
@@ -2635,6 +2767,73 @@ export interface components {
                 [key: string]: number;
             };
         };
+        /** SourceInput */
+        "SourceInput-Input": {
+            /** Key */
+            key: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Weight
+             * @default 1
+             */
+            weight: number | string;
+        };
+        /** SourceInput */
+        "SourceInput-Output": {
+            /** Key */
+            key: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Weight
+             * @default 1
+             */
+            weight: string;
+        };
+        /** SourceResponse */
+        SourceResponse: {
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+        };
+        /** StoryResponse */
+        StoryResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Title */
+            title: string;
+            /** Summary */
+            summary: string;
+            /** Whyitmatters */
+            whyItMatters: string;
+            source: components["schemas"]["SourceResponse"];
+            /** Sourceurl */
+            sourceUrl: string;
+            /** Imageurl */
+            imageUrl: string;
+            /**
+             * Publishedat
+             * Format: date-time
+             */
+            publishedAt: string;
+            /** Topics */
+            topics: string[];
+            /** Importancescore */
+            importanceScore: number;
+            /** Qualityscore */
+            qualityScore: number;
+        };
         /** StudyNoteBlockResponse */
         StudyNoteBlockResponse: {
             /**
@@ -2823,6 +3022,36 @@ export interface components {
              * @default 0
              */
             sort_order: number;
+        };
+        /** TopicInput */
+        "TopicInput-Input": {
+            /** Topic */
+            topic: string;
+            /**
+             * Weight
+             * @default 1
+             */
+            weight: number | string;
+            /**
+             * Blocked
+             * @default false
+             */
+            blocked: boolean;
+        };
+        /** TopicInput */
+        "TopicInput-Output": {
+            /** Topic */
+            topic: string;
+            /**
+             * Weight
+             * @default 1
+             */
+            weight: string;
+            /**
+             * Blocked
+             * @default false
+             */
+            blocked: boolean;
         };
         /** TopicProgress */
         TopicProgress: {
@@ -5311,6 +5540,156 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DiagramResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getKnowledgeFeed: {
+        parameters: {
+            query?: {
+                limit?: number | null;
+                cursor?: string | null;
+                topic?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getKnowledgeStory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                storyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getKnowledgePreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferencesResponse"];
+                };
+            };
+        };
+    };
+    patchKnowledgePreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreferencesPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferencesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recordKnowledgeEvents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EventBatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventResult"];
                 };
             };
             /** @description Validation Error */

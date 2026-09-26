@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Network } from "lucide-react";
 import { useProfile } from "@/features/profile";
 
@@ -10,6 +11,7 @@ export function AdminNavigationLink({
   systemDesignEnabled: boolean;
 }) {
   const { data } = useProfile();
+  const pathname = usePathname();
   const isAdmin = data?.roles.includes("admin") ?? false;
 
   return (
@@ -18,7 +20,9 @@ export function AdminNavigationLink({
         <Link
           href="/system-design"
           aria-label="System Design"
-          className="flex items-center text-sm font-medium text-accent transition-colors hover:text-foreground"
+          title="System Design"
+          aria-current={pathname.startsWith("/system-design") ? "page" : undefined}
+          className={`flex items-center py-2 text-sm font-medium transition-colors hover:text-foreground ${pathname.startsWith("/system-design") ? "text-accent" : "text-muted"}`}
         >
           <Network
             aria-hidden="true"

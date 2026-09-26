@@ -1,5 +1,9 @@
+"use client";
+
 import React from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Code2, Newspaper } from "lucide-react";
 import { UserMenu } from "./UserMenu";
 import { GlobalSearch } from "./GlobalSearch";
 import { AdminNavigationLink } from "./AdminNavigationLink";
@@ -9,6 +13,9 @@ export function TopNavigation({
 }: {
   systemDesignEnabled: boolean;
 }) {
+  const pathname = usePathname();
+  const active = (path: string) => pathname === path || pathname.startsWith(`${path}/`);
+  const linkClass = (path: string) => `flex items-center gap-2 rounded-md py-2 text-sm font-medium transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-accent ${active(path) ? "text-accent" : "text-muted"}`;
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-surface/80 backdrop-blur">
       <div className="max-w-7xl mx-auto flex h-14 items-center justify-between px-4 sm:px-6 lg:px-8 gap-2 sm:gap-4">
@@ -17,17 +24,19 @@ export function TopNavigation({
           <span className="font-bold sm:inline-block text-accent">ReasonAI</span>
         </Link>
         
-        <div className="flex items-center gap-2 md:gap-6 shrink-0">
-          <Link href="/dsa" className="text-sm font-medium text-muted hover:text-foreground transition-colors hidden sm:block">
-            DSA
-          </Link>
-          <Link href="/dsa" className="text-sm font-medium text-muted hover:text-foreground transition-colors sm:hidden">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <nav aria-label="Main navigation" className="flex items-center gap-3 md:gap-6 shrink-0">
+          <Link href="/dsa" aria-label="DSA" title="DSA" aria-current={active("/dsa") ? "page" : undefined} className={linkClass("/dsa")}>
+            <Code2 size={20} aria-hidden="true" className="sm:hidden" />
+            <span className="hidden sm:inline">DSA</span>
           </Link>
           <AdminNavigationLink
             systemDesignEnabled={systemDesignEnabled}
           />
-        </div>
+          <Link href="/feed" aria-label="Feed" title="Feed" aria-current={active("/feed") ? "page" : undefined} className={linkClass("/feed")}>
+            <Newspaper size={18} aria-hidden="true" />
+            <span className="hidden sm:inline">Feed</span>
+          </Link>
+        </nav>
         
         <div className="flex-1 max-w-xl mx-auto flex justify-center w-full min-w-0">
           <GlobalSearch />
