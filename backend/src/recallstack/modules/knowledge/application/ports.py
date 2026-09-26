@@ -45,11 +45,17 @@ class KnowledgeRepository(Protocol):
         anchor: datetime,
         now: datetime,
         topic: str | None,
+        source: str | None,
         after: FeedPosition | None,
         limit: int,
         policy: RankingPolicy,
     ) -> tuple[RankedStory, ...]: ...
-    async def story(self, story_id: UUID, now: datetime) -> KnowledgeStory | None: ...
+    async def story(
+        self,
+        story_id: UUID,
+        now: datetime,
+        profile_id: UUID | None = None,
+    ) -> KnowledgeStory | None: ...
     async def record_events(
         self,
         profile_id: UUID,
