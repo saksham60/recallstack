@@ -89,9 +89,7 @@ async def contract(contract_url):
                     )
                 )
                 if missing := set(expected) - found:
-                    pytest.skip(
-                        "Knowledge migration missing: " + ", ".join(sorted(missing))
-                    )
+                    pytest.skip("Knowledge migration missing: " + ", ".join(sorted(missing)))
                 # Timeouts keep failures bounded; no credentials or provider calls.
                 await connection.execute(text("SET LOCAL statement_timeout = '20s'"))
                 user, other, source_id = uuid4(), uuid4(), uuid4()
