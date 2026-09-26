@@ -80,16 +80,40 @@ def test_preferred_topic_improves_deterministic_score():
 def test_cursor_signed_scoped_stable_and_expiring():
     codec, user, now = CursorCodec("x" * 32), uuid4(), datetime.now(UTC)
     cursor = FeedCursor(now, FeedPosition(Decimal("0.8"), now, uuid4()))
-    value = codec.encode(cursor, profile_id=user, topic="ai", fingerprint="a")
-    assert codec.decode(value, profile_id=user, topic="ai", fingerprint="a", now=now) == cursor
-    for token, uid, topic, fingerprint, clock in [
-        (value[:-2] + "xx", user, "ai", "a", now),
-        (value, uuid4(), "ai", "a", now),
-        (value, user, "rust", "a", now),
-        (value, user, "ai", "b", now),
-        (value, user, "ai", "a", now + timedelta(hours=2)),
-        ("!invalid", user, "ai", "a", now),
-        ("x" * 2049, user, "ai", "a", now),
+    value = codec.encode(
+        cursor,
+        profile_id=user,
+        topic="ai",
+        source="web",
+        fingerprint="a",
+    )
+    assert (
+        codec.decode(
+            value,
+            profile_id=user,
+            topic="ai",
+            source="web",
+            fingerprint="a",
+            now=now,
+        )
+        == cursor
+    )
+    for token, uid, topic, source, fingerprint, clock in [
+        (value[:-2] + "xx", user, "ai", "web", "a", now),
+        (value, uuid4(), "ai", "web", "a", now),
+        (value, user, "rust", "web", "a", now),
+        (value, user, "ai", "hacker_news", "a", now),
+        (value, user, "ai", "web", "b", now),
+        (value, user, "ai", "web", "a", now + timedelta(hours=2)),
+        ("!invalid", user, "ai", "web", "a", now),
+        ("x" * 2049, user, "ai", "web", "a", now),
     ]:
         with pytest.raises(AppError):
-            codec.decode(token, profile_id=uid, topic=topic, fingerprint=fingerprint, now=clock)
+            codec.decode(
+                token,
+                profile_id=uid,
+                topic=topic,
+                source=source,
+                fingerprint=fingerprint,
+                now=clock,
+            )

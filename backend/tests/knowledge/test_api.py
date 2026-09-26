@@ -62,7 +62,7 @@ class FakeRepository:
             < (after.score, after.published_at, after.story_id)
         )[: kwargs["limit"]]
 
-    async def story(self, story_id, now):
+    async def story(self, story_id, now, profile_id=None):
         return next((row.story for row in self.rows if row.story.id == story_id), None)
 
     async def record_events(self, profile_id, events, now):
@@ -157,6 +157,7 @@ async def test_feed_serialization_and_stable_pagination(api):
         ids.extend(item["id"] for item in data["items"])
         first = data["items"][0]
         assert "imageKey" not in first and "sourceUrl" in first and "whyItMatters" in first
+        assert first["viewerState"] == {"saved": False, "seenAt": None}
         assert isinstance(first["qualityScore"], float)
         if not data["hasMore"]:
             break
@@ -165,14 +166,43 @@ async def test_feed_serialization_and_stable_pagination(api):
     assert all(call["anchor"] == repo.feed_calls[0]["anchor"] for call in repo.feed_calls)
 
 
+async def test_feed_source_filter_is_forwarded_and_cursor_scoped(api):
+    app, client, user, repo, _ = api
+    authenticate(app, user)
+    first = await client.get("/api/v1/knowledge/feed", params={"limit": 2, "source": "web"})
+    assert first.status_code == 200, first.text
+    assert repo.feed_calls[-1]["source"] == "web"
+    cursor = first.json()["nextCursor"]
+    if cursor:
+        changed = await client.get(
+            "/api/v1/knowledge/feed",
+            params={"limit": 2, "cursor": cursor},
+        )
+        assert changed.status_code == 422
+
+
 @pytest.mark.parametrize(
     "params",
-    [{"limit": 0}, {"limit": 51}, {"cursor": "bad"}, {"cursor": "x" * 2049}, {"topic": "!bad"}],
+    [
+        {"limit": 0},
+        {"limit": 51},
+        {"cursor": "bad"},
+        {"cursor": "x" * 2049},
+        {"topic": "!bad"},
+        {"source": "!bad"},
+    ],
 )
 async def test_bad_feed_parameters(api, params):
     app, client, user, _, _ = api
     authenticate(app, user)
     assert (await client.get("/api/v1/knowledge/feed", params=params)).status_code == 422
+
+
+async def test_unknown_source_is_rejected(api):
+    app, client, user, _, _ = api
+    authenticate(app, user)
+    response = await client.get("/api/v1/knowledge/feed", params={"source": "hacker_news"})
+    assert response.status_code == 422
 
 
 async def test_preferences_replacement_block_unblock_and_user_isolation(api):

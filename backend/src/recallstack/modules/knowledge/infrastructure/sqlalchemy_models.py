@@ -1,4 +1,4 @@
-"""Mappings for the externally owned Knowledge contract. No migrations or DDL at runtime."""
+"""Mappings for the Knowledge schema owned by Alembic migration 20260926_0018."""
 
 from datetime import datetime
 from decimal import Decimal
@@ -9,11 +9,12 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    Index,
     Numeric,
     String,
     Text,
-    UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -38,7 +39,15 @@ class KnowledgeSourceModel(Timestamps, Base):
 
 class KnowledgeStoryModel(Timestamps, Base):
     __tablename__ = "knowledge_stories"
-    __table_args__ = (UniqueConstraint("source_id", "external_id"),)
+    __table_args__ = (
+        Index(
+            "uq_knowledge_stories_source_external_id",
+            "source_id",
+            "external_id",
+            unique=True,
+            postgresql_where=text("external_id IS NOT NULL"),
+        ),
+    )
     id: Mapped[UUID] = mapped_column(primary_key=True)
     source_id: Mapped[UUID] = mapped_column(ForeignKey("knowledge_sources.id", ondelete="RESTRICT"))
     external_id: Mapped[str | None] = mapped_column(String(255))

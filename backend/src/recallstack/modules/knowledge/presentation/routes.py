@@ -32,9 +32,19 @@ async def feed(
     limit: Annotated[int | None, Query(ge=1, le=50)] = None,
     cursor: Annotated[str | None, Query(min_length=1, max_length=2048)] = None,
     topic: Annotated[str | None, Query(min_length=1, max_length=80)] = None,
+    source: Annotated[
+        str | None,
+        Query(min_length=1, max_length=80, pattern=r"^[a-z0-9][a-z0-9_-]{0,79}$"),
+    ] = None,
 ) -> FeedResponse:
     service = cast(FeedService, request.app.state.knowledge_feed_service)
-    result = await service.query(current_user.profile_id, limit=limit, cursor=cursor, topic=topic)
+    result = await service.query(
+        current_user.profile_id,
+        limit=limit,
+        cursor=cursor,
+        topic=topic,
+        source=source,
+    )
     return FeedResponse.model_validate(result)
 
 
@@ -45,7 +55,9 @@ async def story(
     current_user: CurrentUserDependency,
 ) -> StoryResponse:
     service = cast(FeedService, request.app.state.knowledge_feed_service)
-    return StoryResponse.model_validate(await service.story(story_id))
+    return StoryResponse.model_validate(
+        await service.story(story_id, profile_id=current_user.profile_id)
+    )
 
 
 @router.get(
