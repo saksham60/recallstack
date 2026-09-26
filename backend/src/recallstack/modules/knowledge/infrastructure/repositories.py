@@ -108,10 +108,10 @@ class SqlAlchemyKnowledgeRepository:
         anchor: datetime,
         now: datetime,
         topic: str | None,
-        source: str | None,
         after: FeedPosition | None,
         limit: int,
         policy: RankingPolicy,
+        source: str | None = None,
     ) -> tuple[RankedStory, ...]:
         score = rank_expression(preferences, anchor, policy).label("score")
         statement = (
