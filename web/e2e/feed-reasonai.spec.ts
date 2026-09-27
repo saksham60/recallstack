@@ -7,7 +7,8 @@ import { decodeReasonAIEventResponse } from "../src/lib/reasonai/streaming-clien
 const story: FeedStory = {
   id: "10000000-0000-4000-8000-000000000001", title: "A better way to cache", summary: "A small cache reduces repeated reads.", whyItMatters: "Lower latency.",
   topics: ["system-design"], source: { key: "source", name: "Engineering journal" }, sourceUrl: "https://example.test/article", imageUrl: "https://images.test/a.webp",
-  publishedAt: "2026-09-25T10:00:00Z", importanceScore: 70, qualityScore: 90,
+  publishedAt: "2026-09-25T10:00:00Z", importanceScore: 0.7, qualityScore: 0.9,
+  viewerState: { saved: false, seenAt: null },
 };
 const input = { context: story, message: "Explain it simply", history: [] };
 const originalFetch = globalThis.fetch;

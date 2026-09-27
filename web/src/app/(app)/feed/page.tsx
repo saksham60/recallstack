@@ -1,7 +1,6 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import { FeedScreen } from "@/features/feed";
-import { FeedSkeleton } from "@/features/feed/StoryCard";
+import { FeedScreen, FeedSkeleton } from "@/features/feed";
 
 export const metadata: Metadata = { title: "Knowledge Feed | ReasonAI" };
 

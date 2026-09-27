@@ -14,7 +14,7 @@
     "test:e2e": "playwright test",
     "test:system-design-state": "playwright test --config=playwright.system-design-state.config.ts",
     "test:e2e:system-design-disabled": "playwright test --config=playwright.system-design-disabled.config.ts",
-    "api:generate": "openapi-typescript ../backend/openapi.json -o src/lib/api/types.ts",
+    "api:generate": "node scripts/generate-api.mjs",
     "verify": "npm run typecheck && npm run lint && npm run build && npm run test:system-design-state && npm run test:e2e && npm run test:e2e:system-design-disabled"
   },
   "dependencies": {

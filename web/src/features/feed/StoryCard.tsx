@@ -22,11 +22,11 @@ export function StoryImage({ story }: { story: FeedStory }) {
 }
 
 export function StoryActions({ story, actions, onAsk }: { story: FeedStory; actions: FeedActions; onAsk: () => void }) {
-  const saved = actions.saved[story.id];
+  const saved = story.viewerState.saved;
   const notice = actions.notice?.storyId === story.id ? actions.notice : undefined;
   return <div>
     <div className="flex flex-wrap items-center gap-1 border-t border-border/50 pt-3">
-      <button type="button" aria-pressed={saved} title={saved ? "Remove from saved" : "Save story"} disabled={actions.pending} onClick={() => void actions.toggleSave(story.id)} className={`${feedButton} ${saved ? "text-accent" : "text-muted"}`}>
+      <button type="button" aria-pressed={saved} title={saved ? "Remove from saved" : "Save story"} disabled={actions.pending} onClick={() => void actions.toggleSave(story)} className={`${feedButton} ${saved ? "text-accent" : "text-muted"}`}>
         {saved ? <Check size={17} aria-hidden="true" /> : <Bookmark size={17} aria-hidden="true" />}{saved ? "Saved" : "Save"}
       </button>
       <button type="button" onClick={() => void actions.share(story.id, story.title)} className={`${feedButton} text-muted`}><Share2 size={17} aria-hidden="true" />Share</button>

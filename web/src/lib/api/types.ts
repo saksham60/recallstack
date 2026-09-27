@@ -2833,6 +2833,7 @@ export interface components {
             importanceScore: number;
             /** Qualityscore */
             qualityScore: number;
+            viewerState: components["schemas"]["ViewerStateResponse"];
         };
         /** StudyNoteBlockResponse */
         StudyNoteBlockResponse: {
@@ -3262,6 +3263,13 @@ export interface components {
             updated_at: string;
             /** History */
             history: components["schemas"]["WorkflowHistoryResponse"][];
+        };
+        /** ViewerStateResponse */
+        ViewerStateResponse: {
+            /** Saved */
+            saved: boolean;
+            /** Seenat */
+            seenAt: string | null;
         };
         /** WorkflowHistoryResponse */
         WorkflowHistoryResponse: {
@@ -5559,6 +5567,7 @@ export interface operations {
                 limit?: number | null;
                 cursor?: string | null;
                 topic?: string | null;
+                source?: string | null;
             };
             header?: never;
             path?: never;

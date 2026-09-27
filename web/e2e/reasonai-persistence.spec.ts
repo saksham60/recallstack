@@ -264,7 +264,7 @@ test("failed runs retain visible partial text without representing it as complet
   expect(replay).toMatchObject({ kind: "replay", run: { status: "failed", errorCode: "PROVIDER_FAILURE", lastSeq: 3 } });
 });
 
-test("terminal persistence retries after a transient finalize failure without duplicating success", async () => {
+test("terminal persistence falls back to interrupted after a finalize failure without duplicating the transcript", async () => {
   const repository = new MemoryReasonAIPersistenceRepository();
   const prepared = await prepareDSARun(repository, userA, { ...request, idempotencyKey: crypto.randomUUID() });
   if (prepared.kind !== "acquired") throw new Error("Expected acquired run");
@@ -282,9 +282,12 @@ test("terminal persistence retries after a transient finalize failure without du
   ];
   for await (const event of persistReasonAITranscript(repository, userA, prepared.conversation.id, prepared.run.id, events, undefined, defaultDSADurableConversationState)) void event;
   expect(finalizeCalls).toBe(2);
+  // The existing fallback deliberately avoids claiming successful durable completion.
   expect(await repository.acquireRun(userA, prepared.conversation.id, prepared.run.idempotencyKey))
-    .toMatchObject({ kind: "replay", run: { status: "completed" } });
-  expect((await repository.getConversation(userA, prepared.conversation.id))?.messages.filter((item) => item.role === "assistant")).toHaveLength(1);
+    .toMatchObject({ kind: "replay", run: { status: "interrupted" } });
+  const assistants = (await repository.getConversation(userA, prepared.conversation.id))?.messages.filter((item) => item.role === "assistant");
+  expect(assistants).toHaveLength(1);
+  expect(assistants?.[0].status).toBe("interrupted");
 });
 
 test("abort after text.final cannot leave the run active and the next prompt acquires", async () => {

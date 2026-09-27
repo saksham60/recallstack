@@ -19,15 +19,18 @@ export const storySchema: z.ZodType<FeedStory> = z.object({
   topics: z.array(z.string().min(1).max(80)).max(50),
   importanceScore: z.number(),
   qualityScore: z.number(),
+  viewerState: z.object({ saved: z.boolean(), seenAt: z.string().nullable() }),
 });
 
 export function parseFeedPage(value: unknown): FeedPage {
   const page = z.object({ items: z.array(z.unknown()).max(50), nextCursor: z.string().max(2048).nullable(), hasMore: z.boolean() }).parse(value);
   if (page.hasMore && !page.nextCursor) throw new Error("Incomplete feed page.");
-  return { ...page, items: page.items.flatMap((item) => {
+  const items = page.items.flatMap((item) => {
     const result = storySchema.safeParse(item);
     return result.success ? [result.data] : [];
-  }) };
+  });
+  if (page.items.length && !items.length) throw new Error("No readable stories in this response.");
+  return { ...page, items };
 }
 
 export function topicLabel(topic: string) {

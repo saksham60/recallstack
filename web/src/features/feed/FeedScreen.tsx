@@ -30,7 +30,7 @@ function FeedWorkspace({ userId }: { userId: string }) {
   const [start, setStart] = useState<string | null>(null);
   const query = useFeed(userId, topic, start);
   const client = useQueryClient();
-  const actions = useFeedActions();
+  const actions = useFeedActions(userId);
   const sentinel = useRef<HTMLDivElement>(null);
   const loading = useRef(false);
   const pages = query.data?.pages ?? [];

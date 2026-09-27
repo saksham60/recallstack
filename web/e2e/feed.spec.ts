@@ -1,11 +1,13 @@
 import { test, expect } from "./fixtures/authenticated-test";
 import type { Page } from "@playwright/test";
+import type { FeedStory } from "../src/features/feed/model";
 
 const id = (number: number) => `10000000-0000-4000-8000-${String(number).padStart(12, "0")}`;
-const story = (number: number) => ({
+const story = (number: number): FeedStory => ({
   id: id(number), title: `A smarter cache ${number}`, summary: "A small cache can remove repeated database reads. This briefing explores the trade-offs behind a faster, more reliable service.",
   whyItMatters: "Knowing when to cache helps you balance latency against freshness.", source: { key: "engineering", name: "Engineering journal" },
-  sourceUrl: "https://example.test/cache", imageUrl: "https://images.test/cache.webp", publishedAt: new Date().toISOString(), topics: ["system-design", "cloud"], importanceScore: 75, qualityScore: 90,
+  sourceUrl: "https://example.test/cache", imageUrl: "https://images.test/cache.webp", publishedAt: new Date().toISOString(), topics: ["system-design", "cloud"], importanceScore: 0.75, qualityScore: 0.9,
+  viewerState: { saved: false, seenAt: null },
 });
 
 async function setup(page: Page, count = 3) {
@@ -112,12 +114,31 @@ test("clipboard sharing uses the internal detail URL", async ({ authenticatedPag
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`http://localhost:3000/feed?story=${id(1)}`);
 });
 
+test("hydrates saved stories from the merged backend contract", async ({ authenticatedPage: page }) => {
+  await setup(page, 1);
+  let saved = true;
+  await page.route("**/api/v1/knowledge/feed*", (route) => route.fulfill({ json: { items: [{ ...story(1), viewerState: { saved, seenAt: null } }], nextCursor: null, hasMore: false } }));
+  await page.route("**/api/v1/knowledge/events/batch", (route) => {
+    for (const event of route.request().postDataJSON().events) {
+      if (event.type === "UNSAVE") saved = false;
+      if (event.type === "SAVE") saved = true;
+    }
+    return route.fulfill({ json: { accepted: 1, duplicates: 0 } });
+  });
+  await page.goto("/feed");
+  await expect(page.getByRole("button", { name: "Saved", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Saved", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save", exact: true })).toHaveAttribute("aria-pressed", "false");
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Save", exact: true })).toHaveAttribute("aria-pressed", "false");
+});
+
 for (const status of [401, 403, 429, 500]) test(`handles HTTP ${status} without loops or leaking backend errors`, async ({ authenticatedPage: page }) => {
   await setup(page);
   let requests = 0;
   await page.route("**/api/v1/knowledge/feed*", (route) => { requests++; return route.fulfill({ status, json: { detail: "private backend error" } }); });
   await page.goto("/feed");
-  await expect(page.getByRole("alert")).toContainText("Feed unavailable");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("Feed unavailable");
   await expect(page.getByText("private backend error")).toHaveCount(0);
   if (status === 401) await expect(page.getByRole("link", { name: "Sign in again" })).toBeVisible();
   expect(requests).toBe(status === 401 || status === 500 ? 2 : 1);

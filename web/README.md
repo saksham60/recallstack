@@ -2,6 +2,10 @@
 
 The ReasonAI web application is a Next.js App Router client for the ReasonAI API. It uses Supabase authentication, TanStack Query for server state, and generated OpenAPI types for API contracts.
 
+Knowledge Feed is available at `/feed`. See [the integration notes](docs/knowledge-feed.md) for the API contract, ReasonAI handoff, and verification results.
+
+`npm run api:generate` uses `uv` and the checked-out backend Python application to generate the current contract, with Knowledge routes included. It does not start the backend lifespan, connect to the database, or modify backend files. Run `uv sync --frozen` in `backend` first if that environment is not installed.
+
 ## Requirements
 
 - Node.js 22 or newer

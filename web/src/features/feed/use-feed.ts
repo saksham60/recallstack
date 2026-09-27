@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { feedApi, feedErrorMessage, retryFeedRequest } from "./api";
-import type { FeedEvent } from "./model";
+import type { FeedEvent, FeedPage, FeedStory } from "./model";
 
 export const feedKeys = {
   list: (userId: string, topic: string, start: string | null) => ["feed", userId, topic, start] as const,
@@ -34,12 +34,12 @@ function event(storyId: string, type: FeedEvent["type"]): FeedEvent {
 }
 
 /** Analytics are best-effort; Save waits for durable API acknowledgement. */
-export function useFeedActions() {
+export function useFeedActions(userId: string) {
+  const client = useQueryClient();
   const queue = useRef<FeedEvent[]>([]);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const viewed = useRef(new Set<string>());
   const saving = useRef(false);
-  const [saved, setSaved] = useState<Record<string, boolean>>({});
   const [notice, setNotice] = useState<{ storyId: string; text: string; failed?: boolean }>();
   const mutation = useMutation({ mutationFn: (item: FeedEvent) => feedApi.events([item]), retry: retryFeedRequest });
   const track = useCallback((id: string, type: FeedEvent["type"]) => {
@@ -58,15 +58,17 @@ export function useFeedActions() {
   }, []);
   useEffect(() => () => { clearTimeout(timer.current); queue.current = []; }, []);
 
-  async function toggleSave(id: string) {
+  async function toggleSave(story: FeedStory) {
     if (saving.current) return;
     saving.current = true;
     setNotice(undefined);
-    const next = !saved[id];
+    const id = story.id;
+    const next = !story.viewerState.saved;
     try {
-      // TODO(API): hydrate saved state once StoryResponse exposes the user projection.
       await mutation.mutateAsync(event(id, next ? "SAVE" : "UNSAVE"));
-      setSaved((current) => Object.fromEntries([...Object.entries(current).filter(([key]) => key !== id).slice(-99), [id, next]]));
+      const update = (item: FeedStory) => item.id === id ? { ...item, viewerState: { ...item.viewerState, saved: next } } : item;
+      client.setQueriesData<InfiniteData<FeedPage>>({ queryKey: ["feed", userId] }, (current) => current ? { ...current, pages: current.pages.map((page) => ({ ...page, items: page.items.map(update) })) } : current);
+      client.setQueryData<FeedStory>(feedKeys.story(userId, id), (current) => current ? update(current) : current);
       setNotice({ storyId: id, text: next ? "Story saved" : "Story removed from saved" });
     } catch (error) { setNotice({ storyId: id, text: feedErrorMessage(error), failed: true }); }
     finally { saving.current = false; }
@@ -86,7 +88,7 @@ export function useFeedActions() {
     }
   }
 
-  return { saved, notice, pending: mutation.isPending, toggleSave, share, track };
+  return { notice, pending: mutation.isPending, toggleSave, share, track };
 }
 
 export type FeedActions = ReturnType<typeof useFeedActions>;
