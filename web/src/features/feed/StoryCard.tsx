@@ -11,7 +11,7 @@ export const feedButton = "inline-flex min-h-11 items-center justify-center gap-
 export function StoryImage({ story }: { story: FeedStory }) {
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
-  return <div data-testid="story-media" className="relative mx-auto aspect-[4/5] w-full max-w-[480px] overflow-hidden bg-surface-elevated">
+  return <div data-testid="story-media" className="relative mx-auto aspect-[4/5] w-full overflow-hidden bg-surface-elevated">
     {!failed && story.imageUrl ? <>
       {!loaded && <div aria-hidden="true" className="absolute inset-0 motion-safe:animate-pulse bg-border/30" />}
       <Image src={story.imageUrl} alt={`Illustration for ${story.title}`} fill unoptimized loading="lazy" sizes="(max-width: 480px) 100vw, 480px"
@@ -75,7 +75,7 @@ export function StoryCard({ story, actions, onOpen, onAsk }: { story: FeedStory;
 export function FeedSkeleton({ count = 2 }: { count?: number }) {
   return <div role="status" aria-label="Loading stories" className="space-y-7"><span className="sr-only">Loading stories…</span>{Array.from({ length: count }, (_, index) => <div key={index} aria-hidden="true" className="overflow-hidden rounded-2xl border border-border/30 bg-surface">
     <div className="h-11 px-4 py-4"><div className="h-3 w-24 rounded bg-surface-elevated motion-safe:animate-pulse" /></div>
-    <div className="bg-surface-elevated/35"><div className="mx-auto aspect-[4/5] w-full max-w-[480px] bg-surface-elevated motion-safe:animate-pulse" /></div>
+    <div className="bg-surface-elevated/35"><div className="mx-auto aspect-[4/5] w-full bg-surface-elevated motion-safe:animate-pulse" /></div>
     <div className="space-y-4 p-5"><div className="h-6 w-4/5 rounded bg-surface-elevated" /><div className="h-4 rounded bg-surface-elevated" /><div className="h-4 w-5/6 rounded bg-surface-elevated" /><div className="h-10 w-3/4 rounded bg-surface-elevated/70" /><div className="mt-6 h-11 rounded bg-surface-elevated/60" /></div>
   </div>)}</div>;
 }
