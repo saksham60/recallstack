@@ -177,11 +177,12 @@ async def test_model_rejects_invalid_output_without_leaking_key(content):
     assert "super-secret" not in str(error.value)
 
 
-async def test_model_validates_structured_output():
+async def test_model_validates_structured_output_and_adds_broad_category():
     output = {
         "title": "A new database engine",
         "summary": "Technical performance summary. " * 3,
         "why_it_matters": "This reduces engineering latency.",
+        "category": "agents",
         "topics": ["AI Agents"],
         "importance_score": 0.9,
         "quality_score": 0.8,
@@ -189,7 +190,10 @@ async def test_model_validates_structured_output():
     }
 
     def handler(request):
-        assert json.loads(request.content)["response_format"]["type"] == "json_schema"
+        body = json.loads(request.content)
+        assert body["response_format"]["type"] == "json_schema"
+        schema = body["response_format"]["json_schema"]["schema"]
+        assert "category" in schema["required"]
         return httpx.Response(
             200,
             json={
@@ -201,7 +205,7 @@ async def test_model_validates_structured_output():
         result = await NemotronProcessor(
             ProviderHttp(client), key="secret", model="model", base_url="https://example.com/v1"
         ).process(candidate())
-    assert result.topics == ("ai-agents",)
+    assert result.topics == ("agents", "ai-agents")
 
 
 async def test_provider_timeout_is_safe():

@@ -1,6 +1,6 @@
 # Knowledge persistence contract
 
-Externally owned by the Supabase schema task; no backend migration is included.
+Owned in-repository by Alembic migration `20260926_0018_knowledge_shorts.py`. Production Supabase was provisioned before that migration was checked in, so the migration is intentionally idempotent against the existing contract while creating the same schema in fresh environments.
 User-owned rows reference the existing `profiles.id`. All timestamps are timezone-aware.
 
 ## `knowledge_sources`
@@ -87,10 +87,10 @@ Constraints:
 cardinality(bullets) <= 3
 ```
 
-When `external_id` is present:
+When `external_id` is present, the production contract uses a partial unique index:
 
 ```text
-UNIQUE(source_id, external_id)
+UNIQUE(source_id, external_id) WHERE external_id IS NOT NULL
 ```
 
 Feed must ALWAYS additionally enforce:
@@ -195,6 +195,12 @@ Primary key:
 (profile_id, topic)
 ```
 
+Index:
+
+```text
+(profile_id, blocked, topic)
+```
+
 Use explicit topic preferences for deterministic ranking.
 
 ---
@@ -221,6 +227,12 @@ Primary key:
 
 ```text
 (profile_id, source_id)
+```
+
+FK support index:
+
+```text
+(source_id)
 ```
 
 ---
@@ -268,6 +280,8 @@ Indexes:
 (profile_id, story_id, occurred_at DESC)
 
 (profile_id, occurred_at DESC)
+
+(story_id)
 ```
 
 When a story is removed after seven days its raw event rows disappear through cascade.
@@ -276,7 +290,7 @@ When a story is removed after seven days its raw event rows disappear through ca
 
 ## `user_story_state`
 
-Add this table specifically for the low-latency read path.
+This table exists specifically for the low-latency read path.
 
 Do NOT reconstruct current state by aggregating `user_story_events` on every feed request.
 
@@ -303,6 +317,13 @@ Primary key:
 (profile_id, story_id)
 ```
 
+Indexes:
+
+```text
+(profile_id, hidden, story_id)
+(story_id)
+```
+
 Stateful events update this projection transactionally:
 
 ```text
@@ -315,9 +336,10 @@ UNHIDE    -> hidden=false
 
 `user_story_events` = history/telemetry.
 
-`user_story_state` = cheap current-state lookup for feed serving.
+`user_story_state` = cheap current-state lookup for feed serving and `viewerState` response fields.
 
 Both disappear naturally when the seven-day story disappears.
 
 ---
 
+All eight tables have RLS enabled. `anon` and `authenticated` receive no direct table privileges because the supported data path is browser/client -> FastAPI -> PostgreSQL.

@@ -1,7 +1,12 @@
-from recallstack.modules.knowledge.domain.entities import KnowledgeSource, KnowledgeStory
+from recallstack.modules.knowledge.domain.entities import (
+    KnowledgeSource,
+    KnowledgeStory,
+    ViewerState,
+)
 from recallstack.modules.knowledge.infrastructure.sqlalchemy_models import (
     KnowledgeSourceModel,
     KnowledgeStoryModel,
+    StoryStateModel,
 )
 
 
@@ -20,6 +25,7 @@ def story_to_domain(
     story: KnowledgeStoryModel,
     source: KnowledgeSourceModel,
     topics: tuple[str, ...],
+    state: StoryStateModel | None = None,
 ) -> KnowledgeStory:
     return KnowledgeStory(
         id=story.id,
@@ -39,4 +45,8 @@ def story_to_domain(
         bullets=tuple(story.bullets),
         external_id=story.external_id,
         status=story.status,
+        viewer_state=ViewerState(
+            saved=bool(state.saved) if state is not None else False,
+            seen_at=state.seen_at if state is not None else None,
+        ),
     )

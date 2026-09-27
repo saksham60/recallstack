@@ -24,6 +24,11 @@ class SourceResponse(Schema):
     name: str
 
 
+class ViewerStateResponse(Schema):
+    saved: bool
+    seen_at: datetime | None
+
+
 class StoryResponse(Schema):
     id: UUID
     title: str
@@ -36,6 +41,7 @@ class StoryResponse(Schema):
     topics: tuple[str, ...]
     importance_score: float
     quality_score: float
+    viewer_state: ViewerStateResponse
 
 
 class FeedResponse(Schema):

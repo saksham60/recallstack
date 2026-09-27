@@ -1,4 +1,4 @@
-"""Opt-in verification of the external schema. All data writes roll back; never runs migrations."""
+"""Verify the migrated Knowledge schema; deployed-contract writes always roll back."""
 
 import os
 from datetime import UTC, datetime, timedelta
@@ -89,10 +89,8 @@ async def contract(contract_url):
                     )
                 )
                 if missing := set(expected) - found:
-                    pytest.skip(
-                        "External Knowledge migration missing: " + ", ".join(sorted(missing))
-                    )
-                # Timeouts keep failures bounded; no DDL, credentials, or provider calls.
+                    pytest.skip("Knowledge migration missing: " + ", ".join(sorted(missing)))
+                # Timeouts keep failures bounded; no credentials or provider calls.
                 await connection.execute(text("SET LOCAL statement_timeout = '20s'"))
                 user, other, source_id = uuid4(), uuid4(), uuid4()
                 now, scope = datetime.now(UTC), "test-" + uuid4().hex

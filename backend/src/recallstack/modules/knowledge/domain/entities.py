@@ -29,6 +29,12 @@ class KnowledgeSource:
 
 
 @dataclass(frozen=True, slots=True)
+class ViewerState:
+    saved: bool = False
+    seen_at: datetime | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class KnowledgeStory:
     id: UUID
     source: KnowledgeSource
@@ -47,6 +53,7 @@ class KnowledgeStory:
     bullets: tuple[str, ...] = ()
     external_id: str | None = None
     status: str = "active"
+    viewer_state: ViewerState = ViewerState()
 
 
 @dataclass(frozen=True, slots=True)
