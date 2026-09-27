@@ -60,6 +60,54 @@ test("filters using returned topics and keeps invalid individual stories out", a
   await expect(page.getByRole("heading", { name: "A smarter cache 4", exact: true })).toBeVisible();
 });
 
+test("uses fixed broad categories and a narrow 4:5 content-first card", async ({ authenticatedPage: page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await setup(page, 1);
+  await page.goto("/feed");
+  const filters = page.getByRole("group", { name: "Filter by category" });
+  await expect(filters.getByRole("button")).toHaveCount(9);
+  for (const label of ["For You", "AI", "Agents", "Architecture", "Cloud", "Research", "Security", "Data", "Developer Tools"]) {
+    await expect(filters.getByRole("button", { name: label, exact: true })).toBeVisible();
+  }
+  await expect(filters.getByText("System Design")).toHaveCount(0);
+  expect(await filters.evaluate((element) => getComputedStyle(element).flexWrap)).toBe("wrap");
+  expect(await filters.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  const card = page.locator("article").filter({ has: page.getByRole("heading", { name: "A smarter cache 1" }) }).first();
+  const media = card.getByTestId("story-media");
+  const box = await media.boundingBox();
+  expect(box!.height / box!.width).toBeCloseTo(1.25, 1);
+  expect((await card.boundingBox())!.width).toBeLessThanOrEqual(610);
+  await expect(card.getByText("Why it matters", { exact: true })).toBeVisible();
+  expect(await card.locator("p.line-clamp-4").evaluate((element) => getComputedStyle(element).webkitLineClamp)).toBe("4");
+  await expect(card.getByText("System Design")).toHaveCount(0);
+  const developerTools = page.waitForRequest((request) => new URL(request.url()).searchParams.get("topic") === "developer-tools");
+  await filters.getByRole("button", { name: "Developer Tools" }).click();
+  await developerTools;
+  await expect(filters.getByRole("button", { name: "Developer Tools" })).toHaveAttribute("aria-pressed", "true");
+});
+
+test("offers new stories on focus without reordering until explicitly refreshed", async ({ authenticatedPage: page }) => {
+  await setup(page, 1);
+  const original = story(1);
+  const fresh = { ...story(9), publishedAt: new Date(Date.parse(original.publishedAt) + 60000).toISOString() };
+  let latest = false;
+  await page.route("**/api/v1/knowledge/feed*", (route) => route.fulfill({ json: { items: latest ? [fresh, original] : [original], nextCursor: null, hasMore: false } }));
+  await page.goto("/feed");
+  await expect(page.getByRole("heading", { name: original.title })).toBeVisible();
+  await page.clock.install();
+  await page.clock.fastForward(300001);
+  latest = true;
+  const check = page.waitForRequest((request) => request.url().includes("/api/v1/knowledge/feed"));
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await check;
+  await expect(page.getByRole("button", { name: "New stories" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: fresh.title })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: original.title })).toBeVisible();
+  await page.getByRole("button", { name: "New stories" }).click();
+  await expect(page.getByRole("heading", { name: fresh.title })).toBeVisible();
+  await expect(page.getByRole("button", { name: "New stories" })).toHaveCount(0);
+});
+
 test("opens a shareable detail, traps focus, restores scroll and handles a broken image", async ({ authenticatedPage: page }, testInfo) => {
   await setup(page);
   await page.route("https://images.test/**", (route) => route.abort());
@@ -191,4 +239,13 @@ test("mobile layout keeps navigation and actions usable without horizontal overf
   const box = await dialog.boundingBox();
   expect(box!.width).toBeLessThan(390);
   expect(box!.height).toBeLessThan(844);
+  for (const width of [360, 390, 768, 1280]) {
+    await page.setViewportSize({ width, height: 844 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+    expect(await page.getByRole("group", { name: "Filter by category" }).evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  }
+  await page.setViewportSize({ width: 360, height: 780 });
+  await expect(dialog.getByText("Story attached")).toBeVisible();
+  expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
 });
