@@ -37,4 +37,28 @@ export function topicLabel(topic: string) {
   return topic.split(/[-_ ]/).map((word) => ["ai", "dsa", "api", "llm"].includes(word.toLowerCase()) ? word.toUpperCase() : word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
 }
 
+export const feedCategories = [
+  { value: "", label: "For You" },
+  { value: "ai", label: "AI" },
+  { value: "agents", label: "Agents" },
+  { value: "architecture", label: "Architecture" },
+  { value: "cloud", label: "Cloud" },
+  { value: "research", label: "Research" },
+  { value: "security", label: "Security" },
+  { value: "data", label: "Data" },
+  { value: "developer-tools", label: "Developer Tools" },
+] as const;
+
+export function storyCategory(story: FeedStory) {
+  return feedCategories.find(({ value }) => value && story.topics.includes(value))?.label ?? "Knowledge";
+}
+
+export function storyAge(publishedAt: string, now: number) {
+  const age = Math.max(0, now - Date.parse(publishedAt));
+  if (age < 3600000) return `${Math.max(1, Math.floor(age / 60000))}m`;
+  if (age < 86400000) return `${Math.floor(age / 3600000)}h`;
+  if (age < 172800000) return "Yesterday";
+  return `${Math.floor(age / 86400000)}d`;
+}
+
 export function storyLink(id: string) { return `/feed?story=${encodeURIComponent(id)}`; }

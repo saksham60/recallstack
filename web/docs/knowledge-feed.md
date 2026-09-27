@@ -4,9 +4,11 @@
 
 ## Behavior
 
-- Centered, responsive cards with direct CDN images, reserved image space, lazy loading, skeletons and a broken-image fallback.
+- Centered 610px feed with 4:5 CDN images, reserved image space, lazy loading, matching skeletons and a branded image fallback.
 - Ten stories per request, a 1,000px prefetch margin, duplicate prevention and manual recovery after pagination failures. No polling or automatic reordering. At 100 buffered stories, “Continue reading” deliberately starts the next batch and releases the previous batch. Feed data is not persisted to browser storage.
-- Topic chips come from actual returned stories. The backend also supports an optional `source` filter; types include it, but this screen currently filters by topic.
+- The primary navigation uses nine fixed broad categories (including For You); detailed topics stay in the story data and detail view. Category selection uses the existing `topic` query. The backend also supports an optional `source` filter; types include it, but this screen currently filters by category.
+- Cards show a short summary and Why it matters preview, with full text in details. The full card body opens details while Save, Share and source links remain independent.
+- On focus after five minutes, a first-page check can offer a non-numeric New stories pill when a newly published story is observed. This check leaves the anchored reading queue and scroll position unchanged. The pill and manual Refresh explicitly start a fresh feed session; the API does not supply an exact new-story count.
 - `/feed?story=<uuid>` opens accessible native-dialog details. Browser Back, Escape and Close preserve feed scroll and restore focus. Share uses native sharing where available, otherwise copies this internal link.
 - Save/Unsave sends durable events and updates both list and detail caches after acknowledgement. `viewerState.saved` hydrates the control after reload. Retries reuse the same event UUID. Failures leave the previous state intact.
 - VIEW, OPEN, SHARE and ASK_REASONAI analytics use bounded, best-effort batches; Save is a separately acknowledged mutation. Analytics may be dropped when leaving the page.
@@ -69,8 +71,8 @@ Commands use Node 24 for this checkout because the default shell's Node 20 is be
 - `npm run lint`: passed.
 - Focused provider/authentication/streaming tests: 71 passed before the merge; the additional canonical-route test also passed.
 - The first full state run passed 450 tests and exposed one pre-existing stale assertion in `reasonai-persistence.spec.ts`. The existing implementation deliberately falls back to `interrupted` after terminal persistence fails, but this assertion still expected `completed`. The test now checks the documented interrupted fallback and ensures the assistant transcript is not duplicated. Persistence implementation is unchanged.
-- All 13 feed browser tests passed, including cursor buffering, deduplication, topic filtering, details/back/scroll/focus, broken images, Save retry idempotency, persisted saved state after reload, sharing, HTTP 401/403/429/500, expired deep links, streaming chat and mobile overflow checks. Desktop and mobile screenshots were inspected.
+- All 15 feed browser tests passed after the UI update, including cursor buffering, deduplication, fixed-category filtering, 4:5 media, fresh-story indication without automatic reordering, details/back/scroll/focus, broken images, Save retry idempotency, persisted saved state after reload, sharing, HTTP 401/403/429/500, expired deep links, streaming chat and mobile overflow checks at 360px, 390px, 768px and 1280px. Desktop and mobile screenshots were inspected.
 - The 23-test targeted feed/provider/persistence rerun passed after the stale persistence assertion was corrected.
-- Remaining browser-regression and production-build results are recorded below after the final verification run.
+- The eight feed/ReasonAI contract tests, typecheck, lint and production build passed. The broader browser suite still has four failures to isolate separately; this UI change did not modify those unrelated tests.
 
 Feed browser tests use realistic API fixtures and mocked model streams, never a production data fallback. Feed checks do not spend AI credits or insert production stories. The broader pre-existing DSA suite includes direct server integration requests with the configured provider, unlike the mocked feed tests. Production story/image availability remains separate from fixture-based UI verification.
