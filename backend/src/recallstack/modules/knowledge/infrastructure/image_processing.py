@@ -17,7 +17,7 @@ def transform_image(content: bytes) -> bytes:
         image.load()
         oriented = ImageOps.exif_transpose(image)
         rgb = oriented.convert("RGB")
-        resized = ImageOps.fit(rgb, (1080, 1350), method=Image.Resampling.LANCZOS)
+        resized = ImageOps.contain(rgb, (1080, 1350), method=Image.Resampling.LANCZOS)
         output = BytesIO()
         resized.save(output, format="WEBP", quality=82, method=4)
         payload = output.getvalue()

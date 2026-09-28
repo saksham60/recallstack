@@ -154,6 +154,21 @@ Dry run has no DB writes, R2 uploads, R2 deletes, or cleanup mutations. It still
 discovery, model inference, and image validation. A real run should be checked for persisted stories and
 public image URLs before frontend integration.
 
+Images now keep their source aspect ratio while fitting within 1080×1350, so text near an edge is not
+cropped. To repair images stored before this change, run the repair command in the Knowledge Job environment
+after deploying the updated image. It re-fetches each story's current Open Graph image, writes a new R2 key
+to avoid stale CDN caches, updates only the image fields, and deletes the old object. Check a single story
+first, then the remaining active stories:
+
+```bash
+python -m recallstack.modules.knowledge.jobs.repair_images --story-id 554e09ca-b08e-53cf-9981-5566ec703f53
+python -m recallstack.modules.knowledge.jobs.repair_images --apply --story-id 554e09ca-b08e-53cf-9981-5566ec703f53
+python -m recallstack.modules.knowledge.jobs.repair_images --apply
+```
+
+Without `--apply`, this command only fetches and transforms images. Applied repairs require the job's R2
+settings. If a source image has changed or disappeared, that story is reported as failed and left untouched.
+
 The same production image runs either entrypoint:
 
 ```bash

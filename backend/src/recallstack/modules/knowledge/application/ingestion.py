@@ -290,7 +290,7 @@ class IngestionService:
                 counts["rejected_quality"] += 1
                 return None
             sid = uuid5(NAMESPACE_URL, candidate.url)
-            key = f"shorts/{candidate.published_at:%Y/%m/%d}/{digest}.webp"
+            key = f"shorts/{candidate.published_at:%Y/%m/%d}/{digest}-uncropped.webp"
             story = KnowledgeStory(
                 id=sid,
                 source=source,

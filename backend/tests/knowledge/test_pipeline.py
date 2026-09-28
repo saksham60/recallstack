@@ -21,7 +21,7 @@ async def test_dry_run_has_no_persistence_or_storage_mutations():
     store, images = FakeStore(), FakeImages()
     result = await ingestion(store, images).run(limit=5, dry_run=True, run_id="test")
     assert result.counts["would_persist"] == 1
-    assert result.previews[0].image_key.endswith(".webp")
+    assert result.previews[0].image_key.endswith("-uncropped.webp")
     assert store.persist_calls == store.remove_calls == 0
     assert images.uploads == images.deletes == []
 

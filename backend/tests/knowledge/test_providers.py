@@ -79,8 +79,17 @@ def test_image_transforms_to_bounded_webp_and_rejects_bad_pixels():
     Image.new("RGB", (640, 480), "blue").save(buffer, format="PNG")
     result = transform_image(buffer.getvalue())
     with Image.open(BytesIO(result)) as output:
-        assert output.format == "WEBP" and output.size == (1080, 1350)
+        assert output.format == "WEBP" and output.size == (1080, 810)
     assert len(result) < 1_048_576
+    wide = Image.new("RGB", (1200, 600), "white")
+    wide.paste("red", (0, 0, 120, 600))
+    wide.paste("blue", (1080, 0, 1200, 600))
+    buffer = BytesIO()
+    wide.save(buffer, format="PNG")
+    with Image.open(BytesIO(transform_image(buffer.getvalue()))) as output:
+        assert output.size == (1080, 540)
+        assert output.getpixel((10, 270))[0] > 200
+        assert output.getpixel((1070, 270))[2] > 200
     with pytest.raises(UnidentifiedImageError):
         transform_image(b"not-an-image")
     tiny = BytesIO()
