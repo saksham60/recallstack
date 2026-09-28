@@ -14,6 +14,8 @@ import { feedCategories, storyLink } from "./model";
 import { feedKeys, useFeed, useFeedActions } from "./use-feed";
 import { feedButton, FeedSkeleton, StoryCard } from "./StoryCard";
 import { StoryDetail } from "./StoryDetail";
+import { FeedPreferences } from "./FeedPreferences";
+import { FeedRefresh } from "./FeedRefresh";
 
 export function FeedScreen() {
   const { user, isLoading } = useAuth();
@@ -29,6 +31,7 @@ function FeedWorkspace({ userId }: { userId: string }) {
   const [topic, setTopic] = useState("");
   const [start, setStart] = useState<string | null>(null);
   const [newStories, setNewStories] = useState(false);
+  const [hiddenStoryId, setHiddenStoryId] = useState<string | null>(null);
   const query = useFeed(userId, topic, start);
   const client = useQueryClient();
   const actions = useFeedActions(userId);
@@ -88,9 +91,30 @@ function FeedWorkspace({ userId }: { userId: string }) {
     if (start) setStart(null);
     else void client.resetQueries({ queryKey: feedKeys.list(userId, topic, start), exact: true });
   }
+  async function interestsSaved() {
+    await client.cancelQueries({ queryKey: ["feed", userId] });
+    client.removeQueries({ queryKey: ["feed", userId], type: "inactive" });
+    baseline.current = null;
+    setNewStories(false);
+    if (topic || start) {
+      client.removeQueries({ queryKey: feedKeys.list(userId, topic, start), exact: true });
+      setStart(null);
+      setTopic("");
+    } else {
+      await client.resetQueries({ queryKey: feedKeys.list(userId, "", null), exact: true });
+    }
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }
   function openStory(id: string, ask = false) {
     actions.track(id, ask ? "ASK_REASONAI" : "OPEN");
     window.history.pushState({ feedDetail: true }, "", `${storyLink(id)}${ask ? "&ask=1" : ""}`);
+  }
+  async function hideStory(id: string) {
+    if (await actions.hide(id)) setHiddenStoryId(id);
+  }
+  async function undoHide() {
+    if (!hiddenStoryId) return;
+    if (await actions.unhide(hiddenStoryId)) setHiddenStoryId(null);
   }
   function closeStory() {
     if (window.history.state?.feedDetail) window.history.back();
@@ -105,21 +129,23 @@ function FeedWorkspace({ userId }: { userId: string }) {
       <div className="min-w-0"><h1 className="text-3xl font-semibold tracking-tight">Knowledge Feed</h1><p className="mt-2 text-sm leading-6 text-muted">Ideas worth understanding, one story at a time.</p></div>
       <button type="button" onClick={refresh} disabled={query.isFetching} title="Refresh feed" aria-label="Refresh feed" className={`${feedButton} shrink-0 bg-surface text-muted hover:text-foreground`}><RefreshCw size={17} className={query.isFetching ? "motion-safe:animate-spin" : ""} /><span className="hidden sm:inline">{query.isFetching && !query.isFetchingNextPage ? "Refreshing…" : "Refresh"}</span></button>
     </div>
+    <FeedPreferences userId={userId} onSaved={interestsSaved} />
     <div role="group" aria-label="Filter by category" className="mb-7 flex flex-wrap gap-2">
       {feedCategories.map(({ value, label }) => <button type="button" key={value} aria-pressed={topic === value} onClick={() => { if (topic === value) return; baseline.current = null; setNewStories(false); setTopic(value); setStart(null); }}
         className={`min-h-11 rounded-full px-3.5 py-2 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-accent sm:text-sm ${topic === value ? "bg-accent/15 text-accent" : "bg-surface text-muted hover:bg-surface-elevated hover:text-foreground"}`}>{label}</button>)}
     </div>
     {newStories && <button type="button" onClick={refresh} className="fixed left-1/2 top-17 z-40 inline-flex min-h-11 -translate-x-1/2 items-center gap-2 rounded-full border border-accent/30 bg-surface px-4 text-sm font-medium text-accent shadow-xl focus-visible:outline-2 focus-visible:outline-accent"><ArrowUp size={16} aria-hidden="true" />New stories</button>}
+    {hiddenStoryId && <div role="status" className="fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-xl border border-border bg-surface px-4 py-2 text-sm shadow-xl"><span>Story hidden</span><button type="button" onClick={() => void undoHide()} disabled={actions.pending} className="min-h-11 font-medium text-accent">Undo</button></div>}
     {query.isPending ? <FeedSkeleton /> : <div className="space-y-7">
-      {stories.map((story) => <StoryCard key={story.id} story={story} actions={actions} onOpen={() => openStory(story.id)} onAsk={() => openStory(story.id, true)} />)}
+      {stories.map((story, index) => <StoryCard key={story.id} story={story} actions={actions} onOpen={() => openStory(story.id)} onAsk={() => openStory(story.id, true)} onHide={() => void hideStory(story.id)} eager={index === 0} />)}
       {query.isError && <ErrorState title={stories.length ? "Couldn’t load more stories" : "Feed unavailable"} description={feedErrorMessage(query.error)} action={errorAction} />}
       {!query.isError && !stories.length && !query.hasNextPage && <EmptyState title="You’re all caught up" description={topic ? "No recent stories for this topic. Try For You or check back later." : "Fresh stories will appear here when they’re ready. Check back soon."} icon={<Newspaper size={32} className="mx-auto" />} action={<button onClick={refresh} className={`${feedButton} text-accent`}>Refresh feed</button>} />}
       {query.isFetchingNextPage && <FeedSkeleton count={1} />}
       {query.hasNextPage && !query.isError && !query.isFetchingNextPage && <div ref={sentinel} className="py-4 text-center">
         {atBufferLimit ? <><p className="mb-2 text-sm text-muted">Ready for the next set of stories?</p><button className={`${feedButton} text-accent`} onClick={() => { setStart(pages.at(-1)!.nextCursor); window.scrollTo({ top: 0, behavior: "instant" }); }}>Continue reading</button></> : <button onClick={() => void loadMore()} className={`${feedButton} text-muted`}>Load more stories</button>}
       </div>}
-      {!!stories.length && !query.hasNextPage && !query.isError && <p className="py-8 text-center text-sm text-muted">You’re all caught up. Come back for a fresh perspective.</p>}
     </div>}
+    <FeedRefresh visible={Boolean(query.data && !query.hasNextPage && !query.isError)} onCompleted={refresh} />
     {storyId && <StoryDetail key={storyId} id={storyId} userId={userId} ask={search.get("ask") === "1"} actions={actions} onClose={closeStory} />}
   </div>;
 }

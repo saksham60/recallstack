@@ -20,6 +20,8 @@ All endpoints use the existing bearer-token/current-profile authentication:
 | GET | `/api/v1/knowledge/stories/{storyId}` | Active, unexpired story; unavailable stories return 404 |
 | GET | `/api/v1/knowledge/preferences` | Structured preferences for the verified profile |
 | PATCH | `/api/v1/knowledge/preferences` | Replace supplied preference collections; omitted fields unchanged |
+| POST | `/api/v1/knowledge/refresh-runs` | Request a shared job run or return the current run |
+| GET | `/api/v1/knowledge/refresh-runs/{runId}` | Poll a run's progress |
 | POST | `/api/v1/knowledge/events/batch` | 1–100 events in one transaction |
 
 Responses use camelCase. Images are direct CDN URLs; internal R2 keys are never returned. Story responses
@@ -181,6 +183,24 @@ python -m recallstack.modules.knowledge.jobs.refresh --limit 20
 
 Use one Cloud Run Job task per execution. Cloud Scheduler can trigger it later; the database advisory lock
 protects against overlapping executions. Provider secrets remain job-only and are not required by the API.
+
+### User-requested refresh
+
+Apply Alembic migration `20260928_0019_knowledge_refresh_runs.py` before enabling this feature. On the
+Cloud Run API service, set `KNOWLEDGE_REFRESH_JOB_PROJECT`, `KNOWLEDGE_REFRESH_JOB_REGION`, and
+`KNOWLEDGE_REFRESH_JOB_NAME` to the existing refresh Job's identifiers. All three are required together.
+The API service identity needs `run.jobs.run` on that Job and `run.operations.get` to poll its operation
+(for example, Cloud Run Invoker on the Job plus a project-level custom role containing
+`run.operations.get`). Keep Tavily, Nebius, and R2 credentials on the Job only.
+
+Any signed-in user can request a run. The backend stores the request before calling Cloud Run and applies
+one shared 30-minute cooldown (`KNOWLEDGE_REFRESH_COOLDOWN_MINUTES`). A concurrent request returns the
+existing run, so it does not launch another paid execution. The browser polls the status endpoint every
+10 seconds after a request. A successful execution causes the feed to refresh; quality gates and duplicate
+checks mean a successful run can still add zero stories. The regular feed request does not call Cloud Run
+or the refresh-status table.
+The web UI asks `GET /knowledge/refresh-runs` for availability after the feed loads, and hides the
+discovery control until all three Job settings are configured.
 
 ## Database ownership and verification
 

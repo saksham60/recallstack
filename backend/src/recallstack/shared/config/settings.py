@@ -1,3 +1,4 @@
+import re
 from functools import lru_cache
 from typing import Literal, Self
 from urllib.parse import urlparse
@@ -52,6 +53,10 @@ class Settings(BaseSettings):
     knowledge_batch_size: int = Field(default=20, ge=1, le=100)
     knowledge_feed_default_limit: int = Field(default=20, ge=1, le=50)
     knowledge_feed_max_limit: int = Field(default=50, ge=1, le=50)
+    knowledge_refresh_job_project: str = ""
+    knowledge_refresh_job_region: str = ""
+    knowledge_refresh_job_name: str = ""
+    knowledge_refresh_cooldown_minutes: int = Field(default=30, ge=10, le=1440)
     knowledge_discovery_concurrency: int = Field(default=2, ge=1, le=8)
     knowledge_enrichment_concurrency: int = Field(default=4, ge=1, le=16)
     knowledge_model_concurrency: int = Field(default=2, ge=1, le=8)
@@ -85,6 +90,17 @@ class Settings(BaseSettings):
             raise ValueError(
                 "KNOWLEDGE_CURSOR_SECRET needs 32+ characters when Knowledge is enabled"
             )
+        job_parts = (
+            self.knowledge_refresh_job_project,
+            self.knowledge_refresh_job_region,
+            self.knowledge_refresh_job_name,
+        )
+        if any(job_parts) and not all(job_parts):
+            raise ValueError("All KNOWLEDGE_REFRESH_JOB_* settings must be provided together")
+        if all(job_parts) and any(
+            not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,62}", part) for part in job_parts
+        ):
+            raise ValueError("Invalid KNOWLEDGE_REFRESH_JOB_* identifier")
         for name, value in (
             ("KNOWLEDGE_MODEL_BASE_URL", self.knowledge_model_base_url),
             ("R2_PUBLIC_BASE_URL", self.r2_public_base_url),

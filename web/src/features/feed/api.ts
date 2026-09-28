@@ -2,6 +2,7 @@ import { apiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { getBrowserClient } from "@/lib/supabase/client";
 import { parseFeedPage, storySchema, type FeedEvent } from "./model";
+import type { components } from "@/lib/api/types";
 
 let refreshing: Promise<unknown> | undefined;
 
@@ -35,6 +36,28 @@ export const feedApi = {
   },
   async events(events: FeedEvent[]) {
     await authenticated(() => apiClient.POST("/api/v1/knowledge/events/batch", { body: { events } }));
+  },
+  async preferences(signal?: AbortSignal) {
+    const { data } = await authenticated(() => apiClient.GET("/api/v1/knowledge/preferences", { signal }), signal);
+    return data;
+  },
+  async savePreferences(topics: components["schemas"]["TopicInput-Input"][]) {
+    const { data } = await authenticated(() => apiClient.PATCH("/api/v1/knowledge/preferences", { body: { topics } }));
+    return data;
+  },
+  async startRefresh() {
+    const { data } = await authenticated(() => apiClient.POST("/api/v1/knowledge/refresh-runs"));
+    if (!data) throw new Error("Empty refresh response");
+    return data;
+  },
+  async refreshAvailability(signal?: AbortSignal) {
+    const { data } = await authenticated(() => apiClient.GET("/api/v1/knowledge/refresh-runs", { signal }), signal);
+    return data?.available === true;
+  },
+  async refreshStatus(runId: string) {
+    const { data } = await authenticated(() => apiClient.GET("/api/v1/knowledge/refresh-runs/{runId}", { params: { path: { runId } } }));
+    if (!data) throw new Error("Empty refresh status");
+    return data;
   },
 };
 

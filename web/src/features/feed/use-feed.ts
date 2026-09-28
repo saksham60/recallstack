@@ -17,7 +17,7 @@ export function useFeed(userId: string, topic: string, start: string | null) {
     initialPageParam: start,
     getNextPageParam: (page, _pages, lastCursor, cursors) => page.hasMore && page.nextCursor !== lastCursor && !cursors.includes(page.nextCursor) ? page.nextCursor : undefined,
     enabled: Boolean(userId), retry: retryFeedRequest,
-    staleTime: Infinity, gcTime: 0, refetchOnReconnect: false,
+    staleTime: Infinity, gcTime: 5 * 60_000, refetchOnReconnect: false,
   });
 }
 
@@ -39,7 +39,7 @@ export function useFeedActions(userId: string) {
   const queue = useRef<FeedEvent[]>([]);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const viewed = useRef(new Set<string>());
-  const saving = useRef(false);
+  const stateChange = useRef(false);
   const [notice, setNotice] = useState<{ storyId: string; text: string; failed?: boolean }>();
   const mutation = useMutation({ mutationFn: (item: FeedEvent) => feedApi.events([item]), retry: retryFeedRequest });
   const track = useCallback((id: string, type: FeedEvent["type"]) => {
@@ -59,8 +59,8 @@ export function useFeedActions(userId: string) {
   useEffect(() => () => { clearTimeout(timer.current); queue.current = []; }, []);
 
   async function toggleSave(story: FeedStory) {
-    if (saving.current) return;
-    saving.current = true;
+    if (stateChange.current) return;
+    stateChange.current = true;
     setNotice(undefined);
     const id = story.id;
     const next = !story.viewerState.saved;
@@ -71,7 +71,34 @@ export function useFeedActions(userId: string) {
       client.setQueryData<FeedStory>(feedKeys.story(userId, id), (current) => current ? update(current) : current);
       setNotice({ storyId: id, text: next ? "Story saved" : "Story removed from saved" });
     } catch (error) { setNotice({ storyId: id, text: feedErrorMessage(error), failed: true }); }
-    finally { saving.current = false; }
+    finally { stateChange.current = false; }
+  }
+
+  async function hide(storyId: string) {
+    if (stateChange.current) return false;
+    stateChange.current = true;
+    try {
+      await mutation.mutateAsync(event(storyId, "HIDE"));
+      client.setQueriesData<InfiniteData<FeedPage>>({ queryKey: ["feed", userId] }, (current) => current ? {
+        ...current, pages: current.pages.map((page) => ({ ...page, items: page.items.filter((item) => item.id !== storyId) })),
+      } : current);
+      return true;
+    } catch (error) {
+      setNotice({ storyId, text: feedErrorMessage(error), failed: true });
+      return false;
+    } finally { stateChange.current = false; }
+  }
+
+  async function unhide(storyId: string) {
+    if (stateChange.current) return false;
+    stateChange.current = true;
+    try {
+      await mutation.mutateAsync(event(storyId, "UNHIDE"));
+      await client.invalidateQueries({ queryKey: ["feed", userId] });
+      return true;
+    } catch {
+      return false;
+    } finally { stateChange.current = false; }
   }
 
   async function share(id: string, title: string) {
@@ -90,7 +117,7 @@ export function useFeedActions(userId: string) {
     }
   }
 
-  return { notice, pending: mutation.isPending, toggleSave, share, track };
+  return { notice, pending: mutation.isPending, toggleSave, hide, unhide, share, track };
 }
 
 export type FeedActions = ReturnType<typeof useFeedActions>;

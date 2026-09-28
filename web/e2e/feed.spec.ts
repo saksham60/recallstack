@@ -15,6 +15,7 @@ async function setup(page: Page, count = 3) {
   await page.route("**/api/v1/knowledge/feed*", (route) => route.fulfill({ json: { items: Array.from({ length: count }, (_, index) => story(index + 1)), nextCursor: null, hasMore: false } }));
   await page.route("**/api/v1/knowledge/stories/*", (route) => route.fulfill({ json: story(Number(route.request().url().split("-").at(-1))) }));
   await page.route("**/api/v1/knowledge/events/batch", (route) => route.fulfill({ json: { accepted: route.request().postDataJSON().events.length, duplicates: 0 } }));
+  await page.route("**/api/v1/knowledge/refresh-runs", (route) => route.fulfill({ json: { available: true } }));
   await page.route("https://images.test/**", (route) => route.fulfill({ contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720"><defs><linearGradient id="g"><stop stop-color="#25204c"/><stop offset="1" stop-color="#536079"/></linearGradient></defs><rect width="1280" height="720" fill="url(#g)"/><g fill="none" stroke="#c4b5fd" stroke-width="3"><rect x="140" y="255" width="240" height="160" rx="24"/><rect x="520" y="255" width="240" height="160" rx="24"/><rect x="900" y="255" width="240" height="160" rx="24"/><path d="M380 335h140m240 0h140"/></g></svg>' }));
 }
 
@@ -101,12 +102,12 @@ test("offers new stories on focus without reordering until explicitly refreshed"
   const check = page.waitForRequest((request) => request.url().includes("/api/v1/knowledge/feed"));
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await check;
-  await expect(page.getByRole("button", { name: "New stories" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "New stories", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: fresh.title })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: original.title })).toBeVisible();
-  await page.getByRole("button", { name: "New stories" }).click();
+  await page.getByRole("button", { name: "New stories", exact: true }).click();
   await expect(page.getByRole("heading", { name: fresh.title })).toBeVisible();
-  await expect(page.getByRole("button", { name: "New stories" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "New stories", exact: true })).toHaveCount(0);
 });
 
 test("opens a shareable detail, traps focus, restores scroll and handles a broken image", async ({ authenticatedPage: page }, testInfo) => {
@@ -161,6 +162,99 @@ test("clipboard sharing uses the internal detail URL", async ({ authenticatedPag
   await page.getByRole("button", { name: "Share", exact: true }).click();
   await expect(page.getByText("Link copied", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`http://localhost:3000/feed?story=${id(1)}`);
+});
+
+test("saves personal interests without delaying the initial feed", async ({ authenticatedPage: page }) => {
+  await setup(page, 1);
+  let reads = 0;
+  let feedReads = 0;
+  let preferences = {
+    minimumImportance: 0,
+    topics: [
+      { topic: "distributed-systems", weight: "1", blocked: false },
+      { topic: "security", weight: "1", blocked: true },
+    ],
+    sources: [],
+  };
+  await page.route("**/api/v1/knowledge/feed*", (route) => { feedReads++; return route.fulfill({ json: { items: [story(1)], nextCursor: null, hasMore: false } }); });
+  await page.route("**/api/v1/knowledge/preferences", (route) => {
+    if (route.request().method() === "GET") { reads++; return route.fulfill({ json: preferences }); }
+    preferences = { ...preferences, topics: route.request().postDataJSON().topics };
+    return route.fulfill({ json: preferences });
+  });
+  await page.goto("/feed");
+  await expect(page.getByRole("heading", { name: story(1).title })).toBeVisible();
+  expect(reads).toBe(0);
+  await page.getByRole("button", { name: "Customize your feed" }).click();
+  const interests = page.getByRole("group", { name: "Preferred categories" });
+  await expect(interests.getByRole("button", { name: "Security" })).toHaveAttribute("aria-pressed", "false");
+  await interests.getByRole("button", { name: "Security" }).click();
+  await interests.getByRole("button", { name: "Cloud" }).click();
+  await page.getByRole("button", { name: "Save interests" }).click();
+  await expect.poll(() => feedReads).toBeGreaterThan(1);
+  expect(preferences.topics).toEqual([
+    { topic: "distributed-systems", weight: "1", blocked: false },
+    { topic: "security", weight: 2, blocked: false },
+    { topic: "cloud", weight: 2, blocked: false },
+  ]);
+  await page.reload();
+  await page.getByRole("button", { name: "Customize your feed" }).click();
+  await expect(interests.getByRole("button", { name: "Cloud" })).toHaveAttribute("aria-pressed", "true");
+  await expect(interests.getByRole("button", { name: "Security" })).toHaveAttribute("aria-pressed", "true");
+});
+
+test("hides an unwanted story and restores it with Undo", async ({ authenticatedPage: page }) => {
+  await setup(page, 2);
+  let hidden = false;
+  await page.route("**/api/v1/knowledge/feed*", (route) => route.fulfill({ json: { items: hidden ? [story(2)] : [story(1), story(2)], nextCursor: null, hasMore: false } }));
+  await page.route("**/api/v1/knowledge/events/batch", (route) => {
+    for (const item of route.request().postDataJSON().events) {
+      if (item.type === "HIDE") hidden = true;
+      if (item.type === "UNHIDE") hidden = false;
+    }
+    return route.fulfill({ json: { accepted: 1, duplicates: 0 } });
+  });
+  await page.goto("/feed");
+  const first = page.locator("article").filter({ has: page.getByRole("heading", { name: story(1).title }) });
+  await first.getByRole("button", { name: "Not interested" }).click();
+  await expect(first).toHaveCount(0);
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(page.getByRole("heading", { name: story(1).title })).toBeVisible();
+  expect(hidden).toBe(false);
+});
+
+test("does not offer discovery when the job is unconfigured", async ({ authenticatedPage: page }) => {
+  await setup(page, 1);
+  await page.route("**/api/v1/knowledge/refresh-runs", (route) => route.fulfill({ json: { available: false } }));
+  await page.goto("/feed");
+  await expect(page.getByRole("heading", { name: story(1).title })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Find new stories" })).toHaveCount(0);
+});
+
+test("starts one shared refresh and polls until it finishes", async ({ authenticatedPage: page }) => {
+  await setup(page, 1);
+  let feedReads = 0;
+  let starts = 0;
+  let polls = 0;
+  const run = { runId: id(50), requestedAt: new Date().toISOString(), nextAllowedAt: new Date(Date.now() + 1800000).toISOString() };
+  await page.route("**/api/v1/knowledge/feed*", (route) => { feedReads++; return route.fulfill({ json: { items: [story(1)], nextCursor: null, hasMore: false } }); });
+  await page.route("**/api/v1/knowledge/refresh-runs", (route) => {
+    if (route.request().method() === "GET") return route.fulfill({ json: { available: true } });
+    starts++;
+    return route.fulfill({ json: { ...run, status: "running" } });
+  });
+  await page.route("**/api/v1/knowledge/refresh-runs/*", (route) => { polls++; return route.fulfill({ json: { ...run, status: polls < 2 ? "running" : "succeeded" } }); });
+  await page.goto("/feed");
+  await expect(page.getByRole("heading", { name: story(1).title })).toBeVisible();
+  await page.clock.install();
+  await page.getByRole("button", { name: "Find new stories" }).click();
+  await expect(page.getByRole("button", { name: "Finding stories…" })).toBeDisabled();
+  await page.clock.fastForward(10001);
+  await expect.poll(() => polls).toBe(1);
+  await page.clock.fastForward(10001);
+  await expect.poll(() => polls).toBe(2);
+  await expect.poll(() => feedReads).toBeGreaterThan(1);
+  expect(starts).toBe(1);
 });
 
 test("native sharing carries the story title and ReasonAI branding", async ({ authenticatedPage: page }) => {

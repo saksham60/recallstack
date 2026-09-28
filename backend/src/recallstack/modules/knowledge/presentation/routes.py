@@ -7,6 +7,7 @@ from recallstack.modules.identity.presentation.dependencies import CurrentUserDe
 from recallstack.modules.knowledge.application.events import EventService
 from recallstack.modules.knowledge.application.feed import FeedService
 from recallstack.modules.knowledge.application.preferences import PreferenceService
+from recallstack.modules.knowledge.application.refresh import RefreshRun, RefreshService
 from recallstack.modules.knowledge.domain.entities import (
     PreferencePatch,
     SourcePreference,
@@ -19,10 +20,33 @@ from recallstack.modules.knowledge.presentation.schemas import (
     FeedResponse,
     PreferencesPatch,
     PreferencesResponse,
+    RefreshRunResponse,
     StoryResponse,
 )
+from recallstack.shared.errors import AppError
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
+
+
+def _refresh_service(request: Request) -> RefreshService:
+    service = cast(RefreshService | None, request.app.state.knowledge_refresh_service)
+    if service is None:
+        raise AppError(
+            error_type="knowledge-refresh-unavailable",
+            title="Refresh unavailable",
+            status=503,
+            detail="New story requests are not configured yet",
+        )
+    return service
+
+
+def _refresh_response(service: RefreshService, run: RefreshRun) -> RefreshRunResponse:
+    return RefreshRunResponse(
+        run_id=run.id,
+        status=run.status,
+        requested_at=run.requested_at,
+        next_allowed_at=run.requested_at + service.cooldown,
+    )
 
 
 @router.get("/feed", response_model=FeedResponse, operation_id="getKnowledgeFeed")
@@ -104,3 +128,33 @@ async def events(
         ),
     )
     return EventResult(accepted=accepted, duplicates=len(body.events) - accepted)
+
+
+@router.post(
+    "/refresh-runs", response_model=RefreshRunResponse, operation_id="startKnowledgeRefresh"
+)
+async def start_refresh(
+    request: Request, current_user: CurrentUserDependency
+) -> RefreshRunResponse:
+    service = _refresh_service(request)
+    run = await service.start(current_user.profile_id)
+    return _refresh_response(service, run)
+
+
+@router.get("/refresh-runs", operation_id="getKnowledgeRefreshAvailability")
+async def refresh_availability(
+    request: Request, current_user: CurrentUserDependency
+) -> dict[str, bool]:
+    return {"available": request.app.state.knowledge_refresh_service is not None}
+
+
+@router.get(
+    "/refresh-runs/{runId}", response_model=RefreshRunResponse, operation_id="getKnowledgeRefresh"
+)
+async def refresh_status(
+    run_id: Annotated[UUID, Path(alias="runId")],
+    request: Request,
+    current_user: CurrentUserDependency,
+) -> RefreshRunResponse:
+    service = _refresh_service(request)
+    return _refresh_response(service, await service.status(run_id))

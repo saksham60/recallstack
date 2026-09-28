@@ -37,7 +37,7 @@ export function StoryDetail({ id, userId, ask, actions, onClose }: { id: string;
       {story.isPending ? <div className="overflow-y-auto p-4"><FeedSkeleton count={1} /></div> : story.isError ? <div className="p-5"><ErrorState title="Story unavailable" description={feedErrorMessage(story.error)} action={story.error instanceof ApiError && story.error.status === 401 ? <Link href={`/login?next=${encodeURIComponent(storyLink(id))}`} className="text-accent">Sign in again</Link> : <button className={feedButton} onClick={() => void story.refetch()}>Try again</button>} /></div> : <>
       {chatOpened && <div className={`${chat ? "flex" : "hidden"} min-h-0 flex-1 flex-col`}><StoryChat story={story.data} /></div>}
       <div className={`${chat ? "hidden" : ""} min-h-0 flex-1 overflow-y-auto overscroll-contain`}>
-        <div className="bg-surface-elevated/35"><StoryImage key={story.data.imageUrl} story={story.data} /></div>
+        <div className="bg-surface-elevated/35"><StoryImage key={story.data.imageUrl} story={story.data} eager /></div>
         <div className="mx-auto w-full max-w-[610px] space-y-5 break-words p-4 sm:p-7">
           <p className="text-xs font-medium text-accent">{storyCategory(story.data)}</p>
           <h3 className="text-2xl font-semibold leading-snug tracking-tight">{story.data.title}</h3>

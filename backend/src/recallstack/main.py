@@ -47,6 +47,9 @@ from recallstack.modules.knowledge.application.cursor import CursorCodec
 from recallstack.modules.knowledge.application.events import EventService
 from recallstack.modules.knowledge.application.feed import FeedService
 from recallstack.modules.knowledge.application.preferences import PreferenceService
+from recallstack.modules.knowledge.application.refresh import RefreshService
+from recallstack.modules.knowledge.infrastructure.cloud_run_refresh import CloudRunRefreshRunner
+from recallstack.modules.knowledge.infrastructure.refresh_repository import SqlAlchemyRefreshStore
 from recallstack.modules.knowledge.presentation.routes import router as knowledge_router
 from recallstack.modules.learning.application.learning_state import LearningService
 from recallstack.modules.learning.infrastructure.activity_event_recorder import (
@@ -92,6 +95,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
         )
         app.state.database = database
+        refresh_client: httpx.AsyncClient | None = None
         if resolved.knowledge_enabled:
             assert resolved.knowledge_cursor_secret is not None
 
@@ -106,6 +110,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
             app.state.knowledge_preference_service = PreferenceService(knowledge_uow)
             app.state.knowledge_event_service = EventService(knowledge_uow)
+            app.state.knowledge_refresh_service = None
+            if resolved.knowledge_refresh_job_project:
+                refresh_client = httpx.AsyncClient(
+                    timeout=httpx.Timeout(8.0, connect=2.0), trust_env=False
+                )
+                app.state.knowledge_refresh_service = RefreshService(
+                    SqlAlchemyRefreshStore(database.session_factory),
+                    CloudRunRefreshRunner(
+                        refresh_client,
+                        resolved.knowledge_refresh_job_project,
+                        resolved.knowledge_refresh_job_region,
+                        resolved.knowledge_refresh_job_name,
+                    ),
+                    resolved.knowledge_refresh_cooldown_minutes,
+                )
 
         def identity_uow() -> IdentityUnitOfWork:
             return SqlAlchemyIdentityUnitOfWork(database.session_factory)
@@ -173,6 +192,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             database, cache_seconds=resolved.readiness_cache_seconds
         )
         yield
+        if refresh_client is not None:
+            await refresh_client.aclose()
         await http_client.aclose()
         await database.close()
 

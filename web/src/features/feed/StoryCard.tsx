@@ -2,19 +2,19 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { ArrowUpRight, Bookmark, Check, Share2, Sparkles } from "lucide-react";
+import { ArrowUpRight, Bookmark, Check, EyeOff, Share2, Sparkles } from "lucide-react";
 import { storyAge, storyCategory, type FeedStory } from "./model";
 import type { FeedActions } from "./use-feed";
 
 export const feedButton = "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm transition-colors hover:bg-surface-elevated focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-wait disabled:opacity-50";
 
-export function StoryImage({ story }: { story: FeedStory }) {
+export function StoryImage({ story, eager = false }: { story: FeedStory; eager?: boolean }) {
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   return <div data-testid="story-media" className="relative mx-auto aspect-[4/5] w-full overflow-hidden bg-surface-elevated">
     {!failed && story.imageUrl ? <>
       {!loaded && <div aria-hidden="true" className="absolute inset-0 motion-safe:animate-pulse bg-border/30" />}
-      <Image src={story.imageUrl} alt={`Illustration for ${story.title}`} fill unoptimized loading="lazy" sizes="(max-width: 480px) 100vw, 480px"
+      <Image src={story.imageUrl} alt={`Illustration for ${story.title}`} fill unoptimized loading={eager ? "eager" : "lazy"} fetchPriority={eager ? "high" : undefined} sizes="(max-width: 610px) 100vw, 610px"
         className={`object-contain transition-opacity motion-reduce:transition-none ${loaded ? "opacity-100" : "opacity-0"}`}
         onLoad={() => setLoaded(true)} onError={() => setFailed(true)} />
     </> : <div className="flex h-full flex-col items-center justify-center gap-3 bg-accent/5 px-6 text-center text-sm text-muted">
@@ -24,7 +24,7 @@ export function StoryImage({ story }: { story: FeedStory }) {
   </div>;
 }
 
-export function StoryActions({ story, actions, onAsk }: { story: FeedStory; actions: FeedActions; onAsk: () => void }) {
+export function StoryActions({ story, actions, onAsk, onHide }: { story: FeedStory; actions: FeedActions; onAsk: () => void; onHide?: () => void }) {
   const saved = story.viewerState.saved;
   const notice = actions.notice?.storyId === story.id ? actions.notice : undefined;
   return <div>
@@ -33,13 +33,14 @@ export function StoryActions({ story, actions, onAsk }: { story: FeedStory; acti
         {saved ? <Check size={17} aria-hidden="true" /> : <Bookmark size={17} aria-hidden="true" />}<span className="hidden sm:inline">{saved ? "Saved" : "Save"}</span>
       </button>
       <button type="button" aria-label="Share" onClick={() => void actions.share(story.id, story.title)} className={`${feedButton} min-w-11 text-muted`}><Share2 size={17} aria-hidden="true" /><span className="hidden sm:inline">Share</span></button>
+      {onHide && <button type="button" aria-label="Not interested" title="Hide this story" disabled={actions.pending} onClick={onHide} className={`${feedButton} min-w-11 text-muted`}><EyeOff size={17} aria-hidden="true" /><span className="hidden sm:inline">Hide</span></button>}
       <button type="button" onClick={onAsk} className={`${feedButton} ml-auto min-w-0 bg-accent/10 px-2.5 text-accent hover:bg-accent/20 sm:px-3`}><Sparkles size={17} aria-hidden="true" /><span className="whitespace-nowrap">Ask ReasonAI</span></button>
     </div>
     <div aria-live="polite" className={`min-h-5 px-2 pt-1 text-xs ${notice?.failed ? "text-warning" : "text-muted"}`}>{notice?.text}</div>
   </div>;
 }
 
-export function StoryCard({ story, actions, onOpen, onAsk }: { story: FeedStory; actions: FeedActions; onOpen: () => void; onAsk: () => void }) {
+export function StoryCard({ story, actions, onOpen, onAsk, onHide, eager = false }: { story: FeedStory; actions: FeedActions; onOpen: () => void; onAsk: () => void; onHide: () => void; eager?: boolean }) {
   const card = useRef<HTMLElement>(null);
   const [openedAt] = useState(() => Date.now());
   const { track } = actions;
@@ -59,7 +60,7 @@ export function StoryCard({ story, actions, onOpen, onAsk }: { story: FeedStory;
       <span className="min-w-0 truncate font-medium text-accent">{storyCategory(story)}</span>
       <time dateTime={story.publishedAt} title={new Date(story.publishedAt).toLocaleString()} className="shrink-0 text-muted">{storyAge(story.publishedAt, openedAt)}</time>
     </div>
-    <div className="bg-surface-elevated/35"><StoryImage key={story.imageUrl} story={story} /></div>
+    <div className="bg-surface-elevated/35"><StoryImage key={story.imageUrl} story={story} eager={eager} /></div>
     <div className="min-w-0 px-4 pb-3 pt-5 sm:px-5">
       <h2 id={`story-${story.id}`} className="break-words text-xl font-semibold leading-snug tracking-tight sm:text-2xl">{story.title}</h2>
       <p className="mt-3 line-clamp-4 whitespace-pre-line break-words text-sm leading-6 text-foreground/85 sm:text-[15px]">{story.summary}</p>
@@ -67,7 +68,7 @@ export function StoryCard({ story, actions, onOpen, onAsk }: { story: FeedStory;
       <a href={story.sourceUrl} target="_blank" rel="noopener noreferrer" className="relative z-20 mt-4 inline-flex min-h-10 max-w-full items-center gap-1 text-xs text-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-accent">
         <span className="min-w-0 truncate">{story.source.name}</span><ArrowUpRight size={13} className="shrink-0" aria-hidden="true" /><span className="sr-only"> (opens in a new tab)</span>
       </a>
-      <div className="relative z-20"><StoryActions story={story} actions={actions} onAsk={onAsk} /></div>
+      <div className="relative z-20"><StoryActions story={story} actions={actions} onAsk={onAsk} onHide={onHide} /></div>
     </div>
   </article>;
 }

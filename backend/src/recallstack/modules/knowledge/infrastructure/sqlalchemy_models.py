@@ -134,3 +134,17 @@ class StoryStateModel(Base):
     saved: Mapped[bool] = mapped_column(Boolean, server_default="false")
     hidden: Mapped[bool] = mapped_column(Boolean, server_default="false")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class RefreshRunModel(Base):
+    __tablename__ = "knowledge_refresh_runs"
+    __table_args__ = (Index("ix_knowledge_refresh_runs_requested_at", "requested_at"),)
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    requested_by: Mapped[UUID | None] = mapped_column(
+        ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True
+    )
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(20))
+    operation_name: Mapped[str | None] = mapped_column(Text)
+    checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

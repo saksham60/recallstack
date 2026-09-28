@@ -1,5 +1,5 @@
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
@@ -13,6 +13,7 @@ from recallstack.modules.knowledge.application.events import EventService
 from recallstack.modules.knowledge.application.feed import FeedService
 from recallstack.modules.knowledge.application.ports import RankedStory
 from recallstack.modules.knowledge.application.preferences import PreferenceService
+from recallstack.modules.knowledge.application.refresh import RefreshRun
 from recallstack.modules.knowledge.domain.entities import Preferences
 from recallstack.shared.auth import CurrentUser
 from recallstack.shared.config import Settings
@@ -125,6 +126,9 @@ async def api():
         ("GET", "/preferences", None),
         ("PATCH", "/preferences", {}),
         ("POST", "/events/batch", {"events": []}),
+        ("POST", "/refresh-runs", None),
+        ("GET", "/refresh-runs", None),
+        ("GET", f"/refresh-runs/{uuid4()}", None),
     ],
 )
 async def test_all_routes_require_auth(api, method, path, payload):
@@ -137,6 +141,37 @@ def authenticate(app, user):
     app.dependency_overrides[get_current_user] = lambda: CurrentUser(
         user, user, frozenset({"user"})
     )
+
+
+async def test_refresh_start_and_poll_use_authenticated_profile(api):
+    app, client, user, _, _ = api
+    authenticate(app, user)
+    assert (await client.get("/api/v1/knowledge/refresh-runs")).json() == {"available": False}
+
+    class FakeRefresh:
+        cooldown = timedelta(minutes=30)
+        requester = None
+        run = RefreshRun(uuid4(), datetime.now(UTC), "running")
+
+        async def start(self, profile_id):
+            self.requester = profile_id
+            return self.run
+
+        async def status(self, run_id):
+            assert run_id == self.run.id
+            return replace(self.run, status="succeeded")
+
+    service = FakeRefresh()
+    app.state.knowledge_refresh_service = service
+    assert (await client.get("/api/v1/knowledge/refresh-runs")).json() == {"available": True}
+    started = await client.post("/api/v1/knowledge/refresh-runs")
+    assert started.status_code == 200, started.text
+    assert service.requester == user
+    assert started.json()["status"] == "running"
+    polled = await client.get(f"/api/v1/knowledge/refresh-runs/{service.run.id}")
+    assert polled.status_code == 200, polled.text
+    assert polled.json()["status"] == "succeeded"
+    assert polled.json()["runId"] == str(service.run.id)
 
 
 async def test_feed_serialization_and_stable_pagination(api):

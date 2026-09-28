@@ -6,6 +6,7 @@ from uuid import UUID
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic.alias_generators import to_camel
 
+from recallstack.modules.knowledge.application.refresh import RefreshStatus
 from recallstack.modules.knowledge.domain.entities import EventType
 from recallstack.modules.knowledge.domain.ranking import normalize_topic
 
@@ -103,3 +104,10 @@ class EventBatch(Schema):
 class EventResult(Schema):
     accepted: int
     duplicates: int
+
+
+class RefreshRunResponse(Schema):
+    run_id: UUID
+    status: RefreshStatus
+    requested_at: datetime
+    next_allowed_at: datetime
