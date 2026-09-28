@@ -32,7 +32,7 @@ export async function handleDemoLogin(request: Request, options: DemoLoginOption
     });
     return error
       ? redirect(request, "/login?error=demo-auth-failed")
-      : redirect(request, "/dsa");
+      : redirect(request, "/feed");
   } catch {
     return redirect(request, "/login?error=demo-auth-failed");
   }

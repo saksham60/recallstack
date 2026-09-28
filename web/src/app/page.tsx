@@ -10,7 +10,7 @@ export default function HomePage() {
   const router = useRouter();
 
   useEffect(() => {
-    if (!isLoading && user) router.replace("/dsa");
+    if (!isLoading && user) router.replace("/feed");
   }, [isLoading, router, user]);
 
   if (isLoading || user) {

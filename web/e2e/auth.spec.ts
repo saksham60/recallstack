@@ -46,20 +46,37 @@ test.describe('Authentication and Route Protection', () => {
         maxRedirects: 0,
       })).status()).toBe(403);
     });
+
+    test('shared feed links show branded metadata and keep the story through sign-in', async ({ page }) => {
+      test.setTimeout(90_000);
+      const storyId = '10000000-0000-4000-8000-000000000001';
+      await page.goto(`/feed?story=${storyId}`);
+      await expect(page).toHaveURL(new RegExp(`/feed\\?story=${storyId}$`));
+      await expect(page.getByText('Sign in to read your feed')).toBeVisible();
+      await expect(page.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', `/login?next=${encodeURIComponent(`/feed?story=${storyId}`)}`);
+      await expect(page.locator('meta[property="og:site_name"]')).toHaveAttribute('content', 'ReasonAI');
+      const image = await page.locator('meta[property="og:image"]').getAttribute('content');
+      expect(image).toContain('/feed/opengraph-image');
+      const preview = await page.request.get(image!);
+      expect(preview.ok()).toBe(true);
+      expect(preview.headers()['content-type']).toContain('image/png');
+    });
   });
 
   test.describe('Authenticated User', () => {
-    test('redirects from the landing page to /dsa', async ({ page }) => {
+    test('redirects from the landing page to /feed', async ({ page }) => {
       await setupAuth(page);
       await page.goto('/');
-      await expect(page).toHaveURL(/.*\/dsa$/);
+      await expect(page).toHaveURL(/.*\/feed$/);
       await expect(page.getByRole('heading', { name: /Think\. Connect\. Reason\./ })).toHaveCount(0);
     });
 
-    test('redirects from login to /dsa', async ({ page }) => {
+    test('redirects from login to the requested page', async ({ page }) => {
       await setupAuth(page);
       await page.goto('/login?next=/profile');
-      await expect(page).toHaveURL(/.*\/dsa$/);
+      await expect(page).toHaveURL(/.*\/profile$/);
+      await page.goto('/login');
+      await expect(page).toHaveURL(/.*\/feed$/);
     });
   });
 
@@ -82,16 +99,19 @@ test.describe('Authentication and Route Protection', () => {
 
       // Test invalid external redirects
       await page.goto('/auth/callback?code=mock&next=https://evil.com');
-      await expect(page).toHaveURL(/.*\/dsa/);
+      await expect(page).toHaveURL(/.*\/feed/);
 
       await page.goto('/auth/callback?code=mock&next=//evil.com');
-      await expect(page).toHaveURL(/.*\/dsa/);
+      await expect(page).toHaveURL(/.*\/feed/);
 
       await page.goto('/auth/callback?code=mock&next=/\\evil.com');
-      await expect(page).toHaveURL(/.*\/dsa/);
+      await expect(page).toHaveURL(/.*\/feed/);
 
       await page.goto('/auth/callback?code=mock&next=@evil.com');
-      await expect(page).toHaveURL(/.*\/dsa/);
+      await expect(page).toHaveURL(/.*\/feed/);
+
+      await page.goto('/auth/callback?code=mock');
+      await expect(page).toHaveURL(/.*\/feed/);
     });
 
     test('returns a signed-in user to the protected route that initiated login', async ({ page }) => {

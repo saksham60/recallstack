@@ -37,10 +37,10 @@ export async function GET(request: NextRequest) {
   try {
     redirectUrl = new URL(next, requestUrl.origin)
     if (redirectUrl.origin !== requestUrl.origin) {
-      redirectUrl = new URL('/dsa', requestUrl.origin)
+      redirectUrl = new URL('/feed', requestUrl.origin)
     }
   } catch {
-    redirectUrl = new URL('/dsa', requestUrl.origin)
+    redirectUrl = new URL('/feed', requestUrl.origin)
   }
 
   if (code) {

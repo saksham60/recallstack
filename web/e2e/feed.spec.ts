@@ -76,6 +76,7 @@ test("uses fixed broad categories and a narrow 4:5 content-first card", async ({
   const media = card.getByTestId("story-media");
   const box = await media.boundingBox();
   expect(box!.height / box!.width).toBeCloseTo(1.25, 1);
+  expect(await media.locator('img').evaluate((image) => getComputedStyle(image).objectFit)).toBe('contain');
   expect((await card.boundingBox())!.width).toBeLessThanOrEqual(610);
   await expect(card.getByText("Why it matters", { exact: true })).toBeVisible();
   expect(await card.locator("p.line-clamp-4").evaluate((element) => getComputedStyle(element).webkitLineClamp)).toBe("4");
@@ -160,6 +161,22 @@ test("clipboard sharing uses the internal detail URL", async ({ authenticatedPag
   await page.getByRole("button", { name: "Share", exact: true }).click();
   await expect(page.getByText("Link copied", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`http://localhost:3000/feed?story=${id(1)}`);
+});
+
+test("native sharing carries the story title and ReasonAI branding", async ({ authenticatedPage: page }) => {
+  await setup(page, 1);
+  await page.addInitScript(() => Object.defineProperty(navigator, "share", {
+    configurable: true,
+    value: async (data: ShareData) => { (window as Window & { sharedStory?: ShareData }).sharedStory = data; },
+  }));
+  await page.goto("/feed");
+  await page.getByRole("button", { name: "Share", exact: true }).click();
+  await expect(page.getByText("Story shared", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => (window as Window & { sharedStory?: ShareData }).sharedStory)).toEqual({
+    title: "A smarter cache 1 | ReasonAI",
+    text: "A story from the ReasonAI Knowledge Feed",
+    url: `http://localhost:3000/feed?story=${id(1)}`,
+  });
 });
 
 test("hydrates saved stories from the merged backend contract", async ({ authenticatedPage: page }) => {

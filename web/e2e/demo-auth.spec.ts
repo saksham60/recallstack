@@ -16,7 +16,7 @@ test("judge option is rendered only when server configuration enables it", () =>
   expect(JudgeLoginOption({ enabled: false, disabled: false })).toBeNull();
 });
 
-test("successful judge login uses configured credentials and redirects to DSA", async () => {
+test("successful judge login uses configured credentials and redirects to Feed", async () => {
   const received: { email: string; password: string }[] = [];
   const response = await handleDemoLogin(request(), {
     enabled: true,
@@ -30,7 +30,7 @@ test("successful judge login uses configured credentials and redirects to DSA", 
 
   expect(received).toEqual([{ email: "judge@example.test", password: "private-password" }]);
   expect(response.status).toBe(303);
-  expect(response.headers.get("location")).toBe("https://reasonai.test/dsa");
+  expect(response.headers.get("location")).toBe("https://reasonai.test/feed");
   expect(response.headers.get("cache-control")).toBe("no-store");
   expect(await response.text()).not.toContain("private-password");
 });

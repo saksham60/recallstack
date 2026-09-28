@@ -89,7 +89,7 @@ function SupabaseAuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error;
   };
 
-  const signInWithGoogle = async (nextPath = "/dsa") => {
+  const signInWithGoogle = async (nextPath = "/feed") => {
     const safeNextPath = getSafeAuthRedirect(nextPath);
     const secureAttribute = window.location.protocol === "https:" ? "; Secure" : "";
     document.cookie = `${POST_AUTH_REDIRECT_COOKIE}=${encodeURIComponent(safeNextPath)}; Path=/; Max-Age=600; SameSite=Lax${secureAttribute}`;

@@ -1,15 +1,15 @@
 # Knowledge Feed integration
 
-`/feed` lives inside the existing authenticated app shell. There are no new runtime dependencies or database changes in this web implementation. The merged backend PR (#3, `f8e9c2d`) is integrated, including persisted viewer state.
+`/feed` is the default signed-in landing page. Its public shell shows a sign-in prompt for guests; feed data still requires the existing authenticated API. There are no new runtime dependencies or database changes in this web implementation. The merged backend PR (#3, `f8e9c2d`) is integrated, including persisted viewer state.
 
 ## Behavior
 
-- Centered 610px feed with 4:5 CDN images, reserved image space, lazy loading, matching skeletons and a branded image fallback.
+- Centered 610px feed with uncropped 4:5 CDN images, reserved image space, lazy loading, matching skeletons and a branded image fallback.
 - Ten stories per request, a 1,000px prefetch margin, duplicate prevention and manual recovery after pagination failures. No polling or automatic reordering. At 100 buffered stories, “Continue reading” deliberately starts the next batch and releases the previous batch. Feed data is not persisted to browser storage.
 - The primary navigation uses nine fixed broad categories (including For You); detailed topics stay in the story data and detail view. Category selection uses the existing `topic` query. The backend also supports an optional `source` filter; types include it, but this screen currently filters by category.
 - Cards show a short summary and Why it matters preview, with full text in details. The full card body opens details while Save, Share and source links remain independent.
 - On focus after five minutes, a first-page check can offer a non-numeric New stories pill when a newly published story is observed. This check leaves the anchored reading queue and scroll position unchanged. The pill and manual Refresh explicitly start a fresh feed session; the API does not supply an exact new-story count.
-- `/feed?story=<uuid>` opens accessible native-dialog details. Browser Back, Escape and Close preserve feed scroll and restore focus. Share uses native sharing where available, otherwise copies this internal link.
+- `/feed?story=<uuid>` opens accessible native-dialog details. Browser Back, Escape and Close preserve feed scroll and restore focus. Share uses branded native share text where available, otherwise copies this internal link. On Vercel, links use the production project URL when exposed by the platform. The public page exposes a generic ReasonAI Open Graph preview without revealing private story content, and sign-in preserves shared story links.
 - Save/Unsave sends durable events and updates both list and detail caches after acknowledgement. `viewerState.saved` hydrates the control after reload. Retries reuse the same event UUID. Failures leave the previous state intact.
 - VIEW, OPEN, SHARE and ASK_REASONAI analytics use bounded, best-effort batches; Save is a separately acknowledged mutation. Analytics may be dropped when leaving the page.
 - Ask ReasonAI reuses the existing composer, safe Markdown renderer, session-refresh transport, Token Factory transport, provider SSE decoder and ReasonAI streaming protocol. The selected story is attached as structured context, never dumped into the visible conversation. Quick questions cover explanation, relevance, architecture, examples and interview preparation.

@@ -15,7 +15,7 @@ export function StoryImage({ story }: { story: FeedStory }) {
     {!failed && story.imageUrl ? <>
       {!loaded && <div aria-hidden="true" className="absolute inset-0 motion-safe:animate-pulse bg-border/30" />}
       <Image src={story.imageUrl} alt={`Illustration for ${story.title}`} fill unoptimized loading="lazy" sizes="(max-width: 480px) 100vw, 480px"
-        className={`object-cover transition-opacity motion-reduce:transition-none ${loaded ? "opacity-100" : "opacity-0"}`}
+        className={`object-contain transition-opacity motion-reduce:transition-none ${loaded ? "opacity-100" : "opacity-0"}`}
         onLoad={() => setLoaded(true)} onError={() => setFailed(true)} />
     </> : <div className="flex h-full flex-col items-center justify-center gap-3 bg-accent/5 px-6 text-center text-sm text-muted">
       <span className="flex size-14 items-center justify-center rounded-2xl bg-accent/10 text-accent"><Sparkles size={26} aria-hidden="true" /></span>

@@ -2,7 +2,7 @@ export const POST_AUTH_REDIRECT_COOKIE = "reasonai-post-auth-redirect";
 
 export function getSafeAuthRedirect(
   value: string | null | undefined,
-  fallback = "/dsa",
+  fallback = "/feed",
 ): string {
   if (
     !value?.startsWith("/") ||

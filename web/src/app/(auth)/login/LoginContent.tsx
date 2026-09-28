@@ -22,8 +22,8 @@ export function LoginContent({ demoEnabled }: { demoEnabled: boolean }) {
   const [signInError, setSignInError] = useState(false);
 
   useEffect(() => {
-    if (user) router.replace("/dsa");
-  }, [user, router]);
+    if (user) router.replace(nextPath);
+  }, [user, router, nextPath]);
 
   const handleSignIn = async () => {
     setSignInError(false);

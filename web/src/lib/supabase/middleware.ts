@@ -34,6 +34,9 @@ export async function updateSession(request: NextRequest) {
 
   const isPublicRoute =
     request.nextUrl.pathname === '/' ||
+    request.nextUrl.pathname === '/feed' ||
+    request.nextUrl.pathname === '/feed/opengraph-image' ||
+    request.nextUrl.pathname.startsWith('/feed/opengraph-image-') ||
     request.nextUrl.pathname.startsWith('/login') ||
     request.nextUrl.pathname.startsWith('/auth')
   

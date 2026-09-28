@@ -75,10 +75,12 @@ export function useFeedActions(userId: string) {
   }
 
   async function share(id: string, title: string) {
-    const url = `${window.location.origin}/feed?story=${encodeURIComponent(id)}`;
+    const productionHost = process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL;
+    const origin = productionHost ? `https://${productionHost}` : window.location.origin;
+    const url = `${origin}/feed?story=${encodeURIComponent(id)}`;
     const nativeShare = typeof navigator.share === "function";
     try {
-      if (nativeShare) await navigator.share({ title, url });
+      if (nativeShare) await navigator.share({ title: `${title} | ReasonAI`, text: "A story from the ReasonAI Knowledge Feed", url });
       else await navigator.clipboard.writeText(url);
       setNotice({ storyId: id, text: nativeShare ? "Story shared" : "Link copied" });
       track(id, "SHARE");

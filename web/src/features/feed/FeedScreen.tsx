@@ -17,8 +17,9 @@ import { StoryDetail } from "./StoryDetail";
 
 export function FeedScreen() {
   const { user, isLoading } = useAuth();
+  const storyId = useSearchParams().get("story");
   if (isLoading) return <div className="mx-auto max-w-[610px]"><FeedSkeleton /></div>;
-  if (!user) return <EmptyState title="Sign in to read your feed" action={<Link href="/login?next=%2Ffeed" className="text-accent">Sign in</Link>} />;
+  if (!user) return <EmptyState title="Sign in to read your feed" action={<Link href={`/login?next=${encodeURIComponent(storyId ? storyLink(storyId) : "/feed")}`} className="text-accent">Sign in</Link>} />;
   return <FeedWorkspace key={user.id} userId={user.id} />;
 }
 
