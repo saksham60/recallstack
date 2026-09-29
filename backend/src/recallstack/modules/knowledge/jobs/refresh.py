@@ -15,6 +15,7 @@ from recallstack.composition.knowledge_job import (
 from recallstack.shared.config import Settings
 from recallstack.shared.database.event_loop import configure_psycopg_event_loop
 from recallstack.shared.logging import configure_logging
+from recallstack.shared.observability.langsmith import flush, span
 
 logger = logging.getLogger(__name__)
 
@@ -27,16 +28,24 @@ async def run(settings: Settings, *, limit: int, source: str, dry_run: bool) -> 
         if not acquired:
             logger.info("knowledge_refresh_already_running", extra={"run_id": run_id})
             return {"status": "already_running", "runId": run_id}
-        async with job_services(settings, source) as (cleanup, ingestion):
-            cleaned = await cleanup.run(datetime.now(UTC), dry_run=dry_run)
-            result = await ingestion.run(limit=limit, dry_run=dry_run, run_id=run_id)
-            return {
-                "runId": run_id,
-                "dryRun": dry_run,
-                "cleanup": asdict(cleaned),
-                "counts": result.counts,
-                "stories": [asdict(story) for story in result.previews],
-            }
+        with span(
+            "knowledge.refresh",
+            "chain",
+            {"source": source, "limit": limit},
+            {"run_id": run_id, "actor": "system"},
+        ) as traced:
+            async with job_services(settings, source) as (cleanup, ingestion):
+                cleaned = await cleanup.run(datetime.now(UTC), dry_run=dry_run)
+                result = await ingestion.run(limit=limit, dry_run=dry_run, run_id=run_id)
+                if traced:
+                    traced.end(outputs={"counts": result.counts, "dry_run": dry_run})
+                return {
+                    "runId": run_id,
+                    "dryRun": dry_run,
+                    "cleanup": asdict(cleaned),
+                    "counts": result.counts,
+                    "stories": [asdict(story) for story in result.previews],
+                }
 
 
 def main() -> int:
@@ -65,6 +74,8 @@ def main() -> int:
         # Do not render ValidationError inputs, DB URLs, remote responses or auth headers.
         logger.error("knowledge_job_failed", extra={"failure_category": type(exc).__name__})
         return 1
+    finally:
+        flush()
 
 
 if __name__ == "__main__":

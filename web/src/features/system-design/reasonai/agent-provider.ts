@@ -9,6 +9,7 @@ import { SYSTEM_DESIGN_REASONAI_PROMPT, reasonAITurnRules } from "./system-promp
 import { normalizeReasonAIVisibleText } from "./visible-text";
 import { REASONAI_VISUALIZATION_TOOL } from "./visualization";
 import type { TavilyEvidence } from "@/lib/tavily/search";
+import { traceLLMResponse } from "@/lib/reasonai/server/langsmith";
 
 const MAX_CONTENT = 64_000;
 const MAX_FINAL_TEXT = 16_000;
@@ -107,14 +108,14 @@ async function openProvider(body: object, signal?: AbortSignal): Promise<{ respo
   const combined = signal ? AbortSignal.any([signal, AbortSignal.timeout(60_000)]) : AbortSignal.timeout(60_000);
   let response: Response;
   try {
-    response = await fetch(`${baseUrl.replace(/\/$/u, "")}/chat/completions`, {
+    response = await traceLLMResponse(body as Record<string, unknown>, () => fetch(`${baseUrl.replace(/\/$/u, "")}/chat/completions`, {
       method: "POST",
       cache: "no-store",
       redirect: "error",
       signal: combined,
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    });
+    }), combined);
   } catch (error) {
     if (signal?.aborted) throw signal.reason ?? error;
     throw new ReasonAIProviderError("ReasonAI is temporarily unavailable. Please try again.", combined.aborted ? 504 : 502);

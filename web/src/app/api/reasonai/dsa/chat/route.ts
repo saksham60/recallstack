@@ -1,4 +1,6 @@
+import { after } from "next/server";
 import { isReasonAIDSAStreamingEnabled, isReasonAILearnerMemoryEnabled } from "@/lib/config/server";
+import { flushLangSmith, isLangSmithEnabled, traceTurn, traceTurnStream } from "@/lib/reasonai/server/langsmith";
 import { readBoundedJSON } from "@/lib/http/read-bounded-json";
 import { DSAValidationError, parseDSATutorRequest } from "@/features/dsa/reasonai/contract";
 import { dsaTutorProvider, DSATutorProviderError } from "@/features/dsa/reasonai/provider";
@@ -20,6 +22,7 @@ export const maxDuration = 120;
 const reply = (body: unknown, status = 200) => Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
 
 export async function POST(request: Request) {
+  if (isLangSmithEnabled()) after(flushLangSmith);
   const acceptedAt = Date.now();
   const pendingStages: Array<{ stage: DSAPerformanceStage; at: number }> = [];
   const record = (stage: DSAPerformanceStage) => pendingStages.push({ stage, at: Date.now() });
@@ -183,7 +186,12 @@ export async function POST(request: Request) {
         },
         () => nextConversationState,
       );
-      return createReasonAINDJSONResponse(persisted, { headers }, request.signal);
+      return createReasonAINDJSONResponse(traceTurnStream("reasonai.dsa", { query: input.message }, {
+        user_id: persistenceContext.userId,
+        conversation_id: prepared.conversation.id,
+        run_id: prepared.run.id,
+        surface: "dsa",
+      }, persisted), { headers }, request.signal);
     } catch (error) {
       if (prepared?.kind === "acquired") {
         try {
@@ -211,7 +219,7 @@ export async function POST(request: Request) {
       }, 503);
     }
   }
-  try { return reply(await dsaTutorProvider.complete(input, request.signal)); }
+  try { return reply(await traceTurn("reasonai.dsa", { query: input.message }, { user_id: persistenceContext.userId, surface: "dsa" }, () => dsaTutorProvider.complete(input, request.signal))); }
   catch (error) {
     return error instanceof DSATutorProviderError ? reply({ error: error.message }, error.status)
       : reply({ error: "ReasonAI is temporarily unavailable. Please try again." }, 502);

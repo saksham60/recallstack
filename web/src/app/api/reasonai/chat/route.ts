@@ -1,5 +1,7 @@
 import { cookies } from "next/headers";
-import { authenticateApiRequest } from "@/lib/supabase/api-auth";
+import { after } from "next/server";
+import { authenticateApiRequestWithContext } from "@/lib/supabase/api-auth";
+import { flushLangSmith, isLangSmithEnabled, traceTurn, traceTurnStream } from "@/lib/reasonai/server/langsmith";
 import { isE2EAuthBypassEnabled, isReasonAISystemDesignStreamingEnabled, isSystemDesignEnabled } from "@/lib/config/server";
 import { parseReasonAIRequest } from "@/features/system-design/reasonai/contract";
 import { readBoundedJSON, reasonAIProvider, ReasonAIProviderError } from "@/features/system-design/reasonai/provider";
@@ -16,6 +18,7 @@ export const runtime = "nodejs";
 export const maxDuration = 120;
 
 export async function POST(request: Request) {
+  if (isLangSmithEnabled()) after(flushLangSmith);
   const traceId = crypto.randomUUID();
   const trace = createReasonAITrace(traceId);
   const started = Date.now();
@@ -33,13 +36,16 @@ export async function POST(request: Request) {
   const acceptsNDJSON = request.headers.get("accept")?.toLowerCase().split(",").some((value) => value.trim().startsWith(REASONAI_NDJSON_MEDIA_TYPE));
   const streaming = isReasonAISystemDesignStreamingEnabled() && acceptsNDJSON;
   let persistenceContext: Awaited<ReturnType<typeof getReasonAIPersistenceRequestContext>> | undefined;
+  let traceUserId = "test";
   try {
     if (streaming) {
       persistenceContext = await getReasonAIPersistenceRequestContext(request);
       if (persistenceContext instanceof Response) return finish(persistenceContext);
+      traceUserId = persistenceContext.userId;
     } else if (!(isE2EAuthBypassEnabled() && (await cookies()).has("e2e-bypass-auth"))) {
-      const authError = await authenticateApiRequest(request);
-      if (authError) return finish(authError);
+      const auth = await authenticateApiRequestWithContext(request);
+      if (auth instanceof Response) return finish(auth);
+      traceUserId = auth.user.id;
     }
   } catch {
     return reply({ error: "Session verification is temporarily unavailable. Please try again." }, 503);
@@ -94,7 +100,12 @@ export async function POST(request: Request) {
         undefined,
         () => nextConversationState,
       );
-      return createReasonAINDJSONResponse(persistedStream, { headers }, request.signal);
+      return createReasonAINDJSONResponse(traceTurnStream("reasonai.system_design", { query: input.message }, {
+        user_id: traceUserId,
+        conversation_id: prepared.conversation.id,
+        run_id: prepared.run.id,
+        surface: "system_design",
+      }, persistedStream), { headers }, request.signal);
     } catch (error) {
       if (prepared?.kind === "acquired") {
         try {
@@ -116,7 +127,7 @@ export async function POST(request: Request) {
     }
   }
 
-  try { return reply(await reasonAIProvider.complete(input, request.signal, traceId)); }
+  try { return reply(await traceTurn("reasonai.system_design", { query: input.message }, { user_id: traceUserId, surface: "system_design", trace_id: traceId }, () => reasonAIProvider.complete(input, request.signal, traceId))); }
   catch (error) {
     return error instanceof ReasonAIProviderError
       ? reply({ error: error.message }, error.status)

@@ -2,6 +2,7 @@ import "server-only";
 import { isIP } from "node:net";
 import { getReasonAIConfiguration, getTavilyConfiguration } from "@/lib/config/server";
 import { readBoundedJSON } from "@/lib/http/read-bounded-json";
+import { traceTool } from "@/lib/reasonai/server/langsmith";
 
 export interface TavilyEvidence { title: string; url: string; content: string }
 export interface TavilySearchResult { status: "used" | "empty" | "unavailable"; results: TavilyEvidence[] }
@@ -28,7 +29,7 @@ export function redactResearchText(value: string): string {
 }
 
 /** Fixed endpoint, short snippets, no crawling, no answer generation, no storage. */
-export async function searchTavily(input: { query: string; domains?: string[] }, signal?: AbortSignal): Promise<TavilySearchResult> {
+async function searchTavilyUntraced(input: { query: string; domains?: string[] }, signal?: AbortSignal): Promise<TavilySearchResult> {
   const { apiKey } = getTavilyConfiguration();
   const query = redactResearchText(input.query).trim().slice(0, 400);
   const domains = input.domains?.slice(0, 3).map(publicResearchDomain);
@@ -52,4 +53,8 @@ export async function searchTavily(input: { query: string; domains?: string[] },
     }
     return { status: results.length ? "used" : "empty", results };
   } catch { return { status: "unavailable", results: [] }; }
+}
+
+export function searchTavily(input: { query: string; domains?: string[] }, signal?: AbortSignal): Promise<TavilySearchResult> {
+  return traceTool("tavily.search", input, () => searchTavilyUntraced(input, signal));
 }

@@ -2,6 +2,7 @@ import "server-only";
 
 import { getReasonAIConfiguration, getTavilyConfiguration } from "@/lib/config/server";
 import { readBoundedJSON } from "@/lib/http/read-bounded-json";
+import { traceLLMResponse } from "@/lib/reasonai/server/langsmith";
 import type { DSATutorRequest, DSATutorResponse } from "./contract";
 import {
   DSA_SYSTEM_PROMPT,
@@ -523,7 +524,7 @@ async function providerResponse(
   let response: Response;
 
   try {
-    response = await fetch(
+    response = await traceLLMResponse(body as Record<string, unknown>, () => fetch(
       `${baseUrl.replace(
         /\/$/u,
         "",
@@ -541,7 +542,7 @@ async function providerResponse(
         },
         body: JSON.stringify(body),
       },
-    );
+    ), combined);
   } catch (error) {
     /*
      * Preserve explicit caller cancellation. Internal provider timeout gets

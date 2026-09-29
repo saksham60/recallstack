@@ -5,6 +5,7 @@ export default defineConfig({
   // Next.js resolves server-only itself. Use its empty server shim in Node tests.
   tsconfig: "./e2e/tsconfig.state.json",
   testMatch: [
+    "**/langsmith.spec.ts",
     "**/feed-reasonai.spec.ts",
     "**/demo-auth.spec.ts",
     "**/reasonai-auth.spec.ts",

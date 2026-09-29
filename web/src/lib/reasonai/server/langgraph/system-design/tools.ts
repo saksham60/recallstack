@@ -7,6 +7,7 @@ import { sanitizeAIProposal } from "@/features/system-design/reasonai/sanitizeAI
 import { parseReasonAIVisualization } from "@/features/system-design/reasonai/visualization";
 import { normalizeVisualizationArguments } from "@/features/system-design/reasonai/visualization-arguments";
 import { searchTavily, type TavilyEvidence } from "@/lib/tavily/search";
+import { traceTool } from "@/lib/reasonai/server/langsmith";
 
 export const MAX_SYSTEM_DESIGN_TOOL_ROUNDS = 4;
 
@@ -41,6 +42,7 @@ function invalid(call: SystemDesignAgentToolCall, reason: string, notice?: strin
 
 export const systemDesignToolExecutor: SystemDesignToolExecutor = {
   async execute(call, context) {
+    return traceTool(call.name, { toolCallId: call.id, arguments: call.arguments }, async () => {
     if (call.invalidReason) return invalid(call, "Tool input was invalid.");
     if (call.name === "search_web") {
       if (context.searchCount >= 2) return invalid(call, "The web search limit was reached.");
@@ -95,5 +97,6 @@ export const systemDesignToolExecutor: SystemDesignToolExecutor = {
       }
     }
     return invalid(call, "The requested tool is not available.");
+    });
   },
 };

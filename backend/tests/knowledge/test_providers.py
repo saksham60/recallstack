@@ -1,4 +1,5 @@
 import json
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from io import BytesIO
 
@@ -7,6 +8,7 @@ import pytest
 from PIL import Image, UnidentifiedImageError
 
 from recallstack.modules.knowledge.infrastructure.image_processing import transform_image
+from recallstack.modules.knowledge.infrastructure.providers import http as provider_http
 from recallstack.modules.knowledge.infrastructure.providers.hacker_news import HackerNewsDiscovery
 from recallstack.modules.knowledge.infrastructure.providers.http import ProviderError, ProviderHttp
 from recallstack.modules.knowledge.infrastructure.providers.nemotron import NemotronProcessor
@@ -14,6 +16,62 @@ from recallstack.modules.knowledge.infrastructure.providers.r2 import R2ImageSto
 from recallstack.modules.knowledge.infrastructure.providers.tavily import TavilyDiscovery
 from recallstack.modules.knowledge.infrastructure.safe_fetch import SafeFetcher, resolve_public
 from tests.knowledge.fakes import candidate
+
+
+async def test_model_retries_create_separate_sanitized_llm_spans(monkeypatch):
+    spans = []
+    attempts = 0
+
+    class Run:
+        def __init__(self):
+            self.outputs = None
+
+        def end(self, *, outputs):
+            self.outputs = outputs
+
+    @contextmanager
+    def fake_span(name, run_type, inputs, metadata=None):
+        run = Run()
+        spans.append((name, run_type, inputs, metadata, run))
+        yield run
+
+    def handler(_request):
+        nonlocal attempts
+        attempts += 1
+        return (
+            httpx.Response(429)
+            if attempts == 1
+            else httpx.Response(
+                200,
+                json={
+                    "choices": [
+                        {
+                            "message": {"content": "summary", "reasoning_content": "private"},
+                            "finish_reason": "stop",
+                        }
+                    ],
+                    "usage": {"total_tokens": 12},
+                },
+            )
+        )
+
+    monkeypatch.setattr(provider_http, "span", fake_span)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        result = await ProviderHttp(client, retries=1).json(
+            "POST",
+            "https://provider.test/chat/completions",
+            payload={
+                "model": "nemotron",
+                "messages": [{"role": "user", "content": "Summarize this"}],
+            },
+        )
+    assert isinstance(result, dict)
+    assert len(spans) == 2
+    assert all(item[1] == "llm" for item in spans)
+    assert spans[0][4].outputs == {"status": "retry", "http_status": 429}
+    assert spans[1][2]["request"]["messages"][0]["content"] == "Summarize this"
+    assert spans[1][4].outputs["content"] == "summary"
+    assert "private" not in str(spans[1][4].outputs)
 
 
 async def resolver(host, port):

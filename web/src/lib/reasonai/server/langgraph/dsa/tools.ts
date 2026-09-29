@@ -3,6 +3,7 @@ import type { DSATutorResponse } from "@/features/dsa/reasonai/contract";
 import type { DSAAgentMessage, DSAAgentToolCall } from "@/features/dsa/reasonai/agent-provider";
 import { parseVisualLesson } from "@/features/dsa/reasonai/visual-contract";
 import { searchDSAWebEvidence, type WebContext } from "@/features/dsa/reasonai/web-context";
+import { traceTool } from "@/lib/reasonai/server/langsmith";
 
 export const MAX_TOOL_ROUNDS = 4;
 
@@ -35,6 +36,7 @@ function invalid(call: DSAAgentToolCall, reason = "Tool input was invalid."): DS
 
 export const dsaToolExecutor: DSAToolExecutor = {
   async execute(call, context) {
+    return traceTool(call.name, { toolCallId: call.id, arguments: call.arguments }, async () => {
     if (call.invalidReason) return invalid(call);
     if (call.name === "search_web") {
       let args: Record<string, unknown>;
@@ -71,5 +73,6 @@ export const dsaToolExecutor: DSAToolExecutor = {
       }
     }
     return invalid(call, "The requested tool is not available.");
+    });
   },
 };

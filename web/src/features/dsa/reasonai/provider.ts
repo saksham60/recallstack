@@ -7,6 +7,7 @@ import { issueWebContextToken } from "./web-context-token";
 import { DSA_VISUAL_TOOL, parseVisualLesson, type VisualLesson } from "./visual-contract";
 import { decodeTokenFactorySSE, DSAProviderStreamError } from "./provider-sse";
 import { requestReasonAICompletion } from "@/lib/reasonai/server/provider";
+import { traceTool } from "@/lib/reasonai/server/langsmith";
 
 interface TokenFactoryToolCall {
   type?: string;
@@ -512,11 +513,11 @@ export const dsaTutorProvider = {
             throw new Error("Invalid visual tool.");
           }
 
-          visual = parseVisualLesson(JSON.parse(call.function.arguments));
-
-          if (visual.basis === "source_example" && !web.results.length) {
-            throw new Error("No source evidence for this example.");
-          }
+          visual = await traceTool("present_visual_lesson", { arguments: call.function.arguments }, async () => {
+            const lesson = parseVisualLesson(JSON.parse(call.function!.arguments as string));
+            if (lesson.basis === "source_example" && !web.results.length) throw new Error("No source evidence for this example.");
+            return lesson;
+          });
         } catch {
           console.warn("[DSA_VISUAL_VALIDATION_FAILED]", {
             traceId,

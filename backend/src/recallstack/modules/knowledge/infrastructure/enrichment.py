@@ -6,6 +6,7 @@ from urllib.parse import urljoin
 
 from recallstack.modules.knowledge.domain.entities import DiscoveryCandidate
 from recallstack.modules.knowledge.infrastructure.safe_fetch import SafeFetcher
+from recallstack.shared.observability.langsmith import safe, span
 
 
 def parse_date(value: str | None) -> datetime | None:
@@ -60,17 +61,23 @@ class ArticleEnricher:
     async def enrich(self, candidate: DiscoveryCandidate) -> DiscoveryCandidate:
         if candidate.image_url and candidate.published_at and len(candidate.content) >= 200:
             return candidate
-        page = await self._fetcher.fetch(
-            candidate.url,
-            max_bytes=1_048_576,
-            allowed_types=frozenset({"text/html", "application/xhtml+xml"}),
-        )
-        parser = ArticleParser()
-        parser.feed(page.body.decode("utf-8", errors="replace"))
-        return replace(
-            candidate,
-            content=(candidate.content + "\n" + " ".join(parser.parts))[:16000],
-            published_at=candidate.published_at or parser.published,
-            image_url=candidate.image_url
-            or (urljoin(page.url, parser.image) if parser.image else None),
-        )
+        with span("article.fetch", "tool", {"url": candidate.url}) as traced:
+            page = await self._fetcher.fetch(
+                candidate.url,
+                max_bytes=1_048_576,
+                allowed_types=frozenset({"text/html", "application/xhtml+xml"}),
+            )
+            parser = ArticleParser()
+            parser.feed(page.body.decode("utf-8", errors="replace"))
+            enriched = replace(
+                candidate,
+                content=(candidate.content + "\n" + " ".join(parser.parts))[:16000],
+                published_at=candidate.published_at or parser.published,
+                image_url=candidate.image_url
+                or (urljoin(page.url, parser.image) if parser.image else None),
+            )
+            if traced:
+                traced.end(
+                    outputs={"url": page.url, "content": safe(enriched.content, max_string=4000)}
+                )
+            return enriched

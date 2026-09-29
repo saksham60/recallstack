@@ -206,7 +206,9 @@ for (const scenario of ["error", "truncated", "empty", "limit"]) test(`provider 
 test("story route authenticates before generation and rechecks access using the user's bearer", async () => {
   process.env.NEXT_PUBLIC_SUPABASE_URL ??= "https://auth.example.test";
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-anon-key";
-  const { POST } = await import("../src/app/api/reasonai/knowledge/chat/route");
+  // Playwright's test transform does not resolve this route's aliases with dynamic import.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { POST } = require("../src/app/api/reasonai/knowledge/chat/route") as typeof import("../src/app/api/reasonai/knowledge/chat/route");
   let providerCalls = 0, authStatus = 401, storyStatus = 200;
   globalThis.fetch = async (input, init) => {
     const request = input instanceof Request ? input : new Request(input, init);

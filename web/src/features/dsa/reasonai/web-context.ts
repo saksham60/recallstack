@@ -2,6 +2,7 @@ import "server-only";
 import { isIP } from "node:net";
 import { getTavilyConfiguration } from "@/lib/config/server";
 import { readBoundedJSON } from "@/lib/http/read-bounded-json";
+import { traceTool } from "@/lib/reasonai/server/langsmith";
 import { safeExternalUrl, type DSATutorRequest, type DSATutorResponse, type DSATutorSource } from "./contract";
 import { readWebContextToken } from "./web-context-token";
 
@@ -41,6 +42,10 @@ function hasProblemContent(content: string): boolean {
       && /\b(?:array|string|integer|node|list|tree|graph|matrix|number|element|character|value|input|output)\b/i.test(content);
 }
 async function tavily(endpoint: "extract" | "search", body: object, key: string, signal: AbortSignal): Promise<Record<string, unknown> | undefined> {
+  return traceTool(`tavily.${endpoint}`, body, () => requestTavily(endpoint, body, key, signal));
+}
+
+async function requestTavily(endpoint: "extract" | "search", body: object, key: string, signal: AbortSignal): Promise<Record<string, unknown> | undefined> {
   try {
     const response = await fetch(`https://api.tavily.com/${endpoint}`, {
       method: "POST", cache: "no-store", redirect: "error", signal: AbortSignal.any([signal, AbortSignal.timeout(endpoint === "extract" ? 10_000 : 7_000)]),
