@@ -15,7 +15,7 @@ from recallstack.modules.knowledge.domain.entities import (
     Preferences,
     StoryEvent,
 )
-from recallstack.modules.knowledge.domain.ranking import RankingPolicy
+from recallstack.modules.knowledge.domain.ranking import RankingPolicy, interest_terms
 from recallstack.modules.knowledge.infrastructure.event_repository import record_events
 from recallstack.modules.knowledge.infrastructure.mappers import source_to_domain, story_to_domain
 from recallstack.modules.knowledge.infrastructure.preference_repository import (
@@ -53,6 +53,14 @@ def rank_expression(
         )
     source_weights = {p.key: p.weight for p in preferences.sources if p.enabled}
     source_match = case(source_weights, value=Source.key, else_=Decimal(0)) if source_weights else 0
+    terms = interest_terms(preferences.interest_prompt)
+    prompt_match: ColumnElement[Decimal] = literal(Decimal(0))
+    if terms:
+        document = func.to_tsvector(
+            "english", func.concat_ws(" ", Story.title, Story.summary, Story.why_it_matters)
+        )
+        query = func.to_tsquery("english", " | ".join(terms))
+        prompt_match = case((document.op("@@")(query), Decimal(1)), else_=Decimal(0))
     freshness = 1 - func.extract("epoch", literal(anchor) - Story.published_at) / Decimal(604800)
     return func.round(
         policy.importance * Story.importance_score
@@ -60,7 +68,8 @@ def rank_expression(
         + policy.source_quality * Source.quality_weight
         + policy.topic_preference * topic_match
         + policy.source_preference * source_match
-        + policy.freshness * freshness,
+        + policy.freshness * freshness
+        + policy.interest_prompt * prompt_match,
         8,
     )
 

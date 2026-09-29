@@ -158,6 +158,7 @@ profile_id          UUID PK
                     ON DELETE CASCADE
 
 minimum_importance  NUMERIC(5,4) NOT NULL DEFAULT 0
+interest_prompt     TEXT NOT NULL DEFAULT ''
 
 created_at          TIMESTAMPTZ NOT NULL
 updated_at          TIMESTAMPTZ NOT NULL
@@ -167,9 +168,10 @@ Constraint:
 
 ```text
 0 <= minimum_importance <= 1
+char_length(interest_prompt) <= 500
 ```
 
-Do not put arbitrary LLM memory JSON in this table.
+The interest prompt is explicit user input for bounded feed ranking. Do not put arbitrary LLM memory JSON in this table.
 
 ---
 

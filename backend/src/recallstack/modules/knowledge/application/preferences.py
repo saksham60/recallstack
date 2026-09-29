@@ -16,6 +16,11 @@ class PreferenceService:
             return await uow.repository.preferences(profile_id)
 
     async def patch(self, profile_id: UUID, patch: PreferencePatch) -> Preferences:
+        if patch.interest_prompt is not None:
+            prompt = patch.interest_prompt.strip()
+            if len(prompt) > 500 or any(ord(char) < 32 and char not in "\n\t" for char in prompt):
+                raise invalid("Interest prompt must be at most 500 readable characters")
+            patch = replace(patch, interest_prompt=prompt)
         if patch.topics is not None:
             try:
                 topics = [normalize_topic(item.topic) for item in patch.topics]

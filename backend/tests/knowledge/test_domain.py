@@ -4,13 +4,19 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+from sqlalchemy.dialects import postgresql
 
 from recallstack.modules.knowledge.application.cursor import CursorCodec, FeedCursor
 from recallstack.modules.knowledge.application.ports import FeedPosition
-from recallstack.modules.knowledge.domain.entities import StoryIdentity
-from recallstack.modules.knowledge.domain.ranking import RankingPolicy, normalize_topic
+from recallstack.modules.knowledge.domain.entities import Preferences, StoryIdentity
+from recallstack.modules.knowledge.domain.ranking import (
+    RankingPolicy,
+    interest_terms,
+    normalize_topic,
+)
 from recallstack.modules.knowledge.infrastructure.canonicalization import canonicalize, public_url
 from recallstack.modules.knowledge.infrastructure.dedupe import similar
+from recallstack.modules.knowledge.infrastructure.repositories import rank_expression
 from recallstack.shared.errors import AppError
 
 
@@ -75,6 +81,24 @@ def test_preferred_topic_improves_deterministic_score():
     preferred = policy.score(**inputs, topic_preference=Decimal(1))
     assert preferred - ordinary == Decimal("0.15")
     assert normalize_topic(" AI Agents ") == "ai-agents"
+
+
+def test_interest_prompt_uses_bounded_search_terms() -> None:
+    assert interest_terms("Show me more practical AI infrastructure and database scaling") == (
+        "practical",
+        "ai",
+        "infrastructure",
+        "database",
+        "scaling",
+    )
+    assert len(interest_terms(" ".join(f"topic{i}" for i in range(20)))) == 12
+    expression = rank_expression(
+        Preferences(interest_prompt="Practical AI infrastructure"),
+        datetime.now(UTC),
+        RankingPolicy(),
+    )
+    sql = str(expression.compile(dialect=postgresql.dialect()))
+    assert "to_tsvector" in sql and "to_tsquery" in sql
 
 
 def test_cursor_signed_scoped_stable_and_expiring():

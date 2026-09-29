@@ -109,6 +109,7 @@ async def patch_preferences(
         tuple(SourcePreference(s.key, s.enabled, s.weight) for s in body.sources)
         if body.sources is not None
         else None,
+        body.interest_prompt,
     )
     return PreferencesResponse.model_validate(await service.patch(current_user.profile_id, patch))
 

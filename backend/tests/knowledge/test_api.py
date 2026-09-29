@@ -45,7 +45,7 @@ class FakeRepository:
             previous,
             **{
                 key: getattr(patch, key)
-                for key in ("minimum_importance", "topics", "sources")
+                for key in ("minimum_importance", "topics", "sources", "interest_prompt")
                 if getattr(patch, key) is not None
             },
         )
@@ -246,16 +246,38 @@ async def test_preferences_replacement_block_unblock_and_user_isolation(api):
     patch = {
         "topics": [{"topic": "AI Agents", "blocked": True}],
         "sources": [{"key": "web", "enabled": False}],
+        "interestPrompt": "  Practical database scaling and AI infrastructure  ",
     }
     result = await client.patch("/api/v1/knowledge/preferences", json=patch)
     assert result.status_code == 200, result.text
     assert result.json()["topics"][0]["topic"] == "ai-agents"
     assert not result.json()["sources"][0]["enabled"]
+    assert result.json()["interestPrompt"] == "Practical database scaling and AI infrastructure"
     authenticate(app, uuid4())
     assert (await client.get("/api/v1/knowledge/preferences")).json()["topics"] == []
+    assert (await client.get("/api/v1/knowledge/preferences")).json()["interestPrompt"] == ""
     authenticate(app, user)
     result = await client.patch("/api/v1/knowledge/preferences", json={"topics": []})
     assert result.json()["topics"] == [] and len(result.json()["sources"]) == 1
+    assert result.json()["interestPrompt"] == "Practical database scaling and AI infrastructure"
+    assert (
+        await client.patch("/api/v1/knowledge/preferences", json={"interestPrompt": ""})
+    ).json()["interestPrompt"] == ""
+
+
+async def test_interest_prompt_invalidates_existing_feed_cursor(api):
+    app, client, user, _, _ = api
+    authenticate(app, user)
+    first = await client.get("/api/v1/knowledge/feed", params={"limit": 2})
+    cursor = first.json()["nextCursor"]
+    assert cursor
+    updated = await client.patch(
+        "/api/v1/knowledge/preferences",
+        json={"interestPrompt": "Database scaling"},
+    )
+    assert updated.status_code == 200
+    stale = await client.get("/api/v1/knowledge/feed", params={"limit": 2, "cursor": cursor})
+    assert stale.status_code == 409
 
 
 @pytest.mark.parametrize(
@@ -266,6 +288,8 @@ async def test_preferences_replacement_block_unblock_and_user_isolation(api):
         {"topics": [{"topic": "AI"}, {"topic": "ai"}]},
         {"topics": None},
         {"minimumImportance": 1.1},
+        {"interestPrompt": "x" * 501},
+        {"interestPrompt": None},
         {"profileId": str(uuid4())},
     ],
 )

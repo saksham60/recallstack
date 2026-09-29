@@ -75,6 +75,7 @@ class Preferences:
     minimum_importance: Decimal = Decimal("0")
     topics: tuple[TopicPreference, ...] = ()
     sources: tuple[SourcePreference, ...] = ()
+    interest_prompt: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,6 +83,7 @@ class PreferencePatch:
     minimum_importance: Decimal | None = None
     topics: tuple[TopicPreference, ...] | None = None
     sources: tuple[SourcePreference, ...] | None = None
+    interest_prompt: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

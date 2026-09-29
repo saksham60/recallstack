@@ -175,11 +175,13 @@ test("saves personal interests without delaying the initial feed", async ({ auth
       { topic: "security", weight: "1", blocked: true },
     ],
     sources: [],
+    interestPrompt: "Database reliability",
   };
   await page.route("**/api/v1/knowledge/feed*", (route) => { feedReads++; return route.fulfill({ json: { items: [story(1)], nextCursor: null, hasMore: false } }); });
   await page.route("**/api/v1/knowledge/preferences", (route) => {
     if (route.request().method() === "GET") { reads++; return route.fulfill({ json: preferences }); }
-    preferences = { ...preferences, topics: route.request().postDataJSON().topics };
+    const body = route.request().postDataJSON();
+    preferences = { ...preferences, topics: body.topics, interestPrompt: body.interestPrompt };
     return route.fulfill({ json: preferences });
   });
   await page.goto("/feed");
@@ -190,6 +192,7 @@ test("saves personal interests without delaying the initial feed", async ({ auth
   await expect(interests.getByRole("button", { name: "Security" })).toHaveAttribute("aria-pressed", "false");
   await interests.getByRole("button", { name: "Security" }).click();
   await interests.getByRole("button", { name: "Cloud" }).click();
+  await page.getByLabel("Describe what you want to see more of").fill("Practical AI infrastructure and database scaling");
   await page.getByRole("button", { name: "Save interests" }).click();
   await expect.poll(() => feedReads).toBeGreaterThan(1);
   expect(preferences.topics).toEqual([
@@ -197,10 +200,31 @@ test("saves personal interests without delaying the initial feed", async ({ auth
     { topic: "security", weight: 2, blocked: false },
     { topic: "cloud", weight: 2, blocked: false },
   ]);
+  expect(preferences.interestPrompt).toBe("Practical AI infrastructure and database scaling");
   await page.reload();
   await page.getByRole("button", { name: "Customize your feed" }).click();
   await expect(interests.getByRole("button", { name: "Cloud" })).toHaveAttribute("aria-pressed", "true");
   await expect(interests.getByRole("button", { name: "Security" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByLabel("Describe what you want to see more of")).toHaveValue("Practical AI infrastructure and database scaling");
+  await page.setViewportSize({ width: 360, height: 780 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test("keeps category editing usable before the prompt API is deployed", async ({ authenticatedPage: page }) => {
+  await setup(page, 1);
+  let patch: Record<string, unknown> | undefined;
+  await page.route("**/api/v1/knowledge/preferences", (route) => {
+    if (route.request().method() === "GET") return route.fulfill({ json: { minimumImportance: 0, topics: [], sources: [] } });
+    patch = route.request().postDataJSON();
+    return route.fulfill({ json: { minimumImportance: 0, topics: patch?.topics, sources: [] } });
+  });
+  await page.goto("/feed");
+  await page.getByRole("button", { name: "Customize your feed" }).click();
+  await expect(page.getByLabel("Describe what you want to see more of")).toHaveCount(0);
+  await page.getByRole("group", { name: "Preferred categories" }).getByRole("button", { name: "Cloud" }).click();
+  await page.getByRole("button", { name: "Save interests" }).click();
+  expect(patch).toMatchObject({ topics: [{ topic: "cloud", weight: 2, blocked: false }] });
+  expect(patch).not.toHaveProperty("interestPrompt");
 });
 
 test("hides an unwanted story and restores it with Undo", async ({ authenticatedPage: page }) => {

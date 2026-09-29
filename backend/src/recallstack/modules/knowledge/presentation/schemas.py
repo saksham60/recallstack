@@ -76,12 +76,14 @@ class PreferencesResponse(Schema):
     minimum_importance: float
     topics: tuple[TopicInput, ...]
     sources: tuple[SourceInput, ...]
+    interest_prompt: str
 
 
 class PreferencesPatch(Schema):
     minimum_importance: Score | None = None
     topics: list[TopicInput] | None = Field(default=None, max_length=50)
     sources: list[SourceInput] | None = Field(default=None, max_length=50)
+    interest_prompt: str | None = Field(default=None, max_length=500)
 
     @model_validator(mode="after")
     def reject_null(self) -> "PreferencesPatch":

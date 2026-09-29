@@ -41,8 +41,8 @@ export const feedApi = {
     const { data } = await authenticated(() => apiClient.GET("/api/v1/knowledge/preferences", { signal }), signal);
     return data;
   },
-  async savePreferences(topics: components["schemas"]["TopicInput-Input"][]) {
-    const { data } = await authenticated(() => apiClient.PATCH("/api/v1/knowledge/preferences", { body: { topics } }));
+  async savePreferences(topics: components["schemas"]["TopicInput-Input"][], interestPrompt?: string) {
+    const { data } = await authenticated(() => apiClient.PATCH("/api/v1/knowledge/preferences", { body: { topics, interestPrompt } }));
     return data;
   },
   async startRefresh() {

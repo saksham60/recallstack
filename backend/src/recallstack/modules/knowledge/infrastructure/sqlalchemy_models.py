@@ -83,6 +83,7 @@ class PreferencesModel(Timestamps, Base):
         primary_key=True,
     )
     minimum_importance: Mapped[Decimal] = mapped_column(Numeric(5, 4), server_default="0")
+    interest_prompt: Mapped[str] = mapped_column(Text, server_default="")
 
 
 class TopicPreferenceModel(Timestamps, Base):

@@ -35,9 +35,7 @@ async def lock_profile(session: AsyncSession, profile_id: UUID) -> None:
 
 
 async def read_preferences(session: AsyncSession, profile_id: UUID) -> Preferences:
-    minimum = await session.scalar(
-        select(Pref.minimum_importance).where(Pref.profile_id == profile_id)
-    )
+    pref_row = await session.get(Pref, profile_id)
     topics = tuple(
         TopicPreference(row.topic, row.weight, row.blocked)
         for row in (
@@ -58,7 +56,12 @@ async def read_preferences(session: AsyncSession, profile_id: UUID) -> Preferenc
             )
         )
     )
-    return Preferences(minimum if minimum is not None else Decimal(0), topics, sources)
+    return Preferences(
+        pref_row.minimum_importance if pref_row else Decimal(0),
+        topics,
+        sources,
+        pref_row.interest_prompt if pref_row else "",
+    )
 
 
 async def patch_preferences(
@@ -71,12 +74,15 @@ async def patch_preferences(
     statement = insert(Pref).values(
         profile_id=profile_id,
         minimum_importance=patch.minimum_importance or Decimal(0),
+        interest_prompt=patch.interest_prompt or "",
         created_at=now,
         updated_at=now,
     )
     updates: dict[str, object] = {"updated_at": now}
     if patch.minimum_importance is not None:
         updates["minimum_importance"] = patch.minimum_importance
+    if patch.interest_prompt is not None:
+        updates["interest_prompt"] = patch.interest_prompt
     await session.execute(
         statement.on_conflict_do_update(index_elements=[Pref.profile_id], set_=updates)
     )

@@ -233,5 +233,9 @@ uv run pytest tests/integration/test_knowledge.py -q
 A populated feed page uses bounded preference/source reads, one ranked story/source/state query, and one
 batched topics query. Query count is independent of page size. There is no OFFSET pagination, per-story
 query loop, raw-event aggregation, model/provider call, image processing, or storage write on the hot path.
+Each user's optional 500-character interest prompt is stored with preferences. Up to 12 distinct terms
+contribute a bounded PostgreSQL full-text match against story title, summary, and why-it-matters text in
+the existing ranking query; the prompt never invokes a model during feed loading. Apply migration
+`20260929_0020_knowledge_interest_prompt.py` before deploying the API change.
 The browser receives direct R2/CDN URLs. Benchmark P50/P95 with the production seven-day corpus before
 adding Redis or any additional caching layer.

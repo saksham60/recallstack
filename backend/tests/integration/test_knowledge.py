@@ -234,6 +234,35 @@ async def test_actual_schema_feed_filters_ranking_cursor_and_query_count(contrac
     assert not (await feed.query(other, topic=scope)).items
 
 
+async def test_interest_prompt_ranks_matching_story_for_its_owner(contract):
+    connection, factory, user, other, _, scope, ids = contract
+
+    def uow():
+        return SqlAlchemyKnowledgeUnitOfWork(factory)
+
+    await connection.execute(
+        Story.__table__.update().where(Story.id == ids[0]).values(title="Quantum scaling insight")
+    )
+    preferences = PreferenceService(uow)
+    await preferences.patch(user, PreferencePatch(interest_prompt="Quantum scaling"))
+    assert (await preferences.get(user)).interest_prompt == "Quantum scaling"
+    assert (await preferences.get(other)).interest_prompt == ""
+    anchor = datetime.now(UTC)
+    async with uow() as unit:
+        ranked = await unit.repository.feed(
+            profile_id=user,
+            preferences=await unit.repository.preferences(user),
+            anchor=anchor,
+            now=anchor,
+            topic=scope,
+            after=None,
+            limit=5,
+            policy=RankingPolicy(),
+        )
+    assert ranked[0].story.id == ids[0]
+    assert ranked[0].score - ranked[1].score == Decimal("0.12")
+
+
 async def test_actual_schema_events_idempotency_ordering_and_owner_checks(contract):
     connection, factory, user, other, _, _, ids = contract
     service = EventService(lambda: SqlAlchemyKnowledgeUnitOfWork(factory))

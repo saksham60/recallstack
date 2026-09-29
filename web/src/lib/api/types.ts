@@ -2281,6 +2281,8 @@ export interface components {
             topics?: components["schemas"]["TopicInput-Input"][] | null;
             /** Sources */
             sources?: components["schemas"]["SourceInput-Input"][] | null;
+            /** Interestprompt */
+            interestPrompt?: string | null;
         };
         /** PreferencesResponse */
         PreferencesResponse: {
@@ -2290,6 +2292,8 @@ export interface components {
             topics: components["schemas"]["TopicInput-Output"][];
             /** Sources */
             sources: components["schemas"]["SourceInput-Output"][];
+            /** Interestprompt */
+            interestPrompt: string;
         };
         /** PrimaryPracticeResourceResponse */
         PrimaryPracticeResourceResponse: {
