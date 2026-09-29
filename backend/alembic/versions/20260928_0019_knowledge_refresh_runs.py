@@ -17,7 +17,7 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     op.execute(
         """
-        CREATE TABLE public.knowledge_refresh_runs (
+        CREATE TABLE IF NOT EXISTS public.knowledge_refresh_runs (
             id uuid PRIMARY KEY,
             requested_by uuid NULL REFERENCES public.profiles(id) ON DELETE SET NULL,
             requested_at timestamptz NOT NULL,
@@ -30,7 +30,7 @@ def upgrade() -> None:
         """
     )
     op.execute(
-        "CREATE INDEX ix_knowledge_refresh_runs_requested_at "
+        "CREATE INDEX IF NOT EXISTS ix_knowledge_refresh_runs_requested_at "
         "ON public.knowledge_refresh_runs (requested_at DESC)"
     )
     op.execute("ALTER TABLE public.knowledge_refresh_runs ENABLE ROW LEVEL SECURITY")
