@@ -33,6 +33,10 @@ migrate_working_dir/
 .pub/
 /build/
 
+# Local API settings and generated Android packages
+/.env
+*.apk
+
 # Symbolication related
 app.*.symbols
 
