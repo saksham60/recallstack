@@ -17,6 +17,7 @@ export function createDSAFinalizeNode(
     if (!state.result) throw new DSATutorProviderError("ReasonAI could not complete that response. Please try again.");
     const result = {
       ...state.result,
+      ...(state.visualFailedTwice && !state.visualDraft ? { text: `The visual walkthrough could not be generated, but the explanation is available.\n\n${state.result.text}` } : {}),
       webStatus: state.result.sources.length ? "used" as const : state.searchStatus ?? state.result.webStatus,
     };
     const hintProgress = state.request.action === "hint" ? Math.min(state.hintProgress + 1, 20) : state.hintProgress;
@@ -44,6 +45,8 @@ export function createDSAFinalizeNode(
       searchStatus: undefined,
       visualDraft: undefined,
       toolRounds: undefined,
+      visualAttempts: undefined,
+      visualFailedTwice: undefined,
       result,
     };
   };

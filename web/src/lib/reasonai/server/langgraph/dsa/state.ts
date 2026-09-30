@@ -62,6 +62,8 @@ export const DSAGraphState = new StateSchema({
   searchStatus: new UntrackedValue<DSATutorResponse["webStatus"] | undefined>(),
   visualDraft: new UntrackedValue<DSATutorResponse["visual"] | undefined>(),
   toolRounds: new UntrackedValue<number | undefined>(),
+  visualAttempts: new UntrackedValue<number | undefined>(),
+  visualFailedTwice: new UntrackedValue<boolean | undefined>(),
   learnerMemory: new UntrackedValue<string[] | undefined>(),
 });
 

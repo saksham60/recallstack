@@ -2,12 +2,15 @@ import { expect, test } from "@playwright/test";
 import type { DSATutorRequest } from "../src/features/dsa/reasonai/contract";
 import { dsaAgentProvider, type DSAAgentProvider, type DSAAgentRound, type DSAAgentRoundInput } from "../src/features/dsa/reasonai/agent-provider";
 import { streamDSAEvents } from "../src/lib/reasonai/server/dsa-stream";
+import { createReasonAINDJSONResponse } from "../src/lib/reasonai/runtime/response";
+import { decodeReasonAIEventResponse } from "../src/lib/reasonai/streaming-client";
 import { streamDSAGraph } from "../src/lib/reasonai/server/langgraph/dsa/graph";
 import { defaultDSADurableConversationState } from "../src/lib/reasonai/server/langgraph/dsa/state";
 import { dsaToolExecutor, MAX_TOOL_ROUNDS, type DSAToolExecutor } from "../src/lib/reasonai/server/langgraph/dsa/tools";
 import { MemoryLearnerMemoryRepository } from "../src/lib/reasonai/server/memory/memory-repository";
 import { learnerMemoryExtractor } from "../src/lib/reasonai/server/memory/extractor";
 import { visualLesson } from "./helpers/dsa-visual";
+import { parseVisualLesson, VisualValidationError } from "../src/features/dsa/reasonai/visual-contract";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -283,6 +286,99 @@ test("visual tool validates structure and rejects invalid payloads", async () =>
   const invalid = await dsaToolExecutor.execute({ id: "visual-2", name: "create_visual", arguments: JSON.stringify({ html: "<script>bad()</script>" }) }, { signal: new AbortController().signal, searchEvidence: [] });
   expect(valid).toMatchObject({ ok: true, visual: visualLesson });
   expect(invalid).toMatchObject({ ok: false, reason: "The visualization was invalid." });
+});
+
+test("irrelevant visual arrays may be omitted, while required scenes remain strict", () => {
+  const base = visualLesson.steps[0];
+  const array = parseVisualLesson({ ...visualLesson, steps: [{ title: base.title, explanation: base.explanation, values: base.values }] });
+  expect(array.steps[0]).toMatchObject({ nodes: [], edges: [], rows: [], activeCells: [], pointers: [], variables: [] });
+  const graph = parseVisualLesson({ ...visualLesson, kind: "graph", steps: [{ title: base.title, explanation: base.explanation, nodes: [{ id: "a", label: "A", x: 10, y: 20, state: "active" }] }] });
+  expect(graph.steps[0]).toMatchObject({ values: [], rows: [], edges: [], activeCells: [] });
+  const grid = parseVisualLesson({ ...visualLesson, kind: "grid", steps: [{ title: base.title, explanation: base.explanation, rows: [["1", "2"], ["3", "4"]] }] });
+  expect(grid.steps[0]).toMatchObject({ values: [], nodes: [], edges: [], activeCells: [] });
+  expect(() => parseVisualLesson({ ...visualLesson, steps: [{ title: base.title, explanation: base.explanation }] })).toThrow(VisualValidationError);
+});
+
+test("source_example still requires real search evidence", async () => {
+  const result = await dsaToolExecutor.execute({ id: "visual-source", name: "create_visual", arguments: JSON.stringify({ ...visualLesson, basis: "source_example" }) }, { signal: new AbortController().signal, searchEvidence: [] });
+  expect(result).toMatchObject({ ok: false, code: "VISUAL_SOURCE_EVIDENCE_MISSING" });
+});
+
+for (const [code, lesson, field] of [
+  ["VISUAL_INDEX_OUT_OF_RANGE", { ...visualLesson, steps: [{ ...visualLesson.steps[0], pointers: [{ label: "bad", index: 9 }] }] }, "pointer"],
+  ["VISUAL_INVALID_EDGE", { ...visualLesson, kind: "graph", steps: [{ ...visualLesson.steps[0], values: [], highlights: [], pointers: [], nodes: [{ id: "a", label: "A", x: 10, y: 20, state: "active" }], edges: [{ from: "a", to: "missing", label: "bad" }] }] }, "edge"],
+  ["VISUAL_GRID_DIMENSION_INVALID", { ...visualLesson, kind: "grid", steps: [{ ...visualLesson.steps[0], values: [], highlights: [], pointers: [], rows: [["1", "2"], ["3"]] }] }, "grid"],
+  ...["html", "script", "svg", "code", "url"].map((field) => ["VISUAL_UNSAFE_FIELD", { ...visualLesson, steps: [{ ...visualLesson.steps[0], [field]: "unsafe" }] }, field] as const),
+] as const) test(`visual validation classifies ${code} (${field})`, () => {
+  expect(() => parseVisualLesson(lesson)).toThrow(VisualValidationError);
+  try { parseVisualLesson(lesson); } catch (error) { expect(error).toMatchObject({ code }); }
+});
+
+test("one invalid visual can be repaired on the next model round", async () => {
+  const received: DSAAgentRoundInput[] = [];
+  const events = [];
+  for await (const event of streamDSAEvents(request, new AbortController().signal, eventExecution(scripted([
+    tool("create_visual", { ...visualLesson, steps: [{ ...visualLesson.steps[0], pointers: [{ label: "bad", index: 9 }] }] }),
+    tool("create_visual", visualLesson), final(),
+  ], received), dsaToolExecutor))) events.push(event);
+  expect(events.filter((event) => event.type === "tool.failed")).toHaveLength(1);
+  expect(events.some((event) => event.type === "visual.ready")).toBe(true);
+  expect(events.at(-1)?.type).toBe("run.completed");
+  expect(received[1].allowVisual).toBe(true);
+  expect(received[2].allowVisual).toBe(false);
+});
+
+test("two invalid visuals stop visual execution and return text with a notice", async () => {
+  const received: DSAAgentRoundInput[] = [];
+  let executed = 0;
+  const executor: DSAToolExecutor = { execute(call, context) { executed++; return dsaToolExecutor.execute(call, context); } };
+  const invalidVisual = { ...visualLesson, steps: [{ ...visualLesson.steps[0], pointers: [{ label: "bad", index: 9 }] }] };
+  const events = [];
+  for await (const event of streamDSAEvents(request, new AbortController().signal, eventExecution(scripted([
+    tool("create_visual", invalidVisual), tool("create_visual", invalidVisual), tool("create_visual", invalidVisual), final("Text explanation."),
+  ], received), executor))) events.push(event);
+  expect(executed).toBe(2);
+  expect(received[2].allowVisual).toBe(false);
+  expect(received[2].allowTools).toBe(false);
+  expect(events.find((event) => event.type === "text.final")?.text).toContain("The visual walkthrough could not be generated");
+  expect(events.at(-1)?.type).toBe("run.completed");
+});
+
+test("visual failures log safe codes and validation timings", async () => {
+  const originalInfo = console.info;
+  const logs: unknown[][] = [];
+  console.info = (...args: unknown[]) => { logs.push(args); };
+  const stages: string[] = [];
+  try {
+    const invalidVisual = { ...visualLesson, steps: [{ ...visualLesson.steps[0], pointers: [{ label: "bad", index: 9 }], html: "PRIVATE_RAW_PAYLOAD" }] };
+    for await (const _event of streamDSAEvents(request, new AbortController().signal, {
+      ...eventExecution(scripted([tool("create_visual", invalidVisual), final()])),
+      toolExecutor: dsaToolExecutor,
+      mark: (stage) => { stages.push(stage); },
+    })) void _event;
+  } finally { console.info = originalInfo; }
+  expect(stages).toContain("tool.validation.started");
+  expect(stages).toContain("tool.validation.failed");
+  const failure = logs.find(([name]) => name === "reasonai.tool.failed");
+  expect(failure?.[1]).toMatchObject({ feature: "dsa", toolName: "create_visual", errorCode: "VISUAL_UNSAFE_FIELD", attempt: 1 });
+  expect(JSON.stringify(logs)).not.toContain("PRIVATE_RAW_PAYLOAD");
+});
+
+test("a streamed HTTP 200 still logs semantic run failure without private content", async () => {
+  const originalError = console.error;
+  const logs: unknown[][] = [];
+  console.error = (...args: unknown[]) => { logs.push(args); };
+  let response: Response;
+  const events = [];
+  try {
+    const provider: DSAAgentProvider = { async *streamRound() { throw new Error("PRIVATE_USER_TEXT"); } };
+    response = createReasonAINDJSONResponse(streamDSAEvents(request, new AbortController().signal, eventExecution(provider)));
+    for await (const event of decodeReasonAIEventResponse(response)) events.push(event);
+  } finally { console.error = originalError; }
+  expect(response!.status).toBe(200);
+  expect(events.at(-1)?.type).toBe("run.failed");
+  expect(logs.find(([name]) => name === "reasonai.run.failed")?.[1]).toMatchObject({ feature: "dsa", errorCode: "PROVIDER_FAILURE" });
+  expect(JSON.stringify(logs)).not.toContain("PRIVATE_USER_TEXT");
 });
 
 test("memory extractor accepts strict bounded pedagogy JSON and rejects extra fields", async () => {

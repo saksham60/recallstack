@@ -38,7 +38,7 @@ export const DSA_VISUAL_TOOL = {
   type: "function",
   function: {
     name: "present_visual_lesson",
-    description: "Create a safe, interactive DSA lesson, never executable code. Use 3–6 full state snapshots for a partial walkthrough. array displays an indexed sequence with labeled pointers; graph displays a tree/graph with nodes at percentage x/y coordinates; grid displays a small matrix or DP table. All arrays are required: use [] for scene fields irrelevant to kind. Each snapshot must contain the entire visible state, consistent IDs/positions and a short explanation of the transition. Declare any illustrative target or other assumed constants in the first snapshot and show changing quantities in variables. Set basis=illustrative unless the actual example was supplied by the user or retrieved source. Do not call an invented teaching example official. Do not reveal an unrequested complete solution. No HTML, SVG strings, scripts, URLs or code fields.",
+    description: "Create a safe DSA lesson with 3–6 complete snapshots, never executable code. Every step has values, highlights, pointers, nodes, edges, rows, activeCells and variables arrays; use [] when unused. For array: values must be nonempty; nodes, edges, rows and activeCells are []; pointer/highlight indexes must exist in values. For graph: nodes must be nonempty; values, highlights, pointers, rows and activeCells are []; every edge refers to existing node IDs. For grid: rows must be nonempty and rectangular; values, highlights, pointers, nodes and edges are []; activeCells must be in bounds. Keep IDs and positions consistent. Declare illustrative constants in the first step. Use basis=illustrative unless the user supplied the example or search returned actual evidence. No HTML, SVG, scripts, URLs, code or full unrequested solution.",
     parameters: lessonSchema,
   },
 };
@@ -49,9 +49,14 @@ export const DSA_CREATE_VISUAL_TOOL = {
   function: { ...DSA_VISUAL_TOOL.function, name: "create_visual", strict: true },
 };
 
+export type VisualValidationCode = "VISUAL_MISSING_FIELD" | "VISUAL_INDEX_OUT_OF_RANGE" | "VISUAL_INVALID_EDGE" | "VISUAL_GRID_DIMENSION_INVALID" | "VISUAL_KIND_MISMATCH" | "VISUAL_UNSAFE_FIELD" | "VISUAL_INVALID_PAYLOAD";
+export class VisualValidationError extends Error {
+  constructor(readonly code: VisualValidationCode) { super(code); }
+}
 type Schema = { type: string; maxLength?: number; minimum?: number; maximum?: number; minItems?: number; maxItems?: number; items?: Schema; properties?: Record<string, Schema>; enum?: string[] };
 function validate(value: unknown, rule: Schema): void {
-  const invalid = () => { throw new Error("Invalid visual lesson."); };
+  const invalid = (code: VisualValidationCode = "VISUAL_INVALID_PAYLOAD") => { throw new VisualValidationError(code); };
+  if (value === undefined) invalid("VISUAL_MISSING_FIELD");
   if (rule.type === "string") {
     if (typeof value !== "string" || value.length > rule.maxLength! || rule.enum && !rule.enum.includes(value)) invalid();
   } else if (rule.type === "integer") {
@@ -62,23 +67,36 @@ function validate(value: unknown, rule: Schema): void {
   } else {
     if (!value || typeof value !== "object" || Array.isArray(value)) invalid();
     const data = value as Record<string, unknown>;
-    if (Object.keys(data).some((key) => !Object.hasOwn(rule.properties!, key))) invalid();
+    if (Object.keys(data).some((key) => !Object.hasOwn(rule.properties!, key))) invalid("VISUAL_UNSAFE_FIELD");
     for (const [key, shape] of Object.entries(rule.properties!)) validate(data[key], shape);
   }
 }
 export function parseVisualLesson(value: unknown): VisualLesson {
-  validate(value, lessonSchema as Schema);
-  const lesson = value as VisualLesson;
-  if (!lesson.title.trim() || !lesson.summary.trim()) throw new Error("Empty visual lesson.");
+  const input = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+  const kind = input?.kind;
+  const primary = kind === "array" ? "values" : kind === "graph" ? "nodes" : kind === "grid" ? "rows" : undefined;
+  const steps = input?.steps;
+  const normalized = primary && Array.isArray(steps) ? {
+    ...input,
+    steps: steps.map((step) => {
+      if (!step || typeof step !== "object" || Array.isArray(step)) return step;
+      const fields = step as Record<string, unknown>;
+      return Object.fromEntries([...Object.entries(fields), ...["values", "highlights", "pointers", "nodes", "edges", "rows", "activeCells", "variables"]
+        .filter((name) => name !== primary && !Object.hasOwn(fields, name)).map((name) => [name, []])]);
+    }),
+  } : value;
+  validate(normalized, lessonSchema as Schema);
+  const lesson = normalized as VisualLesson;
+  if (!lesson.title.trim() || !lesson.summary.trim()) throw new VisualValidationError("VISUAL_INVALID_PAYLOAD");
   for (const step of lesson.steps) {
-    if (!step.title.trim() || !step.explanation.trim()) throw new Error("Empty visual step.");
-    if (step.highlights.some((index) => index >= step.values.length) || step.pointers.some((pointer) => pointer.index >= step.values.length)) throw new Error("Visual index out of range.");
+    if (!step.title.trim() || !step.explanation.trim()) throw new VisualValidationError("VISUAL_INVALID_PAYLOAD");
+    if (step.highlights.some((index) => index >= step.values.length) || step.pointers.some((pointer) => pointer.index >= step.values.length)) throw new VisualValidationError("VISUAL_INDEX_OUT_OF_RANGE");
     const ids = new Set(step.nodes.map((node) => node.id));
-    if (ids.size !== step.nodes.length || step.nodes.some((node) => !node.id.trim()) || step.edges.some((edge) => !ids.has(edge.from) || !ids.has(edge.to))) throw new Error("Invalid visual connections.");
-    if (step.rows.some((row) => row.length !== step.rows[0].length) || step.activeCells.some((cell) => !step.rows[cell.row] || cell.column >= step.rows[cell.row].length)) throw new Error("Invalid visual grid.");
+    if (ids.size !== step.nodes.length || step.nodes.some((node) => !node.id.trim()) || step.edges.some((edge) => !ids.has(edge.from) || !ids.has(edge.to))) throw new VisualValidationError("VISUAL_INVALID_EDGE");
+    if (step.rows.some((row) => row.length !== step.rows[0].length) || step.activeCells.some((cell) => !step.rows[cell.row] || cell.column >= step.rows[cell.row].length)) throw new VisualValidationError("VISUAL_GRID_DIMENSION_INVALID");
     if (lesson.kind === "array" && (!step.values.length || step.nodes.length || step.rows.length)
       || lesson.kind === "graph" && (!step.nodes.length || step.values.length || step.rows.length)
-      || lesson.kind === "grid" && (!step.rows.length || step.values.length || step.nodes.length)) throw new Error("Visual scene does not match its kind.");
+      || lesson.kind === "grid" && (!step.rows.length || step.values.length || step.nodes.length)) throw new VisualValidationError("VISUAL_KIND_MISMATCH");
   }
   return lesson;
 }

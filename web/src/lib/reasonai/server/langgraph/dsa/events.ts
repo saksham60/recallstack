@@ -19,4 +19,10 @@ export type DSAGraphStage =
   | "tool.started"
   | "tool.completed"
   | "tool.failed"
+  | "tool.validation.started"
+  | "tool.validation.completed"
+  | "tool.validation.failed"
+  | "visual.repair.attempted"
   | "tool.limit_reached";
+
+export interface DSAGraphStageMeta { attempt?: number; durationMs?: number; errorCode?: string }

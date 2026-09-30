@@ -37,9 +37,11 @@ export async function* streamSystemDesignEvents(
   execution: SystemDesignStreamExecution,
 ): AsyncGenerator<ReasonAIKnownEvent> {
   const { runId, messageId } = execution;
+  const started = Date.now();
   const partId = crypto.randomUUID();
   let seq = 0;
-  let activeTool: { toolCallId: string } | undefined;
+  let activeTool: { toolCallId: string; toolName: string; started: number } | undefined;
+  let toolAttempt = 0;
   let proposalEmitted = false;
   let analysisEmitted = false;
   let sourcesEmitted = false;
@@ -60,11 +62,13 @@ export async function* streamSystemDesignEvents(
         continue;
       }
       if (event.type === "tool.started") {
-        activeTool = { toolCallId: event.toolCallId };
+        activeTool = { toolCallId: event.toolCallId, toolName: event.toolName, started: Date.now() };
+        toolAttempt++;
         yield { protocolVersion: 1, runId, seq: ++seq, type: "tool.started", messageId, toolCallId: event.toolCallId, toolName: event.toolName, summary: event.summary };
         continue;
       }
       if (event.type === "tool.completed" || event.type === "tool.failed") {
+        console.info(`reasonai.${event.type}`, { runId, feature: "system-design", route: "/api/reasonai/chat", toolName: activeTool?.toolName ?? "unknown", attempt: toolAttempt, durationMs: activeTool ? Date.now() - activeTool.started : 0, ...(event.type === "tool.failed" ? { errorCode: "TOOL_FAILED" } : {}) });
         if (activeTool?.toolCallId === event.toolCallId) activeTool = undefined;
         yield { protocolVersion: 1, runId, seq: ++seq, type: event.type, messageId, toolCallId: event.toolCallId, summary: event.summary };
         continue;
@@ -128,8 +132,10 @@ export async function* streamSystemDesignEvents(
       }
     }
     if (!receivedResult) throw new ReasonAIProviderError("ReasonAI could not complete that response. Please try again.");
+    console.info("reasonai.run.completed", { runId, feature: "system-design", route: "/api/reasonai/chat", durationMs: Date.now() - started });
     yield { protocolVersion: 1, runId, seq: ++seq, type: "run.completed" };
   } catch (error) {
+    if (activeTool) console.error("reasonai.tool.failed", { runId, feature: "system-design", route: "/api/reasonai/chat", toolName: activeTool.toolName, attempt: toolAttempt, durationMs: Date.now() - activeTool.started, errorCode: signal.aborted ? "TOOL_CANCELLED" : "TOOL_EXECUTION_FAILED" });
     if (activeTool) yield {
       protocolVersion: 1, runId, seq: ++seq, type: "tool.failed", messageId, toolCallId: activeTool.toolCallId,
       summary: signal.aborted ? "Tool cancelled" : "Tool failed",
@@ -138,6 +144,7 @@ export async function* streamSystemDesignEvents(
       yield { protocolVersion: 1, runId, seq: ++seq, type: "run.cancelled" };
       return;
     }
+    console.error("reasonai.run.failed", { runId, feature: "system-design", route: "/api/reasonai/chat", errorCode: "PROVIDER_FAILURE", durationMs: Date.now() - started });
     yield {
       protocolVersion: 1,
       runId,

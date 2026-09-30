@@ -9,7 +9,7 @@ import { dsaAgentProvider, type DSAAgentProvider, type DSAAgentRound } from "@/f
 import type { DSATutorRequest } from "@/features/dsa/reasonai/contract";
 import type { DSAGraphStage, DSAGraphStreamEvent } from "../events";
 import { DSAGraphState, serverOwnedHistory } from "../state";
-import { MAX_TOOL_ROUNDS } from "../tools";
+import { MAX_TOOL_ROUNDS, MAX_VISUAL_ATTEMPTS } from "../tools";
 
 export interface DSATutorStreamingProvider {
   stream(request: DSATutorRequest, signal?: AbortSignal): AsyncGenerator<DSATutorProviderStreamEvent>;
@@ -44,7 +44,8 @@ export function createDSAModelNode(
         searchEvidence: state.searchEvidence ?? [],
         searchStatus: state.searchStatus,
         visual: state.visualDraft,
-        allowTools: rounds < MAX_TOOL_ROUNDS,
+        allowTools: rounds < MAX_TOOL_ROUNDS && !state.visualFailedTwice,
+        allowVisual: (state.visualAttempts ?? 0) < MAX_VISUAL_ATTEMPTS && !state.visualDraft,
       }, config.signal)) {
         if (event.type === "text.delta") write?.(event satisfies DSAGraphStreamEvent);
         else round = event.round;

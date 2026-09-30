@@ -1,4 +1,7 @@
 import { expect, test } from "@playwright/test";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import Markdown from "react-markdown";
 import { parseFeedPage, type FeedStory } from "../src/features/feed/model";
 import { storyChatSchema, streamStoryAnswer } from "../src/features/feed/reasonai";
 import { createReasonAINDJSONResponse } from "../src/lib/reasonai/runtime/response";
@@ -105,6 +108,62 @@ test("model-selected search returns compact Tavily evidence and only final text 
   expect(JSON.stringify(events)).not.toContain("I will search now");
 });
 
+for (const prose of ["Here are related designs.", "Here are related designs 【1†L1-L4】."]) {
+  test(`search attaches verified Markdown links when the model says ${prose.includes("【") ? "citation markers" : "no URLs"}`, async () => {
+    let rounds = 0;
+    globalThis.fetch = async (url) => {
+      if (String(url).includes("tavily")) return Response.json({ results: [1, 2, 3].map((index) => ({ title: `Source ${index}`, url: `https://source.org/${index}`, content: "Relevant evidence." })) });
+      return ++rounds === 1 ? sse(toolCall(), toolFinish()) : answer(prose);
+    };
+    const events = await runFeed();
+    const final = events.find((event) => event.type === "text.final");
+    expect(final?.text).toContain("### Sources");
+    for (const index of [1, 2, 3]) expect(final?.text).toContain(`[Source ${index}](https://source.org/${index})`);
+    expect(events.at(-1)?.type).toBe("run.completed");
+  });
+}
+
+test("search deduplicates links and permits the canonical story URL", async () => {
+  let rounds = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes("tavily")) return Response.json({ results: [
+      { title: "Cache report", url: "https://source.org/cache", content: "Evidence." },
+      { title: "Duplicate report", url: "https://source.org/cache", content: "Evidence." },
+    ] });
+    return ++rounds === 1 ? sse(toolCall(), toolFinish()) : answer(`The [attached story](${story.sourceUrl}) relates to cache design.`);
+  };
+  const final = (await runFeed()).find((event) => event.type === "text.final");
+  expect(final?.text).toContain(`[attached story](${story.sourceUrl})`);
+  expect(final?.text?.match(/https:\/\/source\.org\/cache/g)).toHaveLength(1);
+});
+
+test("verified source Markdown renders as a clickable anchor", () => {
+  const html = renderToStaticMarkup(createElement(Markdown, null, "### Sources\n- [Cache report](https://source.org/cache)"));
+  expect(html).toContain('href="https://source.org/cache"');
+  expect(html).toContain('>Cache report</a>');
+});
+
+test("a fabricated model URL still fails after a successful search", async () => {
+  let rounds = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes("tavily")) return Response.json({ results: [{ title: "Real", url: "https://source.org/real", content: "Evidence." }] });
+    return ++rounds === 1 ? sse(toolCall(), toolFinish()) : answer("Read [invented](https://fabricated.org/story).");
+  };
+  const events = await runFeed();
+  expect(events.at(-1)?.type).toBe("run.failed");
+  expect(events.some((event) => event.type === "text.delta")).toBe(false);
+});
+
+test("untrusted source titles cannot inject an extra Markdown link", async () => {
+  let rounds = 0;
+  globalThis.fetch = async (url) => String(url).includes("tavily")
+    ? Response.json({ results: [{ title: "Real\n- [fake](https://fabricated.org/story)", url: "https://source.org/real", content: "Evidence." }] })
+    : ++rounds === 1 ? sse(toolCall(), toolFinish()) : answer("A related source is available.");
+  const final = (await runFeed()).find((event) => event.type === "text.final");
+  expect(final?.text).toContain("https://source.org/real");
+  expect(final?.text).not.toContain("https://fabricated.org/story");
+});
+
 for (const [name, args] of [
   ["unknown tool", undefined], ["malformed arguments", "{broken"], ["empty query", '{"query":"  "}'],
   ["unexpected argument", '{"query":"cache","url":"https://example.org"}'],
@@ -153,6 +212,15 @@ test("Tavily unavailable gives the model a normal tool result", async () => {
   const events = await runFeed();
   expect(events.at(-1)?.type).toBe("run.completed");
   expect(JSON.stringify(events)).not.toContain("provider credentials");
+  expect(JSON.stringify(events)).not.toContain("### Sources");
+});
+
+test("empty search results say that no verified external sources were available", async () => {
+  let rounds = 0;
+  globalThis.fetch = async (url) => String(url).includes("tavily") ? Response.json({ results: [] }) : ++rounds === 1 ? sse(toolCall(), toolFinish()) : answer("I can still explain the attached story.");
+  const final = (await runFeed()).find((event) => event.type === "text.final");
+  expect(final?.text).toContain("No verified external sources were available.");
+  expect(final?.text).not.toContain("### Sources");
 });
 
 test("two tool rounds are the limit and no third search is executed", async () => {

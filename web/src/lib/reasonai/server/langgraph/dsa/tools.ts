@@ -1,20 +1,22 @@
 import "server-only";
 import type { DSATutorResponse } from "@/features/dsa/reasonai/contract";
 import type { DSAAgentMessage, DSAAgentToolCall } from "@/features/dsa/reasonai/agent-provider";
-import { parseVisualLesson } from "@/features/dsa/reasonai/visual-contract";
+import { parseVisualLesson, VisualValidationError, type VisualValidationCode } from "@/features/dsa/reasonai/visual-contract";
 import { searchDSAWebEvidence, type WebContext } from "@/features/dsa/reasonai/web-context";
 import { traceTool } from "@/lib/reasonai/server/langsmith";
 
 export const MAX_TOOL_ROUNDS = 4;
+export const MAX_VISUAL_ATTEMPTS = 2;
 
 export interface DSAToolExecutionContext {
   signal: AbortSignal;
   searchEvidence: WebContext["results"];
+  onValidationStage?: (stage: "tool.validation.started" | "tool.validation.completed" | "tool.validation.failed") => void;
 }
 
 export type DSAToolExecutionResult =
   | { ok: true; message: DSAAgentMessage; searchEvidence?: WebContext["results"]; visual?: DSATutorResponse["visual"]; retrievalStatus?: "used" | "empty" }
-  | { ok: false; message: DSAAgentMessage; reason: string; retrievalStatus?: "unavailable" };
+  | { ok: false; message: DSAAgentMessage; reason: string; code?: string; retrievalStatus?: "unavailable" };
 
 export interface DSAToolExecutor {
   execute(call: DSAAgentToolCall, context: DSAToolExecutionContext): Promise<DSAToolExecutionResult>;
@@ -30,9 +32,19 @@ function parseObject(value: string): Record<string, unknown> {
   return parsed as Record<string, unknown>;
 }
 
-function invalid(call: DSAAgentToolCall, reason = "Tool input was invalid."): DSAToolExecutionResult {
-  return { ok: false, reason, message: toolMessage(call, { ok: false, error: reason }) };
+function invalid(call: DSAAgentToolCall, reason = "Tool input was invalid.", code?: string, hint = reason): DSAToolExecutionResult {
+  return { ok: false, reason, code, message: toolMessage(call, { ok: false, ...(code ? { code } : {}), error: hint }) };
 }
+
+const visualHint: Record<VisualValidationCode, string> = {
+  VISUAL_MISSING_FIELD: "Provide title, summary, kind, basis, steps and the required scene array for each step.",
+  VISUAL_INDEX_OUT_OF_RANGE: "Every pointer and highlight index must exist in values.",
+  VISUAL_INVALID_EDGE: "Use unique node IDs and make every edge refer to existing nodes.",
+  VISUAL_GRID_DIMENSION_INVALID: "Use rectangular rows and active cells within row and column bounds.",
+  VISUAL_KIND_MISMATCH: "Populate only the selected kind's scene: values for array, nodes for graph, rows for grid.",
+  VISUAL_UNSAFE_FIELD: "Remove unsupported fields; do not include HTML, scripts, SVG, code or URLs.",
+  VISUAL_INVALID_PAYLOAD: "Provide valid JSON matching the create_visual schema.",
+};
 
 export const dsaToolExecutor: DSAToolExecutor = {
   async execute(call, context) {
@@ -64,12 +76,19 @@ export const dsaToolExecutor: DSAToolExecutor = {
       };
     }
     if (call.name === "create_visual") {
+      context.onValidationStage?.("tool.validation.started");
       try {
         const visual = parseVisualLesson(parseObject(call.arguments));
-        if (visual.basis === "source_example" && !context.searchEvidence.length) return invalid(call, "The visual required source evidence that was not available.");
+        if (visual.basis === "source_example" && !context.searchEvidence.length) {
+          context.onValidationStage?.("tool.validation.failed");
+          return invalid(call, "The visual required source evidence that was not available.", "VISUAL_SOURCE_EVIDENCE_MISSING");
+        }
+        context.onValidationStage?.("tool.validation.completed");
         return { ok: true, visual, message: toolMessage(call, { ok: true, visual }) };
-      } catch {
-        return invalid(call, "The visualization was invalid.");
+      } catch (error) {
+        context.onValidationStage?.("tool.validation.failed");
+        const code = error instanceof VisualValidationError ? error.code : "VISUAL_INVALID_PAYLOAD";
+        return invalid(call, "The visualization was invalid.", code, visualHint[code]);
       }
     }
     return invalid(call, "The requested tool is not available.");

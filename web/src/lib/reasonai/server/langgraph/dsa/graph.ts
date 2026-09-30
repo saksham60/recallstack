@@ -5,7 +5,7 @@ import type { DSAAgentProvider } from "@/features/dsa/reasonai/agent-provider";
 import { createDSAFinalizeNode } from "./nodes/finalize";
 import { createDSAModelNode, type DSATutorStreamingProvider } from "./nodes/model";
 import { createDSAToolsNode } from "./nodes/tools";
-import type { DSAGraphStage, DSAGraphStreamEvent } from "./events";
+import type { DSAGraphStage, DSAGraphStageMeta, DSAGraphStreamEvent } from "./events";
 import { DSAGraphState, type DSADurableConversationState } from "./state";
 import type { DSAToolExecutor } from "./tools";
 
@@ -26,7 +26,7 @@ export interface DSAGraphExecution {
   provider?: DSATutorStreamingProvider | DSAAgentProvider;
   toolExecutor?: DSAToolExecutor;
   learnerMemory?: string[];
-  onStage?: (stage: DSAGraphStage, toolName?: string) => void;
+  onStage?: (stage: DSAGraphStage, toolName?: string, meta?: DSAGraphStageMeta) => void;
   toolTimeoutMs?: number;
   onConversationState?: (state: DSADurableConversationState) => void;
 }
@@ -34,7 +34,7 @@ export interface DSAGraphExecution {
 export function createDSAGraph(
   provider?: DSATutorStreamingProvider | DSAAgentProvider,
   toolExecutor?: DSAToolExecutor,
-  onStage?: (stage: DSAGraphStage, toolName?: string) => void,
+  onStage?: (stage: DSAGraphStage, toolName?: string, meta?: DSAGraphStageMeta) => void,
   toolTimeoutMs?: number,
   onCandidate?: (state: DSADurableConversationState) => void,
 ) {

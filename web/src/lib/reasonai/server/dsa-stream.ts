@@ -33,6 +33,10 @@ export type DSAPerformanceStage =
   | "tool.started"
   | "tool.completed"
   | "tool.failed"
+  | "tool.validation.started"
+  | "tool.validation.completed"
+  | "tool.validation.failed"
+  | "visual.repair.attempted"
   | "tool.limit_reached"
   | "first.text.delta"
   | "text.final"
@@ -73,6 +77,7 @@ export async function* streamDSAEvents(
   let seq = 0;
   let firstDeltaAt: number | undefined;
   let activeTool: { toolCallId: string } | undefined;
+  const started = Date.now();
   yield { protocolVersion: 1, runId, seq: ++seq, type: "run.started" };
   try {
     let receivedResult = false;
@@ -85,7 +90,14 @@ export async function* streamDSAEvents(
       provider: execution.provider,
       toolExecutor: execution.toolExecutor,
       toolTimeoutMs: execution.toolTimeoutMs,
-      onStage: (stage) => mark(stage),
+      onStage: (stage, toolName, meta) => {
+        mark(stage);
+        if (stage === "tool.completed" || stage === "tool.failed") console.info(`reasonai.${stage}`, {
+          runId, feature: "dsa", route: "/api/reasonai/dsa/chat", toolName,
+          attempt: meta?.attempt, durationMs: meta?.durationMs,
+          ...(stage === "tool.failed" ? { errorCode: meta?.errorCode ?? "TOOL_FAILED" } : {}),
+        });
+      },
       onConversationState: execution.onConversationState,
     })) {
       if (event.type === "text.delta") {
@@ -142,6 +154,7 @@ export async function* streamDSAEvents(
       }
     }
     if (!receivedResult) throw new DSATutorProviderError("ReasonAI could not complete that response. Please try again.");
+    console.info("reasonai.run.completed", { runId, feature: "dsa", route: "/api/reasonai/dsa/chat", durationMs: Date.now() - started });
     yield { protocolVersion: 1, runId, seq: ++seq, type: "run.completed" };
   } catch (error) {
     if (activeTool) {
@@ -161,6 +174,7 @@ export async function* streamDSAEvents(
       ? error.message
       : "ReasonAI is temporarily unavailable. Please try again.";
     mark("run.failed");
+    console.error("reasonai.run.failed", { runId, feature: "dsa", route: "/api/reasonai/dsa/chat", errorCode: "PROVIDER_FAILURE", durationMs: Date.now() - started });
     yield { protocolVersion: 1, runId, seq: ++seq, type: "run.failed", message, code: "PROVIDER_FAILURE" };
   }
 }
