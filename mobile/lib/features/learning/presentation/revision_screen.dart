@@ -6,6 +6,7 @@ import 'package:app/features/learning/presentation/study_note_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart' hide Column;
+import 'package:app/shared/theme/app_colors.dart';
 
 final pendingReviewsProvider = StreamProvider.autoDispose<List<ReviewCard>>((
   ref,
@@ -47,15 +48,15 @@ class _RevisionScreenState extends ConsumerState<RevisionScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.check_circle_outline,
                     size: 64,
-                    color: theme.colorScheme.primary,
+                    color: AppColors.success,
                   ),
                   const SizedBox(height: 16),
-                  Text('All caught up!', style: theme.textTheme.headlineSmall),
+                  Text('All caught up!', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
-                  const Text('No more items in your revision queue.'),
+                  const Text('No more items in your revision queue.', style: TextStyle(color: AppColors.textSecondary)),
                 ],
               ),
             );
@@ -96,9 +97,11 @@ class _RevisionScreenState extends ConsumerState<RevisionScreen> {
                       contentItem.title,
                       style: theme.textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.bold,
+                        letterSpacing: -0.5,
                       ),
                     ),
-                    const Divider(),
+                    const SizedBox(height: 16),
+                    const Divider(color: AppColors.border),
                     if (_showAnswer) ...[
                       const SizedBox(height: 16),
                       ...blocks.map((block) {
@@ -121,10 +124,10 @@ class _RevisionScreenState extends ConsumerState<RevisionScreen> {
             ),
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withAlpha(50),
+              decoration: const BoxDecoration(
+                color: AppColors.surface,
                 border: Border(
-                  top: BorderSide(color: theme.colorScheme.outlineVariant),
+                  top: BorderSide(color: AppColors.border),
                 ),
               ),
               child: SafeArea(
@@ -133,7 +136,7 @@ class _RevisionScreenState extends ConsumerState<RevisionScreen> {
                         children: [
                           _ReviewButton(
                             label: 'Again',
-                            color: Colors.red,
+                            color: AppColors.danger,
                             onPressed: _isMutating
                                 ? null
                                 : () => _submit(card.id, 'again'),
@@ -141,7 +144,7 @@ class _RevisionScreenState extends ConsumerState<RevisionScreen> {
                           const SizedBox(width: 8),
                           _ReviewButton(
                             label: 'Hard',
-                            color: Colors.orange,
+                            color: AppColors.warning,
                             onPressed: _isMutating
                                 ? null
                                 : () => _submit(card.id, 'hard'),
@@ -149,7 +152,7 @@ class _RevisionScreenState extends ConsumerState<RevisionScreen> {
                           const SizedBox(width: 8),
                           _ReviewButton(
                             label: 'Good',
-                            color: Colors.green,
+                            color: AppColors.success,
                             onPressed: _isMutating
                                 ? null
                                 : () => _submit(card.id, 'good'),
@@ -157,7 +160,7 @@ class _RevisionScreenState extends ConsumerState<RevisionScreen> {
                           const SizedBox(width: 8),
                           _ReviewButton(
                             label: 'Easy',
-                            color: Colors.blue,
+                            color: AppColors.accent,
                             onPressed: _isMutating
                                 ? null
                                 : () => _submit(card.id, 'easy'),
@@ -173,9 +176,14 @@ class _RevisionScreenState extends ConsumerState<RevisionScreen> {
                               _showAnswer = true;
                             });
                           },
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.accent,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
                           child: const Text(
                             'Show Answer',
-                            style: TextStyle(fontSize: 18),
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                           ),
                         ),
                       ),
@@ -228,9 +236,9 @@ class _ReviewButton extends StatelessWidget {
       child: FilledButton(
         onPressed: onPressed,
         style: FilledButton.styleFrom(
-          backgroundColor: color.withAlpha(50),
+          backgroundColor: color.withValues(alpha: 0.1),
           foregroundColor: color,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           padding: const EdgeInsets.symmetric(vertical: 16),
         ),
         child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),

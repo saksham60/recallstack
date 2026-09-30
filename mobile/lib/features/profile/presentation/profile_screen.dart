@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:app/core/api/api_client.dart';
 import 'package:app/core/auth/supabase_auth_repository.dart';
+import 'package:app/shared/theme/app_colors.dart';
 
 final profileProvider = FutureProvider.autoDispose<Map<String, dynamic>>((
   ref,
@@ -22,10 +22,10 @@ class ProfileScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Profile'),
+        title: const Text('Me', style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.5)),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.logout, color: AppColors.danger),
             onPressed: () {
               ref.read(authRepositoryProvider).signOut();
             },
@@ -51,16 +51,10 @@ class ProfileScreen extends ConsumerWidget {
                 const SizedBox(height: 32),
                 CircleAvatar(
                   radius: 50,
-                  backgroundImage: avatarUrl != null
-                      ? NetworkImage(avatarUrl)
-                      : null,
-                  backgroundColor: theme.colorScheme.primaryContainer,
+                  backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                  backgroundColor: AppColors.surfaceElevated,
                   child: avatarUrl == null
-                      ? Icon(
-                          Icons.person,
-                          size: 50,
-                          color: theme.colorScheme.onPrimaryContainer,
-                        )
+                      ? const Icon(Icons.person, size: 50, color: AppColors.textSecondary)
                       : null,
                 ),
                 const SizedBox(height: 24),
@@ -68,67 +62,52 @@ class ProfileScreen extends ConsumerWidget {
                   displayName,
                   style: theme.textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.bold,
+                    letterSpacing: -0.5,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Timezone: $timezone',
                   style: theme.textTheme.bodyLarge?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                    color: AppColors.textSecondary,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Roles: $roles',
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                    color: AppColors.textMuted,
                   ),
                 ),
                 const SizedBox(height: 48),
-                const Divider(),
-                const SizedBox(height: 24),
-                ListTile(
-                  leading: const Icon(Icons.settings),
-                  title: const Text('Settings'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {}, // For future expansion
-                ),
-                ListTile(
-                  leading: const Icon(Icons.help_outline),
-                  title: const Text('Help & Support'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {}, // For future expansion
+                Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    children: [
+                      ListTile(
+                        leading: const Icon(Icons.settings, color: AppColors.textSecondary),
+                        title: const Text('Settings', style: TextStyle(fontWeight: FontWeight.w600)),
+                        trailing: const Icon(Icons.chevron_right, color: AppColors.textMuted),
+                        onTap: () {}, // For future expansion
+                      ),
+                      const Divider(height: 1, color: AppColors.border),
+                      ListTile(
+                        leading: const Icon(Icons.help_outline, color: AppColors.textSecondary),
+                        title: const Text('Help & Support', style: TextStyle(fontWeight: FontWeight.w600)),
+                        trailing: const Icon(Icons.chevron_right, color: AppColors.textMuted),
+                        onTap: () {}, // For future expansion
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           );
         },
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 3,
-        type: BottomNavigationBarType.fixed,
-        onTap: (index) {
-          switch (index) {
-            case 0:
-              context.go('/home');
-              break;
-            case 1:
-              context.go('/dsa');
-              break;
-            case 2:
-              context.go('/revise');
-              break;
-            case 3:
-              context.go('/profile');
-              break;
-          }
-        },
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.code), label: 'DSA'),
-          BottomNavigationBarItem(icon: Icon(Icons.replay), label: 'Revise'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Me'),
-        ],
       ),
     );
   }

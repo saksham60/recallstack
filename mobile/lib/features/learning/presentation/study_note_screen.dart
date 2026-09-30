@@ -6,6 +6,9 @@ import 'package:app/core/database/database.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:app/shared/theme/app_colors.dart';
+import 'package:app/core/reasonai/presentation/reasonai_chat_widget.dart';
+import 'package:app/features/learning/presentation/reasonai_dsa_controller.dart';
 
 final studyNoteFutureProvider =
     FutureProvider.family<Map<String, dynamic>?, String>((ref, slug) async {
@@ -90,8 +93,10 @@ class _StudyNoteScreenState extends ConsumerState<StudyNoteScreen> {
     final dataAsync = ref.watch(studyNoteFutureProvider(widget.slug));
     final theme = Theme.of(context);
 
-    return Scaffold(
-      appBar: AppBar(
+    return DefaultTabController(
+      length: 4,
+      child: Scaffold(
+        appBar: AppBar(
         title: const Text('Study Note'),
         actions: [
           dataAsync.when(
@@ -125,6 +130,29 @@ class _StudyNoteScreenState extends ConsumerState<StudyNoteScreen> {
             error: (_, __) => const SizedBox.shrink(),
           ),
         ],
+        bottom: const TabBar(
+          isScrollable: true,
+          tabs: [
+            Tab(text: 'Problem'),
+            Tab(text: 'Approach'),
+            Tab(text: 'Editor'),
+            Tab(text: 'Notes'),
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          dataAsync.whenData((data) {
+            if (data != null) {
+              final contentId = (data['item'] as ContentItemWithProgress).item.id;
+              _showReasonAIChat(context, contentId);
+            }
+          });
+        },
+        backgroundColor: AppColors.accent,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.auto_awesome),
+        label: const Text('Ask ReasonAI'),
       ),
       body: dataAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -137,115 +165,160 @@ class _StudyNoteScreenState extends ConsumerState<StudyNoteScreen> {
           final contentWithProg = data['item'] as ContentItemWithProgress;
           final blocks = data['blocks'] as List<dynamic>;
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  contentWithProg.item.title,
-                  style: theme.textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
+          return TabBarView(
+            children: [
+              // Tab 1: Problem
+              SingleChildScrollView(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (contentWithProg.item.difficulty != null)
-                      _Badge(
-                        text: contentWithProg.item.difficulty!.toUpperCase(),
+                    Text(
+                      contentWithProg.item.title,
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
                       ),
-                    const SizedBox(width: 8),
-                    _Badge(
-                      text: contentWithProg.item.type.toUpperCase(),
-                      isOutlined: true,
                     ),
-                    const Spacer(),
-                    if (contentWithProg.progress?.status != null)
-                      Text(
-                        'Status: ${contentWithProg.progress!.status}',
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: theme.colorScheme.primary,
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        if (contentWithProg.item.difficulty != null)
+                          _Badge(
+                            text: contentWithProg.item.difficulty!.toUpperCase(),
+                          ),
+                        const SizedBox(width: 8),
+                        _Badge(
+                          text: contentWithProg.item.type.toUpperCase(),
+                          isOutlined: true,
                         ),
-                      ),
+                        const Spacer(),
+                        if (contentWithProg.progress?.status != null)
+                          Text(
+                            'Status: ${contentWithProg.progress!.status}',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    const Divider(),
+                    const SizedBox(height: 16),
+                    ...blocks.map((block) {
+                      if (block is Map<String, dynamic>) {
+                        return ContentBlockRendererRegistry.render(block);
+                      }
+                      return const SizedBox.shrink();
+                    }),
+                    const SizedBox(height: 32),
+                    ElevatedButton.icon(
+                      onPressed: _isMutating
+                          ? null
+                          : () async {
+                              final practiceUrl = contentWithProg.item.primaryPracticeUrl;
+                              final url = practiceUrl != null ? Uri.parse(practiceUrl) : null;
+                              if (url != null && await canLaunchUrl(url)) {
+                                await launchUrl(url);
+                                if (context.mounted) {
+                                  _showPracticeOutcomeDialog(context, ref, contentWithProg.item.id);
+                                }
+                              } else {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('No practice link available.')),
+                                  );
+                                }
+                              }
+                            },
+                      icon: const Icon(Icons.open_in_new),
+                      label: const Text('Open External Platform'),
+                      style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 24),
-                const Divider(),
-                const SizedBox(height: 16),
-
-                // Blocks
-                ...blocks.map((block) {
-                  if (block is Map<String, dynamic>) {
-                    return ContentBlockRendererRegistry.render(block);
-                  }
-                  return const SizedBox.shrink();
-                }),
-
-                const SizedBox(height: 32),
-                const Divider(),
-                const SizedBox(height: 16),
-
-                // Practice / Notes placeholders
-                ElevatedButton.icon(
-                  onPressed: _isMutating
-                      ? null
-                      : () async {
-                          final practiceUrl =
-                              contentWithProg.item.primaryPracticeUrl;
-                          final url = practiceUrl != null
-                              ? Uri.parse(practiceUrl)
-                              : null;
-                          if (url != null && await canLaunchUrl(url)) {
-                            await launchUrl(url);
-                            if (context.mounted) {
-                              _showPracticeOutcomeDialog(
-                                context,
-                                ref,
-                                contentWithProg.item.id,
-                              );
-                            }
-                          } else {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'No practice link available for this item.',
-                                  ),
-                                ),
-                              );
-                            }
-                          }
-                        },
-                  icon: const Icon(Icons.code),
-                  label: const Text('Practice Externally'),
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 50),
-                  ),
+              ),
+              // Tab 2: Approach
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Brainstorm your approach', style: theme.textTheme.titleMedium),
+                    const SizedBox(height: 16),
+                    const Expanded(
+                      child: TextField(
+                        maxLines: null,
+                        expands: true,
+                        textAlignVertical: TextAlignVertical.top,
+                        decoration: InputDecoration(
+                          hintText: 'Write down patterns, data structures, or edge cases...',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: _isMutating
-                      ? null
-                      : () {
-                          _showAddNoteDialog(
-                            context,
-                            ref,
-                            contentWithProg.item.id,
-                          );
-                        },
-                  icon: const Icon(Icons.note_add),
-                  label: const Text('Add Note / Mistake'),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 50),
-                  ),
+              ),
+              // Tab 3: Code Editor
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Scratchpad Editor', style: theme.textTheme.titleMedium),
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: Container(
+                        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                        child: const TextField(
+                          maxLines: null,
+                          expands: true,
+                          textAlignVertical: TextAlignVertical.top,
+                          style: TextStyle(fontFamily: 'monospace', fontSize: 14),
+                          decoration: InputDecoration(
+                            hintText: 'def solve(nums):\n    pass',
+                            hintStyle: TextStyle(fontFamily: 'monospace'),
+                            border: OutlineInputBorder(),
+                            contentPadding: EdgeInsets.all(16),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+              // Tab 4: Notes
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Personal Notes', style: theme.textTheme.titleMedium),
+                    const SizedBox(height: 16),
+                    OutlinedButton.icon(
+                      onPressed: _isMutating
+                          ? null
+                          : () {
+                              _showAddNoteDialog(context, ref, contentWithProg.item.id);
+                            },
+                      icon: const Icon(Icons.note_add),
+                      label: const Text('Add Note / Mistake'),
+                      style: OutlinedButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
+                    ),
+                    const SizedBox(height: 16),
+                    const Expanded(
+                      child: Center(
+                        child: Text('Past notes will appear here (Sync required)'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           );
         },
       ),
-    );
+    ));
   }
 
   void _showPracticeOutcomeDialog(
@@ -379,6 +452,129 @@ class _StudyNoteScreenState extends ConsumerState<StudyNoteScreen> {
           ),
         ],
       ),
+    );
+  }
+  void _showReasonAIChat(BuildContext context, String contentId) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.background,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height * 0.75,
+            child: _ReasonAIDSAChatSheet(contentId: contentId),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ReasonAIDSAChatSheet extends ConsumerStatefulWidget {
+  final String contentId;
+  const _ReasonAIDSAChatSheet({required this.contentId});
+
+  @override
+  ConsumerState<_ReasonAIDSAChatSheet> createState() => _ReasonAIDSAChatSheetState();
+}
+
+class _ReasonAIDSAChatSheetState extends ConsumerState<_ReasonAIDSAChatSheet> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // We import this from the appropriate file
+    final state = ref.watch(reasonAIDSAControllerProvider(widget.contentId));
+
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: AppColors.border)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.auto_awesome, color: AppColors.accent),
+              const SizedBox(width: 8),
+              Text('ReasonAI for DSA', style: Theme.of(context).textTheme.titleMedium),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+        ),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              ActionChip(
+                label: const Text('Explain Problem'),
+                onPressed: () => ref.read(reasonAIDSAControllerProvider(widget.contentId).notifier).sendMessage('', type: 'explain'),
+              ),
+              const SizedBox(width: 8),
+              ActionChip(
+                label: const Text('Give a Hint'),
+                onPressed: () => ref.read(reasonAIDSAControllerProvider(widget.contentId).notifier).sendMessage('', type: 'hint'),
+              ),
+              const SizedBox(width: 8),
+              ActionChip(
+                label: const Text('Visual Lesson'),
+                onPressed: () => ref.read(reasonAIDSAControllerProvider(widget.contentId).notifier).sendMessage('', type: 'visual'),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: ReasonAIChatWidget(state: state), // From reasonai_chat_widget.dart
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: const BoxDecoration(
+            border: Border(top: BorderSide(color: AppColors.border)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  decoration: const InputDecoration(
+                    hintText: 'Ask about this problem...',
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                  ),
+                  onSubmitted: (val) {
+                    ref.read(reasonAIDSAControllerProvider(widget.contentId).notifier).sendMessage(val);
+                    _controller.clear();
+                  },
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.send, color: AppColors.accent),
+                onPressed: () {
+                  ref.read(reasonAIDSAControllerProvider(widget.contentId).notifier).sendMessage(_controller.text);
+                  _controller.clear();
+                },
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

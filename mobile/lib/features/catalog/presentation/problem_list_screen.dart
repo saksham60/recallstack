@@ -2,6 +2,7 @@ import 'package:app/features/catalog/data/catalog_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:app/shared/theme/app_colors.dart';
 
 final problemListProvider =
     StreamProvider.family<List<ContentItemWithProgress>, String>((
@@ -21,7 +22,9 @@ class ProblemListScreen extends ConsumerWidget {
     final itemsAsync = ref.watch(problemListProvider(categoryId));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Problems')),
+      appBar: AppBar(
+        title: const Text('Problems', style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.5)),
+      ),
       body: itemsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(child: Text('Error: $err')),
@@ -75,68 +78,93 @@ class _ProblemListItem extends StatelessWidget {
     final theme = Theme.of(context);
     final isMastered = content.progress?.status == 'mastered';
 
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      leading: CircleAvatar(
-        backgroundColor: _getDifficultyColor(
-          content.item.difficulty,
-          theme,
-        ).withAlpha(40), // 0.15 * 255 = ~38
-        child: Icon(
-          isMastered ? Icons.check_circle : Icons.article_outlined,
-          color: isMastered
-              ? Colors.greenAccent
-              : _getDifficultyColor(content.item.difficulty, theme),
-        ),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
       ),
-      title: Text(content.item.title, style: theme.textTheme.titleMedium),
-      subtitle: Padding(
-        padding: const EdgeInsets.only(top: 8.0),
-        child: Row(
-          children: [
-            _buildBadge(
-              context,
-              content.item.difficulty?.toUpperCase() ?? 'UNKNOWN',
-              _getDifficultyColor(content.item.difficulty, theme),
-            ),
-            if (content.item.type != 'problem') ...[
-              const SizedBox(width: 8),
-              _buildBadge(
-                context,
-                content.item.type.toUpperCase(),
-                theme.colorScheme.tertiary,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () {
+          context.push('/content/${content.item.slug}');
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: _getDifficultyColor(content.item.difficulty).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  isMastered ? Icons.check_circle : Icons.article_outlined,
+                  color: isMastered ? AppColors.success : _getDifficultyColor(content.item.difficulty),
+                  size: 20,
+                ),
               ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      content.item.title,
+                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        _buildBadge(
+                          context,
+                          content.item.difficulty?.toUpperCase() ?? 'UNKNOWN',
+                          _getDifficultyColor(content.item.difficulty),
+                        ),
+                        if (content.item.type != 'problem') ...[
+                          const SizedBox(width: 8),
+                          _buildBadge(
+                            context,
+                            content.item.type.toUpperCase(),
+                            AppColors.accentLight,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: AppColors.textMuted),
             ],
-          ],
+          ),
         ),
       ),
-      trailing: const Icon(Icons.chevron_right),
-      onTap: () {
-        context.push('/content/${content.item.slug}');
-      },
     );
   }
 
-  Color _getDifficultyColor(String? difficulty, ThemeData theme) {
+  Color _getDifficultyColor(String? difficulty) {
     switch (difficulty?.toLowerCase()) {
       case 'easy':
-        return Colors.green;
+        return AppColors.success;
       case 'medium':
-        return Colors.orange;
+        return AppColors.warning;
       case 'hard':
-        return Colors.red;
+        return AppColors.danger;
       default:
-        return theme.colorScheme.onSurfaceVariant;
+        return AppColors.textSecondary;
     }
   }
 
   Widget _buildBadge(BuildContext context, String text, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withAlpha(25), // 0.1 * 255 = 25
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withAlpha(128)),
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
       child: Text(
         text,

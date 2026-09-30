@@ -131,6 +131,22 @@ class AppTheme {
         elevation: 8,
         showUnselectedLabels: true,
       ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: AppColors.surface,
+        indicatorColor: AppColors.accent.withValues(alpha: 0.2),
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return const IconThemeData(color: AppColors.accent);
+          }
+          return const IconThemeData(color: AppColors.textSecondary);
+        }),
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return const TextStyle(color: AppColors.accent, fontSize: 12, fontWeight: FontWeight.w600);
+          }
+          return const TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.normal);
+        }),
+      ),
     );
   }
 }

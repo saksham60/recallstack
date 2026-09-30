@@ -2,6 +2,7 @@ import 'package:app/features/catalog/data/catalog_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:app/shared/theme/app_colors.dart';
 
 final dsaCategoriesProvider =
     StreamProvider.family<List<CategoryWithStats>, String>((ref, domainId) {
@@ -17,7 +18,9 @@ class DSACategoryScreen extends ConsumerWidget {
     final categoriesAsync = ref.watch(dsaCategoriesProvider('dsa'));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('DSA Topics')),
+      appBar: AppBar(
+        title: const Text('DSA Categories', style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.5)),
+      ),
       body: categoriesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(child: Text('Error: $err')),
@@ -78,37 +81,43 @@ class _CategoryCard extends StatelessWidget {
           (item.masteredCount + item.learningCount * 0.5) / item.totalContent;
     }
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () {
           context.push('/categories/${item.category.id}');
         },
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(20.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 item.category.title,
                 style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               if (item.category.description?.isNotEmpty == true)
                 Padding(
-                  padding: const EdgeInsets.only(top: 4.0),
+                  padding: const EdgeInsets.only(top: 8.0),
                   child: Text(
                     item.category.description!,
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+                      color: AppColors.textSecondary,
+                      height: 1.4,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -119,21 +128,24 @@ class _CategoryCard extends StatelessWidget {
                   _StatBadge(
                     label: '${item.masteredCount} Mastered',
                     icon: Icons.check_circle_outline,
-                    color: Colors.greenAccent,
+                    color: AppColors.success,
                   ),
                   _StatBadge(
                     label: '${item.learningCount} Learning',
                     icon: Icons.sync,
-                    color: Colors.orangeAccent,
+                    color: AppColors.warning,
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              LinearProgressIndicator(
-                value: progress,
-                backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                color: theme.colorScheme.primary,
+              const SizedBox(height: 16),
+              ClipRRect(
                 borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: progress,
+                  minHeight: 6,
+                  backgroundColor: AppColors.surfaceElevated,
+                  color: AppColors.accent,
+                ),
               ),
             ],
           ),
@@ -158,14 +170,14 @@ class _StatBadge extends StatelessWidget {
         Icon(
           icon,
           size: 14,
-          color: color ?? Theme.of(context).colorScheme.onSurfaceVariant,
+          color: color ?? AppColors.textSecondary,
         ),
         const SizedBox(width: 4),
         Text(
           label,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-            fontWeight: FontWeight.w500,
+            color: color ?? AppColors.textSecondary,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ],
