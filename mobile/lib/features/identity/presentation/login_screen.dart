@@ -1,63 +1,100 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:app/core/auth/supabase_auth_repository.dart';
-import 'package:app/shared/theme/app_colors.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../app/env.dart';
+import '../../../core/api/api_failure.dart';
+import '../../../core/auth/auth_repository.dart';
 
-class LoginScreen extends ConsumerWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
-
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Spacer(),
-                const Icon(Icons.layers, size: 64, color: AppColors.accent),
-                const SizedBox(height: 24),
-                Text(
-                  'RecallStack',
-                  style: Theme.of(context).textTheme.displayLarge,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Technical learning & active recall.',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const Spacer(),
-                ElevatedButton.icon(
-                  onPressed: () async {
-                    try {
-                      await ref.read(authRepositoryProvider).signInWithGoogle();
-                      if (!context.mounted) return;
-                    } catch (e) {
-                      if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Login failed: $e')),
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.login),
-                  label: const Text('Continue with Google'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                ),
-                const SizedBox(height: 32),
-              ],
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends ConsumerState<LoginScreen> {
+  bool busy = false;
+  Future<void> _signIn(Future<void> Function() action) async {
+    if (busy) return;
+    setState(() => busy = true);
+    try {
+      await action();
+    } on AuthException catch (error) {
+      debugPrint('AUTH ERROR: ${error.message}');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } catch (error, stackTrace) {
+      debugPrint('AUTH ERROR: $error\n$stackTrace');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AppEnv.judgeMode
+                  ? 'Authentication failed: $error'
+                  : ApiFailure.from(error).userMessage,
             ),
           ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Spacer(),
+            Icon(
+              Icons.auto_awesome,
+              color: Theme.of(context).colorScheme.primary,
+              size: 56,
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'ReasonAI',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.headlineLarge,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Understand what matters. Practice what lasts.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
+            const Spacer(),
+            FilledButton.icon(
+              onPressed: busy
+                  ? null
+                  : () => _signIn(
+                      ref.read(authRepositoryProvider).signInWithGoogle,
+                    ),
+              icon: const Icon(Icons.login),
+              label: const Text('Continue with Google'),
+            ),
+            if (AppEnv.judgeMode) ...[
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: busy
+                    ? null
+                    : () => _signIn(
+                        ref.read(authRepositoryProvider).signInAsJudge,
+                      ),
+                icon: const Icon(Icons.bolt),
+                label: const Text('Explore as Hackathon Judge'),
+              ),
+            ],
+            const SizedBox(height: 24),
+          ],
         ),
       ),
-    );
-  }
+    ),
+  );
 }

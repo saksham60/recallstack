@@ -1,182 +1,319 @@
-import 'package:app/features/feed/domain/story.dart';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:app/features/feed/presentation/feed_controller.dart';
-import 'package:app/shared/theme/app_colors.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
+import '../../../core/api/api_failure.dart';
+import '../../../shared/widgets/app_network_image.dart';
+import '../../../shared/widgets/states.dart';
+import 'feed_controller.dart';
+import 'feed_models.dart';
+import 'feed_preferences_sheet.dart';
+import 'story_chat_sheet.dart';
 
 class FeedScreen extends ConsumerStatefulWidget {
   const FeedScreen({super.key});
-
   @override
   ConsumerState<FeedScreen> createState() => _FeedScreenState();
 }
 
 class _FeedScreenState extends ConsumerState<FeedScreen> {
-  final ScrollController _scrollController = ScrollController();
-
+  final scroll = ScrollController();
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(() {
-      if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
-        ref.read(feedControllerProvider.notifier).fetchNextPage();
+    scroll.addListener(() {
+      if (scroll.hasClients && scroll.position.extentAfter < 600) {
+        ref.read(feedControllerProvider.notifier).loadMore();
       }
     });
   }
 
   @override
   void dispose() {
-    _scrollController.dispose();
+    scroll.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final feedState = ref.watch(feedControllerProvider);
-
+    final feed = ref.watch(feedControllerProvider);
+    final controller = ref.read(feedControllerProvider.notifier);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Knowledge Feed', style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.5)),
+        title: const Text('ReasonAI'),
         actions: [
           IconButton(
+            tooltip: 'Tune feed',
             icon: const Icon(Icons.tune),
-            onPressed: () {
-              // TODO: Open preferences modal
-            },
+            onPressed: () => openFeedPreferences(context),
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: () => ref.read(feedControllerProvider.notifier).refresh(),
-        color: AppColors.accent,
-        backgroundColor: AppColors.surfaceElevated,
-        child: feedState.when(
-          data: (stories) {
-            if (stories.isEmpty) {
-              return const Center(child: Text('Your feed is empty.'));
-            }
-            return ListView.separated(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(16),
-              itemCount: stories.length + (ref.watch(feedHasMoreProvider) ? 1 : 0),
-              separatorBuilder: (context, index) => const SizedBox(height: 16),
-              itemBuilder: (context, index) {
-                if (index == stories.length) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(16.0),
-                      child: CircularProgressIndicator(),
-                    ),
-                  );
-                }
-                final story = stories[index];
-                return _StoryCard(
-                  story: story,
-                  onTap: () {
-                    context.push('/story/${story.id}');
-                  },
-                );
-              },
-            );
-          },
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (err, st) => Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+      body: Column(
+        children: [
+          SizedBox(
+            height: 54,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               children: [
-                const Icon(Icons.error_outline, color: AppColors.danger, size: 48),
-                const SizedBox(height: 16),
-                Text('Failed to load feed', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 8),
-                ElevatedButton(
-                  onPressed: () => ref.read(feedControllerProvider.notifier).refresh(),
-                  child: const Text('Retry'),
-                )
+                for (final topic in feedTopics.entries)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text(topic.value),
+                      selected: feed.topic == topic.key,
+                      onSelected: (_) {
+                        if (feed.topic == topic.key) return;
+                        scroll.jumpTo(0);
+                        controller.load(topic.key);
+                      },
+                    ),
+                  ),
               ],
             ),
           ),
-        ),
+          Expanded(
+            child: feed.initialLoading
+                ? ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      SkeletonBox(
+                        height: math.min(
+                          MediaQuery.sizeOf(context).width * 0.6,
+                          210,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      SkeletonBox(
+                        height: math.min(
+                          MediaQuery.sizeOf(context).width * 0.6,
+                          210,
+                        ),
+                      ),
+                    ],
+                  )
+                : feed.failure != null && feed.stories.isEmpty
+                ? ErrorState(error: feed.failure!, onRetry: controller.refresh)
+                : feed.stories.isEmpty
+                ? const EmptyState(
+                    icon: Icons.newspaper,
+                    title: 'Nothing here yet',
+                    body: 'Try another topic or refresh your feed.',
+                  )
+                : LayoutBuilder(
+                    builder: (context, viewport) => RefreshIndicator(
+                      onRefresh: controller.refresh,
+                      child: ListView.separated(
+                        controller: scroll,
+                        padding: const EdgeInsets.all(16),
+                        itemCount:
+                            feed.stories.length +
+                            (feed.hasMore || feed.pageFailure != null ? 1 : 0),
+                        separatorBuilder: (_, _) => const SizedBox(height: 16),
+                        itemBuilder: (context, index) {
+                          if (index == feed.stories.length) {
+                            if (feed.pageFailure != null) {
+                              return TextButton(
+                                onPressed: controller.loadMore,
+                                child: Text(
+                                  '${ApiFailure.from(feed.pageFailure!).userMessage} Retry',
+                                ),
+                              );
+                            }
+                            return feed.loadingMore
+                                ? const Center(
+                                    child: Padding(
+                                      padding: EdgeInsets.all(12),
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                  )
+                                : TextButton(
+                                    onPressed: controller.loadMore,
+                                    child: const Text('Load more'),
+                                  );
+                          }
+                          final story = feed.stories[index];
+                          controller.trackView(story.id);
+                          return StoryCard(
+                            story: story,
+                            viewportHeight: viewport.maxHeight,
+                            onTap: () => context.push(
+                              '/story/${Uri.encodeComponent(story.id)}',
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _StoryCard extends StatelessWidget {
+class StoryCard extends ConsumerWidget {
+  const StoryCard({
+    super.key,
+    required this.story,
+    required this.onTap,
+    required this.viewportHeight,
+  });
   final Story story;
   final VoidCallback onTap;
-
-  const _StoryCard({required this.story, required this.onTap});
-
+  final double viewportHeight;
   @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.border),
-        ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final width = MediaQuery.sizeOf(context).width - 32;
+    final imageHeight = math.min(width / (16 / 9), viewportHeight * 0.34);
+    final compact = viewportHeight < 460;
+    final theme = Theme.of(context);
+    final askStyle = FilledButton.styleFrom(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      minimumSize: const Size(0, 42),
+      visualDensity: VisualDensity.compact,
+    );
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 12,
-                  backgroundImage: NetworkImage(story.source.faviconUrl),
-                  backgroundColor: AppColors.surfaceElevated,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  story.source.name,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
-                ),
-                const Spacer(),
-                Text(
-                  DateFormat.yMMMd().format(story.publishedAt),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
-                ),
-              ],
+            AppNetworkImage(
+              url: story.imageUrl,
+              height: imageHeight,
+              radius: 0,
             ),
-            const SizedBox(height: 12),
-            Text(
-              story.title,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(height: 1.3),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              story.summary,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppColors.textSecondary,
-                height: 1.5,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          story.sourceName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelSmall,
+                        ),
+                      ),
+                      if (story.topics.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        Text('·', style: theme.textTheme.labelSmall),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            story.topics.first,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.labelSmall,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(width: 8),
+                      Text(story.ageLabel(), style: theme.textTheme.labelSmall),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    story.title,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    story.summary,
+                    maxLines: compact ? 1 : 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      IconButton(
+                        tooltip: story.saved ? 'Unsave' : 'Save',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () async {
+                          final ok = await ref
+                              .read(feedControllerProvider.notifier)
+                              .toggleSave(story);
+                          if (!ok && context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Could not update saved story.'),
+                              ),
+                            );
+                          }
+                        },
+                        icon: Icon(
+                          story.saved ? Icons.bookmark : Icons.bookmark_outline,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Not interested',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () async {
+                          final controller = ref.read(
+                            feedControllerProvider.notifier,
+                          );
+                          final ok = await controller.hide(story);
+                          if (ok && context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: const Text('Story hidden'),
+                                action: SnackBarAction(
+                                  label: 'Undo',
+                                  onPressed: () => controller.undoHide(story),
+                                ),
+                              ),
+                            );
+                          } else if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  ApiFailure(FailureKind.unknown).userMessage,
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.visibility_off_outlined),
+                      ),
+                      const Spacer(),
+                      if (width < 350)
+                        FilledButton(
+                          onPressed: () => showStoryChat(context, story),
+                          style: askStyle,
+                          child: Text(
+                            MediaQuery.textScalerOf(context).scale(13) > 15
+                                ? 'Ask\nReasonAI'
+                                : 'Ask ReasonAI',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontSize: 13, height: 1.05),
+                          ),
+                        )
+                      else
+                        FilledButton.icon(
+                          onPressed: () => showStoryChat(context, story),
+                          style: askStyle,
+                          icon: const Icon(Icons.auto_awesome, size: 18),
+                          label: const Text(
+                            'Ask ReasonAI',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
               ),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: (story.topics as List).take(3).map((topic) {
-                return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppColors.accent.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(100),
-                  ),
-                  child: Text(
-                    topic,
-                    style: const TextStyle(color: AppColors.accentLight, fontSize: 12, fontWeight: FontWeight.w600),
-                  ),
-                );
-              }).toList(),
             ),
           ],
         ),

@@ -1,60 +1,61 @@
 import 'package:dio/dio.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:app/core/auth/supabase_auth_repository.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../app/env.dart';
+import '../auth/auth_repository.dart';
 
-part 'api_client.g.dart';
-
-class ApiClient {
-  final Dio _dio;
-  final SupabaseAuthRepository _authRepository;
-
-  ApiClient(this._authRepository) : _dio = Dio() {
-    const dartDefineUrl = String.fromEnvironment('API_BASE_URL');
-    final dotenvUrl = dotenv.env['API_BASE_URL'];
-
-    String? baseUrl = dartDefineUrl.isNotEmpty ? dartDefineUrl : dotenvUrl;
-
-    if (baseUrl == null || baseUrl.isEmpty) {
-      throw UnsupportedError('API_BASE_URL must be provided');
-    }
-
-    _dio.options = BaseOptions(
-      baseUrl: baseUrl,
-      connectTimeout: const Duration(seconds: 15),
-      receiveTimeout: const Duration(seconds: 15),
-    );
-
-    _dio.interceptors.add(
-      InterceptorsWrapper(
-        onRequest: (options, handler) async {
-          // Attach Supabase bearer token
-          final token = await _authRepository.getAccessToken();
-          if (token != null) {
-            options.headers['Authorization'] = 'Bearer $token';
-          }
-          return handler.next(options);
-        },
-        onError: (DioException e, handler) {
-          if (e.response?.statusCode == 401) {
-            _authRepository.signOut();
-          }
-          return handler.next(e);
-        },
-      ),
-    );
+class AuthInterceptor extends Interceptor {
+  AuthInterceptor(this.dio, this.auth);
+  final Dio dio;
+  final AuthRepository auth;
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    final token = auth.current?.accessToken;
+    if (token != null) options.headers['Authorization'] = 'Bearer $token';
+    handler.next(options);
   }
 
-  Dio get client => _dio;
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) async {
+    if (err.response?.statusCode != 401) return handler.next(err);
+    if (err.requestOptions.extra['retried'] == true) {
+      try {
+        await auth.signOut();
+      } catch (_) {}
+      return handler.next(err);
+    }
+    final refreshed = await auth.refreshSession();
+    final newToken = auth.current?.accessToken;
+    if (!refreshed || newToken == null) {
+      try {
+        await auth.signOut();
+      } catch (_) {}
+      return handler.next(err);
+    }
+    final original = err.requestOptions;
+    final retry = original.copyWith(
+      headers: {...original.headers, 'Authorization': 'Bearer $newToken'},
+      extra: {...original.extra, 'retried': true},
+    );
+    try {
+      handler.resolve(await dio.fetch<dynamic>(retry));
+    } on DioException catch (failure) {
+      handler.next(failure);
+    }
+  }
 }
 
-@riverpod
-ApiClient apiClient(Ref ref) {
-  final authRepo = ref.watch(authRepositoryProvider);
-  return ApiClient(authRepo);
+Dio createApiDio(String baseUrl, AuthRepository auth) {
+  final dio = Dio(
+    BaseOptions(
+      baseUrl: baseUrl.endsWith('/') ? baseUrl : '$baseUrl/',
+      connectTimeout: const Duration(seconds: 15),
+      receiveTimeout: const Duration(seconds: 30),
+    ),
+  );
+  dio.interceptors.add(AuthInterceptor(dio, auth));
+  return dio;
 }
 
-@riverpod
-Dio dio(Ref ref) {
-  return ref.watch(apiClientProvider).client;
-}
+final backendDioProvider = Provider<Dio>(
+  (ref) => createApiDio(AppEnv.apiBaseUrl, ref.watch(authRepositoryProvider)),
+);

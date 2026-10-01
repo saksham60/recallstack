@@ -1,45 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart';
-import 'package:app/core/telemetry/app_logger.dart';
-import 'package:app/app/app.dart';
-import 'package:app/core/auth/supabase_auth_repository.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'app/app.dart';
+import 'app/env.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
   try {
     await dotenv.load(fileName: '.env');
-  } catch (e) {
-    debugPrint(
-      '.env file not found, falling back to --dart-define or environment variables.',
-    );
+  } catch (_) {
+    // --dart-define is sufficient.
   }
-  await SupabaseAuthRepository.initialize();
-
-  try {
-    await Firebase.initializeApp();
-    FlutterError.onError = (errorDetails) {
-      AppLogger.recordFlutterFatalError(errorDetails);
-    };
-    PlatformDispatcher.instance.onError = (error, stack) {
-      AppLogger.recordError(error, stack, reason: 'Platform Error');
-      return true;
-    };
-  } catch (e) {
-    debugPrint(
-      'Firebase initialization failed (likely missing google-services.json): $e',
-    );
-  }
-
-  runApp(
-    const ProviderScope(
-      overrides: [
-        // We can override the database provider here if needed
-      ],
-      child: RecallStackApp(),
-    ),
+  AppEnv.validate();
+  await Supabase.initialize(
+    url: AppEnv.supabaseUrl,
+    publishableKey: AppEnv.supabaseAnonKey,
   );
+  FlutterError.onError = (details) => FlutterError.presentError(details);
+  runApp(const ProviderScope(child: ReasonAIApp()));
 }
