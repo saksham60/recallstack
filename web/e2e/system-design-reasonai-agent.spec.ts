@@ -8,6 +8,9 @@ import { MAX_SYSTEM_DESIGN_TOOL_ROUNDS, systemDesignToolExecutor, type SystemDes
 import { MemoryReasonAIPersistenceRepository } from "../src/lib/reasonai/server/persistence/memory-repository";
 import { prepareSystemDesignRun } from "../src/lib/reasonai/server/persistence/system-design-run";
 import { isReasonAIDSAStreamingEnabled, isReasonAISystemDesignStreamingEnabled } from "../src/lib/config/server";
+import type { ReasonAIResponse } from "../src/features/system-design/reasonai/contract";
+import { parseReasonAISources } from "../src/features/system-design/reasonai/sources";
+import { ReasonAISources } from "../src/features/system-design/reasonai/ReasonAISources";
 
 const request: ReasonAIRequest = {
   mode: "chat",
@@ -34,6 +37,7 @@ const originalProviderEnv = {
   REASONAI_BASE_URL: process.env.REASONAI_BASE_URL,
   REASONAI_MODEL: process.env.REASONAI_MODEL,
   REASONAI_V2_MODE: process.env.REASONAI_V2_MODE,
+  TAVILY_API_KEY: process.env.TAVILY_API_KEY,
 };
 
 test.afterEach(() => {
@@ -125,10 +129,131 @@ test("model-selected search loops through the agent and emits bounded evidence",
     new AbortController().signal,
     execution(scripted([tool("search_web", { query: "AWS Lambda execution duration limit" }, "search-1"), final("AWS documents the current limit [1].")]), executor),
   )) events.push(event);
-  expect(events.map((event) => event.type)).toEqual([
-    "run.started", "tool.started", "sources.ready", "tool.completed", "text.delta", "text.final", "run.completed",
+  expect(events.map((event) => event.type).filter((type) => type !== "text.delta")).toEqual([
+    "run.started", "tool.started", "sources.ready", "tool.completed", "text.final", "run.completed",
   ]);
   expect(events.find((event) => event.type === "tool.started")).toMatchObject({ toolCallId: "search-1", toolName: "search_web" });
+});
+
+test("Nemotron search_web fragmented SSE reaches Tavily, returns to Nemotron, and produces cited sources", async () => {
+  process.env.NEBIUS_API_KEY = "system-design-agent-key";
+  process.env.TAVILY_API_KEY = "tavily-test-key";
+  process.env.REASONAI_BASE_URL = "https://provider.test/v1";
+  process.env.REASONAI_MODEL = "agent-model";
+  const providerBodies: Array<Record<string, unknown>> = [];
+  const tavilyBodies: Array<Record<string, unknown>> = [];
+  globalThis.fetch = async (url, init) => {
+    if (String(url) === "https://api.tavily.com/search") {
+      tavilyBodies.push(JSON.parse(String(init?.body)));
+      return Response.json({ results: [{
+        title: "AWS Lambda quotas",
+        url: "https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html",
+        content: "Function timeout: 900 seconds.",
+      }] });
+    }
+    providerBodies.push(JSON.parse(String(init?.body)));
+    if (providerBodies.length === 1) return sse([
+      { choices: [{ delta: { tool_calls: [{ index: 0, id: "call_", type: "function", function: { name: "search_", arguments: "{\"query\":\"AWS Lambda " } }] }, finish_reason: null }] },
+      { choices: [{ delta: { tool_calls: [{ index: 0, id: "123", function: { name: "web", arguments: "timeout limit\"}" } }] }, finish_reason: null }] },
+      { choices: [{ delta: {}, finish_reason: "tool_calls" }] },
+    ]);
+    return sse([{ choices: [{ delta: { content: "AWS Lambda functions can run for a maximum of 15 minutes. [1]" }, finish_reason: "stop" }] }]);
+  };
+
+  const events = [];
+  let finalResult: ReasonAIResponse | undefined;
+  for await (const event of streamSystemDesignEvents(
+    { ...request, message: "Search the web for the current AWS Lambda timeout limit" },
+    new AbortController().signal,
+    { ...execution(systemDesignAgentProvider), onFinalResult: (result) => { finalResult = result; } },
+  )) events.push(event);
+
+  expect((providerBodies[0].tools as Array<{ function: { name: string } }>).map((item) => item.function.name)).toContain("search_web");
+  expect(tavilyBodies).toEqual([expect.objectContaining({ query: "AWS Lambda timeout limit" })]);
+  expect(providerBodies).toHaveLength(2);
+  expect(JSON.stringify(providerBodies[1])).toContain("Function timeout: 900 seconds.");
+  expect(JSON.stringify(providerBodies[1])).toContain("https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html");
+  expect(finalResult).toEqual({
+    text: "AWS Lambda functions can run for a maximum of 15 minutes. [1]",
+    sources: [{ id: 1, title: "AWS Lambda quotas", url: "https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html" }],
+  });
+  expect(events.map((event) => event.type).filter((type) => type !== "text.delta")).toEqual([
+    "run.started", "tool.started", "sources.ready", "tool.completed", "text.final", "run.completed",
+  ]);
+});
+
+test("System Design accepts a bounded JSON provider tool call fallback", async () => {
+  process.env.NEBIUS_API_KEY = "system-design-agent-key";
+  process.env.REASONAI_BASE_URL = "https://provider.test/v1";
+  process.env.REASONAI_MODEL = "agent-model";
+  const calls: string[] = [];
+  globalThis.fetch = async () => Response.json({ choices: [{
+    message: { content: null, tool_calls: [{ id: "call_search_1", type: "function", function: { name: "search_web", arguments: "{\"query\":\"AWS Lambda timeout limit\"}" } }] },
+    finish_reason: "tool_calls",
+  }] });
+  const provider = systemDesignAgentProvider.streamRound({
+    request, history: [], agentMessages: [], searchEvidence: [], searchCount: 0, allowTools: true,
+  });
+  for await (const event of provider) if (event.type === "round" && event.round.kind === "tools") calls.push(event.round.calls[0].arguments);
+  expect(calls).toEqual(["{\"query\":\"AWS Lambda timeout limit\"}"]);
+});
+
+test("unreturned citations are removed and no Tavily evidence produces no sources", async () => {
+  process.env.NEBIUS_API_KEY = "system-design-agent-key";
+  process.env.REASONAI_BASE_URL = "https://provider.test/v1";
+  process.env.REASONAI_MODEL = "agent-model";
+  let providerRound = 0;
+  globalThis.fetch = async () => providerRound++ === 0
+    ? sse([{ choices: [{ delta: { tool_calls: [{ index: 0, id: "empty-search", type: "function", function: { name: "search_web", arguments: '{"query":"AWS Lambda timeout limit"}' } }] }, finish_reason: "tool_calls" }] }])
+    : sse([{ choices: [{ delta: { content: "No verified result is available. [1]" }, finish_reason: "stop" }] }]);
+  const executor: SystemDesignToolExecutor = { async execute(call) { return { ok: true, retrievalStatus: "empty", searchEvidence: [], message: { role: "tool", tool_call_id: call.id, content: '{"ok":true,"evidence":[]}' } }; } };
+  let result: ReasonAIResponse | undefined;
+  for await (const _event of streamSystemDesignEvents(request, new AbortController().signal, { ...execution(systemDesignAgentProvider, executor), onFinalResult: (value) => { result = value; } })) void _event;
+  expect(providerRound).toBe(2);
+  expect(result?.text).not.toContain("[1]");
+  expect(result?.sources ?? []).toEqual([]);
+});
+
+test("source numbering remains deterministic and unsafe source links are rejected", () => {
+  expect(parseReasonAISources([
+    { id: 1, title: "First", url: "https://docs.example.com/one" },
+    { id: 2, title: "Second", url: "https://docs.example.com/two" },
+    { id: 3, title: "Unsafe", url: "http://docs.example.com/three" },
+  ])).toEqual([
+    { id: 1, title: "First", url: "https://docs.example.com/one" },
+    { id: 2, title: "Second", url: "https://docs.example.com/two" },
+  ]);
+});
+
+test("two Tavily citations map to their validated sources without reordering", async () => {
+  process.env.NEBIUS_API_KEY = "system-design-agent-key";
+  process.env.REASONAI_BASE_URL = "https://provider.test/v1";
+  process.env.REASONAI_MODEL = "agent-model";
+  globalThis.fetch = async () => sse([{ choices: [{ delta: { content: "The first limit is documented [1], and the second is documented separately [2]." }, finish_reason: "stop" }] }]);
+  const evidence = [
+    { id: 1, title: "First source", url: "https://docs.example.com/first", content: "First fact." },
+    { id: 2, title: "Second source", url: "https://docs.example.com/second", content: "Second fact." },
+  ];
+  let result: ReasonAIResponse | undefined;
+  for await (const event of systemDesignAgentProvider.streamRound({ request, history: [], agentMessages: [], searchEvidence: evidence, searchCount: 1, allowTools: false })) {
+    if (event.type === "round" && event.round.kind === "final") result = event.round.result;
+  }
+  expect(result?.sources).toEqual([
+    { id: 1, title: "First source", url: "https://docs.example.com/first" },
+    { id: 2, title: "Second source", url: "https://docs.example.com/second" },
+  ]);
+});
+
+test("the source-card UI renders server titles, citation numbers, and only safe HTTPS links", () => {
+  const markup = JSON.stringify(ReasonAISources({ sources: [
+    { id: 1, title: "AWS Lambda quotas", url: "https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html" },
+    { id: 2, title: "Unsafe", url: "javascript:alert(1)" },
+  ] }));
+  expect(markup).toContain('"children":["[",1,"] "');
+  expect(markup).toContain("AWS Lambda quotas");
+  expect(markup).toContain('"href":"https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html"');
+  expect(markup).not.toContain("javascript:");
+  expect(markup).not.toContain("Unsafe");
 });
 
 test("Fix mode emits only a validated reviewable proposal artifact", async () => {
