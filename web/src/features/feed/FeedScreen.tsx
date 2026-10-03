@@ -20,7 +20,7 @@ import { FeedRefresh } from "./FeedRefresh";
 export function FeedScreen() {
   const { user, isLoading } = useAuth();
   const storyId = useSearchParams().get("story");
-  if (isLoading) return <div className="mx-auto max-w-[610px]"><FeedSkeleton /></div>;
+  if (isLoading) return <div className="mx-auto max-w-[760px]"><FeedSkeleton /></div>;
   if (!user) return <EmptyState title="Sign in to read your feed" action={<Link href={`/login?next=${encodeURIComponent(storyId ? storyLink(storyId) : "/feed")}`} className="text-accent">Sign in</Link>} />;
   return <FeedWorkspace key={user.id} userId={user.id} />;
 }
@@ -124,7 +124,7 @@ function FeedWorkspace({ userId }: { userId: string }) {
     ? <Link href="/login?next=%2Ffeed" className="text-accent">Sign in again</Link>
     : <button type="button" className={`${feedButton} text-accent`} onClick={query.error instanceof ApiError && query.error.status === 409 ? refresh : () => { if (stories.length) void loadMore(); else void query.refetch(); }}>Try again</button>;
 
-  return <div className="mx-auto max-w-[610px] pb-12">
+  return <div className="mx-auto max-w-[760px] pb-12">
     <div className="mb-5 flex items-start justify-between gap-3">
       <div className="min-w-0"><h1 className="text-3xl font-semibold tracking-tight">Knowledge Feed</h1><p className="mt-2 text-sm leading-6 text-muted">Ideas worth understanding, one story at a time.</p></div>
       <button type="button" onClick={refresh} disabled={query.isFetching} title="Refresh feed" aria-label="Refresh feed" className={`${feedButton} shrink-0 bg-surface text-muted hover:text-foreground`}><RefreshCw size={17} className={query.isFetching ? "motion-safe:animate-spin" : ""} /><span className="hidden sm:inline">{query.isFetching && !query.isFetchingNextPage ? "Refreshing…" : "Refresh"}</span></button>

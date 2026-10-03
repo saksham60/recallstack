@@ -61,7 +61,7 @@ test("filters using returned topics and keeps invalid individual stories out", a
   await expect(page.getByRole("heading", { name: "A smarter cache 4", exact: true })).toBeVisible();
 });
 
-test("uses fixed broad categories and a narrow 4:5 content-first card", async ({ authenticatedPage: page }) => {
+test("keeps a complete first article and its Ask action in the desktop viewport", async ({ authenticatedPage: page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await setup(page, 1);
   await page.goto("/feed");
@@ -76,9 +76,13 @@ test("uses fixed broad categories and a narrow 4:5 content-first card", async ({
   const card = page.locator("article").filter({ has: page.getByRole("heading", { name: "A smarter cache 1" }) }).first();
   const media = card.getByTestId("story-media");
   const box = await media.boundingBox();
-  expect(box!.height / box!.width).toBeCloseTo(1.25, 1);
+  expect(box!.width).toBe(176);
+  expect(box!.height).toBe(176);
   expect(await media.locator('img').evaluate((image) => getComputedStyle(image).objectFit)).toBe('contain');
-  expect((await card.boundingBox())!.width).toBeLessThanOrEqual(610);
+  const cardBox = (await card.boundingBox())!;
+  expect(cardBox.width).toBeLessThanOrEqual(760);
+  expect(cardBox.y + cardBox.height).toBeLessThanOrEqual(900);
+  await expect(card.getByRole("button", { name: "Ask ReasonAI" })).toBeInViewport();
   await expect(card.getByText("Why it matters", { exact: true })).toBeVisible();
   expect(await card.locator("p.line-clamp-4").evaluate((element) => getComputedStyle(element).webkitLineClamp)).toBe("4");
   await expect(card.getByText("System Design")).toHaveCount(0);
@@ -364,7 +368,7 @@ test("mobile layout keeps navigation and actions usable without horizontal overf
   await page.setViewportSize({ width: 390, height: 844 });
   await setup(page, 1);
   await page.goto("/feed");
-  await expect(page.getByRole("button", { name: "Ask ReasonAI", exact: true })).toBeAttached();
+  await expect(page.getByRole("button", { name: "Ask ReasonAI", exact: true })).toBeInViewport();
   await expect(page.getByRole("link", { name: "Feed", exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("feed-mobile.png"), fullPage: true });
