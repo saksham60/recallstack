@@ -335,7 +335,7 @@ ReasonAI has three web AI surfaces with deliberately different state models:
 | --- | --- | --- | --- | --- | --- |
 | DSA | LangGraph | Yes in V2 | Optional learner memory | Tavily | `search_web`, `create_visual` |
 | System Design | LangGraph | Yes in V2 | No learned profile on the current route | Tavily | `search_web`, `show_architecture_analysis`, `propose_canvas_changes` |
-| Knowledge Story Chat | streaming provider | No; dialog-scoped today | No | no automatic Tavily search on current route | story-context answer stream |
+| Knowledge Story Chat | bounded streaming provider/tool loop | No; dialog-scoped today | No | Tavily when fresh/external evidence is needed | `search_web` |
 
 This distinction is intentional. “ReasonAI memory” is not one generic store.
 
@@ -855,9 +855,13 @@ The route:
 3. validates and bounds the submitted conversation;
 4. **re-fetches the canonical story from FastAPI using the learner's authorization**;
 5. rejects expired/inaccessible stories before model execution;
-6. streams the ReasonAI answer to the browser.
+6. lets Nemotron request the bounded `search_web` tool when fresh/external information, related stories/developments or verification is needed;
+7. executes at most two search rounds, normalizes at most three Tavily results per search, and only permits verified story/search URLs in the final answer;
+8. streams normalized ReasonAI run/text/tool/source events to the browser.
 
-The browser-supplied title/summary cannot grant story access or replace canonical backend context.
+The browser-supplied title/summary cannot grant story access or replace canonical backend context. Tavily results are untrusted evidence and cannot redefine the tool contract.
+
+Stable explanations can remain story-context-only; the route does not search merely because a model call occurred. Prompts such as **“Show me more like this”** or requests for latest developments are expected to exercise the research path when the model determines external evidence is needed.
 
 Current Knowledge Story Chat conversation state is intentionally dialog-scoped. Closing the story dialog aborts the request and clears that local conversation. Persisted cross-session Knowledge chat is not currently claimed.
 
