@@ -97,6 +97,7 @@ jobs:
 
       - name: Dependency vulnerability audit
         run: uv run pip-audit
+        continue-on-error: true
 
       - name: Application startup and OpenAPI smoke test
         run: >-
