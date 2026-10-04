@@ -47,6 +47,8 @@ export const SystemDesignGraphState = new StateSchema({
   modelsUsed: new UntrackedValue<ReasonAIModelTier[]>(),
   escalated: new UntrackedValue<boolean>(),
   pendingEscalation: new UntrackedValue<boolean | undefined>(),
+  pendingProposalRetry: new UntrackedValue<boolean | undefined>(),
+  proposalRetries: new UntrackedValue<number | undefined>(),
   result: new UntrackedValue<ReasonAIResponse | undefined>(),
   pendingToolCalls: new UntrackedValue<SystemDesignAgentToolCall[] | undefined>(),
   agentMessages: new UntrackedValue<SystemDesignAgentMessage[] | undefined>(),

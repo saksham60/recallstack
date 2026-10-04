@@ -83,12 +83,18 @@ export function allowsReasonAIProposal(request: Pick<ReasonAIRequest, "mode" | "
   }
   // This gate protects explicit no-change instructions. The model interprets
   // conversational references; a growing verb list cannot do that safely.
-  return explicitEdit || (directCanvasRequest && !hasRestriction) || (request.mode === "fix" && !hasRestriction)
-    || (request.mode === "chat" && !hasRestriction && !explanationRequest && Boolean(request.history?.length));
+  return explicitEdit || (directCanvasRequest && !hasRestriction) || (request.mode === "fix" && !hasRestriction);
+}
+
+/** Explicit requests must produce reviewable canvas suggestions, not drawing instructions. */
+export function requiresReasonAIProposal(request: Pick<ReasonAIRequest, "mode" | "message"> & Partial<Pick<ReasonAIRequest, "history">>): boolean {
+  if (!allowsReasonAIProposal(request)) return false;
+  const message = request.message.trim().toLowerCase().replace(/\bu\b/g, "you").replace(/\u2019/g, "'").replace(/\s+/g, " ");
+  return hasReasonAIEditIntent(message) || /^(?:(?:now|next|please|can you|could you)\s+)*(?:draw|map|put)\b/.test(message);
 }
 
 const reasonAIEditVerbs = new Set([
-  "add", "remove", "delete", "create", "build", "design", "fix", "improve", "replace", "update", "move", "connect", "propose", "optimize", "redesign",
+  "add", "remove", "delete", "create", "build", "design", "draw", "map", "put", "fix", "improve", "replace", "update", "move", "connect", "propose", "optimize", "redesign",
   "correct", "adjust", "reconnect", "rewire", "reroute", "align",
 ]);
 

@@ -46,7 +46,7 @@ export function createSystemDesignGraph(
     .addNode("tools", createSystemDesignToolsNode(toolExecutor, onStage, toolTimeoutMs))
     .addNode("finalize", createSystemDesignFinalizeNode(onCandidate))
     .addEdge(START, "agent")
-    .addConditionalEdges("agent", (state) => state.pendingEscalation ? "agent" : state.pendingToolCalls?.length ? "tools" : "finalize", ["agent", "tools", "finalize"])
+    .addConditionalEdges("agent", (state) => state.pendingEscalation || state.pendingProposalRetry ? "agent" : state.pendingToolCalls?.length ? "tools" : "finalize", ["agent", "tools", "finalize"])
     .addEdge("tools", "agent")
     .addEdge("finalize", END)
     .compile();

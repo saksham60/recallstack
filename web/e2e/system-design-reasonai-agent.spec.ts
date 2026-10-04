@@ -178,9 +178,52 @@ test("recent realtime-chat conversation takes priority over an older Rate Limite
   )) events.push(event);
   const first = bodies[0];
   expect((first.tools as Array<{ function: { name: string } }>).map((tool) => tool.function.name)).toContain("propose_canvas_changes");
+  expect(first.tool_choice).toEqual({ type: "function", function: { name: "propose_canvas_changes" } });
   expect(JSON.stringify(first.messages)).toContain("regional WebSocket gateways");
   expect(events.find((event) => event.type === "artifact.proposal")).toMatchObject({ data: { operations: [expect.objectContaining({ label: "WebSocket Gateway" })] } });
   expect(events.some((event) => event.type === "run.failed")).toBe(false);
+});
+
+test("explicit draw retries a text-only provider response and emits only a validated proposal", async () => {
+  process.env.NEBIUS_API_KEY = "system-design-agent-key";
+  process.env.REASONAI_BASE_URL = "https://provider.test/v1";
+  const bodies: Array<Record<string, unknown>> = [];
+  globalThis.fetch = async (_url, init) => {
+    bodies.push(JSON.parse(String(init?.body)));
+    if (bodies.length === 1) return sse([
+      { choices: [{ delta: { content: "Draw a gateway yourself, then connect it to the database." }, finish_reason: null }] },
+      { choices: [{ delta: {}, finish_reason: "stop" }] },
+    ]);
+    if (bodies.length === 2) return sse([
+      { choices: [{ delta: { tool_calls: [{ index: 0, id: "draw-proposal", type: "function", function: { name: "propose_canvas_changes", arguments: JSON.stringify({ summary: "Add a gateway to the architecture.", operations: [{ op: "add_node", ref: "new:gateway", type: "service", label: "Gateway", x: 100, y: 100 }, { op: "add_edge", type: "http_request", sourceNodeId: "new:gateway", targetNodeId: "api" }] }) } }] }, finish_reason: "tool_calls" }] },
+    ]);
+    return Response.json({ choices: [{ finish_reason: "stop", message: { content: "The gateway and connection are ready to review." } }] });
+  };
+  const events = [];
+  for await (const event of streamSystemDesignEvents({ ...request, message: "draw it" }, new AbortController().signal, execution(systemDesignAgentProvider))) events.push(event);
+  expect(bodies).toHaveLength(3);
+  for (const body of bodies.slice(0, 2)) {
+    expect((body.tools as Array<{ function: { name: string } }>).map((tool) => tool.function.name)).toEqual(["propose_canvas_changes"]);
+    expect(body.tool_choice).toEqual({ type: "function", function: { name: "propose_canvas_changes" } });
+  }
+  expect(JSON.stringify(events)).not.toContain("Draw a gateway yourself");
+  expect(events.find((event) => event.type === "artifact.proposal")).toMatchObject({ data: { operations: [{ op: "add_node" }, { op: "add_edge" }] } });
+  expect(events.at(-1)?.type).toBe("run.completed");
+});
+
+test("explicit draw cannot complete as text when the provider ignores forced tool choice twice", async () => {
+  process.env.NEBIUS_API_KEY = "system-design-agent-key";
+  process.env.REASONAI_BASE_URL = "https://provider.test/v1";
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    return Response.json({ choices: [{ finish_reason: "stop", message: { content: "Manually draw these nodes." } }] });
+  };
+  const events = [];
+  for await (const event of streamSystemDesignEvents({ ...request, message: "draw it" }, new AbortController().signal, execution(systemDesignAgentProvider))) events.push(event);
+  expect(calls).toBe(2);
+  expect(events.some((event) => event.type === "text.delta" || event.type === "text.final" || event.type === "artifact.proposal")).toBe(false);
+  expect(events.at(-1)?.type).toBe("run.failed");
 });
 
 test("Ultra cannot escalate and visible Super text cannot produce a double answer", async () => {

@@ -17,6 +17,7 @@ export type SystemDesignGraphStage =
   | "provider.started"
   | "agent.started"
   | "agent.tool_requested"
+  | "proposal.retry"
   | "final_model.started"
   | "tool.started"
   | "tool.completed"

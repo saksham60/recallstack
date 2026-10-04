@@ -6,7 +6,7 @@ import { createSystemDesignEditorState, systemDesignEditorReducer } from "../src
 import { applyCanvasOperation } from "../src/features/system-design/realtime/apply-canvas-operation";
 import { captureReasonAIAction, prepareReasonAISuggestion, reasonAIActionStatus, reasonAIUndoUnavailable } from "../src/features/system-design/reasonai/suggestions";
 import type { ReasonAIOperation } from "../src/features/system-design/reasonai/contract";
-import { allowsReasonAIProposal } from "../src/features/system-design/reasonai/contract";
+import { allowsReasonAIProposal, requiresReasonAIProposal } from "../src/features/system-design/reasonai/contract";
 import { parseSanitizedAIProposal, sanitizeAIProposal } from "../src/features/system-design/reasonai/sanitizeAIProposal";
 import { parseReasonAIVisualization, reasonAIAnalysisScope, REASONAI_VISUALIZATION_TYPES } from "../src/features/system-design/reasonai/visualization";
 
@@ -142,9 +142,10 @@ test("contextual canvas follow-ups expose proposals while explicit no-change req
     { role: "user" as const, content: "Research a production-grade realtime chat architecture for 1M concurrent users." },
     { role: "assistant" as const, content: "Use regional WebSocket gateways, a distributed event log, and durable fanout workers." },
   ];
-  for (const message of ["draw it", "now next please draw it", "put that on the canvas", "map this out", "go ahead"]) {
+  for (const message of ["draw it", "now next please draw it", "put that on the canvas", "map this out"]) {
     expect(allowsReasonAIProposal({ mode: "chat", message, history }), message).toBe(true);
   }
+  expect(allowsReasonAIProposal({ mode: "chat", message: "go ahead", history })).toBe(false);
   for (const message of ["don't draw it", "don't change anything", "analysis only", "just explain it"]) {
     expect(allowsReasonAIProposal({ mode: "chat", message, history }), message).toBe(false);
   }
@@ -152,6 +153,15 @@ test("contextual canvas follow-ups expose proposals while explicit no-change req
     expect(allowsReasonAIProposal({ mode: "chat", message }), message).toBe(true);
   }
   expect(allowsReasonAIProposal({ mode: "chat", message: "go ahead" })).toBe(false);
+});
+
+test("explicit canvas requests require a proposal, while analysis and ambiguous follow-ups do not", () => {
+  for (const message of ["draw it", "now next please draw it", "I want you to draw it", "put that on the canvas", "Add a cache", "can u give some suggestions?"]) {
+    expect(requiresReasonAIProposal({ mode: "chat", message }), message).toBe(true);
+  }
+  for (const message of ["don't draw it", "just explain it", "go ahead", "What problems do you see?"]) {
+    expect(requiresReasonAIProposal({ mode: "chat", message, history: [{ role: "assistant", content: "A design." }] }), message).toBe(false);
+  }
 });
 
 test("explanation and ambiguous acknowledgments do not authorize proposal tools", () => {
