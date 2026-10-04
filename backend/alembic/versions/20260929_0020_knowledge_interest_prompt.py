@@ -45,6 +45,5 @@ def downgrade() -> None:
         "DROP CONSTRAINT IF EXISTS chk_user_knowledge_interest_prompt_length"
     )
     op.execute(
-        "ALTER TABLE public.user_knowledge_preferences "
-        "DROP COLUMN IF EXISTS interest_prompt"
+        "ALTER TABLE public.user_knowledge_preferences DROP COLUMN IF EXISTS interest_prompt"
     )
