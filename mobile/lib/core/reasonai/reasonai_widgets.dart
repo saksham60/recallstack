@@ -23,27 +23,82 @@ class ReasonAIThread extends StatefulWidget {
 class _ReasonAIThreadState extends State<ReasonAIThread> {
   final scroll = ScrollController();
   bool nearBottom = true;
+  bool hasNewContent = false;
+  bool scrollScheduled = false;
+
   @override
   void initState() {
     super.initState();
-    scroll.addListener(() {
-      if (scroll.hasClients) nearBottom = scroll.position.extentAfter < 120;
+    scroll.addListener(_updateScrollPosition);
+  }
+
+  void _updateScrollPosition() {
+    if (!scroll.hasClients) return;
+    final latest = scroll.position.extentAfter < 80;
+    if (latest == nearBottom && !(latest && hasNewContent)) return;
+    setState(() {
+      nearBottom = latest;
+      if (latest) hasNewContent = false;
+    });
+  }
+
+  void _scrollToLatest() {
+    setState(() {
+      nearBottom = true;
+      hasNewContent = false;
+    });
+    if (scroll.hasClients) scroll.jumpTo(scroll.position.maxScrollExtent);
+    _scheduleScrollToLatest();
+  }
+
+  void _scheduleScrollToLatest() {
+    if (scrollScheduled) return;
+    scrollScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !nearBottom || !scroll.hasClients) {
+        scrollScheduled = false;
+        return;
+      }
+      scroll.jumpTo(scroll.position.maxScrollExtent);
+      // Variable-height, lazily built messages can extend the list after a jump.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        scrollScheduled = false;
+        if (mounted && nearBottom && scroll.hasClients) {
+          scroll.jumpTo(scroll.position.maxScrollExtent);
+        }
+      });
     });
   }
 
   @override
   void didUpdateWidget(covariant ReasonAIThread oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (nearBottom) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (scroll.hasClients) {
-          scroll.animateTo(
-            scroll.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOut,
-          );
-        }
-      });
+    final previous = oldWidget.state;
+    final current = widget.state;
+    if (current.messages.isEmpty) {
+      nearBottom = true;
+      hasNewContent = false;
+      return;
+    }
+    final last = current.messages.last;
+    final sent =
+        last.role == 'user' &&
+        (previous.messages.isEmpty || previous.messages.last.id != last.id);
+    final changed =
+        current.messages.length != previous.messages.length ||
+        (previous.messages.isNotEmpty &&
+            !identical(previous.messages.last, last)) ||
+        current.status != previous.status ||
+        current.error != previous.error;
+    if (!changed) return;
+    if (sent) {
+      nearBottom = true;
+      hasNewContent = false;
+      _scheduleScrollToLatest();
+    } else if (nearBottom) {
+      _scheduleScrollToLatest();
+    } else {
+      hasNewContent = true;
     }
   }
 
@@ -72,7 +127,7 @@ class _ReasonAIThreadState extends State<ReasonAIThread> {
         ),
       );
     }
-    return ListView.builder(
+    final messageList = ListView.builder(
       controller: scroll,
       padding: const EdgeInsets.all(16),
       itemCount:
@@ -191,6 +246,24 @@ class _ReasonAIThreadState extends State<ReasonAIThread> {
           ),
         );
       },
+    );
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        messageList,
+        if (!nearBottom && hasNewContent)
+          Align(
+            alignment: Alignment.bottomRight,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: FilledButton.tonalIcon(
+                onPressed: _scrollToLatest,
+                icon: const Icon(Icons.arrow_downward, size: 18),
+                label: const Text('Jump to latest'),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

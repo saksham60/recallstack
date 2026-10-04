@@ -19,11 +19,19 @@ Future<void> showDsaTutor(
   StudyNote note, {
   required String approach,
   required String code,
-}) => showModalBottomSheet<void>(
-  context: context,
-  isScrollControlled: true,
-  builder: (_) => DsaTutorSheet(note: note, approach: approach, code: code),
-);
+}) {
+  final mobile = MediaQuery.sizeOf(context).width <= 768;
+  return showModalBottomSheet<void>(
+    context: context,
+    useRootNavigator: mobile,
+    isScrollControlled: true,
+    isDismissible: true,
+    enableDrag: true,
+    barrierColor: Colors.black54,
+    backgroundColor: mobile ? Colors.transparent : null,
+    builder: (_) => DsaTutorSheet(note: note, approach: approach, code: code),
+  );
+}
 
 enum DsaTutorAction {
   chat,
@@ -354,92 +362,148 @@ class _DsaTutorSheetState extends ConsumerState<DsaTutorSheet> {
   }
 
   @override
-  Widget build(BuildContext context) => AnimatedPadding(
-    duration: const Duration(milliseconds: 180),
-    padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-    child: SizedBox(
-      height:
-          (MediaQuery.sizeOf(context).height -
-              MediaQuery.viewInsetsOf(context).bottom) *
-          0.92,
-      child: Column(
-        children: [
-          ListTile(
-            title: Text('ReasonAI · ${widget.note.title}'),
-            trailing: PopupMenuButton<String>(
-              onSelected: menu,
-              itemBuilder: (_) => [
-                const PopupMenuItem(
-                  value: 'start',
-                  child: Text('Help me start'),
+  Widget build(BuildContext context) {
+    final mobile = MediaQuery.sizeOf(context).width <= 768;
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+    final safeTop = MediaQuery.viewPaddingOf(context).top;
+    final content = Column(
+      children: [
+        if (mobile)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Container(
+                key: const Key('dsa-tutor-drag-handle'),
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  borderRadius: BorderRadius.circular(2),
                 ),
-                const PopupMenuItem(value: 'research', child: Text('Research')),
-                const PopupMenuItem(
-                  value: 'solution',
-                  child: Text('Show solution'),
-                ),
-                PopupMenuItem(
-                  value: 'search',
-                  child: Text(searchWeb ? 'Search web: on' : 'Search web: off'),
-                ),
-                const PopupMenuItem(
-                  value: 'clear',
-                  child: Text('Clear conversation'),
-                ),
-              ],
-            ),
-          ),
-          if (visualFocus != null)
-            ListTile(
-              title: Text('Asking about step ${visualFocus!['stepNumber']}'),
-              subtitle: Text(visualFocus!['stepTitle'] as String),
-              trailing: IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: () => setState(() => visualFocus = null),
               ),
             ),
-          if (notice != null)
-            Padding(padding: const EdgeInsets.all(8), child: Text(notice!)),
-          Expanded(
-            child: ReasonAIThread(
-              state: chat,
-              onRetry: retry,
-              onStop: stop,
-              onAskAboutStep: setFocus,
-            ),
           ),
-          SizedBox(
-            height: 48,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: [
-                for (final entry in const {
-                  'hint': 'Hint',
-                  'explain': 'Explain',
-                  'trace': 'Trace',
-                  'visualize': 'Visualize',
-                  'review': 'Review',
-                  'complexity': 'Complexity',
-                }.entries)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 8),
-                    child: ActionChip(
-                      label: Text(entry.value),
-                      onPressed: chat.status == RunStatus.running
-                          ? null
-                          : () => send(entry.key, entry.value),
+        Padding(
+          padding: EdgeInsets.fromLTRB(8, mobile ? 12 + safeTop : 0, 8, 4),
+          child: Row(
+            children: [
+              if (mobile)
+                IconButton(
+                  tooltip: 'Close ReasonAI',
+                  constraints: const BoxConstraints.tightFor(
+                    width: 44,
+                    height: 44,
+                  ),
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close),
+                ),
+              Expanded(
+                child: Text(
+                  'ReasonAI · ${widget.note.title}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              PopupMenuButton<String>(
+                onSelected: menu,
+                itemBuilder: (_) => [
+                  const PopupMenuItem(
+                    value: 'start',
+                    child: Text('Help me start'),
+                  ),
+                  const PopupMenuItem(
+                    value: 'research',
+                    child: Text('Research'),
+                  ),
+                  const PopupMenuItem(
+                    value: 'solution',
+                    child: Text('Show solution'),
+                  ),
+                  PopupMenuItem(
+                    value: 'search',
+                    child: Text(
+                      searchWeb ? 'Search web: on' : 'Search web: off',
                     ),
                   ),
-              ],
+                  const PopupMenuItem(
+                    value: 'clear',
+                    child: Text('Clear conversation'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        if (visualFocus != null)
+          ListTile(
+            title: Text('Asking about step ${visualFocus!['stepNumber']}'),
+            subtitle: Text(visualFocus!['stepTitle'] as String),
+            trailing: IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: () => setState(() => visualFocus = null),
             ),
           ),
-          ReasonAIComposer(
-            onSend: (text) => send('chat', text),
-            running: chat.status == RunStatus.running,
+        if (notice != null)
+          Padding(padding: const EdgeInsets.all(8), child: Text(notice!)),
+        Expanded(
+          child: ReasonAIThread(
+            state: chat,
+            onRetry: retry,
             onStop: stop,
+            onAskAboutStep: setFocus,
           ),
-        ],
+        ),
+        SizedBox(
+          height: 48,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              for (final entry in const {
+                'hint': 'Hint',
+                'explain': 'Explain',
+                'trace': 'Trace',
+                'visualize': 'Visualize',
+                'review': 'Review',
+                'complexity': 'Complexity',
+              }.entries)
+                Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: ActionChip(
+                    label: Text(entry.value),
+                    onPressed: chat.status == RunStatus.running
+                        ? null
+                        : () => send(entry.key, entry.value),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        ReasonAIComposer(
+          onSend: (text) => send('chat', text),
+          running: chat.status == RunStatus.running,
+          onStop: stop,
+        ),
+      ],
+    );
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 180),
+      padding: EdgeInsets.only(bottom: keyboard),
+      child: SizedBox(
+        height:
+            (MediaQuery.sizeOf(context).height - keyboard) *
+            (mobile ? 0.88 : 0.92),
+        child: mobile
+            ? Material(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: content,
+              )
+            : content,
       ),
-    ),
-  );
+    );
+  }
 }
