@@ -33,6 +33,10 @@ def upgrade() -> None:
         "CREATE INDEX IF NOT EXISTS ix_knowledge_refresh_runs_requested_at "
         "ON public.knowledge_refresh_runs (requested_at DESC)"
     )
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_knowledge_refresh_runs_requested_by "
+        "ON public.knowledge_refresh_runs (requested_by)"
+    )
     op.execute("ALTER TABLE public.knowledge_refresh_runs ENABLE ROW LEVEL SECURITY")
     op.execute(
         """
