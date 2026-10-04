@@ -13,8 +13,16 @@ export function isLangSmithEnabled() {
   return process.env.LANGSMITH_TRACING === "true" && Boolean(process.env.LANGSMITH_API_KEY);
 }
 
+function langSmithProject() {
+  return process.env.LANGSMITH_PROJECT?.trim() || "default";
+}
+
 function smithClient() {
-  return client ??= new Client({ apiKey: process.env.LANGSMITH_API_KEY });
+  return client ??= new Client({
+    apiKey: process.env.LANGSMITH_API_KEY,
+    ...(process.env.LANGSMITH_ENDPOINT ? { apiUrl: process.env.LANGSMITH_ENDPOINT } : {}),
+    ...(process.env.LANGSMITH_WORKSPACE_ID ? { workspaceId: process.env.LANGSMITH_WORKSPACE_ID } : {}),
+  });
 }
 
 function redact(value: string) {
@@ -33,8 +41,21 @@ function safe(value: unknown, maxString = Infinity): Record<string, unknown> {
   } catch { return { value: "[unserializable]" }; }
 }
 
-function track(task: Promise<unknown>) {
-  const quiet = task.catch(() => undefined).finally(() => pending.delete(quiet));
+function errorSummary(error: unknown) {
+  return error instanceof Error
+    ? { errorName: error.name, message: redact(error.message).slice(0, 500) }
+    : { errorName: "unknown" };
+}
+
+function track(task: Promise<unknown>, operation: "post" | "patch") {
+  const quiet = task.catch((error) => {
+    console.error("langsmith.trace.failed", {
+      operation,
+      project: langSmithProject(),
+      ...errorSummary(error),
+    });
+    return undefined;
+  }).finally(() => pending.delete(quiet));
   pending.add(quiet);
 }
 
@@ -43,25 +64,41 @@ function start(name: string, runType: "chain" | "llm" | "tool", inputs: unknown,
   const parent = activeRun.getStore();
   const run = parent
     ? parent.createChild({ name, run_type: runType, inputs: safe(inputs, runType === "tool" ? 4_000 : Infinity), metadata: safe(metadata) })
-    : new RunTree({ name, run_type: runType, inputs: safe(inputs, runType === "tool" ? 4_000 : Infinity), metadata: safe(metadata), client: smithClient() });
+    : new RunTree({
+        name,
+        run_type: runType,
+        inputs: safe(inputs, runType === "tool" ? 4_000 : Infinity),
+        metadata: safe(metadata),
+        project_name: langSmithProject(),
+        client: smithClient(),
+      });
   const posted = run.postRun();
-  track(posted);
+  track(posted, "post");
   return {
     run,
     finish(outputs: unknown, error?: string) {
       track(posted.then(async () => {
         await run.end(safe(outputs, runType === "tool" ? 4_000 : Infinity), error);
         await run.patchRun();
-      }));
+      }), "patch");
     },
   };
 }
 
 /** Flush after the HTTP response; telemetry is never on the token path. */
 export async function flushLangSmith() {
-  if (!client) return;
+  if (!client) {
+    if (isLangSmithEnabled()) console.info("langsmith.flush.skipped", { project: langSmithProject(), reason: "client_not_initialized" });
+    return;
+  }
+  const pendingCount = pending.size;
   await Promise.allSettled([...pending]);
-  try { await client.flush(); } catch { /* Tracing must not fail the request. */ }
+  try {
+    await client.flush();
+    console.info("langsmith.flush.completed", { project: langSmithProject(), pendingCount });
+  } catch (error) {
+    console.error("langsmith.flush.failed", { project: langSmithProject(), ...errorSummary(error) });
+  }
 }
 
 export async function traceTurn<T>(name: string, input: unknown, metadata: Record<string, unknown>, execute: () => Promise<T>): Promise<T> {
