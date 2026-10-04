@@ -37,13 +37,28 @@ jobs:
 
       - run: npm ci
 
-      # Next handles this boundary marker during bundling, but Playwright imports
-      # server modules directly under Node in several verification specs.
+      # Next resolves this marker during bundling. Some Playwright specs import
+      # protected server modules directly, so install the marker without
+      # re-resolving the repository's existing peer dependency tree.
       - name: Install server-only marker for direct tests
-        run: npm install --no-save --package-lock=false server-only@0.0.1
+        run: npm install --no-save --package-lock=false --legacy-peer-deps server-only@0.0.1
 
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Verify web app
-        run: npm run verify
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Playwright verification suites
+        env:
+          NODE_OPTIONS: "--conditions=react-server"
+        run: |
+          npm run test:system-design-state
+          npm run test:e2e
+          npm run test:e2e:system-design-disabled
