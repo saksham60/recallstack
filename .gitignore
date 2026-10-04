@@ -3,5 +3,6 @@
 !.env.example
 backend/.env
 data/
+/video/
 !web/src/features/system-design/data/
 !web/src/features/system-design/data/**
