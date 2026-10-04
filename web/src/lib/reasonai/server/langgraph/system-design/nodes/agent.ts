@@ -17,9 +17,16 @@ export function createSystemDesignAgentNode(
     if (rounds >= MAX_SYSTEM_DESIGN_TOOL_ROUNDS) onStage?.("tool.limit_reached");
     onStage?.(rounds ? "final_model.started" : "agent.started");
     onStage?.("provider.started");
+    const modelTier = state.modelTier;
+    const preference = state.request.modelPreference ?? "auto";
+    const canEscalate = preference === "auto" && modelTier === "super" && !state.escalated;
+    console.info("reasonai.model.selected", { runId: state.runId, preference, modelTier });
     let round: SystemDesignAgentRound | undefined;
+    let visibleText = "";
     for await (const event of provider.streamRound({
       request: { ...state.request, history: serverOwnedSystemDesignHistory(state) },
+      modelTier,
+      canEscalate,
       history: serverOwnedSystemDesignHistory(state),
       agentMessages: state.agentMessages ?? [],
       searchEvidence: state.searchEvidence ?? [],
@@ -30,18 +37,28 @@ export function createSystemDesignAgentNode(
       notice: state.notice,
       allowTools: rounds < MAX_SYSTEM_DESIGN_TOOL_ROUNDS,
     }, config.signal)) {
-      if (event.type === "text.delta") write?.(event satisfies SystemDesignGraphStreamEvent);
+      if (event.type === "text.delta") {
+        visibleText += event.delta;
+        write?.(event satisfies SystemDesignGraphStreamEvent);
+      }
       else round = event.round;
     }
     if (!round) throw new ReasonAIProviderError("ReasonAI could not complete that response. Please try again.");
+    if (round.kind === "escalate") {
+      if (!canEscalate) throw new ReasonAIProviderError("ReasonAI could not complete that response. Please try again.");
+      if (visibleText.trim()) return { pendingEscalation: false, result: { text: visibleText } };
+      console.info("reasonai.model.escalated", { runId: state.runId, from: "super", to: "ultra" });
+      return { modelTier: "ultra", modelsUsed: ["super", "ultra"], escalated: true, pendingEscalation: true };
+    }
     if (round.kind === "tools") {
       onStage?.("agent.tool_requested");
       return {
         pendingToolCalls: round.calls,
         agentMessages: [...(state.agentMessages ?? []), round.assistantMessage],
         result: undefined,
+        pendingEscalation: false,
       };
     }
-    return { pendingToolCalls: undefined, result: round.result };
+    return { pendingToolCalls: undefined, pendingEscalation: false, result: round.result };
   };
 }

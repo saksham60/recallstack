@@ -3,6 +3,7 @@ import type {
   ReasonAIArtifactTouchedEntity,
   ReasonAISource,
 } from "./types";
+import type { ReasonAIModelMetadata } from "@/features/system-design/reasonai/contract";
 
 export const REASONAI_PROTOCOL_VERSION = 1 as const;
 
@@ -27,6 +28,7 @@ export interface ReasonAITextFinalEvent extends ReasonAIEventBase {
   messageId: string;
   partId: string;
   text: string;
+  model?: ReasonAIModelMetadata;
 }
 
 export interface ReasonAIToolStartedEvent extends ReasonAIEventBase {

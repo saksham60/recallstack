@@ -2,7 +2,7 @@ import "server-only";
 
 import { StateSchema, UntrackedValue } from "@langchain/langgraph";
 import { z } from "zod";
-import type { ReasonAIRequest, ReasonAIResponse } from "@/features/system-design/reasonai/contract";
+import type { ReasonAIModelTier, ReasonAIRequest, ReasonAIResponse } from "@/features/system-design/reasonai/contract";
 import type { SystemDesignAgentMessage, SystemDesignAgentToolCall } from "@/features/system-design/reasonai/agent-provider";
 import type { TavilyEvidence } from "@/lib/tavily/search";
 
@@ -42,6 +42,11 @@ export const SystemDesignGraphState = new StateSchema({
   lastMode: z.enum(["chat", "review", "fix", "eagle"]).optional(),
   diagramId: z.string().max(256).optional(),
   request: new UntrackedValue<ReasonAIRequest>(),
+  runId: new UntrackedValue<string | undefined>(),
+  modelTier: new UntrackedValue<ReasonAIModelTier>(),
+  modelsUsed: new UntrackedValue<ReasonAIModelTier[]>(),
+  escalated: new UntrackedValue<boolean>(),
+  pendingEscalation: new UntrackedValue<boolean | undefined>(),
   result: new UntrackedValue<ReasonAIResponse | undefined>(),
   pendingToolCalls: new UntrackedValue<SystemDesignAgentToolCall[] | undefined>(),
   agentMessages: new UntrackedValue<SystemDesignAgentMessage[] | undefined>(),

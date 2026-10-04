@@ -4,6 +4,7 @@ import {
   type ReasonAIKnownEvent,
 } from "./events";
 import type { ReasonAIArtifactTouchedEntity, ReasonAISource } from "./types";
+import type { ReasonAIModelMetadata, ReasonAIModelTier, ReasonAIModelPreference } from "@/features/system-design/reasonai/contract";
 
 const KNOWN_EVENT_TYPES = new Set<ReasonAIKnownEvent["type"]>([
   "run.started",
@@ -109,6 +110,26 @@ function parseTouchedEntities(value: unknown): ReasonAIArtifactTouchedEntity[] |
   });
 }
 
+export function parseReasonAIModelMetadata(value: unknown): ReasonAIModelMetadata {
+  const model = record(value);
+  const preferences: ReasonAIModelPreference[] = ["auto", "lightning", "super", "ultra"];
+  const tiers: ReasonAIModelTier[] = ["lightning", "super", "ultra"];
+  if (!preferences.includes(model.preference as ReasonAIModelPreference)
+    || !Array.isArray(model.modelsUsed) || model.modelsUsed.length < 1 || model.modelsUsed.length > 2
+    || model.modelsUsed.some((tier) => !tiers.includes(tier))
+    || !tiers.includes(model.finalModel as ReasonAIModelTier)
+    || typeof model.escalated !== "boolean") throw new ReasonAIProtocolError("ReasonAI event has invalid model metadata.");
+  const modelsUsed = model.modelsUsed as ReasonAIModelTier[];
+  if (modelsUsed.at(-1) !== model.finalModel
+    || (model.escalated !== (modelsUsed.length === 2))
+    || (model.escalated && (model.preference !== "auto" || modelsUsed[0] !== "super" || modelsUsed[1] !== "ultra"))
+    || (!model.escalated && model.preference !== "auto" && model.preference !== model.finalModel)
+    || (!model.escalated && model.preference === "auto" && model.finalModel !== "super")) {
+    throw new ReasonAIProtocolError("ReasonAI event has inconsistent model metadata.");
+  }
+  return { preference: model.preference as ReasonAIModelPreference, modelsUsed, finalModel: model.finalModel as ReasonAIModelTier, escalated: model.escalated };
+}
+
 export function parseReasonAIEvent(value: unknown): ReasonAIEvent {
   const event = record(value);
   if (event.protocolVersion !== REASONAI_PROTOCOL_VERSION) {
@@ -145,6 +166,7 @@ export function parseReasonAIEvent(value: unknown): ReasonAIEvent {
         messageId: stringField(event, "messageId", MAX_ID_LENGTH),
         partId: stringField(event, "partId", MAX_ID_LENGTH),
         text: textField(event, "text", MAX_TEXT_EVENT_LENGTH),
+        ...(event.model === undefined ? {} : { model: parseReasonAIModelMetadata(event.model) }),
       };
     case "tool.started":
       return {

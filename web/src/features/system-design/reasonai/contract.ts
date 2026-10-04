@@ -6,6 +6,14 @@ import type { ReasonAISource } from "./sources";
 
 export const REASONAI_MODES = { chat: "Chat", review: "Review", fix: "Fix", eagle: "Eagle View" } as const;
 export type ReasonAIMode = keyof typeof REASONAI_MODES;
+export type ReasonAIModelPreference = "auto" | "lightning" | "super" | "ultra";
+export type ReasonAIModelTier = Exclude<ReasonAIModelPreference, "auto">;
+export interface ReasonAIModelMetadata {
+  preference: ReasonAIModelPreference;
+  modelsUsed: ReasonAIModelTier[];
+  finalModel: ReasonAIModelTier;
+  escalated: boolean;
+}
 export interface ReasonAIMessage { role: "user" | "assistant"; content: string }
 type NodeFields = Pick<SystemDesignNode, "label" | "subtitle" | "description"> & { technology?: string };
 type EdgeFields = Pick<SystemDesignEdge, "type" | "label" | "protocol" | "sourceNodeId" | "targetNodeId">;
@@ -18,7 +26,7 @@ export type ReasonAIOperation =
   | ({ op: "update_edge"; edgeId: string } & Partial<EdgeFields>)
   | { op: "delete_edge"; edgeId: string };
 export interface ReasonAIProposal { summary: string; operations: ReasonAIOperation[] }
-export interface ReasonAIResponse { text: string; proposal?: ReasonAIProposal; visualization?: ReasonAIVisualization; sources?: ReasonAISource[]; notice?: string }
+export interface ReasonAIResponse { text: string; proposal?: ReasonAIProposal; visualization?: ReasonAIVisualization; sources?: ReasonAISource[]; notice?: string; model?: ReasonAIModelMetadata }
 export const REASONAI_INVALID_PROPOSAL = "ReasonAI returned an invalid canvas proposal. No changes were applied.";
 export interface ReasonAIContext {
   diagramId?: string;
@@ -32,6 +40,7 @@ export interface ReasonAIContext {
 }
 export interface ReasonAIRequest {
   mode: ReasonAIMode;
+  modelPreference?: ReasonAIModelPreference;
   message: string;
   history: ReasonAIMessage[];
   context: ReasonAIContext;
@@ -52,8 +61,12 @@ function isGlobalProposalRestriction(restriction: string): boolean {
   return Boolean(action && isWholeCanvasTarget(restriction.slice(action[0].length)));
 }
 
-export function allowsReasonAIProposal(request: Pick<ReasonAIRequest, "mode" | "message">): boolean {
+export function allowsReasonAIProposal(request: Pick<ReasonAIRequest, "mode" | "message"> & Partial<Pick<ReasonAIRequest, "history">>): boolean {
   const message = request.message.trim().toLowerCase().replace(/\bu\b/g, "you").replace(/\u2019/g, "'").replace(/\s+/g, " ");
+  if (/\b(?:do not|don't|never)\s+(?:draw|map|put)\b/.test(message)) return false;
+  if (/^(?:just|only)\s+(?:explain|review|analy[sz]e)\b/.test(message)) return false;
+  const explanationRequest = /^(?:(?:please|can you|could you)\s+)?(?:explain|review|analy[sz]e|show bottlenecks)\b|^(?:what|why|how)\b/.test(message);
+  const directCanvasRequest = !explanationRequest && /^(?:(?:now|next|please|can you|could you)\s+)*(?:draw|map|put)\b/.test(message);
   const clauses = message.split(/[.!?;,]\s*|\b(?:but|however)\s+|(?=\bwithout\s+)/).filter(Boolean);
   let explicitEdit = false, hasRestriction = false;
   for (const clause of clauses) {
@@ -68,7 +81,10 @@ export function allowsReasonAIProposal(request: Pick<ReasonAIRequest, "mode" | "
     // clause is required to edit while preserving another part of the diagram.
     explicitEdit ||= hasReasonAIEditIntent(restriction ? clause.slice(0, restriction.index) : clause);
   }
-  return explicitEdit || (request.mode === "fix" && !hasRestriction);
+  // This gate protects explicit no-change instructions. The model interprets
+  // conversational references; a growing verb list cannot do that safely.
+  return explicitEdit || (directCanvasRequest && !hasRestriction) || (request.mode === "fix" && !hasRestriction)
+    || (request.mode === "chat" && !hasRestriction && !explanationRequest && Boolean(request.history?.length));
 }
 
 const reasonAIEditVerbs = new Set([
@@ -163,6 +179,7 @@ export function parseReasonAIRequest(value: unknown): ReasonAIRequest {
   if (!Array.isArray(input.history)) throw new ReasonAIValidationError("Invalid history.");
   return {
     mode: member(input.mode, Object.keys(REASONAI_MODES) as ReasonAIMode[]), message,
+    modelPreference: input.modelPreference === undefined ? "auto" : member(input.modelPreference, ["auto", "lightning", "super", "ultra"] as const),
     history: input.history.slice(-10).map((value) => { const m = record(value); return { role: member(m.role, ["user", "assistant"] as const), content: text(m.content, 8000) }; }),
     context: { ...(context.diagramId === undefined ? {} : { diagramId: identifier(context.diagramId) }), title: text(context.title, 300), requirements: array(context.requirements ?? [], 30, (v) => text(v)), scaleAssumptions: array(context.scaleAssumptions ?? [], 30, (v) => text(v)), nodes, edges,
       selectedNodeIds: array(context.selectedNodeIds ?? [], 200, identifier).filter((id) => nodeIds.has(id)),

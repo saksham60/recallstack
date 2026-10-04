@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { buttonClass } from "@/features/admin/components/AdminPrimitives";
 import type { SystemDesignDiagram, SystemDesignPoint, SystemDesignProblem } from "../types/system-design.types";
-import { buildReasonAIContext, record, REASONAI_INVALID_PROPOSAL, REASONAI_MODES, type ReasonAIMessage, type ReasonAIMode, type ReasonAIProposal } from "./contract";
+import { buildReasonAIContext, record, REASONAI_INVALID_PROPOSAL, REASONAI_MODES, type ReasonAIMessage, type ReasonAIMode, type ReasonAIProposal, type ReasonAIModelPreference, type ReasonAIModelMetadata } from "./contract";
 import { parseSanitizedAIProposal, REASONAI_CANVAS_UPDATE_FAILED } from "./sanitizeAIProposal";
 import { normalizeReasonAIVisibleText } from "./visible-text";
 import { ReasonAISuggestions, type ReasonAISuggestionActions } from "./ReasonAISuggestions";
@@ -29,13 +29,21 @@ import { ReasonAISources } from "./ReasonAISources";
 import { parseReasonAIVisualization, reasonAIAnalysisScope, type ReasonAIVisualization } from "./visualization";
 import { cancelReasonAIRun, fetchReasonAIStreamResponse } from "@/lib/reasonai/client";
 import { createReasonAIRuntimeState, interruptReasonAIRun, reduceReasonAIEvent } from "@/lib/reasonai/runtime/reducer";
+import { parseReasonAIModelMetadata } from "@/lib/reasonai/runtime/protocol";
 import { decodeReasonAIEventResponse } from "@/lib/reasonai/streaming-client";
 import { systemDesignRuntimeResponse, type SystemDesignToolActivity } from "./runtime-client";
 
 import { createReasonAITrace, REASONAI_SUGGESTIONS_UNAVAILABLE } from "./trace";
 
-interface Turn extends ReasonAIMessage { id: string; proposal?: ReasonAIProposal; sources?: ReasonAISource[]; notice?: string; tools?: SystemDesignToolActivity[]; diagramId?: string; traceId?: string; suggestionsUnavailable?: boolean }
-interface Generation { question: string; mode: ReasonAIMode; history: ReasonAIMessage[] }
+interface Turn extends ReasonAIMessage { id: string; proposal?: ReasonAIProposal; sources?: ReasonAISource[]; notice?: string; tools?: SystemDesignToolActivity[]; model?: ReasonAIModelMetadata; diagramId?: string; traceId?: string; suggestionsUnavailable?: boolean }
+interface Generation { question: string; mode: ReasonAIMode; modelPreference: ReasonAIModelPreference; history: ReasonAIMessage[] }
+
+function modelBadge(model: ReasonAIModelMetadata): string {
+  const tier = (value: ReasonAIModelMetadata["finalModel"]) => value[0].toUpperCase() + value.slice(1);
+  return model.preference === "auto"
+    ? `Auto · ${model.modelsUsed.map(tier).join(" → ")}`
+    : `Nemotron ${tier(model.finalModel)}`;
+}
 export interface ReasonAIPanelHandle { dropSuggestion: (token: string, position: SystemDesignPoint) => void }
 
 interface PanelPosition {
@@ -94,6 +102,7 @@ export function ReasonAIPanel({
   const open = controlledOpen ?? internalOpen;
   const openRef = useRef(open);
   const [mode, setMode] = useState<ReasonAIMode>("chat");
+  const [modelPreference, setModelPreference] = useState<ReasonAIModelPreference>("auto");
   const [message, setMessage] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [busy, setBusy] = useState(false);
@@ -228,6 +237,7 @@ export function ReasonAIPanel({
       {
         question,
         mode,
+        modelPreference,
         history: turns
           .slice(-10)
           .map(({ role, content }) => ({ role, content: content.slice(0, 8000) })),
@@ -251,6 +261,7 @@ export function ReasonAIPanel({
       const currentConversationId = conversationDiagramId.current === diagram.id ? conversationId.current : undefined;
       const response = await fetchReasonAIStreamResponse("/api/reasonai/chat", JSON.stringify({
           mode: generation.mode,
+          modelPreference: generation.modelPreference,
           message: generation.question,
           history: generation.history,
           context,
@@ -295,6 +306,7 @@ export function ReasonAIPanel({
               sources: next.sources,
               notice: next.notice,
               tools: next.tools,
+              model: next.model,
               diagramId: diagram.id,
               traceId,
               suggestionsUnavailable: next.notice?.includes(REASONAI_SUGGESTIONS_UNAVAILABLE) ?? false,
@@ -345,13 +357,16 @@ export function ReasonAIPanel({
       const content = normalizeReasonAIVisibleText(data.text, context, proposal);
       if (pending.current !== controller) return;
       const sources = parseReasonAISources(data.sources);
+      let responseModel: ReasonAIModelMetadata | undefined;
+      try { if (data.model !== undefined) responseModel = parseReasonAIModelMetadata(data.model); }
+      catch { responseModel = undefined; }
       if (data.visualization) {
         try { onVisualization?.(parseReasonAIVisualization(data.visualization, context, sources.map((source) => source.id)), reasonAIAnalysisScope(diagram)); }
         catch { notice = [notice, "The analysis overlay could not be displayed. Your architecture is unchanged."].filter(Boolean).join(" "); }
       }
       setTurns((previous) => [
         ...previous,
-        { id: crypto.randomUUID(), role: "assistant", content, proposal, sources, notice, diagramId: diagram.id, traceId, suggestionsUnavailable },
+        { id: crypto.randomUUID(), role: "assistant", content, proposal, sources, notice, model: responseModel, diagramId: diagram.id, traceId, suggestionsUnavailable },
       ]);
     } catch (error) {
       if (pending.current === controller) {
@@ -664,6 +679,11 @@ export function ReasonAIPanel({
             )}
             {turn.notice && <p className="text-xs leading-5 text-warning">{turn.notice}</p>}
             {!!turn.sources?.length && <ReasonAISources sources={turn.sources} />}
+            {turn.role === "assistant" && turn.model && (
+              <span className="inline-flex rounded-full border border-[var(--editor-border)] bg-background/50 px-2 py-0.5 text-[10px] font-medium text-muted" aria-label={`Model: ${modelBadge(turn.model)}`}>
+                {modelBadge(turn.model)}
+              </span>
+            )}
             {turn.role === "assistant" &&
               !turn.proposal &&
               index === turns.length - 1 &&
@@ -744,6 +764,20 @@ export function ReasonAIPanel({
             ),
           )}
         </div>
+        <label className="flex items-center justify-between gap-3 text-xs text-muted">
+          <span>Model</span>
+          <select
+            aria-label="ReasonAI model"
+            value={modelPreference}
+            onChange={(event) => setModelPreference(event.target.value as ReasonAIModelPreference)}
+            className="min-w-0 rounded-md border border-[var(--editor-border)] bg-background px-2 py-1 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            <option value="auto">Auto</option>
+            <option value="lightning">Nemotron Lightning</option>
+            <option value="super">Nemotron Super</option>
+            <option value="ultra">Nemotron Ultra</option>
+          </select>
+        </label>
         <details className="text-xs text-muted"><summary className="cursor-pointer py-1 hover:text-foreground">Visual analysis</summary><div className="grid grid-cols-2 gap-1 py-2">{[
           ["Show bottlenecks", "Show bottlenecks in"], ["Simulate failure", "Simulate a hypothetical failure affecting"],
           ["Capacity analysis", "Analyze capacity risks in"], ["Reliability analysis", "Show reliability risks in"],

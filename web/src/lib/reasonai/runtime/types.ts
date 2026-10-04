@@ -66,6 +66,7 @@ export interface ReasonAIRuntimeMessage {
   role: "user" | "assistant";
   parts: ReasonAIMessagePart[];
   status: ReasonAIMessageStatus;
+  model?: import("@/features/system-design/reasonai/contract").ReasonAIModelMetadata;
 }
 
 export type ReasonAIRunStatus = "idle" | "running" | "completed" | "failed" | "cancelled" | "interrupted";

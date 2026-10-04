@@ -193,7 +193,11 @@ export function reduceReasonAIEvent(state: ReasonAIRuntimeState, event: ReasonAI
     case "text.delta":
       return advance(state, event, updateText(state.messages, event.messageId, event.partId, event.delta, false));
     case "text.final":
-      return advance(state, event, updateText(state.messages, event.messageId, event.partId, event.text, true));
+      return advance(state, event, updateAssistantMessage(
+        updateText(state.messages, event.messageId, event.partId, event.text, true),
+        event.messageId,
+        (message) => event.model ? { ...message, model: event.model } : message,
+      ));
     case "tool.started":
       return advance(state, event, startTool(state.messages, event.messageId, event.toolCallId, event.toolName, event.summary));
     case "tool.completed":

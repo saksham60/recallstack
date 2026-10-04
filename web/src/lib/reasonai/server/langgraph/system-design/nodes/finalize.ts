@@ -12,6 +12,12 @@ export function createSystemDesignFinalizeNode(
     if (!state.result) throw new ReasonAIProviderError("ReasonAI could not complete that response. Please try again.");
     const result = {
       ...state.result,
+      model: {
+        preference: state.request.modelPreference ?? "auto",
+        modelsUsed: state.modelsUsed,
+        finalModel: state.modelTier,
+        escalated: state.escalated,
+      },
       ...(state.proposal ? { proposal: state.proposal } : {}),
       ...(state.visualization ? { visualization: state.visualization } : {}),
       ...([state.result.notice, state.notice].filter(Boolean).join(" ") ? { notice: [state.result.notice, state.notice].filter(Boolean).join(" ") } : {}),

@@ -2,7 +2,7 @@ import type { ReasonAIRuntimeState } from "@/lib/reasonai/runtime/types";
 import { parseSanitizedAIProposal } from "./sanitizeAIProposal";
 import { parseReasonAISources, type ReasonAISource } from "./sources";
 import { parseReasonAIVisualization, type ReasonAIVisualization } from "./visualization";
-import type { ReasonAIContext, ReasonAIProposal } from "./contract";
+import type { ReasonAIContext, ReasonAIProposal, ReasonAIModelMetadata } from "./contract";
 
 export interface SystemDesignToolActivity {
   toolCallId: string;
@@ -18,6 +18,7 @@ export interface SystemDesignRuntimeResponse {
   sources: ReasonAISource[];
   notice?: string;
   tools: SystemDesignToolActivity[];
+  model?: ReasonAIModelMetadata;
 }
 
 export function systemDesignRuntimeResponse(
@@ -52,6 +53,7 @@ export function systemDesignRuntimeResponse(
     text,
     sources,
     tools,
+    ...(assistant.model ? { model: assistant.model } : {}),
     ...(proposal ? { proposal } : {}),
     ...(visualization ? { visualization } : {}),
     ...(sourcePart?.notice ? { notice: sourcePart.notice } : {}),

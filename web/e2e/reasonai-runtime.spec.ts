@@ -57,6 +57,24 @@ test("protocol validates V1 envelopes and safely normalizes an unknown V1 event"
   ]) expect(() => parseReasonAIEvent(invalid)).toThrow(ReasonAIProtocolError);
 });
 
+test("final model metadata is validated, retained, and optional for legacy events", () => {
+  const final = { ...base("run-1", 2), type: "text.final", messageId: "message-1", partId: "text-a", text: "Answer" };
+  const regular = { preference: "auto", modelsUsed: ["super"], finalModel: "super", escalated: false };
+  const escalated = { preference: "auto", modelsUsed: ["super", "ultra"], finalModel: "ultra", escalated: true };
+  expect(parseReasonAIEvent(final)).not.toHaveProperty("model");
+  for (const model of [regular, escalated]) {
+    const parsed = parseReasonAIEvent({ ...final, model });
+    expect(parsed).toMatchObject({ model });
+    expect(apply([started(), parsed]).messages[0].model).toEqual(model);
+  }
+  for (const model of [
+    { ...regular, finalModel: "untrusted" },
+    { ...regular, modelsUsed: ["super", "untrusted"] },
+    { ...regular, escalated: "yes" },
+    { ...escalated, modelsUsed: ["super", "ultra", "ultra"] },
+  ]) expect(() => parseReasonAIEvent({ ...final, model })).toThrow(ReasonAIProtocolError);
+});
+
 test("text deltas append by message and part while text.final becomes authoritative", () => {
   const state = apply([
     started(),

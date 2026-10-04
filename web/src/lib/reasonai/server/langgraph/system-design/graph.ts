@@ -2,6 +2,7 @@ import "server-only";
 
 import { END, START, StateGraph } from "@langchain/langgraph";
 import type { ReasonAIRequest } from "@/features/system-design/reasonai/contract";
+import { initialSystemDesignTier } from "@/features/system-design/reasonai/model-registry";
 import type { SystemDesignAgentProvider } from "@/features/system-design/reasonai/agent-provider";
 import type { SystemDesignGraphStage, SystemDesignGraphStreamEvent } from "./events";
 import { createSystemDesignAgentNode } from "./nodes/agent";
@@ -24,6 +25,7 @@ function isGraphEvent(value: unknown): value is SystemDesignGraphStreamEvent {
 
 export interface SystemDesignGraphExecution {
   durableState: SystemDesignDurableConversationState;
+  runId?: string;
   signal?: AbortSignal;
   provider?: SystemDesignAgentProvider;
   toolExecutor?: SystemDesignToolExecutor;
@@ -44,7 +46,7 @@ export function createSystemDesignGraph(
     .addNode("tools", createSystemDesignToolsNode(toolExecutor, onStage, toolTimeoutMs))
     .addNode("finalize", createSystemDesignFinalizeNode(onCandidate))
     .addEdge(START, "agent")
-    .addConditionalEdges("agent", (state) => state.pendingToolCalls?.length ? "tools" : "finalize", ["tools", "finalize"])
+    .addConditionalEdges("agent", (state) => state.pendingEscalation ? "agent" : state.pendingToolCalls?.length ? "tools" : "finalize", ["agent", "tools", "finalize"])
     .addEdge("tools", "agent")
     .addEdge("finalize", END)
     .compile();
@@ -57,7 +59,8 @@ export async function* streamSystemDesignGraph(
   let candidate: SystemDesignDurableConversationState | undefined;
   const graph = createSystemDesignGraph(execution.provider, execution.toolExecutor, execution.onStage, execution.toolTimeoutMs, (state) => { candidate = state; });
   execution.onStage?.("graph.started");
-  const output = await graph.stream({ ...execution.durableState, request }, { signal: execution.signal, streamMode: "custom" });
+  const modelTier = initialSystemDesignTier(request.modelPreference);
+  const output = await graph.stream({ ...execution.durableState, request, runId: execution.runId, modelTier, modelsUsed: [modelTier], escalated: false }, { signal: execution.signal, streamMode: "custom" });
   let finalEvent: SystemDesignGraphStreamEvent | undefined;
   for await (const event of output) {
     if (!isGraphEvent(event)) throw new Error("System Design graph emitted an invalid event.");

@@ -3,12 +3,13 @@ import { after } from "next/server";
 import { authenticateApiRequestWithContext } from "@/lib/supabase/api-auth";
 import { flushLangSmith, isLangSmithEnabled, traceTurn, traceTurnStream } from "@/lib/reasonai/server/langsmith";
 import { isE2EAuthBypassEnabled, isReasonAISystemDesignStreamingEnabled, isSystemDesignEnabled } from "@/lib/config/server";
-import { parseReasonAIRequest } from "@/features/system-design/reasonai/contract";
-import { readBoundedJSON, reasonAIProvider, ReasonAIProviderError } from "@/features/system-design/reasonai/provider";
+import { parseReasonAIRequest, type ReasonAIRequest, type ReasonAIResponse } from "@/features/system-design/reasonai/contract";
+import { readBoundedJSON, ReasonAIProviderError } from "@/features/system-design/reasonai/provider";
 import { createReasonAITrace } from "@/features/system-design/reasonai/trace";
 import { createReasonAINDJSONResponse, REASONAI_NDJSON_MEDIA_TYPE } from "@/lib/reasonai/runtime/response";
 import { streamSystemDesignEvents } from "@/lib/reasonai/server/system-design-stream";
 import { defaultSystemDesignDurableConversationState, parseSystemDesignDurableConversationState, type SystemDesignDurableConversationState } from "@/lib/reasonai/server/langgraph/system-design/state";
+import { streamSystemDesignGraph } from "@/lib/reasonai/server/langgraph/system-design/graph";
 import { prepareSystemDesignRun, type PreparedSystemDesignRun } from "@/lib/reasonai/server/persistence/system-design-run";
 import { getReasonAIPersistenceRequestContext } from "@/lib/reasonai/server/persistence/request-context";
 import { persistReasonAITranscript } from "@/lib/reasonai/server/persistence/stream";
@@ -16,6 +17,21 @@ import { ReasonAIPersistenceError } from "@/lib/reasonai/server/persistence/type
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
+
+function legacyHistoryState(input: ReasonAIRequest): SystemDesignDurableConversationState {
+  // The JSON route has no persisted conversation. Retain its existing bounded
+  // client-supplied history; the streaming route uses server-owned durable state.
+  const recentTurns: Array<{ user: string; assistant: string; mode: ReasonAIRequest["mode"] }> = [];
+  for (let index = 0; index < input.history.length - 1; index++) {
+    const user = input.history[index];
+    const assistant = input.history[index + 1];
+    if (user.role === "user" && assistant.role === "assistant") {
+      recentTurns.push({ user: user.content.slice(0, 4_000), assistant: assistant.content.slice(0, 8_000), mode: input.mode });
+      index++;
+    }
+  }
+  return parseSystemDesignDurableConversationState({ recentTurns: recentTurns.slice(-6) });
+}
 
 export async function POST(request: Request) {
   if (isLangSmithEnabled()) after(flushLangSmith);
@@ -127,7 +143,17 @@ export async function POST(request: Request) {
     }
   }
 
-  try { return reply(await traceTurn("reasonai.system_design", { query: input.message }, { user_id: traceUserId, surface: "system_design", trace_id: traceId }, () => reasonAIProvider.complete(input, request.signal, traceId))); }
+  try {
+    return reply(await traceTurn("reasonai.system_design", { query: input.message }, { user_id: traceUserId, surface: "system_design", trace_id: traceId }, async () => {
+      let result: ReasonAIResponse | undefined;
+      for await (const event of streamSystemDesignGraph(input, { durableState: legacyHistoryState(input), signal: request.signal, runId: traceId })) {
+        if (event.type === "result") result = event.result;
+      }
+      if (!result) throw new ReasonAIProviderError("ReasonAI could not complete that response. Please try again.");
+      console.info("reasonai.run.completed", { runId: traceId, feature: "system-design", route: "/api/reasonai/chat", modelPreference: result.model?.preference, modelsUsed: result.model?.modelsUsed, finalModel: result.model?.finalModel });
+      return result;
+    }));
+  }
   catch (error) {
     return error instanceof ReasonAIProviderError
       ? reply({ error: error.message }, error.status)

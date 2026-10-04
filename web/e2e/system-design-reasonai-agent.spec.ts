@@ -3,7 +3,7 @@ import type { ReasonAIRequest } from "../src/features/system-design/reasonai/con
 import { systemDesignAgentProvider, type SystemDesignAgentProvider, type SystemDesignAgentRound, type SystemDesignAgentRoundInput } from "../src/features/system-design/reasonai/agent-provider";
 import { streamSystemDesignEvents } from "../src/lib/reasonai/server/system-design-stream";
 import { streamSystemDesignGraph } from "../src/lib/reasonai/server/langgraph/system-design/graph";
-import { defaultSystemDesignDurableConversationState } from "../src/lib/reasonai/server/langgraph/system-design/state";
+import { defaultSystemDesignDurableConversationState, parseSystemDesignDurableConversationState } from "../src/lib/reasonai/server/langgraph/system-design/state";
 import { MAX_SYSTEM_DESIGN_TOOL_ROUNDS, systemDesignToolExecutor, type SystemDesignToolExecutor } from "../src/lib/reasonai/server/langgraph/system-design/tools";
 import { MemoryReasonAIPersistenceRepository } from "../src/lib/reasonai/server/persistence/memory-repository";
 import { prepareSystemDesignRun } from "../src/lib/reasonai/server/persistence/system-design-run";
@@ -96,6 +96,141 @@ test("normal System Design chat takes the no-tool fast path", async () => {
   expect(received).toHaveLength(1);
   expect(events.map((event) => event.type)).toEqual(["run.started", "text.delta", "text.final", "run.completed"]);
   expect(events.some((event) => event.type.startsWith("tool."))).toBe(false);
+  expect(received[0]).toMatchObject({ modelTier: "super", canEscalate: true });
+  expect(events.find((event) => event.type === "text.final")).toMatchObject({ model: { preference: "auto", modelsUsed: ["super"], finalModel: "super", escalated: false } });
+});
+
+test("manual tiers resolve exact server model IDs and never offer escalation", async () => {
+  process.env.NEBIUS_API_KEY = "system-design-agent-key";
+  process.env.REASONAI_BASE_URL = "https://provider.test/v1";
+  const bodies: Array<Record<string, unknown>> = [];
+  globalThis.fetch = async (_url, init) => {
+    bodies.push(JSON.parse(String(init?.body)));
+    return Response.json({ choices: [{ message: { content: "OK" }, finish_reason: "stop" }] });
+  };
+  for (const [modelPreference, id] of [
+    ["lightning", "nvidia/Nemotron-3_5-Lightning"],
+    ["super", "nvidia/nemotron-3-super-120b-a12b"],
+    ["ultra", "nvidia/Nemotron-3-Ultra-550b-a55b"],
+  ] as const) {
+    const received: SystemDesignAgentRoundInput[] = [];
+    const events = [];
+    for await (const event of streamSystemDesignEvents({ ...request, modelPreference }, new AbortController().signal, execution({
+      async *streamRound(input, signal) {
+        received.push(structuredClone(input));
+        yield* systemDesignAgentProvider.streamRound(input, signal);
+      },
+    }))) events.push(event);
+    expect(received).toHaveLength(1);
+    expect(received[0]).toMatchObject({ modelTier: modelPreference, canEscalate: false });
+    expect(events.find((event) => event.type === "text.final")).toMatchObject({ model: { preference: modelPreference, modelsUsed: [modelPreference], finalModel: modelPreference, escalated: false } });
+    const body = bodies.at(-1)!;
+    expect(body.model).toBe(id);
+    expect((body.tools as Array<{ function: { name: string } }>).map((tool) => tool.function.name)).not.toContain("escalate_reasoning");
+  }
+});
+
+test("Auto escalates once after search, preserving evidence without another Tavily request", async () => {
+  const received: SystemDesignAgentRoundInput[] = [];
+  let searches = 0;
+  const provider = scripted([
+    tool("search_web", { query: "realtime chat architecture" }, "search-1"),
+    { kind: "escalate" },
+    final("A regional WebSocket gateway can fan out through durable workers [1]."),
+  ], received);
+  const executor: SystemDesignToolExecutor = { async execute(call) {
+    searches++;
+    const evidence = [{ id: 1, title: "Realtime chat architecture", url: "https://docs.example.com/chat", content: "Regional gateways and fanout." }];
+    return { ok: true, searchEvidence: evidence, retrievalStatus: "used", message: { role: "tool", tool_call_id: call.id, content: JSON.stringify({ evidence }) } };
+  } };
+  const events = [];
+  for await (const event of streamSystemDesignEvents(request, new AbortController().signal, execution(provider, executor))) events.push(event);
+  expect(received.map((input) => input.modelTier)).toEqual(["super", "super", "ultra"]);
+  expect(received.map((input) => input.canEscalate)).toEqual([true, true, false]);
+  expect(received[2].searchCount).toBe(1);
+  expect(received[2].searchEvidence).toHaveLength(1);
+  expect(received[2].agentMessages).toHaveLength(2);
+  expect(searches).toBe(1);
+  expect(events.filter((event) => event.type === "text.final")).toEqual([expect.objectContaining({ model: { preference: "auto", modelsUsed: ["super", "ultra"], finalModel: "ultra", escalated: true } })]);
+  expect(events.some((event) => event.type === "tool.started" && event.toolName === "escalate_reasoning")).toBe(false);
+});
+
+test("recent realtime-chat conversation takes priority over an older Rate Limiter canvas for draw it", async () => {
+  process.env.NEBIUS_API_KEY = "system-design-agent-key";
+  process.env.REASONAI_BASE_URL = "https://provider.test/v1";
+  const bodies: Array<Record<string, unknown>> = [];
+  globalThis.fetch = async (_url, init) => {
+    bodies.push(JSON.parse(String(init?.body)));
+    return bodies.length === 1
+      ? Response.json({ choices: [{ finish_reason: "tool_calls", message: { content: null, tool_calls: [{ id: "chat-proposal", type: "function", function: { name: "propose_canvas_changes", arguments: JSON.stringify({ summary: "Add a realtime chat gateway.", operations: [{ op: "add_node", ref: "new:chat-gateway", type: "service", label: "WebSocket Gateway", x: 100, y: 100 }] }) } }] } }] })
+      : Response.json({ choices: [{ finish_reason: "stop", message: { content: "A WebSocket gateway is ready as a suggestion." } }] });
+  };
+  const durableState = parseSystemDesignDurableConversationState({ recentTurns: [{
+    mode: "chat",
+    user: "Research a production-grade realtime chat architecture for 1M concurrent users.",
+    assistant: "Use regional WebSocket gateways, a distributed event log, and durable fanout workers.",
+  }] });
+  const events = [];
+  for await (const event of streamSystemDesignEvents(
+    { ...request, message: "now next please draw it", context: { ...request.context, title: "Distributed Rate Limiter" } },
+    new AbortController().signal,
+    { ...execution(systemDesignAgentProvider), durableState },
+  )) events.push(event);
+  const first = bodies[0];
+  expect((first.tools as Array<{ function: { name: string } }>).map((tool) => tool.function.name)).toContain("propose_canvas_changes");
+  expect(JSON.stringify(first.messages)).toContain("regional WebSocket gateways");
+  expect(events.find((event) => event.type === "artifact.proposal")).toMatchObject({ data: { operations: [expect.objectContaining({ label: "WebSocket Gateway" })] } });
+  expect(events.some((event) => event.type === "run.failed")).toBe(false);
+});
+
+test("Ultra cannot escalate and visible Super text cannot produce a double answer", async () => {
+  const received: SystemDesignAgentRoundInput[] = [];
+  const invalidEvents = [];
+  for await (const event of streamSystemDesignEvents(request, new AbortController().signal, execution(scripted([{ kind: "escalate" }, { kind: "escalate" }], received)))) invalidEvents.push(event);
+  expect(received.map((input) => input.modelTier)).toEqual(["super", "ultra"]);
+  expect(invalidEvents.at(-1)?.type).toBe("run.failed");
+
+  const visibleRounds: SystemDesignAgentRoundInput[] = [];
+  const visibleProvider: SystemDesignAgentProvider = { async *streamRound(input) {
+    visibleRounds.push(structuredClone(input));
+    yield { type: "text.delta", delta: "Super answer stands." };
+    yield { type: "round", round: { kind: "escalate" } };
+  } };
+  const visibleEvents = [];
+  for await (const event of streamSystemDesignEvents(request, new AbortController().signal, execution(visibleProvider))) visibleEvents.push(event);
+  expect(visibleRounds).toHaveLength(1);
+  expect(visibleEvents.find((event) => event.type === "text.final")).toMatchObject({ text: "Super answer stands.", model: { finalModel: "super", escalated: false } });
+});
+
+test("escalation does not consume the four user-facing tool rounds", async () => {
+  const received: SystemDesignAgentRoundInput[] = [];
+  const rounds = Array.from({ length: MAX_SYSTEM_DESIGN_TOOL_ROUNDS }, (_, index) => tool("search_web", { query: `reference ${index}` }, `search-${index}`));
+  const executor: SystemDesignToolExecutor = { async execute(call) { return { ok: true, retrievalStatus: "empty", searchEvidence: [], message: { role: "tool", tool_call_id: call.id, content: "{}" } }; } };
+  const events = [];
+  for await (const event of streamSystemDesignEvents(request, new AbortController().signal, execution(scripted([...rounds, { kind: "escalate" }, final("Ultra completes after the tool cap.")], received), executor))) events.push(event);
+  expect(received).toHaveLength(MAX_SYSTEM_DESIGN_TOOL_ROUNDS + 2);
+  expect(received[MAX_SYSTEM_DESIGN_TOOL_ROUNDS]).toMatchObject({ modelTier: "super", allowTools: false, canEscalate: true });
+  expect(received.at(-1)).toMatchObject({ modelTier: "ultra", allowTools: false, canEscalate: false });
+  expect(events.filter((event) => event.type === "tool.started")).toHaveLength(MAX_SYSTEM_DESIGN_TOOL_ROUNDS);
+  expect(events.find((event) => event.type === "text.final")).toMatchObject({ model: { modelsUsed: ["super", "ultra"], escalated: true } });
+});
+
+test("streamed Super text followed by escalation stands as one Super answer", async () => {
+  process.env.NEBIUS_API_KEY = "system-design-agent-key";
+  process.env.REASONAI_BASE_URL = "https://provider.test/v1";
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    return sse([
+      { choices: [{ delta: { content: "Super answer." }, finish_reason: null }] },
+      { choices: [{ delta: { tool_calls: [{ index: 0, id: "escalate-1", type: "function", function: { name: "escalate_reasoning", arguments: '{"reason":"complex_synthesis"}' } }] }, finish_reason: "tool_calls" }] },
+    ]);
+  };
+  const events = [];
+  for await (const event of streamSystemDesignEvents(request, new AbortController().signal, execution(systemDesignAgentProvider))) events.push(event);
+  expect(calls).toBe(1);
+  expect(events.find((event) => event.type === "text.final")).toMatchObject({ text: "Super answer.", model: { finalModel: "super", escalated: false } });
+  expect(events.some((event) => event.type === "run.failed")).toBe(false);
 });
 
 test("the single V2 mode flag independently enables DSA, System Design, or both", () => {
@@ -169,6 +304,7 @@ test("Nemotron search_web fragmented SSE reaches Tavily, returns to Nemotron, an
   )) events.push(event);
 
   expect((providerBodies[0].tools as Array<{ function: { name: string } }>).map((item) => item.function.name)).toContain("search_web");
+  expect(providerBodies[0].model).toBe("nvidia/nemotron-3-super-120b-a12b");
   expect(tavilyBodies).toEqual([expect.objectContaining({ query: "AWS Lambda timeout limit" })]);
   expect(providerBodies).toHaveLength(2);
   expect(JSON.stringify(providerBodies[1])).toContain("Function timeout: 900 seconds.");
@@ -176,6 +312,7 @@ test("Nemotron search_web fragmented SSE reaches Tavily, returns to Nemotron, an
   expect(finalResult).toEqual({
     text: "AWS Lambda functions can run for a maximum of 15 minutes. [1]",
     sources: [{ id: 1, title: "AWS Lambda quotas", url: "https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html" }],
+    model: { preference: "auto", modelsUsed: ["super"], finalModel: "super", escalated: false },
   });
   expect(events.map((event) => event.type).filter((type) => type !== "text.delta")).toEqual([
     "run.started", "tool.started", "sources.ready", "tool.completed", "text.final", "run.completed",
@@ -192,7 +329,7 @@ test("System Design accepts a bounded JSON provider tool call fallback", async (
     finish_reason: "tool_calls",
   }] });
   const provider = systemDesignAgentProvider.streamRound({
-    request, history: [], agentMessages: [], searchEvidence: [], searchCount: 0, allowTools: true,
+    request, modelTier: "super", canEscalate: true, history: [], agentMessages: [], searchEvidence: [], searchCount: 0, allowTools: true,
   });
   for await (const event of provider) if (event.type === "round" && event.round.kind === "tools") calls.push(event.round.calls[0].arguments);
   expect(calls).toEqual(["{\"query\":\"AWS Lambda timeout limit\"}"]);
@@ -235,7 +372,7 @@ test("two Tavily citations map to their validated sources without reordering", a
     { id: 2, title: "Second source", url: "https://docs.example.com/second", content: "Second fact." },
   ];
   let result: ReasonAIResponse | undefined;
-  for await (const event of systemDesignAgentProvider.streamRound({ request, history: [], agentMessages: [], searchEvidence: evidence, searchCount: 1, allowTools: false })) {
+  for await (const event of systemDesignAgentProvider.streamRound({ request, modelTier: "super", canEscalate: true, history: [], agentMessages: [], searchEvidence: evidence, searchCount: 1, allowTools: false })) {
     if (event.type === "round" && event.round.kind === "final") result = event.round.result;
   }
   expect(result?.sources).toEqual([
@@ -331,7 +468,7 @@ test("an actual provider contract mismatch on a read-only turn degrades to a com
     new AbortController().signal,
     execution(systemDesignAgentProvider),
   )) events.push(event);
-  expect((bodies[0].tools as Array<{ function: { name: string } }>).map((item) => item.function.name)).toEqual(["search_web", "show_architecture_analysis"]);
+  expect((bodies[0].tools as Array<{ function: { name: string } }>).map((item) => item.function.name)).toEqual(["search_web", "show_architecture_analysis", "escalate_reasoning"]);
   expect(events.some((event) => event.type === "tool.failed")).toBe(true);
   expect(events.some((event) => event.type === "run.failed")).toBe(false);
   expect(events.find((event) => event.type === "text.final")).toMatchObject({ text: "The database is a visible dependency. I made no canvas changes." });

@@ -26,7 +26,7 @@ test("System Design consumes streamed tool activity and a validated proposal wit
     { ...base(3), type: "artifact.proposal", messageId, partId: "artifact-1", proposalId: "proposal-id-1", data: proposal },
     { ...base(4), type: "tool.completed", messageId, toolCallId: "proposal-1", summary: "Canvas suggestions ready" },
     { ...base(5), type: "text.delta", messageId, partId, delta: "I prepared a cache suggestion." },
-    { ...base(6), type: "text.final", messageId, partId, text: "I prepared a cache suggestion." },
+    { ...base(6), type: "text.final", messageId, partId, text: "I prepared a cache suggestion.", model: { preference: "auto", modelsUsed: ["super", "ultra"], finalModel: "ultra", escalated: true } },
     { ...base(7), type: "run.completed" },
   ];
   await page.route("**/api/reasonai/chat", (route) => route.fulfill({
@@ -41,8 +41,27 @@ test("System Design consumes streamed tool activity and a validated proposal wit
   const dialog = page.getByRole("dialog", { name: "ReasonAI", exact: true });
   await expect(dialog).toContainText("◇ Canvas suggestions ready");
   await expect(dialog).toContainText("I prepared a cache suggestion.");
+  await expect(dialog.getByLabel("Model: Auto · Super → Ultra")).toBeVisible();
   await expect(dialog.getByRole("region", { name: "Suggestion: URL Service", exact: true })).toBeVisible();
   await expect(page.getByLabel("Diagram status")).toContainText(/Nodes\s+0/);
+});
+
+test("model selector uses friendly preference and regenerate keeps the original selection", async ({ authenticatedPage: page }) => {
+  const preferences: unknown[] = [];
+  await page.route("**/api/reasonai/chat", async (route) => {
+    preferences.push(route.request().postDataJSON().modelPreference);
+    await route.fulfill({ json: { text: "A concise architecture answer.", model: { preference: "lightning", modelsUsed: ["lightning"], finalModel: "lightning", escalated: false } } });
+  });
+  await page.getByRole("button", { name: "Open ReasonAI" }).click();
+  const dialog = page.getByRole("dialog", { name: "ReasonAI", exact: true });
+  await dialog.getByLabel("ReasonAI model").selectOption("lightning");
+  await page.getByLabel("Message ReasonAI").fill("Explain the service path");
+  await page.getByLabel("Message ReasonAI").press("Enter");
+  await expect(dialog.getByLabel("Model: Nemotron Lightning")).toBeVisible();
+  await dialog.getByLabel("ReasonAI model").selectOption("super");
+  await dialog.getByRole("button", { name: "Regenerate" }).click();
+  await expect.poll(() => preferences.length).toBe(2);
+  expect(preferences).toEqual(["lightning", "lightning"]);
 });
 
 test("ReasonAI floats above the canvas, can be moved, resized, and preserves drafts", async ({ authenticatedPage: page }) => {

@@ -2,7 +2,7 @@ import "server-only";
 
 import { getWriter } from "@langchain/langgraph";
 import type { SystemDesignGraphStage, SystemDesignGraphStreamEvent } from "../events";
-import { SystemDesignGraphState } from "../state";
+import { SystemDesignGraphState, serverOwnedSystemDesignHistory } from "../state";
 import { systemDesignToolExecutor, type SystemDesignToolExecutor } from "../tools";
 
 export const SYSTEM_DESIGN_TOOL_TIMEOUT_MS = 15_000;
@@ -30,7 +30,7 @@ export function createSystemDesignToolsNode(
     try {
       const result = await executor.execute(call, {
         signal: toolSignal,
-        request: state.request,
+        request: { ...state.request, history: serverOwnedSystemDesignHistory(state) },
         searchEvidence: state.searchEvidence ?? [],
         searchCount: state.searchCount ?? 0,
       });

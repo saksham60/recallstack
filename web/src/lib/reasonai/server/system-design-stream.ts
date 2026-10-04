@@ -45,11 +45,13 @@ export async function* streamSystemDesignEvents(
   let proposalEmitted = false;
   let analysisEmitted = false;
   let sourcesEmitted = false;
+  let completedModel: ReasonAIResponse["model"];
   yield { protocolVersion: 1, runId, seq: ++seq, type: "run.started" };
   try {
     let receivedResult = false;
     for await (const event of streamSystemDesignGraph(input, {
       durableState: execution.durableState,
+      runId,
       signal,
       provider: execution.provider,
       toolExecutor: execution.toolExecutor,
@@ -109,8 +111,9 @@ export async function* streamSystemDesignEvents(
         continue;
       }
       receivedResult = true;
+      completedModel = event.result.model;
       execution.onFinalResult?.(event.result);
-      yield { protocolVersion: 1, runId, seq: ++seq, type: "text.final", messageId, partId, text: event.result.text };
+      yield { protocolVersion: 1, runId, seq: ++seq, type: "text.final", messageId, partId, text: event.result.text, ...(event.result.model ? { model: event.result.model } : {}) };
       if (!proposalEmitted && event.result.proposal) {
         yield {
           protocolVersion: 1, runId, seq: ++seq, type: "artifact.proposal", messageId,
@@ -132,7 +135,8 @@ export async function* streamSystemDesignEvents(
       }
     }
     if (!receivedResult) throw new ReasonAIProviderError("ReasonAI could not complete that response. Please try again.");
-    console.info("reasonai.run.completed", { runId, feature: "system-design", route: "/api/reasonai/chat", durationMs: Date.now() - started });
+    // Model metadata comes from graph state, never from provider text.
+    console.info("reasonai.run.completed", { runId, feature: "system-design", route: "/api/reasonai/chat", durationMs: Date.now() - started, modelPreference: input.modelPreference ?? "auto", modelsUsed: completedModel?.modelsUsed, finalModel: completedModel?.finalModel });
     yield { protocolVersion: 1, runId, seq: ++seq, type: "run.completed" };
   } catch (error) {
     if (activeTool) console.error("reasonai.tool.failed", { runId, feature: "system-design", route: "/api/reasonai/chat", toolName: activeTool.toolName, attempt: toolAttempt, durationMs: Date.now() - activeTool.started, errorCode: signal.aborted ? "TOOL_CANCELLED" : "TOOL_EXECUTION_FAILED" });

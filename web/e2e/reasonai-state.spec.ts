@@ -125,6 +125,35 @@ test("actionable suggestion intent enables cards across non-Fix modes", () => {
   }
 });
 
+test("System Design accepts only friendly model preferences and defaults to Auto", () => {
+  const { context } = fixture();
+  const base = { mode: "chat", message: "Explain this architecture", history: [], context };
+  expect(parseReasonAIRequest(base).modelPreference).toBe("auto");
+  for (const modelPreference of ["auto", "lightning", "super", "ultra"] as const) {
+    expect(parseReasonAIRequest({ ...base, modelPreference }).modelPreference).toBe(modelPreference);
+  }
+  for (const modelPreference of ["nvidia/nemotron-3-super-120b-a12b", "other-model", "", 1]) {
+    expect(() => parseReasonAIRequest({ ...base, modelPreference })).toThrow();
+  }
+});
+
+test("contextual canvas follow-ups expose proposals while explicit no-change requests remain blocked", () => {
+  const history = [
+    { role: "user" as const, content: "Research a production-grade realtime chat architecture for 1M concurrent users." },
+    { role: "assistant" as const, content: "Use regional WebSocket gateways, a distributed event log, and durable fanout workers." },
+  ];
+  for (const message of ["draw it", "now next please draw it", "put that on the canvas", "map this out", "go ahead"]) {
+    expect(allowsReasonAIProposal({ mode: "chat", message, history }), message).toBe(true);
+  }
+  for (const message of ["don't draw it", "don't change anything", "analysis only", "just explain it"]) {
+    expect(allowsReasonAIProposal({ mode: "chat", message, history }), message).toBe(false);
+  }
+  for (const message of ["draw it", "now next please draw it", "put that on the canvas", "map this out"]) {
+    expect(allowsReasonAIProposal({ mode: "chat", message }), message).toBe(true);
+  }
+  expect(allowsReasonAIProposal({ mode: "chat", message: "go ahead" })).toBe(false);
+});
+
 test("explanation and ambiguous acknowledgments do not authorize proposal tools", () => {
   for (const mode of ["chat", "review", "eagle"] as const) for (const message of [
     "explain this architecture", "review this architecture", "analysis only", "what problems do you see?",
