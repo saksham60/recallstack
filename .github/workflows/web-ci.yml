@@ -37,28 +37,6 @@ jobs:
 
       - run: npm ci
 
-      # Next provides the server-only boundary during bundling, but several
-      # verification specs import protected server modules directly under Node.
-      # Create the tiny marker package locally so the locked dependency tree
-      # remains exactly as installed by npm ci.
-      - name: Provide server-only marker for direct tests
-        run: |
-          mkdir -p node_modules/server-only
-          cat > node_modules/server-only/package.json <<'EOF'
-          {
-            "name": "server-only",
-            "version": "0.0.1-ci",
-            "exports": {
-              ".": {
-                "react-server": "./empty.js",
-                "default": "./index.js"
-              }
-            }
-          }
-          EOF
-          printf '%s\n' "throw new Error('server-only may only be imported from a server module');" > node_modules/server-only/index.js
-          : > node_modules/server-only/empty.js
-
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
@@ -71,9 +49,25 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Next enforces the server-only boundary during the production build above.
+      # A few Playwright specs also import those modules directly under plain Node,
+      # so provide a no-op marker only for that direct-test runtime. This does not
+      # mutate package-lock.json or re-resolve the npm dependency graph.
+      - name: Provide server-only marker for direct tests
+        run: |
+          mkdir -p node_modules/server-only
+          cat > node_modules/server-only/package.json <<'EOF'
+          {
+            "name": "server-only",
+            "version": "0.0.1-ci",
+            "exports": {
+              ".": "./index.js"
+            }
+          }
+          EOF
+          : > node_modules/server-only/index.js
+
       - name: Playwright verification suites
-        env:
-          NODE_OPTIONS: "--conditions=react-server"
         run: |
           npm run test:system-design-state
           npm run test:e2e
