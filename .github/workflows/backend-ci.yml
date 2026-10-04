@@ -66,7 +66,7 @@ jobs:
         run: uv run ruff check .
 
       - name: Formatting
-        run: uv run ruff format --check .
+        run: uv run ruff format --diff .
 
       - name: Strict type checking
         run: uv run mypy src/recallstack
