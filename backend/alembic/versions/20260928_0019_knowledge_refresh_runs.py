@@ -34,7 +34,19 @@ def upgrade() -> None:
         "ON public.knowledge_refresh_runs (requested_at DESC)"
     )
     op.execute("ALTER TABLE public.knowledge_refresh_runs ENABLE ROW LEVEL SECURITY")
-    op.execute("REVOKE ALL ON public.knowledge_refresh_runs FROM anon, authenticated")
+    op.execute(
+        """
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+                REVOKE ALL ON public.knowledge_refresh_runs FROM anon;
+            END IF;
+            IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+                REVOKE ALL ON public.knowledge_refresh_runs FROM authenticated;
+            END IF;
+        END $$
+        """
+    )
 
 
 def downgrade() -> None:
