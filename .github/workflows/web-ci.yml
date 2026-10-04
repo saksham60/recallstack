@@ -37,11 +37,27 @@ jobs:
 
       - run: npm ci
 
-      # Next resolves this marker during bundling. Some Playwright specs import
-      # protected server modules directly, so install the marker without
-      # re-resolving the repository's existing peer dependency tree.
-      - name: Install server-only marker for direct tests
-        run: npm install --no-save --package-lock=false --legacy-peer-deps server-only@0.0.1
+      # Next provides the server-only boundary during bundling, but several
+      # verification specs import protected server modules directly under Node.
+      # Create the tiny marker package locally so the locked dependency tree
+      # remains exactly as installed by npm ci.
+      - name: Provide server-only marker for direct tests
+        run: |
+          mkdir -p node_modules/server-only
+          cat > node_modules/server-only/package.json <<'EOF'
+          {
+            "name": "server-only",
+            "version": "0.0.1-ci",
+            "exports": {
+              ".": {
+                "react-server": "./empty.js",
+                "default": "./index.js"
+              }
+            }
+          }
+          EOF
+          printf '%s\n' "throw new Error('server-only may only be imported from a server module');" > node_modules/server-only/index.js
+          : > node_modules/server-only/empty.js
 
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
