@@ -7,6 +7,7 @@ import { getReasonAIConfiguration, getTavilyConfiguration } from "@/lib/config/s
 
 const activeRun = new AsyncLocalStorage<RunTree>();
 const pending = new Set<Promise<unknown>>();
+const LANGSMITH_PROJECT = "reasonai-production";
 let client: Client | undefined;
 
 export function isLangSmithEnabled() {
@@ -14,7 +15,7 @@ export function isLangSmithEnabled() {
 }
 
 function langSmithProject() {
-  return process.env.LANGSMITH_PROJECT?.trim() || "default";
+  return LANGSMITH_PROJECT;
 }
 
 function smithClient() {
@@ -116,10 +117,67 @@ export async function traceTurn<T>(name: string, input: unknown, metadata: Recor
   });
 }
 
+type TraceStreamEvent = {
+  type?: string;
+  text?: unknown;
+  toolName?: unknown;
+  sources?: unknown;
+  model?: unknown;
+  code?: unknown;
+  message?: unknown;
+};
+
+function traceStreamSummaryEvent(
+  value: TraceStreamEvent,
+  summary: {
+    finalAnswer?: string;
+    toolsUsed: Set<string>;
+    sources: Array<Record<string, unknown>>;
+    model?: Record<string, unknown>;
+    failureCode?: string;
+    failureMessage?: string;
+  },
+) {
+  if (value.type === "text.final" && typeof value.text === "string") {
+    summary.finalAnswer = value.text.slice(0, 24_000);
+    if (value.model && typeof value.model === "object" && !Array.isArray(value.model)) {
+      summary.model = safe(value.model);
+    }
+    return;
+  }
+  if (value.type === "tool.started" && typeof value.toolName === "string") {
+    summary.toolsUsed.add(value.toolName.slice(0, 200));
+    return;
+  }
+  if (value.type === "sources.ready" && Array.isArray(value.sources)) {
+    summary.sources = value.sources.slice(0, 20).flatMap((source) => {
+      if (!source || typeof source !== "object" || Array.isArray(source)) return [];
+      return [safe(source, 2_000)];
+    });
+    return;
+  }
+  if (value.type === "run.failed") {
+    if (typeof value.code === "string") summary.failureCode = value.code.slice(0, 200);
+    if (typeof value.message === "string") summary.failureMessage = value.message.slice(0, 2_000);
+  }
+}
+
 export async function* traceTurnStream<T extends { type?: string }>(name: string, input: unknown, metadata: Record<string, unknown>, source: AsyncIterable<T>): AsyncGenerator<T> {
   const span = start(name, "chain", input, metadata);
   if (!span) { yield* source; return; }
   const iterator = source[Symbol.asyncIterator]();
+  const startedAt = Date.now();
+  const summary = {
+    toolsUsed: new Set<string>(),
+    sources: [] as Array<Record<string, unknown>>,
+  } as {
+    finalAnswer?: string;
+    toolsUsed: Set<string>;
+    sources: Array<Record<string, unknown>>;
+    model?: Record<string, unknown>;
+    failureCode?: string;
+    failureMessage?: string;
+  };
   let status = "cancelled";
   let failure: string | undefined;
   let drained = false;
@@ -127,8 +185,10 @@ export async function* traceTurnStream<T extends { type?: string }>(name: string
     while (true) {
       const next = await activeRun.run(span.run, () => iterator.next());
       if (next.done) { drained = true; break; }
-      if (next.value.type === "run.completed") status = "completed";
-      if (next.value.type === "run.failed" || next.value.type === "run.cancelled") status = next.value.type;
+      const event = next.value as TraceStreamEvent;
+      traceStreamSummaryEvent(event, summary);
+      if (event.type === "run.completed") status = "completed";
+      if (event.type === "run.failed" || event.type === "run.cancelled") status = event.type;
       yield next.value;
     }
   } catch (error) {
@@ -139,7 +199,16 @@ export async function* traceTurnStream<T extends { type?: string }>(name: string
     if (!drained) {
       try { await activeRun.run(span.run, () => iterator.return?.()); } catch { /* Preserve the original stream outcome. */ }
     }
-    span.finish({ status }, failure);
+    span.finish({
+      status,
+      duration_ms: Date.now() - startedAt,
+      ...(summary.finalAnswer ? { final_answer: summary.finalAnswer } : {}),
+      ...(summary.toolsUsed.size ? { tools_used: [...summary.toolsUsed] } : {}),
+      ...(summary.sources.length ? { sources: summary.sources } : {}),
+      ...(summary.model ? { model: summary.model } : {}),
+      ...(summary.failureCode ? { failure_code: summary.failureCode } : {}),
+      ...(summary.failureMessage ? { failure_message: summary.failureMessage } : {}),
+    }, failure);
   }
 }
 
