@@ -14,6 +14,10 @@ export function isLangSmithEnabled() {
   return process.env.LANGSMITH_TRACING === "true" && Boolean(process.env.LANGSMITH_API_KEY);
 }
 
+export function reasonAITraceEnvironment() {
+  return process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? "unknown";
+}
+
 function langSmithProject() {
   return LANGSMITH_PROJECT;
 }
