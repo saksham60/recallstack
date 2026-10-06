@@ -1,6 +1,6 @@
 import { after } from "next/server";
 import { isReasonAIDSAStreamingEnabled, isReasonAILearnerMemoryEnabled } from "@/lib/config/server";
-import { flushLangSmith, isLangSmithEnabled, traceTurn, traceTurnStream } from "@/lib/reasonai/server/langsmith";
+import { flushLangSmith, isLangSmithEnabled, reasonAITraceEnvironment, traceTurn, traceTurnStream } from "@/lib/reasonai/server/langsmith";
 import { readBoundedJSON } from "@/lib/http/read-bounded-json";
 import { DSAValidationError, parseDSATutorRequest } from "@/features/dsa/reasonai/contract";
 import { dsaTutorProvider, DSATutorProviderError } from "@/features/dsa/reasonai/provider";
@@ -186,11 +186,30 @@ export async function POST(request: Request) {
         },
         () => nextConversationState,
       );
-      return createReasonAINDJSONResponse(traceTurnStream("reasonai.dsa", { query: input.message }, {
+      return createReasonAINDJSONResponse(traceTurnStream("reasonai.dsa", {
+        query: input.message,
+        action: input.action,
+        problem: {
+          content_id: input.context.contentId,
+          slug: input.context.slug,
+          title: input.context.title,
+          ...(input.context.difficulty ? { difficulty: input.context.difficulty } : {}),
+          ...(input.context.category ? { category: input.context.category } : {}),
+        },
+        hint_level: input.hintLevel,
+      }, {
         user_id: persistenceContext.userId,
         conversation_id: prepared.conversation.id,
         run_id: prepared.run.id,
         surface: "dsa",
+        environment: reasonAITraceEnvironment(),
+        action: input.action,
+        content_id: input.context.contentId,
+        slug: input.context.slug,
+        ...(input.context.difficulty ? { difficulty: input.context.difficulty } : {}),
+        ...(input.context.category ? { category: input.context.category } : {}),
+        hint_level: input.hintLevel,
+        search_web: input.searchWeb,
       }, persisted), { headers }, request.signal);
     } catch (error) {
       if (prepared?.kind === "acquired") {
@@ -219,7 +238,31 @@ export async function POST(request: Request) {
       }, 503);
     }
   }
-  try { return reply(await traceTurn("reasonai.dsa", { query: input.message }, { user_id: persistenceContext.userId, surface: "dsa" }, () => dsaTutorProvider.complete(input, request.signal))); }
+  try {
+    return reply(await traceTurn("reasonai.dsa", {
+      query: input.message,
+      action: input.action,
+      problem: {
+        content_id: input.context.contentId,
+        slug: input.context.slug,
+        title: input.context.title,
+        ...(input.context.difficulty ? { difficulty: input.context.difficulty } : {}),
+        ...(input.context.category ? { category: input.context.category } : {}),
+      },
+      hint_level: input.hintLevel,
+    }, {
+      user_id: persistenceContext.userId,
+      surface: "dsa",
+      environment: reasonAITraceEnvironment(),
+      action: input.action,
+      content_id: input.context.contentId,
+      slug: input.context.slug,
+      ...(input.context.difficulty ? { difficulty: input.context.difficulty } : {}),
+      ...(input.context.category ? { category: input.context.category } : {}),
+      hint_level: input.hintLevel,
+      search_web: input.searchWeb,
+    }, () => dsaTutorProvider.complete(input, request.signal)));
+  }
   catch (error) {
     return error instanceof DSATutorProviderError ? reply({ error: error.message }, error.status)
       : reply({ error: "ReasonAI is temporarily unavailable. Please try again." }, 502);
