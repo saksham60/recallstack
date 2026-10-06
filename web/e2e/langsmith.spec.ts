@@ -55,12 +55,70 @@ test("traces a streamed user turn and actual model prompt without changing the s
   const model = runs.find((run) => run.run_type === "llm")!;
   expect(root.inputs).toMatchObject({ query: "Explain caching" });
   expect(root.metadata.user_id).toBe("user-1");
+  expect((root as unknown as { project_name?: string }).project_name).toBe("reasonai-production");
+  expect(root.outputs).toMatchObject({
+    status: "completed",
+    final_answer: "A cache saves repeated work.",
+  });
   expect(model.parent_run?.id ?? model.parent_run_id).toBe(root.id);
   expect(JSON.stringify(model.inputs)).toContain("You are ReasonAI");
   expect(JSON.stringify(model.inputs)).toContain("Explain caching");
   expect(JSON.stringify(model.outputs)).toContain("A cache saves repeated work.");
   expect(JSON.stringify({ input: model.inputs, output: model.outputs })).not.toContain("private chain-of-thought sentinel");
   expect(JSON.stringify({ input: model.inputs, output: model.outputs })).not.toContain("test-provider-key");
+});
+
+test("summarizes streamed tools, sources, and model metadata on the root trace", async () => {
+  process.env.LANGSMITH_TRACING = "true";
+  process.env.LANGSMITH_API_KEY = "test-smith-key";
+  const runs: RunTree[] = [];
+  RunTree.prototype.postRun = async function () { runs.push(this); };
+  RunTree.prototype.patchRun = async function () {};
+  Client.prototype.flush = async function () {};
+
+  async function* source() {
+    yield { type: "run.started" };
+    yield { type: "tool.started", toolName: "search_web" };
+    yield {
+      type: "sources.ready",
+      sources: [{ sourceId: "source-1", title: "Caching", url: "https://example.test/cache", kind: "search" }],
+    };
+    yield {
+      type: "text.final",
+      text: "Use a cache for repeated reads.",
+      model: {
+        preference: "auto",
+        modelsUsed: ["super", "ultra"],
+        finalModel: "ultra",
+        escalated: true,
+      },
+    };
+    yield { type: "run.completed" };
+  }
+
+  const events = [];
+  for await (const event of traceTurnStream(
+    "reasonai.system_design",
+    { query: "Design this" },
+    { user_id: "user-4", surface: "system_design" },
+    source(),
+  )) events.push(event);
+  await flushLangSmith();
+
+  expect(events).toHaveLength(5);
+  const root = runs.find((run) => run.run_type === "chain")!;
+  expect(root.outputs).toMatchObject({
+    status: "completed",
+    final_answer: "Use a cache for repeated reads.",
+    tools_used: ["search_web"],
+    model: {
+      preference: "auto",
+      modelsUsed: ["super", "ultra"],
+      finalModel: "ultra",
+      escalated: true,
+    },
+  });
+  expect(JSON.stringify(root.outputs)).toContain("https://example.test/cache");
 });
 
 test("traces tool execution and leaves the disabled path unchanged", async () => {
