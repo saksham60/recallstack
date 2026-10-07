@@ -13,9 +13,9 @@ const siteHost = process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.NEXT_P
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteHost ? `https://${siteHost}` : "http://localhost:3000"),
-  title: "ReasonAI — Think Beyond",
+  title: "ReasonAI — Build Better Judgment",
   description:
-    "A visual knowledge, learning, and system-design workspace for connected reasoning.",
+    "An AI-native reasoning workspace for engineers to design systems, learn deeply, research decisions, and build better judgment.",
 };
 
 export default function RootLayout({
