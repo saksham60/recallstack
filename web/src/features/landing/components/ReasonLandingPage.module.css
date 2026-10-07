@@ -2543,3 +2543,73 @@ button:focus-visible {
     will-change: transform;
   }
 }
+
+
+/* Real technology logos */
+.techGrid .techBrand {
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 0 15px;
+  color: #c4c8d2;
+}
+
+.techGrid .techBrand::before {
+  display: none;
+}
+
+.techBrand strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #c6cad3;
+  font-size: 10px;
+  font-weight: 680;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.brandLogo {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  overflow: visible;
+  filter: drop-shadow(0 0 9px rgba(255, 255, 255, 0.04));
+}
+
+.techBrand:nth-child(1) .brandLogo {
+  width: 24px;
+  height: 24px;
+  flex-basis: 24px;
+}
+
+.techBrand:nth-child(6) .brandLogo {
+  width: 24px;
+  height: 24px;
+  flex-basis: 24px;
+}
+
+.techBrand:nth-child(7) .brandLogo {
+  padding: 1px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.techBrand:nth-child(7) .brandLogo path {
+  fill: #09090b;
+}
+
+@media (max-width: 640px) {
+  .techGrid .techBrand {
+    padding-inline: 12px;
+    gap: 8px;
+  }
+
+  .brandLogo {
+    width: 18px;
+    height: 18px;
+    flex-basis: 18px;
+  }
+
+  .techBrand strong {
+    font-size: 8.5px;
+  }
+}
