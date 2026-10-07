@@ -21,6 +21,15 @@ import {
   Users,
   Workflow,
 } from "lucide-react";
+import {
+  siCloudflare,
+  siFlutter,
+  siGo,
+  siLanggraph,
+  siNextdotjs,
+  siNvidia,
+  siSupabase,
+} from "simple-icons";
 import styles from "./ReasonLandingPage.module.css";
 
 const judgmentRows = [
@@ -34,6 +43,48 @@ const judgmentRows = [
   ["Learning memory", "Limited", true],
   ["Technical discovery feed", false, true],
 ] as const;
+
+type SimpleBrandIcon = {
+  path: string;
+  title: string;
+};
+
+function BrandIcon({
+  icon,
+  color,
+}: {
+  icon: SimpleBrandIcon;
+  color: string;
+}) {
+  return (
+    <svg
+      className={styles.brandLogo}
+      viewBox="0 0 24 24"
+      role="img"
+      aria-label={icon.title}
+    >
+      <path d={icon.path} fill={color} />
+    </svg>
+  );
+}
+
+function TavilyLogo() {
+  return (
+    <svg
+      className={styles.brandLogo}
+      viewBox="0 0 160 160"
+      role="img"
+      aria-label="Tavily"
+    >
+      <path d="M65.59265 18.682923 80.673 42.556618c2.422 3.83405-.333 8.83305-4.868 8.83305h-6.1655v35.75275h-8.9149V16c1.8692 0 3.7384.894313 4.86805 2.682923Z" fill="#8FBCFA" />
+      <path d="M40.7741 42.556618 55.8549 18.682923C56.98455 16.894313 58.85375 16 60.72295 16v71.142918c-3.1936-.149-6.2852.775-8.91495 2.6325v-38.38575h-6.16555c-4.535 0-7.2901-4.999-4.86835-8.83305Z" fill="#468BFF" />
+      <path d="M108.0015 110.725918H70.67c2.154-2.4115 3.4305-5.482 3.568-8.915h69.153c0 1.869-.8945 3.7385-2.683 4.868l-23.8735 15.0805c-3.834 2.422-8.833-.333-8.833-4.868v-6.1655Z" fill="#FDBB11" />
+      <path d="m116.834 81.862418 23.8735 15.0805c1.789 1.1295 2.683 2.999 2.683 4.868H74.2355c.1245-3.2015-.869-6.3585-2.757-8.915h36.5225v-6.1655c0-4.535 4.999-7.29 8.833-4.868Z" fill="#F6D785" />
+      <path d="m40.47045 120.901918-21.780995 21.781c1.321675 1.322 3.27572 2.011 5.339345 1.5455l27.5448-6.218c4.4236-.9985 6.0103-6.4825 2.80365-9.688l-4.35975-4.36 16.3783-16.4315c3.4897-3.49 3.3352-9.078-.0579-12.471l-25.86745 25.842Z" fill="#FF9A9D" />
+      <path d="m37.41105 111.357418 16.43385-16.3725c3.4898-3.49 9.10165-3.3175 12.4946.075l-25.8677 25.8445-21.781145 21.781c-1.321678-1.3215-2.010986-3.276-1.545155-5.3395l6.21775-27.5445c.99855-4.424 6.4815-6.0105 9.68815-2.804l4.35965 4.36Z" fill="#FE363B" />
+    </svg>
+  );
+}
 
 export function ReasonLandingPage() {
   return (
@@ -352,8 +403,38 @@ export function ReasonLandingPage() {
             <p>Model routing, persistent checkpoints, tool calling, realtime collaboration, and source-backed research work behind the interface.</p>
           </div>
           <div className={styles.techGrid} aria-label="ReasonAI technology stack">
-            <span>NVIDIA <b>Nemotron</b></span><span>LangGraph</span><span>Tavily</span><span>Supabase</span>
-            <span>Cloudflare R2</span><span>Go realtime</span><span>Next.js</span><span>Flutter</span>
+            <span className={styles.techBrand}>
+              <BrandIcon icon={siNvidia} color="#76B900" />
+              <strong>NVIDIA Nemotron</strong>
+            </span>
+            <span className={styles.techBrand}>
+              <BrandIcon icon={siLanggraph} color="#F4F4F5" />
+              <strong>LangGraph</strong>
+            </span>
+            <span className={styles.techBrand}>
+              <TavilyLogo />
+              <strong>Tavily</strong>
+            </span>
+            <span className={styles.techBrand}>
+              <BrandIcon icon={siSupabase} color="#3ECF8E" />
+              <strong>Supabase</strong>
+            </span>
+            <span className={styles.techBrand}>
+              <BrandIcon icon={siCloudflare} color="#F38020" />
+              <strong>Cloudflare R2</strong>
+            </span>
+            <span className={styles.techBrand}>
+              <BrandIcon icon={siGo} color="#00ADD8" />
+              <strong>Go realtime</strong>
+            </span>
+            <span className={styles.techBrand}>
+              <BrandIcon icon={siNextdotjs} color="#FFFFFF" />
+              <strong>Next.js</strong>
+            </span>
+            <span className={styles.techBrand}>
+              <BrandIcon icon={siFlutter} color="#54C5F8" />
+              <strong>Flutter</strong>
+            </span>
           </div>
         </section>
 
