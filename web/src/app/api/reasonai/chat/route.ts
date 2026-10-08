@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { after } from "next/server";
 import { authenticateApiRequestWithContext } from "@/lib/supabase/api-auth";
-import { flushLangSmith, isLangSmithEnabled, traceTurn, traceTurnStream } from "@/lib/reasonai/server/langsmith";
+import { flushLangSmith, isLangSmithEnabled, reasonAITraceEnvironment, traceTurn, traceTurnStream } from "@/lib/reasonai/server/langsmith";
 import { isE2EAuthBypassEnabled, isReasonAISystemDesignStreamingEnabled, isSystemDesignEnabled } from "@/lib/config/server";
 import { parseReasonAIRequest, type ReasonAIRequest, type ReasonAIResponse } from "@/features/system-design/reasonai/contract";
 import { readBoundedJSON, ReasonAIProviderError } from "@/features/system-design/reasonai/provider";
@@ -116,11 +116,21 @@ export async function POST(request: Request) {
         undefined,
         () => nextConversationState,
       );
-      return createReasonAINDJSONResponse(traceTurnStream("reasonai.system_design", { query: input.message }, {
+      return createReasonAINDJSONResponse(traceTurnStream("reasonai.system_design", {
+        query: input.message,
+        mode: input.mode,
+        model_preference: input.modelPreference ?? "auto",
+      }, {
         user_id: traceUserId,
         conversation_id: prepared.conversation.id,
         run_id: prepared.run.id,
         surface: "system_design",
+        environment: reasonAITraceEnvironment(),
+        mode: input.mode,
+        model_preference: input.modelPreference ?? "auto",
+        ...(input.context.diagramId ? { diagram_id: input.context.diagramId } : {}),
+        selected_node_count: input.context.selectedNodeIds.length,
+        selected_edge_count: input.context.selectedEdgeIds.length,
       }, persistedStream), { headers }, request.signal);
     } catch (error) {
       if (prepared?.kind === "acquired") {
@@ -144,7 +154,21 @@ export async function POST(request: Request) {
   }
 
   try {
-    return reply(await traceTurn("reasonai.system_design", { query: input.message }, { user_id: traceUserId, surface: "system_design", trace_id: traceId }, async () => {
+    return reply(await traceTurn("reasonai.system_design", {
+      query: input.message,
+      mode: input.mode,
+      model_preference: input.modelPreference ?? "auto",
+    }, {
+      user_id: traceUserId,
+      surface: "system_design",
+      trace_id: traceId,
+      environment: reasonAITraceEnvironment(),
+      mode: input.mode,
+      model_preference: input.modelPreference ?? "auto",
+      ...(input.context.diagramId ? { diagram_id: input.context.diagramId } : {}),
+      selected_node_count: input.context.selectedNodeIds.length,
+      selected_edge_count: input.context.selectedEdgeIds.length,
+    }, async () => {
       let result: ReasonAIResponse | undefined;
       for await (const event of streamSystemDesignGraph(input, { durableState: legacyHistoryState(input), signal: request.signal, runId: traceId })) {
         if (event.type === "result") result = event.result;
