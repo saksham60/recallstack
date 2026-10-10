@@ -21,7 +21,7 @@ import {
 import { buttonClass } from "@/features/admin/components/AdminPrimitives";
 import type { SystemDesignDiagram, SystemDesignPoint, SystemDesignProblem } from "../types/system-design.types";
 import { buildReasonAIContext, parseReasonAIProposal, record, REASONAI_INVALID_PROPOSAL, REASONAI_MODES, type ReasonAIMessage, type ReasonAIMode, type ReasonAIProposal, type ReasonAIModelPreference, type ReasonAIModelMetadata, type ReasonAITaskOutcome } from "./contract";
-import { REASONAI_CANVAS_UPDATE_FAILED } from "./sanitizeAIProposal";
+import { parseSanitizedAIProposal, REASONAI_CANVAS_UPDATE_FAILED } from "./sanitizeAIProposal";
 import { normalizeReasonAIVisibleText } from "./visible-text";
 import { ReasonAISuggestions, type ReasonAISuggestionActions } from "./ReasonAISuggestions";
 import { parseReasonAISources, type ReasonAISource } from "./sources";
@@ -406,7 +406,7 @@ export function ReasonAIPanel({
       try {
         if (data.proposal) trace("CLIENT_PROPOSAL_VALIDATE", { status: "started" });
         proposal = data.proposal
-          ? parseReasonAIProposal(data.proposal, context, "accumulated")
+          ? parseSanitizedAIProposal(data.proposal, context)
           : undefined;
       } catch {
         notice = [notice, REASONAI_SUGGESTIONS_UNAVAILABLE].filter(Boolean).join(" ");
