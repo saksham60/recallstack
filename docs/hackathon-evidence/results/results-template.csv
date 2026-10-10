@@ -1,0 +1,1 @@
+run_id,timestamp_utc,git_sha,environment,suite,case_id,execution_type,participant_alias,condition,model_requested,model_observed,tool_calls,outcome,duration_ms,score_before,score_after,checked_claims,supported_claims,document_hash_a,document_hash_b,trace_ref_redacted,notes_public
