@@ -7,7 +7,7 @@ export type SystemDesignGraphStreamEvent =
   | { type: "result"; result: ReasonAIResponse }
   | { type: "tool.started"; toolCallId: string; toolName: string; summary: string }
   | { type: "tool.completed"; toolCallId: string; summary: string }
-  | { type: "tool.failed"; toolCallId: string; summary: string }
+  | { type: "tool.failed"; toolCallId: string; summary: string; code?: "authorization" | "validation" | "recoverable" | "duplicate" | "timeout" }
   | { type: "sources"; sources: Array<TavilyEvidence & { id: number }>; retrievalStatus: "used" | "empty" }
   | { type: "proposal"; proposal: ReasonAIProposal }
   | { type: "analysis"; visualization: ReasonAIVisualization };

@@ -5,6 +5,7 @@ export interface ReasonAITextPart {
   partId: string;
   text: string;
   finalized: boolean;
+  outcome?: import("@/features/system-design/reasonai/contract").ReasonAITaskOutcome;
 }
 
 export interface ReasonAIToolPart {
@@ -48,6 +49,7 @@ export interface ReasonAIArtifactPart {
   type: "artifact";
   partId: string;
   proposalId: string;
+  proposalVersion?: number;
   status: ReasonAIArtifactStatus;
   data: unknown;
   baseArtifactFingerprint?: string;

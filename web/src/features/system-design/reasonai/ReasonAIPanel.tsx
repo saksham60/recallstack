@@ -20,8 +20,8 @@ import {
 } from "lucide-react";
 import { buttonClass } from "@/features/admin/components/AdminPrimitives";
 import type { SystemDesignDiagram, SystemDesignPoint, SystemDesignProblem } from "../types/system-design.types";
-import { buildReasonAIContext, record, REASONAI_INVALID_PROPOSAL, REASONAI_MODES, type ReasonAIMessage, type ReasonAIMode, type ReasonAIProposal, type ReasonAIModelPreference, type ReasonAIModelMetadata } from "./contract";
-import { parseSanitizedAIProposal, REASONAI_CANVAS_UPDATE_FAILED } from "./sanitizeAIProposal";
+import { buildReasonAIContext, parseReasonAIProposal, record, REASONAI_INVALID_PROPOSAL, REASONAI_MODES, type ReasonAIMessage, type ReasonAIMode, type ReasonAIProposal, type ReasonAIModelPreference, type ReasonAIModelMetadata, type ReasonAITaskOutcome } from "./contract";
+import { REASONAI_CANVAS_UPDATE_FAILED } from "./sanitizeAIProposal";
 import { normalizeReasonAIVisibleText } from "./visible-text";
 import { ReasonAISuggestions, type ReasonAISuggestionActions } from "./ReasonAISuggestions";
 import { parseReasonAISources, type ReasonAISource } from "./sources";
@@ -32,10 +32,11 @@ import { createReasonAIRuntimeState, interruptReasonAIRun, reduceReasonAIEvent }
 import { parseReasonAIModelMetadata } from "@/lib/reasonai/runtime/protocol";
 import { decodeReasonAIEventResponse } from "@/lib/reasonai/streaming-client";
 import { systemDesignRuntimeResponse, type SystemDesignToolActivity } from "./runtime-client";
+import { fingerprintReasonAIContext, remainingReasonAIProposal, remainingReasonAIOperationIndexes, type ReasonAIPendingProposal } from "./proposal-state";
 
 import { createReasonAITrace, REASONAI_SUGGESTIONS_UNAVAILABLE } from "./trace";
 
-interface Turn extends ReasonAIMessage { id: string; proposal?: ReasonAIProposal; sources?: ReasonAISource[]; notice?: string; tools?: SystemDesignToolActivity[]; model?: ReasonAIModelMetadata; diagramId?: string; traceId?: string; suggestionsUnavailable?: boolean }
+interface Turn extends ReasonAIMessage { id: string; proposal?: ReasonAIProposal; proposalId?: string; proposalVersion?: number; baseFingerprint?: string; partial?: boolean; operationIndexes?: number[]; refs?: Record<string, string>; sources?: ReasonAISource[]; notice?: string; tools?: SystemDesignToolActivity[]; model?: ReasonAIModelMetadata; outcome?: ReasonAITaskOutcome; diagramId?: string; traceId?: string; suggestionsUnavailable?: boolean }
 interface Generation { question: string; mode: ReasonAIMode; modelPreference: ReasonAIModelPreference; history: ReasonAIMessage[] }
 
 function modelBadge(model: ReasonAIModelMetadata): string {
@@ -78,12 +79,16 @@ export function ReasonAIPanel({
   canApply,
   live,
   onCommit,
+  onDismiss,
+  onAcceptAll,
+  onDiscard,
   onUndo,
   undoUnavailable,
   open: controlledOpen,
   onOpenChange,
   onVisualization,
   onClearAnalysis,
+  onProposalChange,
 }: ReasonAISuggestionActions & {
   ref?: Ref<ReasonAIPanelHandle>;
   diagram: SystemDesignDiagram;
@@ -97,6 +102,9 @@ export function ReasonAIPanel({
   onOpenChange?: (open: boolean) => void;
   onVisualization?: (visualization: ReasonAIVisualization, scope: string) => void;
   onClearAnalysis?: () => void;
+  onProposalChange?: (proposal?: ReasonAIProposal, metadata?: { proposalId: string; version: number; baseFingerprint: string; refs?: Record<string, string> }) => void;
+  onAcceptAll: (proposal: ReasonAIProposal, proposalId: string, version: number, expectedFingerprint: string, conversationId: string) => Promise<void>;
+  onDiscard: (proposalId: string, version: number, conversationId: string) => Promise<void>;
 }) {
   const [internalOpen, setInternalOpen] = useState(false);
   const open = controlledOpen ?? internalOpen;
@@ -154,6 +162,50 @@ export function ReasonAIPanel({
   );
 
   useEffect(() => () => pending.current?.abort(), []);
+  useEffect(() => {
+    const controller = new AbortController();
+    async function restore() {
+      try {
+        const list = await fetch(`/api/reasonai/conversations?surface=system_design&contextId=${encodeURIComponent(diagram.id)}&limit=1`, { signal: controller.signal, cache: "no-store" });
+        if (!list.ok) return;
+        const listing = record(await list.json());
+        const latest = Array.isArray(listing.conversations) ? listing.conversations[0] as { id?: unknown } | undefined : undefined;
+        if (typeof latest?.id !== "string" || conversationId.current) return;
+        const response = await fetch(`/api/reasonai/conversations/${encodeURIComponent(latest.id)}`, { signal: controller.signal, cache: "no-store" });
+        if (!response.ok || controller.signal.aborted || conversationId.current) return;
+        const body = record(await response.json());
+        const stored = body.state && typeof body.state === "object" ? record(body.state) : undefined;
+        const pendingProposal = stored?.pendingProposal && typeof stored.pendingProposal === "object" ? record(stored.pendingProposal) : undefined;
+        conversationId.current = latest.id;
+        conversationDiagramId.current = diagram.id;
+        if (!pendingProposal || pendingProposal.diagramId !== diagram.id) return;
+        if (pendingProposal.status === "stale") {
+          setTurns((previous) => previous.length ? previous : [{ id: crypto.randomUUID(), role: "assistant", content: "The saved proposal is stale. Ask ReasonAI to refresh it against the current diagram.", diagramId: diagram.id }]);
+          return;
+        }
+        if (pendingProposal.status !== "pending" && pendingProposal.status !== "partially_accepted") return;
+        const context = buildReasonAIContext(diagram, title, problem, selectedNodeIds, selectedEdgeIds);
+        const expectedFingerprint = typeof pendingProposal.lastReportedFingerprint === "string" ? pendingProposal.lastReportedFingerprint : pendingProposal.baseFingerprint;
+        if (fingerprintReasonAIContext(context) !== expectedFingerprint) {
+          setTurns((previous) => previous.length ? previous : [{ id: crypto.randomUUID(), role: "assistant", content: "The diagram changed since this proposal was prepared. Ask ReasonAI to refresh it before accepting changes.", diagramId: diagram.id }]);
+          return;
+        }
+        const pending = pendingProposal as unknown as ReasonAIPendingProposal;
+        const remaining = remainingReasonAIProposal(pending);
+        if (!remaining.operations.length) return;
+        const proposal = parseReasonAIProposal(remaining, context, "accumulated");
+        const operationIndexes = remainingReasonAIOperationIndexes(pending);
+        if (typeof pendingProposal.proposalId !== "string" || typeof pendingProposal.version !== "number") return;
+        const refs = pending.refMappings;
+        onProposalChange?.(proposal, { proposalId: pendingProposal.proposalId, version: pendingProposal.version, baseFingerprint: expectedFingerprint as string, refs });
+        setTurns((previous) => previous.length ? previous : [{ id: crypto.randomUUID(), role: "assistant", content: "Your pending architecture proposal is ready to review.", proposal, proposalId: pendingProposal.proposalId as string, proposalVersion: pendingProposal.version as number, baseFingerprint: expectedFingerprint as string, partial: pendingProposal.status === "partially_accepted", operationIndexes, refs, diagramId: diagram.id }]);
+      } catch { /* History is optional; a new conversation can still start. */ }
+    }
+    void restore();
+    return () => controller.abort();
+  // A panel is keyed by document and diagram; restore once for that mounted diagram.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [diagram.id]);
   useEffect(() => {
     function shortcut(event: KeyboardEvent) {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
@@ -296,6 +348,10 @@ export function ReasonAIPanel({
           if (event.type === "visual.ready" && next.visualization) {
             onVisualization?.(next.visualization, reasonAIAnalysisScope(diagram));
           }
+          if (event.type === "artifact.proposal" && next.proposal) {
+            onProposalChange?.(next.proposal, next.proposalId && next.proposalVersion && next.baseFingerprint ? { proposalId: next.proposalId, version: next.proposalVersion, baseFingerprint: next.baseFingerprint } : undefined);
+            setTurns((previous) => previous.map((turn) => turn.id === assistantId ? turn : { ...turn, proposal: undefined }));
+          }
           const content = normalizeReasonAIVisibleText(next.text, context, next.proposal);
           setTurns((previous) => {
             const turn: Turn = {
@@ -303,10 +359,14 @@ export function ReasonAIPanel({
               role: "assistant",
               content,
               proposal: next.proposal,
+              proposalId: next.proposalId,
+              proposalVersion: next.proposalVersion,
+              baseFingerprint: next.baseFingerprint,
               sources: next.sources,
               notice: next.notice,
               tools: next.tools,
               model: next.model,
+              outcome: next.outcome,
               diagramId: diagram.id,
               traceId,
               suggestionsUnavailable: next.notice?.includes(REASONAI_SUGGESTIONS_UNAVAILABLE) ?? false,
@@ -346,7 +406,7 @@ export function ReasonAIPanel({
       try {
         if (data.proposal) trace("CLIENT_PROPOSAL_VALIDATE", { status: "started" });
         proposal = data.proposal
-          ? parseSanitizedAIProposal(data.proposal, context)
+          ? parseReasonAIProposal(data.proposal, context, "accumulated")
           : undefined;
       } catch {
         notice = [notice, REASONAI_SUGGESTIONS_UNAVAILABLE].filter(Boolean).join(" ");
@@ -365,7 +425,7 @@ export function ReasonAIPanel({
         catch { notice = [notice, "The analysis overlay could not be displayed. Your architecture is unchanged."].filter(Boolean).join(" "); }
       }
       setTurns((previous) => [
-        ...previous,
+        ...previous.map((turn) => proposal ? { ...turn, proposal: undefined } : turn),
         { id: crypto.randomUUID(), role: "assistant", content, proposal, sources, notice, model: responseModel, diagramId: diagram.id, traceId, suggestionsUnavailable },
       ]);
     } catch (error) {
@@ -390,7 +450,9 @@ export function ReasonAIPanel({
 
   function clearConversation() {
     onClearAnalysis?.();
+    onProposalChange?.(undefined);
     const run = activeRun.current;
+    const priorConversationId = conversationId.current;
     pending.current?.abort();
     pending.current = null;
     activeRun.current = undefined;
@@ -403,6 +465,7 @@ export function ReasonAIPanel({
     setError(null);
     setBusy(false);
     if (run) void cancelReasonAIRun(run.conversationId, run.runId).catch(() => undefined);
+    if (priorConversationId) void fetch(`/api/reasonai/conversations/${encodeURIComponent(priorConversationId)}`, { method: "DELETE" }).catch(() => undefined);
   }
 
   const launcherControl = !open ? (
@@ -661,12 +724,32 @@ export function ReasonAIPanel({
             </p>
             {turn.proposal && (
               <ReasonAISuggestions
+                key={`${turn.proposalId ?? turn.id}:${turn.proposalVersion ?? 0}`}
                 proposal={turn.proposal}
+                proposalId={turn.proposalId}
+                proposalVersion={turn.proposalVersion}
+                baseFingerprint={turn.baseFingerprint}
+                partial={turn.partial}
+                operationIndexes={turn.operationIndexes}
+                initialRefs={turn.refs}
                 traceId={turn.traceId}
                 diagram={diagram}
-                canApply={canApply}
+                canApply={canApply && !busy}
                 live={live}
-                onCommit={onCommit}
+                onCommit={(operation, refs, index, position) => onCommit(operation, refs, index, position, conversationId.current)}
+                onDismiss={(operation, index) => onDismiss(operation, index, conversationId.current)}
+                onAcceptAll={async (proposal, proposalId, version, fingerprint) => {
+                  if (!conversationId.current) throw new Error("Wait for the proposal to finish saving, then try again.");
+                  await onAcceptAll(proposal, proposalId, version, fingerprint, conversationId.current);
+                  onProposalChange?.(undefined);
+                  setTurns((previous) => previous.map((item) => item.id === turn.id ? { ...item, proposal: undefined, notice: "Proposal accepted. One Undo step restores the prior diagram." } : item));
+                }}
+                onDiscard={async (proposalId, version) => {
+                  if (!conversationId.current) throw new Error("Wait for the proposal to finish saving, then try again.");
+                  await onDiscard(proposalId, version, conversationId.current);
+                  onProposalChange?.(undefined);
+                  setTurns((previous) => previous.map((item) => item.id === turn.id ? { ...item, proposal: undefined, notice: "Proposal discarded. The diagram was not changed." } : item));
+                }}
                 onUndo={onUndo}
                 undoUnavailable={undoUnavailable}
                 onStartDrag={(token, drop) => {
@@ -677,6 +760,7 @@ export function ReasonAIPanel({
                 }}
               />
             )}
+            {turn.outcome === "awaiting_approval" && turn.proposal && <p className="text-xs text-muted">Awaiting your approval. The diagram has not changed.</p>}
             {turn.notice && <p className="text-xs leading-5 text-warning">{turn.notice}</p>}
             {!!turn.sources?.length && <ReasonAISources sources={turn.sources} />}
             {turn.role === "assistant" && turn.model && (

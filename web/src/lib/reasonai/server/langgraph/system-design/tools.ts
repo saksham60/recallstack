@@ -1,6 +1,6 @@
 import "server-only";
 
-import { allowsReasonAIProposal, parseReasonAIProposal, type ReasonAIRequest } from "@/features/system-design/reasonai/contract";
+import { allowsReasonAIProposal, parseReasonAIProposal, ReasonAIValidationError, type ReasonAIProposal, type ReasonAIRequest } from "@/features/system-design/reasonai/contract";
 import type { SystemDesignAgentMessage, SystemDesignAgentToolCall } from "@/features/system-design/reasonai/agent-provider";
 import { parseResearchQuery } from "@/features/system-design/reasonai/research";
 import { sanitizeAIProposal } from "@/features/system-design/reasonai/sanitizeAIProposal";
@@ -8,6 +8,7 @@ import { parseReasonAIVisualization } from "@/features/system-design/reasonai/vi
 import { normalizeVisualizationArguments } from "@/features/system-design/reasonai/visualization-arguments";
 import { searchTavily, type TavilyEvidence } from "@/lib/tavily/search";
 import { traceTool } from "@/lib/reasonai/server/langsmith";
+import { layoutReasonAIProposal } from "@/features/system-design/reasonai/proposal-state";
 
 export const MAX_SYSTEM_DESIGN_TOOL_ROUNDS = 4;
 
@@ -16,11 +17,12 @@ export interface SystemDesignToolExecutionContext {
   request: ReasonAIRequest;
   searchEvidence: Array<TavilyEvidence & { id: number }>;
   searchCount: number;
+  pendingProposal?: ReasonAIProposal;
 }
 
 export type SystemDesignToolExecutionResult =
   | { ok: true; message: SystemDesignAgentMessage; searchEvidence?: Array<TavilyEvidence & { id: number }>; retrievalStatus?: "used" | "empty"; proposal?: ReturnType<typeof parseReasonAIProposal>; visualization?: ReturnType<typeof parseReasonAIVisualization> }
-  | { ok: false; message: SystemDesignAgentMessage; reason: string; retrievalStatus?: "unavailable"; notice?: string };
+  | { ok: false; message: SystemDesignAgentMessage; reason: string; code?: "authorization" | "validation" | "recoverable" | "duplicate"; retrievalStatus?: "unavailable"; notice?: string };
 
 export interface SystemDesignToolExecutor {
   execute(call: SystemDesignAgentToolCall, context: SystemDesignToolExecutionContext): Promise<SystemDesignToolExecutionResult>;
@@ -36,13 +38,13 @@ function parseObject(value: string): Record<string, unknown> {
   return parsed as Record<string, unknown>;
 }
 
-function invalid(call: SystemDesignAgentToolCall, reason: string, notice?: string): SystemDesignToolExecutionResult {
+function invalid(call: SystemDesignAgentToolCall, reason: string, notice?: string): Extract<SystemDesignToolExecutionResult, { ok: false }> {
   return { ok: false, reason, ...(notice ? { notice } : {}), message: toolMessage(call, { ok: false, error: reason }) };
 }
 
 export const systemDesignToolExecutor: SystemDesignToolExecutor = {
   async execute(call, context) {
-    return traceTool(call.name, { toolCallId: call.id, arguments: call.arguments }, async () => {
+    return traceTool(call.name, { toolCallId: call.id }, async () => {
     if (call.invalidReason) return invalid(call, "Tool input was invalid.");
     if (call.name === "search_web") {
       if (context.searchCount >= 2) return invalid(call, "The web search limit was reached.");
@@ -77,14 +79,24 @@ export const systemDesignToolExecutor: SystemDesignToolExecutor = {
     if (call.name === "propose_canvas_changes") {
       if (!allowsReasonAIProposal(context.request)) {
         console.warn("[SYSTEM_DESIGN_V2_TOOL_REJECTED]", { tool: call.name, reason: "not_authorized" });
-        return invalid(call, "Canvas changes are not authorized for this turn.", "No canvas changes were prepared because this turn does not authorize edits.");
+        return { ...invalid(call, "Canvas changes are not authorized for this turn.", "No canvas changes were prepared because this turn does not authorize edits."), code: "authorization" };
       }
       try {
-        const normalized = sanitizeAIProposal(parseObject(call.arguments), context.request.context);
-        const proposal = parseReasonAIProposal(normalized.proposal, context.request.context);
+        const raw = parseObject(call.arguments);
+        const pending = context.pendingProposal;
+        const pendingNodes = pending?.operations.filter((op) => op.op === "add_node").map((op) => ({ id: op.ref, type: op.type, x: op.x, y: op.y, label: op.label, subtitle: op.subtitle, description: op.description, technology: op.technology })) ?? [];
+        const contextWithPending = { ...context.request.context, nodes: [...context.request.context.nodes, ...pendingNodes] };
+        const normalized = sanitizeAIProposal(raw, contextWithPending);
+        if (normalized.warnings.some((warning) => ["DANGLING_EDGE", "UNSUPPORTED_NODE_TYPE", "INVALID_EDGE_TYPE"].includes(warning.code))) {
+          throw new ReasonAIValidationError("The proposal lost a required component or connection.", { code: "MATERIAL_PROPOSAL_LOSS" });
+        }
+        const batch = parseReasonAIProposal(normalized.proposal, contextWithPending);
+        const combined = parseReasonAIProposal({ summary: batch.summary, operations: [...(pending?.operations ?? []), ...batch.operations] }, context.request.context, "accumulated");
+        const proposal = parseReasonAIProposal(layoutReasonAIProposal(combined, context.request.context, pending), context.request.context, "accumulated");
         return { ok: true, proposal, message: toolMessage(call, { ok: true, proposal }) };
-      } catch {
-        return invalid(call, "The canvas proposal was invalid.", "Canvas suggestions could not be prepared safely. Your diagram is unchanged.");
+      } catch (error) {
+        const diagnostic = error instanceof ReasonAIValidationError ? error.diagnostic : { code: "INVALID_PROPOSAL" };
+        return { ...invalid(call, "The canvas proposal was invalid.", "Canvas suggestions could not be prepared safely. Your diagram is unchanged."), code: "validation", message: toolMessage(call, { ok: false, diagnostic }) };
       }
     }
     if (call.name === "show_architecture_analysis") {

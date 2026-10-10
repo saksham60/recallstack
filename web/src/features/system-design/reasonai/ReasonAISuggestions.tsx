@@ -16,21 +16,26 @@ import { REASONAI_NODE_DRAG_MIME, reasonAIActionStatus, resolveReasonAISuggestio
 import { createReasonAITrace } from "./trace";
 
 export interface ReasonAISuggestionActions {
-  onCommit: (op: ReasonAIOperation, refs: ReasonAIRefs, position?: SystemDesignPoint) => ReasonAIAction;
+  onCommit: (op: ReasonAIOperation, refs: ReasonAIRefs, index: number, position?: SystemDesignPoint, conversationId?: string) => ReasonAIAction;
+  onDismiss: (op: ReasonAIOperation, index: number, conversationId?: string) => Promise<void>;
   onUndo: (action: ReasonAIAction) => void;
   undoUnavailable: (action: ReasonAIAction) => string | null;
 }
 interface SuggestionState { dismissed?: boolean; dragging?: boolean; action?: ReasonAIAction; error?: string }
 
-export function ReasonAISuggestions({ traceId, proposal, diagram, canApply, live, onCommit, onUndo, undoUnavailable, onStartDrag, onEndDrag }: ReasonAISuggestionActions & {
-  traceId?: string; proposal: ReasonAIProposal; diagram: SystemDesignDiagram; canApply: boolean; live: boolean;
+export function ReasonAISuggestions({ traceId, proposal, proposalId, proposalVersion, baseFingerprint, partial, operationIndexes, initialRefs, diagram, canApply, live, onCommit, onDismiss, onAcceptAll, onDiscard, onUndo, undoUnavailable, onStartDrag, onEndDrag }: ReasonAISuggestionActions & {
+  traceId?: string; proposal: ReasonAIProposal; proposalId?: string; proposalVersion?: number; baseFingerprint?: string; partial?: boolean; operationIndexes?: number[]; initialRefs?: Record<string, string>; diagram: SystemDesignDiagram; canApply: boolean; live: boolean;
+  onAcceptAll: (proposal: ReasonAIProposal, proposalId: string, version: number, expectedFingerprint: string) => Promise<void>;
+  onDiscard: (proposalId: string, version: number) => Promise<void>;
   onStartDrag: (token: string, drop: (position: SystemDesignPoint) => void) => void;
   onEndDrag: () => void;
 }) {
   const [states, setStates] = useState<Record<number, SuggestionState>>({});
   const current = useRef(states);
-  const [refs, setRefs] = useState(new Map<string, string>());
+  const [refs, setRefs] = useState(new Map<string, string>(Object.entries(initialRefs ?? {})));
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  const [batchError, setBatchError] = useState<string | null>(null);
+  const [batchBusy, setBatchBusy] = useState(false);
   const { nodes, edges } = diagram;
   // Local validation needs no network redaction; share the snapshot across all cards.
   const validationContext = useMemo(() => {
@@ -69,14 +74,34 @@ export function ReasonAISuggestions({ traceId, proposal, diagram, canApply, live
     const trace = createReasonAITrace(traceId ?? "", true);
     trace("ACCEPT_PREFLIGHT", { status: "started", operationIndex: index });
     try {
-      const action = onCommit(op, refs, position);
+      const action = onCommit(op, refs, operationIndexes?.[index] ?? index, position);
       trace("CANVAS_OPERATION_APPLIED", { status: "success", operationIndex: index });
       if (op.op === "add_node" && action.operation.kind === "node.add") setRefs(new Map(refs).set(op.ref, action.operation.node.id));
       update(index, { action, dragging: false, error: undefined });
     } catch { trace("CANVAS_OPERATION_REJECTED", { status: "failed", operationIndex: index }); update(index, { dragging: false, error: "Could not make this change. The canvas may have changed; check the components and try again." }); }
     setConfirmDelete(null);
   }
+  const hasIndividualDecision = Object.values(states).some((state) => state.dismissed || state.action);
   return <div className="mt-3 space-y-2" aria-label="Suggested changes">
+    <div className="flex flex-wrap gap-2">
+      <button type="button" className={editorSecondaryButtonClass} disabled={batchBusy || !canApply || live || partial || hasIndividualDecision || !proposalId || !proposalVersion || !baseFingerprint} onClick={async () => {
+        if (!proposalId || !proposalVersion || !baseFingerprint) return;
+        setBatchBusy(true);
+        try { await onAcceptAll(proposal, proposalId, proposalVersion, baseFingerprint); setBatchError(null); }
+        catch (error) { setBatchError(error instanceof Error ? error.message : "The proposal could not be accepted."); }
+        finally { setBatchBusy(false); }
+      }}>Accept All</button>
+      <button type="button" className={editorGhostButtonClass} disabled={batchBusy || !canApply || !proposalId || !proposalVersion} onClick={async () => {
+        if (!proposalId || !proposalVersion) return;
+        setBatchBusy(true);
+        try { await onDiscard(proposalId, proposalVersion); setBatchError(null); }
+        catch (error) { setBatchError(error instanceof Error ? error.message : "The proposal could not be discarded."); }
+        finally { setBatchBusy(false); }
+      }}>Discard</button>
+    </div>
+    {live && <p className="text-xs text-muted">Accept All is unavailable in live sessions; review each change individually.</p>}
+    {(hasIndividualDecision || partial) && <p className="text-xs text-muted">Continue reviewing the remaining changes individually.</p>}
+    {batchError && <p role="alert" className="text-xs text-danger">{batchError}</p>}
     {proposal.operations.map((op, index) => {
       const state = states[index] ?? {};
       const status = state.dismissed ? "dismissed" : state.action ? reasonAIActionStatus(state.action, diagram) : state.dragging ? "dragging" : "pending";
@@ -106,7 +131,7 @@ export function ReasonAISuggestions({ traceId, proposal, diagram, canApply, live
             : <div className="mt-3 space-y-2">
               {blocked && <p className="text-xs text-muted">{blocked}</p>}
               {status === "undone" && op.op !== "add_node" && <p className="text-xs text-muted">Undone</p>}
-              {confirmDelete === index ? <div className="space-y-2"><p className="text-xs text-muted">{op.op === "delete_node" ? `Remove this component and its connections${live && diagram.nodes.find((n) => n.id === op.nodeId)?.childDiagramId ? " and nested contents? This deletion cannot be undone in live mode." : "?"}` : "Remove this connection?"}</p><div className="flex gap-2"><button type="button" className={editorSecondaryButtonClass} disabled={!available} onClick={() => apply(index)}>Confirm delete</button><button type="button" className={editorGhostButtonClass} onClick={() => setConfirmDelete(null)}>Cancel</button></div></div> : <div className="flex flex-wrap gap-2"><button type="button" className={editorSecondaryButtonClass} disabled={!available} onClick={() => op.op.startsWith("delete") ? setConfirmDelete(index) : apply(index)}>{op.op === "add_node" ? status === "undone" ? "Add again" : "Add to canvas" : op.op === "add_edge" ? "Connect" : op.op.startsWith("delete") ? "Delete" : "Apply"}</button><button type="button" className={editorGhostButtonClass} onClick={() => update(index, { dismissed: true, dragging: false })}>Dismiss</button></div>}
+              {confirmDelete === index ? <div className="space-y-2"><p className="text-xs text-muted">{op.op === "delete_node" ? `Remove this component and its connections${live && diagram.nodes.find((n) => n.id === op.nodeId)?.childDiagramId ? " and nested contents? This deletion cannot be undone in live mode." : "?"}` : "Remove this connection?"}</p><div className="flex gap-2"><button type="button" className={editorSecondaryButtonClass} disabled={!available} onClick={() => apply(index)}>Confirm delete</button><button type="button" className={editorGhostButtonClass} onClick={() => setConfirmDelete(null)}>Cancel</button></div></div> : <div className="flex flex-wrap gap-2"><button type="button" className={editorSecondaryButtonClass} disabled={!available} onClick={() => op.op.startsWith("delete") ? setConfirmDelete(index) : apply(index)}>{op.op === "add_node" ? status === "undone" ? "Add again" : "Add to canvas" : op.op === "add_edge" ? "Connect" : op.op.startsWith("delete") ? "Delete" : "Apply"}</button><button type="button" className={editorGhostButtonClass} onClick={() => { if (op.op === "add_node" && proposal.operations.some((other, dependentIndex) => dependentIndex !== index && !current.current[dependentIndex]?.dismissed && (("nodeId" in other && other.nodeId === op.ref) || ("sourceNodeId" in other && other.sourceNodeId === op.ref) || ("targetNodeId" in other && other.targetNodeId === op.ref)))) { update(index, { error: "Dismiss dependent changes first." }); return; } if (!proposalId) { update(index, { dismissed: true, dragging: false }); return; } void onDismiss(op, operationIndexes?.[index] ?? index).then(() => update(index, { dismissed: true, dragging: false })).catch((error) => update(index, { error: error instanceof Error ? error.message : "Could not dismiss this change." })); }}>Dismiss</button></div>}
             </div>}
         {state.error && <p role="alert" className="mt-2 text-xs text-danger">{state.error}</p>}
       </section>;

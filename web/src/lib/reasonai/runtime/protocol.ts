@@ -67,6 +67,14 @@ function textField(value: Record<string, unknown>, field: string, maxLength: num
   return fieldValue;
 }
 
+function integerField(value: Record<string, unknown>, field: string, min: number, max: number): number {
+  const result = value[field];
+  if (typeof result !== "number" || !Number.isInteger(result) || result < min || result > max) {
+    throw new ReasonAIProtocolError(`ReasonAI event has an invalid ${field}.`);
+  }
+  return result;
+}
+
 function optionalTextField(value: Record<string, unknown>, field: string, maxLength: number): string | undefined {
   if (value[field] === undefined) return undefined;
   return textField(value, field, maxLength);
@@ -167,6 +175,10 @@ export function parseReasonAIEvent(value: unknown): ReasonAIEvent {
         partId: stringField(event, "partId", MAX_ID_LENGTH),
         text: textField(event, "text", MAX_TEXT_EVENT_LENGTH),
         ...(event.model === undefined ? {} : { model: parseReasonAIModelMetadata(event.model) }),
+        ...(event.outcome === undefined ? {} : { outcome: (() => {
+          if (typeof event.outcome !== "string" || !["completed", "awaiting_approval", "needs_clarification", "blocked", "failed"].includes(event.outcome)) throw new ReasonAIProtocolError("ReasonAI event has an invalid outcome.");
+          return event.outcome as "completed" | "awaiting_approval" | "needs_clarification" | "blocked" | "failed";
+        })() }),
       };
     case "tool.started":
       return {
@@ -218,6 +230,7 @@ export function parseReasonAIEvent(value: unknown): ReasonAIEvent {
         messageId: stringField(event, "messageId", MAX_ID_LENGTH),
         partId: stringField(event, "partId", MAX_ID_LENGTH),
         proposalId: stringField(event, "proposalId", MAX_ID_LENGTH),
+        ...(event.proposalVersion === undefined ? {} : { proposalVersion: integerField(event, "proposalVersion", 1, 1000000) }),
         data: event.data,
         ...(event.baseArtifactFingerprint === undefined ? {} : { baseArtifactFingerprint: stringField(event, "baseArtifactFingerprint", 500) }),
         ...(touchedEntities === undefined ? {} : { touchedEntities }),

@@ -26,7 +26,8 @@ export type ReasonAIOperation =
   | ({ op: "update_edge"; edgeId: string } & Partial<EdgeFields>)
   | { op: "delete_edge"; edgeId: string };
 export interface ReasonAIProposal { summary: string; operations: ReasonAIOperation[] }
-export interface ReasonAIResponse { text: string; proposal?: ReasonAIProposal; visualization?: ReasonAIVisualization; sources?: ReasonAISource[]; notice?: string; model?: ReasonAIModelMetadata }
+export type ReasonAITaskOutcome = "completed" | "awaiting_approval" | "needs_clarification" | "blocked" | "failed";
+export interface ReasonAIResponse { text: string; proposal?: ReasonAIProposal; visualization?: ReasonAIVisualization; sources?: ReasonAISource[]; notice?: string; model?: ReasonAIModelMetadata; outcome?: ReasonAITaskOutcome }
 export const REASONAI_INVALID_PROPOSAL = "ReasonAI returned an invalid canvas proposal. No changes were applied.";
 export interface ReasonAIContext {
   diagramId?: string;
@@ -53,37 +54,31 @@ function isWholeCanvasTarget(target: string): boolean {
   const subject = target.trim().split(/\s+(?:and|or|because|while)\b/, 1)[0]
     .replace(/^(?:(?:to|any|the|this|my|our|current|existing)\s+)+/i, "")
     .replace(/(?:^|\s+)(?:at all|in any way|whatsoever|for now|please)$/i, "");
-  return ["", "anything", "everything", "canvas", "diagram", "architecture", "design", "it", "this", "changes", "edits", "modifications", "proposals", "suggestions", "improvements"].includes(subject);
+  return ["", "anything", "everything", "canvas", "diagram", "architecture", "design", "it", "this", "changes", "edits", "modifications", "proposals", "suggestions", "improvements", "arrows", "components", "nodes", "connections"].includes(subject);
 }
 
 function isGlobalProposalRestriction(restriction: string): boolean {
-  const action = /^(?:(?:make|making)\s+(?:any\s+)?(?:changes|edits|modifications)|change|changing|modify|modifying|edit|editing|propose|proposing|suggest|suggesting|recommend|recommending)\b\s*/i.exec(restriction);
+  const action = /^(?:(?:make|making)\s+(?:any\s+)?(?:changes|edits|modifications)|change|changing|modify|modifying|edit|editing|propose|proposing|suggest|suggesting|recommend|recommending|correct|reconnect|reorganize|reroute|align|draw|fix|move)\b\s*/i.exec(restriction);
   return Boolean(action && isWholeCanvasTarget(restriction.slice(action[0].length)));
 }
 
 export function allowsReasonAIProposal(request: Pick<ReasonAIRequest, "mode" | "message"> & Partial<Pick<ReasonAIRequest, "history">>): boolean {
   const message = request.message.trim().toLowerCase().replace(/\bu\b/g, "you").replace(/\u2019/g, "'").replace(/\s+/g, " ");
-  if (/\b(?:do not|don't|never)\s+(?:draw|map|put)\b/.test(message)) return false;
-  if (/^(?:just|only)\s+(?:explain|review|analy[sz]e)\b/.test(message)) return false;
-  const explanationRequest = /^(?:(?:please|can you|could you)\s+)?(?:explain|review|analy[sz]e|show bottlenecks)\b|^(?:what|why|how)\b/.test(message);
-  const directCanvasRequest = !explanationRequest && /^(?:(?:now|next|please|can you|could you)\s+)*(?:draw|map|put)\b/.test(message);
-  const clauses = message.split(/[.!?;,]\s*|\b(?:but|however)\s+|(?=\bwithout\s+)/).filter(Boolean);
-  let explicitEdit = false, hasRestriction = false;
+  // Only the current user message can veto a pending suggestion. Suggestions
+  // never mutate the canvas, so a positive edit-verb allowlist is unnecessary.
+  if (/\b(?:just|only)\s+(?:explain|review|analy[sz]e)\b|\b(?:analysis|explanation|review|read)[ -]only\b|\bexplain only\b/.test(message)) return false;
+  if (/\b(?:give|provide|show)\s+(?:me\s+|us\s+)?(?:an?\s+)?explanation\b/.test(message)) return false;
+  if (/^(?:please\s+)?explain\b/.test(message) && !/\b(?:but|and then)\s+(?:add|build|draw|move|connect|fix|change|propose)\b/.test(message)) return false;
+  const clauses = message.split(/[.!?;,\n:]\s*|\b(?:but|however)\s+|(?=\bwithout\s+)/).filter(Boolean);
   for (const clause of clauses) {
-    if (/\b(?:analysis|explanation|review|read)[ -]only\b|\bonly\s+(?:analy[sz]e|explain|review)\b|\bexplain only\b/.test(clause)) return false;
     const noChanges = /\b(?:make\s+)?no\s+(?:(?:structural|canvas|architectural?)\s+)?(?:changes|modifications|edits|proposals|suggestions)\b\s*/.exec(clause);
     const negative = /\b(?:do not|don't|never|without)\s+/.exec(clause);
     if (noChanges && isWholeCanvasTarget(clause.slice(noChanges.index + noChanges[0].length))) return false;
     if (negative && isGlobalProposalRestriction(clause.slice(negative.index + negative[0].length))) return false;
-    const restriction = negative ?? noChanges;
-    hasRestriction ||= Boolean(restriction);
-    // Negated verbs cannot themselves grant edit authority. A separate positive
-    // clause is required to edit while preserving another part of the diagram.
-    explicitEdit ||= hasReasonAIEditIntent(restriction ? clause.slice(0, restriction.index) : clause);
+    if (negative && /^(?:draw|correct|reconnect|fix|align|reroute)\s+(?:it|anything|everything|the\s+(?:canvas|diagram|architecture|design|arrows|components|connections))\b/.test(clause.slice(negative.index + negative[0].length))) return false;
+    if (negative && /^(?:draw|map|put)\s+(?:anything|the\s+(?:canvas|diagram|architecture|design)|on\s+the\s+canvas)\b/.test(clause.slice(negative.index + negative[0].length))) return false;
   }
-  // This gate protects explicit no-change instructions. The model interprets
-  // conversational references; a growing verb list cannot do that safely.
-  return explicitEdit || (directCanvasRequest && !hasRestriction) || (request.mode === "fix" && !hasRestriction);
+  return true;
 }
 
 /** Explicit requests must produce reviewable canvas suggestions, not drawing instructions. */
@@ -230,17 +225,17 @@ export const REASONAI_TOOL = {
   type: "function",
   function: {
     name: "propose_canvas_changes",
-    description: "Propose minimal, individually actionable suggestions. Declare new nodes before connections for dependency validation; users choose which suggestions to accept. add_node declares a unique ref such as new:redis. add_edge and update_edge use sourceNodeId and targetNodeId: exact existing node IDs or previously declared new: refs. update_node, move_node and delete_node use nodeId for an existing node; update_edge and delete_edge use edgeId for an existing edge. Existing IDs must come from CANVAS_CONTEXT. No changes happen until the user drops a component or accepts an individual suggestion. Users choose final drop coordinates. Summary must briefly explain tradeoffs using component names, not IDs, in plain text without tables or HTML.",
+    description: "Propose a reviewable architecture batch. Declare new nodes before their connections. add_node uses a stable ref such as new:redis; edge endpoints and node targets may use existing canvas IDs or earlier new: refs. Provide all required connections across bounded batches when needed. The server computes final layout and the user may Accept All, review items, or discard. This tool never changes the real canvas. Summarize tradeoffs using component names in plain text.",
     parameters: { type: "object", additionalProperties: false, required: ["summary", "operations"], properties: { summary: textField(2000), operations: { type: "array", minItems: 1, maxItems: 50, items: { oneOf: operationSchemas } } } },
   },
 };
-export function parseReasonAIProposal(value: unknown, context: Pick<ReasonAIContext, "nodes" | "edges">): ReasonAIProposal {
+export function parseReasonAIProposal(value: unknown, context: Pick<ReasonAIContext, "nodes" | "edges">, validation: "model_batch" | "accumulated" | "acceptance" = "model_batch"): ReasonAIProposal {
   const proposal = record(value);
   if (Object.keys(proposal).some((k) => k !== "summary" && k !== "operations")) throw new ReasonAIValidationError("Unsupported proposal field.", { code: "WRONG_PROPOSAL_CONTRACT" });
   let summary: string;
   try { summary = string(proposal.summary); }
   catch { throw new ReasonAIValidationError("Invalid or oversized text.", { code: "INVALID_PROPOSAL_FIELD", field: "summary" }); }
-  const operations = array(proposal.operations, 50, (value, operationIndex) => {
+  const operations = array(proposal.operations, validation === "model_batch" ? 50 : 150, (value, operationIndex) => {
     try {
       const operation = record(value);
       const schema = operationSchemas.find((s) => s.properties.op.enum[0] === operation.op);
@@ -281,7 +276,7 @@ export function parseReasonAIProposal(value: unknown, context: Pick<ReasonAICont
         if (refs.has(op.ref) || nodes.has(op.ref)) throw new ReasonAIValidationError("Duplicate new node reference.");
         refs.add(op.ref); nodes.add(op.ref);
       } else if ("nodeId" in op) {
-        if (!nodes.has(op.nodeId) || refs.has(op.nodeId)) throw new ReasonAIValidationError("The proposal targets a missing existing node. Ask ReasonAI again.");
+        if (!nodes.has(op.nodeId)) throw new ReasonAIValidationError("The proposal targets a missing node. Ask ReasonAI again.");
         if (op.op === "delete_node") {
           nodes.delete(op.nodeId);
           for (const [id, edge] of edges) if (edge.sourceNodeId === op.nodeId || edge.targetNodeId === op.nodeId) edges.delete(id);

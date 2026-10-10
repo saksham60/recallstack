@@ -12,6 +12,8 @@ import {
   type ReasonAIPersistenceRepository,
   type ReasonAISurface,
   type RunAcquisition,
+  type ReasonAIProposalTransition,
+  type ReasonAIProposalTransitionResult,
 } from "./types";
 
 type Row = Record<string, unknown>;
@@ -121,6 +123,26 @@ export class SupabaseReasonAIPersistenceRepository implements ReasonAIPersistenc
       .eq("conversation_id", conversationId).maybeSingle();
     if (error) unavailable();
     return data ? conversationState(data as Row) : undefined;
+  }
+
+  async transitionProposal(userId: string, conversationId: string, input: ReasonAIProposalTransition): Promise<ReasonAIProposalTransitionResult | undefined> {
+    void userId; // The RPC checks auth.uid() and owns the row lock.
+    const { data, error } = await this.client.rpc("reasonai_transition_proposal", {
+      p_conversation_id: conversationId,
+      p_event_id: input.eventId,
+      p_proposal_id: input.proposalId,
+      p_proposal_version: input.version,
+      p_expected_state_version: input.expectedStateVersion,
+      p_action: input.action,
+      p_operation_id: input.operationId ?? null,
+      p_ref: input.ref ?? null,
+      p_real_node_id: input.realNodeId ?? null,
+      p_post_fingerprint: input.postFingerprint ?? null,
+    });
+    if (error?.code === "40001") throw new ReasonAIPersistenceError("STATE_INVALID", "The proposal changed. Refresh it before continuing.");
+    if (error) unavailable();
+    const row = (Array.isArray(data) ? data[0] : data) as Row | undefined;
+    return row ? { stateVersion: Number(row.state_version), status: String(row.proposal_status), duplicate: row.duplicate === true } : undefined;
   }
 
   async deleteConversation(userId: string, conversationId: string) {

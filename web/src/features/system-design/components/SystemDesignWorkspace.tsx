@@ -107,12 +107,22 @@ import { SystemDesignViewportControls } from "./SystemDesignViewportControls";
 import { ReasonAIPanel, type ReasonAIPanelHandle } from "../reasonai/ReasonAIPanel";
 import { captureReasonAIAction, prepareReasonAISuggestion, reasonAIUndoUnavailable } from "../reasonai/suggestions";
 import { reasonAIAnalysisScope, type ReasonAIVisualization } from "../reasonai/visualization";
+import { buildReasonAIContext, type ReasonAIProposal } from "../reasonai/contract";
 import { ReasonAIAnalysisPanel } from "../reasonai/ReasonAIAnalysisPanel";
+import { prepareReasonAIAtomicAcceptance } from "../reasonai/accept-all";
+import { fingerprintReasonAIContext } from "../reasonai/proposal-state";
 
 export type SystemDesignWorkspaceMode =
   | { kind: "problem"; problem: SystemDesignProblem }
   | { kind: "standalone"; title?: string }
   | { kind: "live"; roomToken: string };
+
+async function acknowledgeReasonAIProposal(conversationId: string, payload: Record<string, unknown>): Promise<void> {
+  const response = await fetch(`/api/reasonai/conversations/${encodeURIComponent(conversationId)}/proposal`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error(response.status === 409 ? "This proposal changed. Refresh it before continuing." : "The proposal status could not be saved.");
+}
 
 function isSystemDesignNodeType(
   value: string,
@@ -290,6 +300,8 @@ export function SystemDesignWorkspace({
   const [reasonAIOpen, setReasonAIOpen] = useState(false);
   // Local UI only: never part of document/reducer/repository/realtime state.
   const [reasonAIAnalysis, setReasonAIAnalysis] = useState<{ scope: string; visualization: ReasonAIVisualization }>();
+  const [reasonAIPreview, setReasonAIPreview] = useState<{ diagramId: string; proposal: ReasonAIProposal; refs: Record<string, string>; proposalId?: string; version?: number; baseFingerprint?: string }>();
+  const receiptRecoveryInFlight = useRef(new Set<string>());
   const [componentPaletteOpen, setComponentPaletteOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(
     mode.kind === "problem",
@@ -298,6 +310,29 @@ export function SystemDesignWorkspace({
   const [pendingImport, setPendingImport] =
     useState<SystemDesignDocument | null>(null);
   const [uiError, setUiError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!problem || state.loadStatus !== "ready") return;
+    const prefix = `reasonai-proposal-receipt:${problem.id}:`;
+    for (const key of Object.keys(localStorage).filter((candidate) => candidate.startsWith(prefix))) {
+      if (receiptRecoveryInFlight.current.has(key)) continue;
+      try {
+        const receipt = JSON.parse(localStorage.getItem(key) ?? "null") as { conversationId?: string; diagramId?: string; baseFingerprint?: string; payload?: { postFingerprint?: string } };
+        if (!receipt.diagramId || !receipt.payload?.postFingerprint || !receipt.conversationId) continue;
+        receiptRecoveryInFlight.current.add(key);
+        void repository.getDocument(problem.id).then(async (saved) => {
+          const diagram = saved?.diagrams[receipt.diagramId!];
+          if (!diagram) return;
+          const fingerprint = fingerprintReasonAIContext(buildReasonAIContext(diagram, saved!.title));
+          if (fingerprint === receipt.baseFingerprint) { localStorage.removeItem(key); return; }
+          if (fingerprint !== receipt.payload!.postFingerprint) return;
+          await acknowledgeReasonAIProposal(receipt.conversationId!, receipt.payload as Record<string, unknown>);
+          localStorage.removeItem(key);
+        })
+          .catch(() => undefined)
+          .finally(() => receiptRecoveryInFlight.current.delete(key));
+      } catch { /* Keep malformed receipts untouched for manual diagnosis. */ }
+    }
+  }, [problem, repository, state.document, state.loadStatus]);
   const [previewBriefOpen, setPreviewBriefOpen] = useState(true);
   const [showGrid, setShowGrid] = useState(true);
   const [snapToGrid, setSnapToGrid] = useState(true);
@@ -1488,15 +1523,98 @@ export function SystemDesignWorkspace({
             if (latest && reasonAIAnalysisScope(latest) === scope) setReasonAIAnalysis({ visualization, scope });
           }}
           onClearAnalysis={() => setReasonAIAnalysis(undefined)}
+          onProposalChange={(proposal, metadata) => setReasonAIPreview(proposal ? { diagramId: activeDiagram.id, proposal, refs: metadata?.refs ?? {}, proposalId: metadata?.proposalId, version: metadata?.version, baseFingerprint: metadata?.baseFingerprint } : undefined)}
           canApply={!state.isPreviewMode && (!collaborationActive || realtime.status === "live")}
-          onCommit={(suggestion, refs, position) => {
+          onAcceptAll={async (proposal, proposalId, version, expectedFingerprint, conversationId) => {
+            if (collaborationActive) throw new Error("Accept All is unavailable in live sessions. Review changes individually.");
+            if (!problem) throw new Error("Accept All requires a saved problem diagram. Review changes individually in standalone mode.");
+            const current = stateRef.current;
+            const preview = reasonAIPreview;
+            if (!preview || preview.proposalId !== proposalId || preview.version !== version || preview.baseFingerprint !== expectedFingerprint || JSON.stringify(preview.proposal) !== JSON.stringify(proposal)) {
+              throw new Error("This proposal version is outdated. Refresh the proposal before accepting it.");
+            }
+            const prepared = prepareReasonAIAtomicAcceptance(proposal, current, activeDiagram.id, expectedFingerprint);
+            const action = systemDesignEditorActions.replaceDocument(prepared.document);
+            const next = systemDesignEditorReducer(current, action);
+            if (next === current) throw new Error("The proposal could not be committed.");
+            const postDiagram = next.document.diagrams[activeDiagram.id];
+            const postFingerprint = fingerprintReasonAIContext(buildReasonAIContext(postDiagram, next.document.title));
+            const receipt = { eventId: crypto.randomUUID(), proposalId, version, action: "accept_all", postFingerprint };
+            const receiptKey = `reasonai-proposal-receipt:${problem.id}:${proposalId}`;
+            localStorage.setItem(receiptKey, JSON.stringify({ conversationId, diagramId: activeDiagram.id, baseFingerprint: expectedFingerprint, payload: receipt }));
+            // The offline document is authoritative in this mode. Confirm the
+            // repository round trip before recording a client-reported receipt.
+            try {
+              await repository.saveDocument(next.document);
+              const saved = await repository.getDocument(problem.id);
+              if (!saved || !saved.diagrams[activeDiagram.id] || fingerprintReasonAIContext(buildReasonAIContext(saved.diagrams[activeDiagram.id], saved.title)) !== postFingerprint) {
+                throw new Error("The diagram save could not be verified. No proposal status was changed.");
+              }
+            } catch (error) {
+              localStorage.removeItem(receiptKey);
+              throw error;
+            }
+            stateRef.current = next;
+            dispatch(action);
+            setReasonAIPreview(undefined);
+            try {
+              await acknowledgeReasonAIProposal(conversationId, receipt);
+              localStorage.removeItem(receiptKey);
+            } catch {
+              setUiError("The diagram was saved, but its ReasonAI receipt is pending. Reopen this diagram to retry the receipt.");
+            }
+          }}
+          onDiscard={async (proposalId, version, conversationId) => {
+            if (reasonAIPreview?.proposalId !== proposalId || reasonAIPreview.version !== version) throw new Error("This proposal version is outdated.");
+            await acknowledgeReasonAIProposal(conversationId, { eventId: crypto.randomUUID(), proposalId, version, action: "discard" });
+            setReasonAIPreview(undefined);
+          }}
+          onCommit={(suggestion, refs, operationIndex, position, conversationId) => {
             if (collaborationActive && realtime.status !== "live") throw new Error("Reconnect before making changes.");
             const before = stateRef.current;
-            const center = position ?? canvasRef.current?.getVisibleCenter() ?? { x: 480, y: 320 };
-            const operation = prepareReasonAISuggestion(suggestion, refs, before, activeDiagram.id, center);
+            const preview = reasonAIPreview;
+            const operation = prepareReasonAISuggestion(suggestion, refs, before, activeDiagram.id, position);
             const committed = commitCanvasOperation(operation);
+            if (!collaborationActive && problem && conversationId && preview?.proposalId && preview.version && preview.baseFingerprint) {
+              const postDiagram = stateRef.current.document.diagrams[activeDiagram.id];
+              const postFingerprint = fingerprintReasonAIContext(buildReasonAIContext(postDiagram, stateRef.current.document.title));
+              const receipt = { eventId: crypto.randomUUID(), proposalId: preview.proposalId, version: preview.version, action: "accept_item", operationIndex, postFingerprint,
+                ...(suggestion.op === "add_node" && committed.kind === "node.add" ? { realNodeId: committed.node.id } : {}) };
+              const receiptKey = `reasonai-proposal-receipt:${problem.id}:${preview.proposalId}:${operationIndex}`;
+              localStorage.setItem(receiptKey, JSON.stringify({ conversationId, diagramId: activeDiagram.id,
+                baseFingerprint: fingerprintReasonAIContext(buildReasonAIContext(before.document.diagrams[activeDiagram.id], before.document.title)), payload: receipt }));
+              const snapshot = stateRef.current.document;
+              void repository.saveDocument(snapshot).then(async () => {
+                const saved = await repository.getDocument(problem.id);
+                if (!saved?.diagrams[activeDiagram.id] || fingerprintReasonAIContext(buildReasonAIContext(saved.diagrams[activeDiagram.id], saved.title)) !== postFingerprint) return;
+                await acknowledgeReasonAIProposal(conversationId, receipt);
+                localStorage.removeItem(receiptKey);
+              }).catch(() => setUiError("The change was applied locally, but its ReasonAI receipt is pending. Reopen this diagram to retry."));
+            }
+            setReasonAIPreview((current) => {
+              if (!current || current.diagramId !== activeDiagram.id) return current;
+              const index = current.proposal.operations.findIndex((item) => JSON.stringify(item) === JSON.stringify(suggestion));
+              if (index < 0) return current;
+              const operations = current.proposal.operations.filter((_, itemIndex) => itemIndex !== index);
+              if (!operations.length) return undefined;
+              const nextRefs = { ...current.refs };
+              if (suggestion.op === "add_node" && committed.kind === "node.add") nextRefs[suggestion.ref] = committed.node.id;
+              return { ...current, proposal: { ...current.proposal, operations }, refs: nextRefs };
+            });
             setInspectorTab("properties");
             return captureReasonAIAction(committed, before, stateRef.current);
+          }}
+          onDismiss={async (suggestion, operationIndex, conversationId) => {
+            const preview = reasonAIPreview;
+            if (!conversationId || !preview?.proposalId || !preview.version) throw new Error("Wait for this proposal to finish saving.");
+            await acknowledgeReasonAIProposal(conversationId, { eventId: crypto.randomUUID(), proposalId: preview.proposalId, version: preview.version, action: "dismiss_item", operationIndex });
+            setReasonAIPreview((current) => {
+              if (!current || current.proposalId !== preview.proposalId) return current;
+              const item = current.proposal.operations.findIndex((op) => JSON.stringify(op) === JSON.stringify(suggestion));
+              if (item < 0) return current;
+              const operations = current.proposal.operations.filter((_, index) => index !== item);
+              return operations.length ? { ...current, proposal: { ...current.proposal, operations } } : undefined;
+            });
           }}
           undoUnavailable={(action) => reasonAIUndoUnavailable(action, state, collaborationActive)}
           onUndo={(action) => {
@@ -1586,6 +1704,8 @@ export function SystemDesignWorkspace({
             ref={canvasRef}
             diagram={activeDiagram}
             analysis={activeAnalysis}
+            proposalPreview={reasonAIPreview?.diagramId === activeDiagram.id ? reasonAIPreview.proposal : undefined}
+            proposalRefs={reasonAIPreview?.diagramId === activeDiagram.id ? reasonAIPreview.refs : undefined}
             selectedNodeIds={state.selectedNodeIds}
             selectedEdgeIds={state.selectedEdgeIds}
             preview={state.isPreviewMode}
