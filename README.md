@@ -1,5 +1,7 @@
 # ReasonAI
 
+> **Nebius × NVIDIA hackathon evidence:** [evaluation protocol, verified engineering references, and measured results (when available)](docs/hackathon-evidence/README.md). New live/impact benchmarks are pending; no unverified scores are claimed.
+
 ReasonAI is an **AI-native technical reasoning workspace** for developers, engineering students, and architects. It combines guided DSA learning, AI-assisted system design, a continuously refreshed engineering Knowledge Feed, persistent learning memory, grounded web research, visual reasoning, and live multi-user architecture collaboration across Web and Mobile.
 
 **Live demo:** [https://www.reasonai.tech](https://www.reasonai.tech)
