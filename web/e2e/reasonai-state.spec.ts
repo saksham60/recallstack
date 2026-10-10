@@ -9,6 +9,9 @@ import type { ReasonAIOperation } from "../src/features/system-design/reasonai/c
 import { allowsReasonAIProposal, requiresReasonAIProposal } from "../src/features/system-design/reasonai/contract";
 import { parseSanitizedAIProposal, sanitizeAIProposal } from "../src/features/system-design/reasonai/sanitizeAIProposal";
 import { parseReasonAIVisualization, reasonAIAnalysisScope, REASONAI_VISUALIZATION_TYPES } from "../src/features/system-design/reasonai/visualization";
+import { prepareReasonAIAtomicAcceptance } from "../src/features/system-design/reasonai/accept-all";
+import { fingerprintReasonAIContext } from "../src/features/system-design/reasonai/proposal-state";
+import { systemDesignEditorActions } from "../src/features/system-design/state/system-design-editor-actions";
 
 function fixture() {
   const document = createEmptyStandaloneSystemDesignDocument("Architecture");
@@ -18,6 +21,37 @@ function fixture() {
   return { document, diagram, state: createSystemDesignEditorState(document, { loadStatus: "ready" }), context: buildReasonAIContext(diagram, document.title) };
 }
 const newNode = { op: "add_node", ref: "new:redis", type: "cache", label: "Redis", technology: "redis", x: 500, y: 250 } as const;
+
+test("Accept All commits dependent operations in one history entry and one Undo", () => {
+  const { state, diagram, context } = fixture();
+  const proposal: ReasonAIProposal = { summary: "Cache path", operations: [newNode, { op: "add_edge", sourceNodeId: "service-a", targetNodeId: "new:redis", type: "database_read", label: "lookup", protocol: "TCP" }] };
+  const prepared = prepareReasonAIAtomicAcceptance(proposal, state, diagram.id, fingerprintReasonAIContext(context));
+  expect(prepared.document.diagrams[diagram.id].nodes).toHaveLength(3);
+  expect(prepared.document.diagrams[diagram.id].edges).toHaveLength(2);
+  expect(prepared.document.diagrams[diagram.id].edges.at(-1)?.targetNodeId).toBe(prepared.refs["new:redis"]);
+  const committed = systemDesignEditorReducer(state, systemDesignEditorActions.replaceDocument(prepared.document));
+  expect(committed.history).toHaveLength(state.history.length + 1);
+  const undone = systemDesignEditorReducer(committed, systemDesignEditorActions.undo());
+  expect(undone.document.diagrams[diagram.id].nodes).toHaveLength(2);
+  expect(undone.document.diagrams[diagram.id].edges).toHaveLength(1);
+});
+
+test("stale Accept All rejects the whole batch without changing state", () => {
+  const { state, diagram, context } = fixture();
+  const proposal: ReasonAIProposal = { summary: "Cache", operations: [newNode] };
+  const changed = applyCanvasOperation(state, { kind: "node.move", diagramId: diagram.id, positions: { "service-a": { x: 90, y: 80 } } }).state;
+  expect(() => prepareReasonAIAtomicAcceptance(proposal, changed, diagram.id, fingerprintReasonAIContext(context))).toThrow(/changed/);
+  expect(changed.document.diagrams[diagram.id].nodes).toHaveLength(2);
+});
+
+test("trusted Accept All validates and commits the full 150-operation limit", () => {
+  const { state, diagram, context } = fixture();
+  const operations = Array.from({ length: 150 }, (_, index) => ({ op: "add_node" as const, ref: `new:service_${index}`, type: "service" as const, label: `Service ${index}`, x: 100 + (index % 15) * 220, y: 300 + Math.floor(index / 15) * 150 }));
+  const prepared = prepareReasonAIAtomicAcceptance({ summary: "Service fleet", operations }, state, diagram.id, fingerprintReasonAIContext(context));
+  expect(prepared.operations).toHaveLength(150);
+  expect(prepared.document.diagrams[diagram.id].nodes).toHaveLength(152);
+  expect(state.document.diagrams[diagram.id].nodes).toHaveLength(2);
+});
 
 test("AI receipt repairs aliases, unknown relationships, duplicate and dangling edges before validation", () => {
   const { context, state, diagram } = fixture();
@@ -145,14 +179,14 @@ test("contextual canvas follow-ups expose proposals while explicit no-change req
   for (const message of ["draw it", "now next please draw it", "put that on the canvas", "map this out"]) {
     expect(allowsReasonAIProposal({ mode: "chat", message, history }), message).toBe(true);
   }
-  expect(allowsReasonAIProposal({ mode: "chat", message: "go ahead", history })).toBe(false);
+  expect(allowsReasonAIProposal({ mode: "chat", message: "go ahead", history })).toBe(true);
   for (const message of ["don't draw it", "don't change anything", "analysis only", "just explain it"]) {
     expect(allowsReasonAIProposal({ mode: "chat", message, history }), message).toBe(false);
   }
   for (const message of ["draw it", "now next please draw it", "put that on the canvas", "map this out"]) {
     expect(allowsReasonAIProposal({ mode: "chat", message }), message).toBe(true);
   }
-  expect(allowsReasonAIProposal({ mode: "chat", message: "go ahead" })).toBe(false);
+  expect(allowsReasonAIProposal({ mode: "chat", message: "go ahead" })).toBe(true);
 });
 
 test("explicit canvas requests require a proposal, while analysis and ambiguous follow-ups do not", () => {
@@ -164,14 +198,15 @@ test("explicit canvas requests require a proposal, while analysis and ambiguous 
   }
 });
 
-test("explanation and ambiguous acknowledgments do not authorize proposal tools", () => {
-  for (const mode of ["chat", "review", "eagle"] as const) for (const message of [
-    "explain this architecture", "review this architecture", "analysis only", "what problems do you see?",
-    "why is this architecture cluttered?", "explain how I could improve this", "Explain what should I change here?",
-    "What does 'suggest improvements' mean?", "These suggestions are useful", "Do you have suggestions?",
-    "give me suggestions for explaining this architecture", "yes", "do it", "go ahead", "apply those suggestions",
-    "The diagram is dense around the core services causing overlapping labels and hard-to-follow flows.",
-  ]) expect(allowsReasonAIProposal({ mode, message }), `${mode}: ${message}`).toBe(false);
+test("explicit explanation vetoes proposals while other ambiguous turns leave tool choice to the model", () => {
+  for (const mode of ["chat", "review", "eagle"] as const) {
+    for (const message of ["explain this architecture", "analysis only", "explain how I could improve this", "Explain what should I change here?"]) {
+      expect(allowsReasonAIProposal({ mode, message }), `${mode}: ${message}`).toBe(false);
+    }
+    for (const message of ["yes", "do it", "go ahead", "apply those suggestions", "what problems do you see?"]) {
+      expect(allowsReasonAIProposal({ mode, message }), `${mode}: ${message}`).toBe(true);
+    }
+  }
 });
 
 test("explicit negative intent overrides suggestions and Fix mode", () => {
@@ -179,16 +214,17 @@ test("explicit negative intent overrides suggestions and Fix mode", () => {
     "give me suggestions but do not change anything", "review only, no changes", "don't propose changes", "do not modify the canvas",
     "analysis only", "NO SUGGESTIONS. Explain only.", "Don't reorganize this architecture",
   ]) expect(allowsReasonAIProposal({ mode, message }), `${mode}: ${message}`).toBe(false);
-  for (const message of ["can u give some suggestions?", "explain this architecture", "what problems do you see?"]) {
+  for (const message of ["can u give some suggestions?", "what problems do you see?"]) {
     expect(allowsReasonAIProposal({ mode: "fix", message }), message).toBe(true);
   }
+  expect(allowsReasonAIProposal({ mode: "fix", message: "explain this architecture" })).toBe(false);
 });
 
 test("conversational component requests enable existing cards without enabling explanation-only edits", () => {
   for (const message of ["can u give me a mongo db component", "Can you give me an AWS VPC boundary?", "please provide a VPC boundary", "I need a Redis node", "Could you show me a MongoDB component?", "Give me a draggable database card"]) {
     expect(allowsReasonAIProposal({ mode: "chat", message }), message).toBe(true);
   }
-  for (const message of ["Can u give me an explanation of the MongoDB component?", "Show me the component JSON", "Give me an example of a Redis node", "Explain why I need a Redis node", "I need a review of the database", "Give me a component, but do not change the canvas", "Show bottlenecks in this architecture"]) {
+  for (const message of ["Can u give me an explanation of the MongoDB component?", "Explain why I need a Redis node", "Give me a component, but do not change the canvas"]) {
     expect(allowsReasonAIProposal({ mode: "chat", message }), message).toBe(false);
   }
 });

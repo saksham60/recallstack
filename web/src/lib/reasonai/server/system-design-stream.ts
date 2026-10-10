@@ -7,6 +7,7 @@ import type { ReasonAIKnownEvent } from "@/lib/reasonai/runtime/events";
 import { streamSystemDesignGraph } from "./langgraph/system-design/graph";
 import type { SystemDesignDurableConversationState } from "./langgraph/system-design/state";
 import type { SystemDesignToolExecutor } from "./langgraph/system-design/tools";
+import { fingerprintReasonAIContext } from "@/features/system-design/reasonai/proposal-state";
 
 export interface SystemDesignStreamExecution {
   durableState: SystemDesignDurableConversationState;
@@ -39,13 +40,20 @@ export async function* streamSystemDesignEvents(
   const { runId, messageId } = execution;
   const started = Date.now();
   const partId = crypto.randomUUID();
+  const currentFingerprint = fingerprintReasonAIContext(input.context);
+  const previous = execution.durableState.pendingProposal;
+  const canRevise = previous?.diagramId === (input.context.diagramId ?? "") && (previous.lastReportedFingerprint ?? previous.baseFingerprint) === currentFingerprint;
+  const proposalId = canRevise ? previous.proposalId : crypto.randomUUID();
+  const baseFingerprint = canRevise ? previous.baseFingerprint : currentFingerprint;
   let seq = 0;
   let activeTool: { toolCallId: string; toolName: string; started: number } | undefined;
   let toolAttempt = 0;
   let proposalEmitted = false;
+  let proposalVersion = canRevise ? previous.version : 0;
   let analysisEmitted = false;
   let sourcesEmitted = false;
   let completedModel: ReasonAIResponse["model"];
+  let taskOutcome: ReasonAIResponse["outcome"];
   yield { protocolVersion: 1, runId, seq: ++seq, type: "run.started" };
   try {
     let receivedResult = false;
@@ -70,7 +78,7 @@ export async function* streamSystemDesignEvents(
         continue;
       }
       if (event.type === "tool.completed" || event.type === "tool.failed") {
-        console.info(`reasonai.${event.type}`, { runId, feature: "system-design", route: "/api/reasonai/chat", toolName: activeTool?.toolName ?? "unknown", attempt: toolAttempt, durationMs: activeTool ? Date.now() - activeTool.started : 0, ...(event.type === "tool.failed" ? { errorCode: "TOOL_FAILED" } : {}) });
+        console.info(`reasonai.${event.type}`, { runId, feature: "system-design", route: "/api/reasonai/chat", toolName: activeTool?.toolName ?? "unknown", attempt: toolAttempt, durationMs: activeTool ? Date.now() - activeTool.started : 0, ...(event.type === "tool.failed" ? { errorCode: event.code ?? "recoverable" } : {}) });
         if (activeTool?.toolCallId === event.toolCallId) activeTool = undefined;
         yield { protocolVersion: 1, runId, seq: ++seq, type: event.type, messageId, toolCallId: event.toolCallId, summary: event.summary };
         continue;
@@ -91,6 +99,7 @@ export async function* streamSystemDesignEvents(
       }
       if (event.type === "proposal") {
         proposalEmitted = true;
+        proposalVersion++;
         yield {
           protocolVersion: 1,
           runId,
@@ -98,9 +107,10 @@ export async function* streamSystemDesignEvents(
           type: "artifact.proposal",
           messageId,
           partId: `${partId}-proposal`,
-          proposalId: crypto.randomUUID(),
+          proposalId,
+          proposalVersion,
           data: event.proposal,
-          ...(input.context.diagramId ? { baseArtifactFingerprint: `diagram:${input.context.diagramId}` } : {}),
+          baseArtifactFingerprint: baseFingerprint,
           touchedEntities: touchedEntities(event.proposal),
         };
         continue;
@@ -112,13 +122,15 @@ export async function* streamSystemDesignEvents(
       }
       receivedResult = true;
       completedModel = event.result.model;
+      taskOutcome = event.result.outcome;
       execution.onFinalResult?.(event.result);
-      yield { protocolVersion: 1, runId, seq: ++seq, type: "text.final", messageId, partId, text: event.result.text, ...(event.result.model ? { model: event.result.model } : {}) };
+      yield { protocolVersion: 1, runId, seq: ++seq, type: "text.final", messageId, partId, text: event.result.text, ...(event.result.model ? { model: event.result.model } : {}), ...(event.result.outcome ? { outcome: event.result.outcome } : {}) };
       if (!proposalEmitted && event.result.proposal) {
+        proposalVersion++;
         yield {
           protocolVersion: 1, runId, seq: ++seq, type: "artifact.proposal", messageId,
-          partId: `${partId}-proposal`, proposalId: crypto.randomUUID(), data: event.result.proposal,
-          ...(input.context.diagramId ? { baseArtifactFingerprint: `diagram:${input.context.diagramId}` } : {}),
+          partId: `${partId}-proposal`, proposalId, proposalVersion, data: event.result.proposal,
+          baseArtifactFingerprint: baseFingerprint,
           touchedEntities: touchedEntities(event.result.proposal),
         };
       }
@@ -136,7 +148,7 @@ export async function* streamSystemDesignEvents(
     }
     if (!receivedResult) throw new ReasonAIProviderError("ReasonAI could not complete that response. Please try again.");
     // Model metadata comes from graph state, never from provider text.
-    console.info("reasonai.run.completed", { runId, feature: "system-design", route: "/api/reasonai/chat", durationMs: Date.now() - started, modelPreference: input.modelPreference ?? "auto", modelsUsed: completedModel?.modelsUsed, finalModel: completedModel?.finalModel });
+    console.info("reasonai.run.completed", { runId, feature: "system-design", route: "/api/reasonai/chat", durationMs: Date.now() - started, taskOutcome, modelPreference: input.modelPreference ?? "auto", modelsUsed: completedModel?.modelsUsed, finalModel: completedModel?.finalModel });
     yield { protocolVersion: 1, runId, seq: ++seq, type: "run.completed" };
   } catch (error) {
     if (activeTool) console.error("reasonai.tool.failed", { runId, feature: "system-design", route: "/api/reasonai/chat", toolName: activeTool.toolName, attempt: toolAttempt, durationMs: Date.now() - activeTool.started, errorCode: signal.aborted ? "TOOL_CANCELLED" : "TOOL_EXECUTION_FAILED" });

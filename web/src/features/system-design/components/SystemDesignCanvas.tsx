@@ -2,6 +2,8 @@
 
 import { REASONAI_NODE_DRAG_MIME } from "../reasonai/suggestions";
 import { ReasonAIAnalysisLayer } from "../reasonai/ReasonAIAnalysisLayer";
+import { ReasonAIGhostLayer } from "../reasonai/ReasonAIGhostLayer";
+import type { ReasonAIProposal } from "../reasonai/contract";
 import type { ReasonAIVisualization } from "../reasonai/visualization";
 
 import {
@@ -124,6 +126,8 @@ export interface SystemDesignCanvasHandle {
 
 interface SystemDesignCanvasProps {
   analysis?: ReasonAIVisualization;
+  proposalPreview?: ReasonAIProposal;
+  proposalRefs?: Readonly<Record<string, string>>;
   diagram: SystemDesignDiagram;
   selectedNodeIds: string[];
   selectedEdgeIds: string[];
@@ -220,6 +224,8 @@ export const SystemDesignCanvas = forwardRef<
 >(function SystemDesignCanvas(
   {
     analysis,
+    proposalPreview,
+    proposalRefs,
     diagram,
     selectedNodeIds,
     selectedEdgeIds,
@@ -1978,6 +1984,7 @@ export const SystemDesignCanvas = forwardRef<
               />
             ))}
           </Layer>
+          {proposalPreview && <Layer listening={false}><ReasonAIGhostLayer proposal={proposalPreview} diagram={diagram} refs={proposalRefs} /></Layer>}
           <Layer ref={interactionLayerRef} listening={!spacePanning}>
             {analysis && <ReasonAIAnalysisLayer visualization={analysis} diagram={{ ...diagram, nodes: visibleNodes }} nodeRefs={nodeRefs} theme={theme} />}
             {remoteStrokePreviews.map((stroke) => (

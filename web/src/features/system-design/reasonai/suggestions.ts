@@ -27,6 +27,7 @@ export function resolveReasonAISuggestion(op: ReasonAIOperation, refs: ReasonAIR
     ...(op.sourceNodeId ? { sourceNodeId: resolve(op.sourceNodeId) } : {}),
     ...(op.targetNodeId ? { targetNodeId: resolve(op.targetNodeId) } : {}),
   };
+  if ("nodeId" in op) return { ...op, nodeId: resolve(op.nodeId) };
   return op;
 }
 

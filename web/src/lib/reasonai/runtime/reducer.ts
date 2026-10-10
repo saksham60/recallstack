@@ -196,7 +196,10 @@ export function reduceReasonAIEvent(state: ReasonAIRuntimeState, event: ReasonAI
       return advance(state, event, updateAssistantMessage(
         updateText(state.messages, event.messageId, event.partId, event.text, true),
         event.messageId,
-        (message) => event.model ? { ...message, model: event.model } : message,
+        (message) => ({ ...message,
+          ...(event.model ? { model: event.model } : {}),
+          ...(event.outcome ? { parts: message.parts.map((part) => part.type === "text" && part.partId === event.partId ? { ...part, outcome: event.outcome } : part) } : {}),
+        }),
       ));
     case "tool.started":
       return advance(state, event, startTool(state.messages, event.messageId, event.toolCallId, event.toolName, event.summary));
@@ -229,6 +232,7 @@ export function reduceReasonAIEvent(state: ReasonAIRuntimeState, event: ReasonAI
         type: "artifact",
         partId: event.partId,
         proposalId: event.proposalId,
+        ...(event.proposalVersion === undefined ? {} : { proposalVersion: event.proposalVersion }),
         status: "proposed",
         data: event.data,
         ...(event.baseArtifactFingerprint === undefined ? {} : { baseArtifactFingerprint: event.baseArtifactFingerprint }),

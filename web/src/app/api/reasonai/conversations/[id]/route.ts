@@ -1,6 +1,7 @@
 import { getReasonAIPersistenceRequestContext } from "@/lib/reasonai/server/persistence/request-context";
 import { deleteReasonAIConversation } from "@/lib/reasonai/server/persistence/delete-conversation";
 import { isReasonAIUUID, ReasonAIPersistenceError } from "@/lib/reasonai/server/persistence/types";
+import { parseSystemDesignDurableConversationState } from "@/lib/reasonai/server/langgraph/system-design/state";
 
 export const runtime = "nodejs";
 const reply = (body: unknown, status = 200) => Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
@@ -13,7 +14,11 @@ export async function GET(request: Request, { params }: Context) {
   if (context instanceof Response) return context;
   try {
     const conversation = await context.repository.getConversation(context.userId, id);
-    return conversation ? reply({ conversation }) : reply({ error: "Conversation not found." }, 404);
+    if (!conversation) return reply({ error: "Conversation not found." }, 404);
+    if (conversation.surface !== "system_design") return reply({ conversation });
+    const stored = await context.repository.getConversationState(context.userId, id);
+    const state = stored ? parseSystemDesignDurableConversationState(stored.state) : undefined;
+    return reply({ conversation, state, stateVersion: stored?.stateVersion });
   } catch (error) {
     return error instanceof ReasonAIPersistenceError
       ? reply({ error: error.message, code: error.code }, 503)

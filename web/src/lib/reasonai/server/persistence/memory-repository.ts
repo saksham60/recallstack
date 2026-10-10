@@ -9,9 +9,12 @@ import type {
   ReasonAIPersistenceRepository,
   ReasonAISurface,
   RunAcquisition,
+  ReasonAIProposalTransition,
+  ReasonAIProposalTransitionResult,
 } from "./types";
 import { isRunLeaseExpired, RUN_LEASE_EXPIRED_CODE } from "./lease";
 import { parseDSADurableConversationState } from "../langgraph/dsa/state";
+import { parseSystemDesignDurableConversationState } from "../langgraph/system-design/state";
 import type { PersistedReasonAIConversationState } from "./types";
 
 interface OwnedConversation extends ReasonAIConversationSummary { userId: string }
@@ -25,6 +28,7 @@ export class MemoryReasonAIPersistenceRepository implements ReasonAIPersistenceR
   private readonly messages = new Map<string, StoredMessage>();
   private readonly runs = new Map<string, PersistedReasonAIRun>();
   private readonly states = new Map<string, PersistedReasonAIConversationState>();
+  private readonly proposalEvents = new Map<string, { conversationId: string; input: ReasonAIProposalTransition; result: ReasonAIProposalTransitionResult }>();
   private ordinal = 0;
 
   constructor(private readonly now: () => Date = () => new Date()) {}
@@ -76,12 +80,52 @@ export class MemoryReasonAIPersistenceRepository implements ReasonAIPersistenceR
     return state ? clone(state) : undefined;
   }
 
+  async transitionProposal(userId: string, conversationId: string, input: ReasonAIProposalTransition): Promise<ReasonAIProposalTransitionResult | undefined> {
+    const conversation = this.owned(userId, conversationId);
+    if (!conversation || conversation.surface !== "system_design") return;
+    const priorEvent = this.proposalEvents.get(input.eventId);
+    if (priorEvent) {
+      if (priorEvent.conversationId !== conversationId || JSON.stringify({ ...priorEvent.input, expectedStateVersion: undefined }) !== JSON.stringify({ ...input, expectedStateVersion: undefined })) throw new Error("Proposal event ID was reused.");
+      return { ...priorEvent.result, duplicate: true };
+    }
+    const stored = this.states.get(conversationId);
+    if (!stored || stored.stateVersion !== input.expectedStateVersion) throw new Error("Stale proposal transition.");
+    if ([...this.runs.values()].some((run) => run.conversationId === conversationId && run.status === "running")) throw new Error("Proposal transition conflicts with an active run.");
+    const state = parseSystemDesignDurableConversationState(stored.state);
+    const pending = state.pendingProposal;
+    if (!pending || pending.proposalId !== input.proposalId || pending.version !== input.version || !["pending", "partially_accepted"].includes(pending.status)) throw new Error("Stale proposal transition.");
+    if (input.action === "discard") pending.status = "discarded";
+    else if (input.action === "accept_all") {
+      if (!input.postFingerprint || pending.acceptedOperationIds.length || pending.dismissedOperationIds.length) throw new Error("Invalid accept-all transition.");
+      pending.acceptedOperationIds = [...pending.operationIds];
+      pending.status = "accepted";
+      pending.lastReportedFingerprint = input.postFingerprint;
+    } else {
+      if (!input.operationId || !pending.operationIds.includes(input.operationId) || pending.acceptedOperationIds.includes(input.operationId) || pending.dismissedOperationIds.includes(input.operationId)) throw new Error("Invalid item transition.");
+      if (input.action === "accept_item") {
+        if (!input.postFingerprint) throw new Error("Missing post-commit fingerprint.");
+        pending.acceptedOperationIds.push(input.operationId);
+        pending.lastReportedFingerprint = input.postFingerprint;
+        if (input.ref && input.realNodeId) pending.refMappings[input.ref] = input.realNodeId;
+      } else pending.dismissedOperationIds.push(input.operationId);
+      pending.status = pending.acceptedOperationIds.length + pending.dismissedOperationIds.length === pending.operationIds.length
+        ? pending.acceptedOperationIds.length ? "accepted" : "discarded" : "partially_accepted";
+    }
+    stored.state = parseSystemDesignDurableConversationState(state);
+    stored.stateVersion++;
+    stored.updatedAt = this.timestamp();
+    const result = { stateVersion: stored.stateVersion, status: pending.status, duplicate: false };
+    this.proposalEvents.set(input.eventId, { conversationId, input: clone(input), result });
+    return clone(result);
+  }
+
   async deleteConversation(userId: string, conversationId: string) {
     if (!this.owned(userId, conversationId)) return false;
     this.conversations.delete(conversationId);
     for (const [id, message] of this.messages) if (message.conversationId === conversationId) this.messages.delete(id);
     for (const [id, run] of this.runs) if (run.conversationId === conversationId) this.runs.delete(id);
     this.states.delete(conversationId);
+    for (const [id, event] of this.proposalEvents) if (event.conversationId === conversationId) this.proposalEvents.delete(id);
     return true;
   }
 
@@ -129,7 +173,9 @@ export class MemoryReasonAIPersistenceRepository implements ReasonAIPersistenceR
     if (run.status !== "running") return clone(run);
     if (input.status === "completed") {
       if (input.nextConversationState === undefined) throw new Error("Completed runs require conversation state.");
-      parseDSADurableConversationState(input.nextConversationState);
+      const surface = this.conversations.get(conversationId)?.surface;
+      if (surface === "system_design") parseSystemDesignDurableConversationState(input.nextConversationState);
+      else parseDSADurableConversationState(input.nextConversationState);
     } else if (input.nextConversationState !== undefined) {
       throw new Error("Non-completed runs cannot advance conversation state.");
     }

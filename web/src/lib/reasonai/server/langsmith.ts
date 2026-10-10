@@ -149,7 +149,10 @@ export async function traceTool<T>(name: string, input: unknown, execute: () => 
   return activeRun.run(span.run, async () => {
     try {
       const result = await execute();
-      span.finish({ result });
+      if (result && typeof result === "object" && "ok" in result && result.ok === false) {
+        const code = "code" in result && typeof result.code === "string" ? result.code : "tool_failed";
+        span.finish({ status: "failed", code }, code);
+      } else span.finish({ result });
       return result;
     } catch (error) {
       span.finish({ status: "failed" }, error instanceof Error ? error.name : "unknown");

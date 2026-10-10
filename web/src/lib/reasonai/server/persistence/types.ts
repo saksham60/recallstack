@@ -63,12 +63,27 @@ export interface FinalizeRunInput {
   nextConversationState?: unknown;
 }
 
+export interface ReasonAIProposalTransition {
+  eventId: string;
+  proposalId: string;
+  version: number;
+  expectedStateVersion: number;
+  action: "accept_all" | "accept_item" | "dismiss_item" | "discard";
+  operationId?: string;
+  ref?: string;
+  realNodeId?: string;
+  postFingerprint?: string;
+}
+
+export interface ReasonAIProposalTransitionResult { stateVersion: number; status: string; duplicate: boolean }
+
 export interface ReasonAIPersistenceRepository {
   createConversation(userId: string, input: { surface: ReasonAISurface; contextId?: string; title?: string }): Promise<ReasonAIConversationSummary>;
   listConversations(userId: string, filter: { surface?: ReasonAISurface; contextId?: string; limit: number }): Promise<ReasonAIConversationSummary[]>;
   getConversationSummary(userId: string, conversationId: string): Promise<ReasonAIConversationSummary | undefined>;
   getConversation(userId: string, conversationId: string): Promise<ReasonAIConversation | undefined>;
   getConversationState(userId: string, conversationId: string): Promise<PersistedReasonAIConversationState | undefined>;
+  transitionProposal(userId: string, conversationId: string, input: ReasonAIProposalTransition): Promise<ReasonAIProposalTransitionResult | undefined>;
   deleteConversation(userId: string, conversationId: string): Promise<boolean>;
   acquireRun(userId: string, conversationId: string, idempotencyKey: string): Promise<RunAcquisition>;
   createMessage(userId: string, input: Omit<PersistedReasonAIMessage, "createdAt">): Promise<PersistedReasonAIMessage>;

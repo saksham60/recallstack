@@ -11,6 +11,8 @@ import { isReasonAIDSAStreamingEnabled, isReasonAISystemDesignStreamingEnabled }
 import type { ReasonAIResponse } from "../src/features/system-design/reasonai/contract";
 import { parseReasonAISources } from "../src/features/system-design/reasonai/sources";
 import { ReasonAISources } from "../src/features/system-design/reasonai/ReasonAISources";
+import { allowsReasonAIProposal, parseReasonAIProposal } from "../src/features/system-design/reasonai/contract";
+import { createPendingReasonAIProposal, fingerprintReasonAIContext, layoutReasonAIProposal, remainingReasonAIProposal } from "../src/features/system-design/reasonai/proposal-state";
 
 const request: ReasonAIRequest = {
   mode: "chat",
@@ -89,6 +91,195 @@ function execution(provider: SystemDesignAgentProvider, toolExecutor?: SystemDes
   };
 }
 
+test("conversational requests offer proposals while current-turn no-change instructions veto them", () => {
+  for (const message of ["## Task\nAdd Redis", "Architecture repair: add a CDN", "Now add a queue.", "Yes, go ahead", "Okay, fix that."]) {
+    expect(allowsReasonAIProposal({ mode: "review", message })).toBe(true);
+  }
+  expect(allowsReasonAIProposal({ mode: "fix", message: "Just explain. Don't change anything." })).toBe(false);
+  expect(allowsReasonAIProposal({ mode: "review", message: "Don't touch authentication, but add Redis." })).toBe(true);
+});
+
+test("a repeated denied proposal terminates without spending four tool rounds", async () => {
+  const received: SystemDesignAgentRoundInput[] = [];
+  let executions = 0;
+  const denied: SystemDesignToolExecutor = { async execute(call) {
+    executions++;
+    return { ok: false, reason: "not_authorized", message: { role: "tool", tool_call_id: call.id, content: '{"ok":false,"error":"not_authorized"}' } };
+  } };
+  const events = [];
+  for await (const event of streamSystemDesignEvents({ ...request, message: "Repair the architecture." }, new AbortController().signal, execution(scripted([
+    tool("propose_canvas_changes", { summary: "Add Redis", operations: [{ op: "add_node", ref: "new:redis", type: "cache", label: "Redis", x: 10, y: 10 }] }),
+    tool("propose_canvas_changes", { summary: "Add Redis", operations: [{ op: "add_node", ref: "new:redis", type: "cache", label: "Redis", x: 10, y: 10 }] }),
+  ], received), denied))) events.push(event);
+  expect(executions).toBe(1);
+  expect(received.length).toBeLessThanOrEqual(2);
+  expect(events.find((event) => event.type === "text.final")).toMatchObject({ text: expect.stringContaining("blocked") });
+  expect(events.at(-1)?.type).toBe("run.completed");
+});
+
+test("proposal batches accumulate and later batches resolve earlier pending nodes", async () => {
+  const first = { summary: "Gateway and cache", operations: [
+    { op: "add_node", ref: "new:gateway", type: "service", label: "Gateway", x: 100, y: 100 },
+    { op: "add_node", ref: "new:redis", type: "cache", label: "Redis", x: 350, y: 100 },
+  ] };
+  const second = { summary: "Connect the gateway to the cache", operations: [
+    { op: "add_edge", type: "http_request", sourceNodeId: "new:gateway", targetNodeId: "new:redis" },
+  ] };
+  const events = [];
+  let durable;
+  for await (const event of streamSystemDesignGraph({ ...request, message: "Build a gateway and cache." }, {
+    ...execution(scripted([tool("propose_canvas_changes", first), tool("propose_canvas_changes", second), final("The connected proposal is ready to review.")])),
+    onConversationState: (state) => { durable = state; },
+  })) events.push(event);
+  const proposals = events.filter((event) => event.type === "proposal");
+  expect(proposals).toHaveLength(2);
+  expect(proposals.at(-1)).toMatchObject({ proposal: { operations: [{ op: "add_node" }, { op: "add_node" }, { op: "add_edge", sourceNodeId: "new:gateway", targetNodeId: "new:redis" }] } });
+  expect(durable).toMatchObject({ pendingProposal: { version: 2, status: "pending", operationIds: [expect.any(String), expect.any(String), expect.any(String)] } });
+});
+
+test("proposal versions retain IDs for unchanged operations and content fingerprints detect changes", () => {
+  const proposal = { summary: "Gateway", operations: [{ op: "add_node" as const, ref: "new:gateway", type: "service" as const, label: "Gateway", x: 100, y: 100 }] };
+  const first = createPendingReasonAIProposal(proposal, request.context);
+  const second = createPendingReasonAIProposal({ ...proposal, summary: "Gateway revised" }, request.context, first);
+  expect(second.proposalId).toBe(first.proposalId);
+  expect(second.version).toBe(2);
+  expect(second.operationIds).toEqual(first.operationIds);
+  expect(fingerprintReasonAIContext({ ...request.context, nodes: request.context.nodes.map((node) => node.id === "api" ? { ...node, x: node.x + 1 } : node) })).not.toBe(first.baseFingerprint);
+});
+
+test("proposal discard is durable, idempotent, and rejects outdated versions", async () => {
+  const repository = new MemoryReasonAIPersistenceRepository();
+  const user = crypto.randomUUID();
+  const conversation = await repository.createConversation(user, { surface: "system_design", contextId: request.context.diagramId });
+  const acquired = await repository.acquireRun(user, conversation.id, crypto.randomUUID());
+  if (acquired.kind !== "acquired") throw new Error("Expected acquired run");
+  const proposal = createPendingReasonAIProposal({ summary: "Cache", operations: [{ op: "add_node", ref: "new:cache", type: "cache", label: "Cache", x: 100, y: 100 }] }, request.context);
+  await repository.finalizeRun(user, conversation.id, acquired.run.id, { status: "completed", lastSeq: 1, nextConversationState: { ...defaultSystemDesignDurableConversationState(), pendingProposal: proposal } });
+  const before = await repository.getConversationState(user, conversation.id);
+  const input = { eventId: crypto.randomUUID(), proposalId: proposal.proposalId, version: proposal.version, expectedStateVersion: before!.stateVersion, action: "discard" as const };
+  const first = await repository.transitionProposal(user, conversation.id, input);
+  expect(first).toMatchObject({ status: "discarded", duplicate: false });
+  const retried = await repository.transitionProposal(user, conversation.id, { ...input, expectedStateVersion: first!.stateVersion });
+  expect(retried).toMatchObject({ status: "discarded", duplicate: true });
+  expect((await repository.getConversationState(user, conversation.id))?.stateVersion).toBe(first?.stateVersion);
+  await expect(repository.transitionProposal(user, conversation.id, { ...input, eventId: crypto.randomUUID(), expectedStateVersion: first!.stateVersion })).rejects.toThrow(/Stale/);
+});
+
+test("partial acceptance rebases remaining references onto the verified local diagram", () => {
+  const proposal = createPendingReasonAIProposal({ summary: "Cache path", operations: [
+    { op: "add_node", ref: "new:redis", type: "cache", label: "Redis", x: 600, y: 100 },
+    { op: "add_edge", type: "database_read", sourceNodeId: "api", targetNodeId: "new:redis" },
+  ] }, request.context);
+  const actualId = "node_00000000-0000-4000-8000-000000000001";
+  const current = { ...request.context, nodes: [...request.context.nodes, { id: actualId, type: "cache" as const, label: "Redis", subtitle: "", description: "", technology: "", x: 600, y: 100 }] };
+  proposal.acceptedOperationIds = [proposal.operationIds[0]];
+  proposal.refMappings["new:redis"] = actualId;
+  proposal.lastReportedFingerprint = fingerprintReasonAIContext(current);
+  proposal.status = "partially_accepted";
+  const remaining = remainingReasonAIProposal(proposal);
+  expect(remaining.operations).toEqual([{ op: "add_edge", type: "database_read", sourceNodeId: "api", targetNodeId: actualId }]);
+  expect(parseReasonAIProposal(remaining, current, "accumulated").operations).toHaveLength(1);
+  const revised = createPendingReasonAIProposal(remaining, current, proposal);
+  expect(revised.version).toBe(2);
+  expect(revised.baseFingerprint).toBe(proposal.lastReportedFingerprint);
+  expect(revised.operationIds).toEqual([proposal.operationIds[1]]);
+  expect(revised.acceptedOperationIds).toEqual([]);
+});
+
+test("a lost Accept All acknowledgement retries once without advancing proposal state twice", async () => {
+  const repository = new MemoryReasonAIPersistenceRepository();
+  const user = crypto.randomUUID();
+  const conversation = await repository.createConversation(user, { surface: "system_design", contextId: request.context.diagramId });
+  const acquired = await repository.acquireRun(user, conversation.id, crypto.randomUUID());
+  if (acquired.kind !== "acquired") throw new Error("Expected acquired run");
+  const proposal = createPendingReasonAIProposal({ summary: "Cache", operations: [{ op: "add_node", ref: "new:cache", type: "cache", label: "Cache", x: 100, y: 100 }] }, request.context);
+  await repository.finalizeRun(user, conversation.id, acquired.run.id, { status: "completed", lastSeq: 1, nextConversationState: { ...defaultSystemDesignDurableConversationState(), pendingProposal: proposal } });
+  const before = await repository.getConversationState(user, conversation.id);
+  const payload = { eventId: crypto.randomUUID(), proposalId: proposal.proposalId, version: proposal.version, expectedStateVersion: before!.stateVersion, action: "accept_all" as const, postFingerprint: "fnv64:0000000000000001" };
+  const first = await repository.transitionProposal(user, conversation.id, payload);
+  const retried = await repository.transitionProposal(user, conversation.id, { ...payload, expectedStateVersion: first!.stateVersion });
+  expect(first).toMatchObject({ status: "accepted", duplicate: false });
+  expect(retried).toMatchObject({ status: "accepted", duplicate: true, stateVersion: first?.stateVersion });
+  expect((await repository.getConversationState(user, conversation.id))?.stateVersion).toBe(first?.stateVersion);
+});
+
+test("model batches stop at 50, accumulated proposals accept 150 and deterministic layout avoids overlap", () => {
+  const operations = Array.from({ length: 150 }, (_, index) => ({ op: "add_node" as const, ref: `new:service_${index}`, type: "service" as const, label: `Service ${index}`, x: 0, y: 0 }));
+  expect(() => parseReasonAIProposal({ summary: "Services", operations: operations.slice(0, 51) }, request.context)).toThrow();
+  const accumulated = parseReasonAIProposal({ summary: "Services", operations }, request.context, "accumulated");
+  const laidOut = layoutReasonAIProposal(accumulated, request.context);
+  expect(parseReasonAIProposal(laidOut, request.context, "acceptance").operations).toHaveLength(150);
+  const nodes = laidOut.operations.filter((operation) => operation.op === "add_node");
+  expect(new Set(nodes.map((node) => `${node.x}:${node.y}`)).size).toBe(150);
+  expect(layoutReasonAIProposal(accumulated, request.context)).toEqual(laidOut);
+  expect(() => parseReasonAIProposal({ summary: "Too many", operations: [...operations, { ...operations[0], ref: "new:extra" }] }, request.context, "accumulated")).toThrow();
+});
+
+test("pending proposal survives a no-change turn and accepts a later delta revision", async () => {
+  const initial = createPendingReasonAIProposal({ summary: "Gateway", operations: [{ op: "add_node", ref: "new:gateway", type: "service", label: "Gateway", x: 100, y: 100 }] }, request.context);
+  const durableState = parseSystemDesignDurableConversationState({ pendingProposal: initial });
+  let explained;
+  for await (const event of streamSystemDesignGraph({ ...request, message: "Explain the gateway flow. Don't change anything." }, {
+    ...execution(scripted([final("The gateway routes requests to the API.")])), durableState,
+    onConversationState: (state) => { explained = state; },
+  })) { void event; }
+  expect(explained).toMatchObject({ pendingProposal: { proposalId: initial.proposalId, version: 1 } });
+  let revised;
+  for await (const event of streamSystemDesignGraph({ ...request, message: "Now add a queue." }, {
+    ...execution(scripted([tool("propose_canvas_changes", { summary: "Add queue", operations: [{ op: "add_node", ref: "new:queue", type: "message_queue", label: "Queue", x: 0, y: 0 }, { op: "add_edge", type: "async_message", sourceNodeId: "new:gateway", targetNodeId: "new:queue" }] }), final("The queue is ready to review.")])),
+    durableState: explained!, onConversationState: (state) => { revised = state; },
+  })) { void event; }
+  expect(revised).toMatchObject({ pendingProposal: { proposalId: initial.proposalId, version: 2, operationIds: [initial.operationIds[0], expect.any(String), expect.any(String)] } });
+});
+
+for (const streaming of [false, true]) {
+  test(`${streaming ? "streaming" : "non-streaming"} provider rejects an unoffered tool and uses one no-tool correction`, async () => {
+    process.env.NEBIUS_API_KEY = "system-design-agent-key";
+    process.env.REASONAI_BASE_URL = "https://provider.test/v1";
+    const bodies: Array<Record<string, unknown>> = [];
+    globalThis.fetch = async (_url, init) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      if (bodies.length === 1) {
+        const call = { id: "unoffered-proposal", type: "function", function: { name: "propose_canvas_changes", arguments: JSON.stringify({ summary: "Delete DB", operations: [{ op: "delete_node", nodeId: "db" }] }) } };
+        return streaming
+          ? sse([{ choices: [{ delta: { tool_calls: [{ index: 0, ...call }] }, finish_reason: "tool_calls" }] }])
+          : Response.json({ choices: [{ finish_reason: "tool_calls", message: { content: null, tool_calls: [call] } }] });
+      }
+      return Response.json({ choices: [{ finish_reason: "stop", message: { content: "The database is a visible dependency." } }] });
+    };
+    const events = [];
+    for await (const event of streamSystemDesignEvents({ ...request, message: "Analyze only. No canvas changes." }, new AbortController().signal, execution(systemDesignAgentProvider))) events.push(event);
+    expect(bodies).toHaveLength(2);
+    expect(bodies[1].tool_choice).toBe("none");
+    expect(events.some((event) => event.type === "tool.started" || event.type === "artifact.proposal")).toBe(false);
+    expect(events.find((event) => event.type === "text.final")).toMatchObject({ text: "The database is a visible dependency." });
+  });
+}
+
+for (const streaming of [false, true]) {
+  test(`${streaming ? "streaming" : "non-streaming"} preamble is emitted once before a proposal tool`, async () => {
+    process.env.NEBIUS_API_KEY = "system-design-agent-key";
+    process.env.REASONAI_BASE_URL = "https://provider.test/v1";
+    let calls = 0;
+    const preamble = "I'll add a gateway and connect it to the API.";
+    globalThis.fetch = async () => {
+      calls++;
+      if (calls === 1) {
+        const toolCall = { id: "gateway-proposal", type: "function", function: { name: "propose_canvas_changes", arguments: JSON.stringify({ summary: "Gateway", operations: [{ op: "add_node", ref: "new:gateway", type: "service", label: "Gateway", x: 100, y: 100 }, { op: "add_edge", type: "http_request", sourceNodeId: "new:gateway", targetNodeId: "api" }] }) } };
+        return streaming
+          ? sse([{ choices: [{ delta: { content: preamble }, finish_reason: null }] }, { choices: [{ delta: { tool_calls: [{ index: 0, ...toolCall }] }, finish_reason: "tool_calls" }] }])
+          : Response.json({ choices: [{ finish_reason: "tool_calls", message: { content: preamble, tool_calls: [toolCall] } }] });
+      }
+      return Response.json({ choices: [{ finish_reason: "stop", message: { content: "The proposal is ready to review." } }] });
+    };
+    const events = [];
+    for await (const event of streamSystemDesignEvents({ ...request, message: "Draw a gateway." }, new AbortController().signal, execution(systemDesignAgentProvider))) events.push(event);
+    expect(events.filter((event) => event.type === "text.delta").map((event) => event.delta).join("")).toBe(`${preamble}The proposal is ready to review.`);
+    expect(events.findIndex((event) => event.type === "text.delta")).toBeLessThan(events.findIndex((event) => event.type === "tool.started"));
+    expect(events.some((event) => event.type === "artifact.proposal")).toBe(true);
+  });
+}
+
 test("normal System Design chat takes the no-tool fast path", async () => {
   const received: SystemDesignAgentRoundInput[] = [];
   const events = [];
@@ -130,7 +321,7 @@ test("manual tiers resolve exact server model IDs and never offer escalation", a
   }
 });
 
-test("Auto escalates once after search, preserving evidence without another Tavily request", async () => {
+test("Auto does not escalate after search execution", async () => {
   const received: SystemDesignAgentRoundInput[] = [];
   let searches = 0;
   const provider = scripted([
@@ -145,13 +336,13 @@ test("Auto escalates once after search, preserving evidence without another Tavi
   } };
   const events = [];
   for await (const event of streamSystemDesignEvents(request, new AbortController().signal, execution(provider, executor))) events.push(event);
-  expect(received.map((input) => input.modelTier)).toEqual(["super", "super", "ultra"]);
-  expect(received.map((input) => input.canEscalate)).toEqual([true, true, false]);
-  expect(received[2].searchCount).toBe(1);
-  expect(received[2].searchEvidence).toHaveLength(1);
-  expect(received[2].agentMessages).toHaveLength(2);
+  expect(received.map((input) => input.modelTier)).toEqual(["super", "super"]);
+  expect(received.map((input) => input.canEscalate)).toEqual([true, false]);
+  expect(received[1].searchCount).toBe(1);
+  expect(received[1].searchEvidence).toHaveLength(1);
+  expect(received[1].agentMessages).toHaveLength(2);
   expect(searches).toBe(1);
-  expect(events.filter((event) => event.type === "text.final")).toEqual([expect.objectContaining({ model: { preference: "auto", modelsUsed: ["super", "ultra"], finalModel: "ultra", escalated: true } })]);
+  expect(events.at(-1)?.type).toBe("run.failed");
   expect(events.some((event) => event.type === "tool.started" && event.toolName === "escalate_reasoning")).toBe(false);
 });
 
@@ -178,7 +369,7 @@ test("recent realtime-chat conversation takes priority over an older Rate Limite
   )) events.push(event);
   const first = bodies[0];
   expect((first.tools as Array<{ function: { name: string } }>).map((tool) => tool.function.name)).toContain("propose_canvas_changes");
-  expect(first.tool_choice).toEqual({ type: "function", function: { name: "propose_canvas_changes" } });
+  expect(first.tool_choice).toBe("auto");
   expect(JSON.stringify(first.messages)).toContain("regional WebSocket gateways");
   expect(events.find((event) => event.type === "artifact.proposal")).toMatchObject({ data: { operations: [expect.objectContaining({ label: "WebSocket Gateway" })] } });
   expect(events.some((event) => event.type === "run.failed")).toBe(false);
@@ -203,8 +394,8 @@ test("explicit draw retries a text-only provider response and emits only a valid
   for await (const event of streamSystemDesignEvents({ ...request, message: "draw it" }, new AbortController().signal, execution(systemDesignAgentProvider))) events.push(event);
   expect(bodies).toHaveLength(3);
   for (const body of bodies.slice(0, 2)) {
-    expect((body.tools as Array<{ function: { name: string } }>).map((tool) => tool.function.name)).toEqual(["propose_canvas_changes"]);
-    expect(body.tool_choice).toEqual({ type: "function", function: { name: "propose_canvas_changes" } });
+    expect((body.tools as Array<{ function: { name: string } }>).map((tool) => tool.function.name)).toContain("propose_canvas_changes");
+    expect(body.tool_choice).toBe("auto");
   }
   expect(JSON.stringify(events)).not.toContain("Draw a gateway yourself");
   expect(events.find((event) => event.type === "artifact.proposal")).toMatchObject({ data: { operations: [{ op: "add_node" }, { op: "add_edge" }] } });
@@ -245,17 +436,16 @@ test("Ultra cannot escalate and visible Super text cannot produce a double answe
   expect(visibleEvents.find((event) => event.type === "text.final")).toMatchObject({ text: "Super answer stands.", model: { finalModel: "super", escalated: false } });
 });
 
-test("escalation does not consume the four user-facing tool rounds", async () => {
+test("tool cap prevents post-execution escalation", async () => {
   const received: SystemDesignAgentRoundInput[] = [];
   const rounds = Array.from({ length: MAX_SYSTEM_DESIGN_TOOL_ROUNDS }, (_, index) => tool("search_web", { query: `reference ${index}` }, `search-${index}`));
   const executor: SystemDesignToolExecutor = { async execute(call) { return { ok: true, retrievalStatus: "empty", searchEvidence: [], message: { role: "tool", tool_call_id: call.id, content: "{}" } }; } };
   const events = [];
   for await (const event of streamSystemDesignEvents(request, new AbortController().signal, execution(scripted([...rounds, { kind: "escalate" }, final("Ultra completes after the tool cap.")], received), executor))) events.push(event);
-  expect(received).toHaveLength(MAX_SYSTEM_DESIGN_TOOL_ROUNDS + 2);
-  expect(received[MAX_SYSTEM_DESIGN_TOOL_ROUNDS]).toMatchObject({ modelTier: "super", allowTools: false, canEscalate: true });
-  expect(received.at(-1)).toMatchObject({ modelTier: "ultra", allowTools: false, canEscalate: false });
+  expect(received).toHaveLength(MAX_SYSTEM_DESIGN_TOOL_ROUNDS + 1);
+  expect(received[MAX_SYSTEM_DESIGN_TOOL_ROUNDS]).toMatchObject({ modelTier: "super", allowTools: false, canEscalate: false });
   expect(events.filter((event) => event.type === "tool.started")).toHaveLength(MAX_SYSTEM_DESIGN_TOOL_ROUNDS);
-  expect(events.find((event) => event.type === "text.final")).toMatchObject({ model: { modelsUsed: ["super", "ultra"], escalated: true } });
+  expect(events.at(-1)?.type).toBe("run.failed");
 });
 
 test("streamed Super text followed by escalation stands as one Super answer", async () => {
@@ -354,6 +544,7 @@ test("Nemotron search_web fragmented SSE reaches Tavily, returns to Nemotron, an
   expect(JSON.stringify(providerBodies[1])).toContain("https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html");
   expect(finalResult).toEqual({
     text: "AWS Lambda functions can run for a maximum of 15 minutes. [1]",
+    outcome: "completed",
     sources: [{ id: 1, title: "AWS Lambda quotas", url: "https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html" }],
     model: { preference: "auto", modelsUsed: ["super"], finalModel: "super", escalated: false },
   });
@@ -453,6 +644,7 @@ test("Fix mode emits only a validated reviewable proposal artifact", async () =>
   )) events.push(event);
   expect(events.map((event) => event.type)).toContain("artifact.proposal");
   expect(events.find((event) => event.type === "artifact.proposal")).toMatchObject({ data: { summary: proposal.summary } });
+  expect(events.find((event) => event.type === "text.final")).toMatchObject({ outcome: "awaiting_approval" });
   expect(request.context).toEqual(before);
 });
 
@@ -475,7 +667,7 @@ test("architecture analysis emits a validated temporary visual", async () => {
   expect(events.find((event) => event.type === "visual.ready")).toMatchObject({ data: { type: "reliability" } });
 });
 
-test("read-only proposal mismatch is recoverable and never emits an artifact or run failure", async () => {
+test("read-only proposal mismatch terminates with a blocked outcome", async () => {
   const readOnly = { ...request, mode: "review" as const, message: "Review only, do not change anything." };
   const events = [];
   for await (const event of streamSystemDesignEvents(
@@ -489,10 +681,11 @@ test("read-only proposal mismatch is recoverable and never emits an artifact or 
   expect(events.map((event) => event.type)).toContain("tool.failed");
   expect(events.some((event) => event.type === "artifact.proposal")).toBe(false);
   expect(events.some((event) => event.type === "run.failed")).toBe(false);
+  expect(events.find((event) => event.type === "text.final")).toMatchObject({ text: expect.stringContaining("blocked"), outcome: "blocked" });
   expect(events.at(-1)?.type).toBe("run.completed");
 });
 
-test("an actual provider contract mismatch on a read-only turn degrades to a completed answer", async () => {
+test("an actual provider contract mismatch receives one correction without execution", async () => {
   process.env.NEBIUS_API_KEY = "system-design-agent-key";
   process.env.REASONAI_BASE_URL = "https://provider.test/v1";
   process.env.REASONAI_MODEL = "agent-model";
@@ -512,7 +705,7 @@ test("an actual provider contract mismatch on a read-only turn degrades to a com
     execution(systemDesignAgentProvider),
   )) events.push(event);
   expect((bodies[0].tools as Array<{ function: { name: string } }>).map((item) => item.function.name)).toEqual(["search_web", "show_architecture_analysis", "escalate_reasoning"]);
-  expect(events.some((event) => event.type === "tool.failed")).toBe(true);
+  expect(events.some((event) => event.type === "tool.started")).toBe(false);
   expect(events.some((event) => event.type === "run.failed")).toBe(false);
   expect(events.find((event) => event.type === "text.final")).toMatchObject({ text: "The database is a visible dependency. I made no canvas changes." });
   expect(events.at(-1)?.type).toBe("run.completed");

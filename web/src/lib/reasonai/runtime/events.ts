@@ -3,7 +3,7 @@ import type {
   ReasonAIArtifactTouchedEntity,
   ReasonAISource,
 } from "./types";
-import type { ReasonAIModelMetadata } from "@/features/system-design/reasonai/contract";
+import type { ReasonAIModelMetadata, ReasonAITaskOutcome } from "@/features/system-design/reasonai/contract";
 
 export const REASONAI_PROTOCOL_VERSION = 1 as const;
 
@@ -29,6 +29,7 @@ export interface ReasonAITextFinalEvent extends ReasonAIEventBase {
   partId: string;
   text: string;
   model?: ReasonAIModelMetadata;
+  outcome?: ReasonAITaskOutcome;
 }
 
 export interface ReasonAIToolStartedEvent extends ReasonAIEventBase {
@@ -75,6 +76,7 @@ export interface ReasonAIArtifactProposalEvent extends ReasonAIEventBase {
   messageId: string;
   partId: string;
   proposalId: string;
+  proposalVersion?: number;
   data: unknown;
   baseArtifactFingerprint?: string;
   touchedEntities?: ReasonAIArtifactTouchedEntity[];

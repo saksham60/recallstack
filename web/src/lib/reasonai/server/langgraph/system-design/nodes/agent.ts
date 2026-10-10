@@ -7,6 +7,7 @@ import { ReasonAIProviderError } from "@/features/system-design/reasonai/provide
 import type { SystemDesignGraphStage, SystemDesignGraphStreamEvent } from "../events";
 import { SystemDesignGraphState, serverOwnedSystemDesignHistory } from "../state";
 import { MAX_SYSTEM_DESIGN_TOOL_ROUNDS } from "../tools";
+import { remainingReasonAIProposal, usablePendingReasonAIProposal } from "@/features/system-design/reasonai/proposal-state";
 
 export function createSystemDesignAgentNode(
   provider: SystemDesignAgentProvider = systemDesignAgentProvider,
@@ -22,10 +23,11 @@ export function createSystemDesignAgentNode(
     onStage?.("provider.started");
     const modelTier = state.modelTier;
     const preference = state.request.modelPreference ?? "auto";
-    const canEscalate = !proposalRequired && preference === "auto" && modelTier === "super" && !state.escalated;
+    const canEscalate = rounds === 0 && !proposalRequired && preference === "auto" && modelTier === "super" && !state.escalated;
     console.info("reasonai.model.selected", { runId: state.runId, preference, modelTier });
     let round: SystemDesignAgentRound | undefined;
     let visibleText = "";
+    const usablePending = usablePendingReasonAIProposal(state.pendingProposal, state.request.context);
     for await (const event of provider.streamRound({
       request: { ...state.request, history: serverOwnedSystemDesignHistory(state) },
       modelTier,
@@ -36,9 +38,11 @@ export function createSystemDesignAgentNode(
       searchCount: state.searchCount ?? 0,
       searchStatus: state.searchStatus,
       proposal: state.proposal,
+      pendingProposal: usablePending ? { ...usablePending, proposal: remainingReasonAIProposal(usablePending) } : undefined,
       visualization: state.visualization,
       notice: state.notice,
-      allowTools: rounds < MAX_SYSTEM_DESIGN_TOOL_ROUNDS,
+      allowTools: rounds < MAX_SYSTEM_DESIGN_TOOL_ROUNDS && !(state.correctionAttempts ?? 0),
+      correctionOnly: Boolean(state.correctionAttempts),
       requireProposal: proposalRequired,
       proposalRetry: state.proposalRetries ?? 0,
     }, config.signal)) {
@@ -49,7 +53,7 @@ export function createSystemDesignAgentNode(
       else round = event.round;
     }
     if (!round) throw new ReasonAIProviderError("ReasonAI could not complete that response. Please try again.");
-    if (proposalRequired && round.kind === "final") {
+    if (proposalRequired && round.kind === "final" && !/\?\s*$/u.test(round.result.text)) {
       const retries = state.proposalRetries ?? 0;
       if (retries >= 1) throw new ReasonAIProviderError("ReasonAI could not prepare canvas suggestions. Please try again.");
       onStage?.("proposal.retry");
@@ -62,7 +66,19 @@ export function createSystemDesignAgentNode(
       return { modelTier: "ultra", modelsUsed: ["super", "ultra"], escalated: true, pendingEscalation: true };
     }
     if (round.kind === "tools") {
+      if (rounds >= MAX_SYSTEM_DESIGN_TOOL_ROUNDS) throw new ReasonAIProviderError("ReasonAI reached the tool limit. Please try again.");
+      if (round.calls[0]?.invalidReason === "unoffered_tool") {
+        if (state.correctionAttempts) throw new ReasonAIProviderError("ReasonAI requested an unavailable tool. Please try again.");
+        return {
+          correctionAttempts: 1,
+          pendingProposalRetry: true,
+          pendingToolCalls: undefined,
+          agentMessages: [...(state.agentMessages ?? []), round.assistantMessage, { role: "tool" as const, tool_call_id: round.calls[0].id, content: '{"ok":false,"code":"unoffered_tool","message":"Answer without tools."}' }],
+        };
+      }
+      if (state.correctionAttempts) throw new ReasonAIProviderError("ReasonAI requested an unavailable tool. Please try again.");
       if (proposalRequired && round.calls[0]?.name !== "propose_canvas_changes") throw new ReasonAIProviderError("ReasonAI could not prepare canvas suggestions. Please try again.");
+      if (proposalRequired && visibleText.trim()) write?.({ type: "text.delta", delta: visibleText } satisfies SystemDesignGraphStreamEvent);
       onStage?.("agent.tool_requested");
       return {
         pendingToolCalls: round.calls,
@@ -72,6 +88,6 @@ export function createSystemDesignAgentNode(
         pendingProposalRetry: false,
       };
     }
-    return { pendingToolCalls: undefined, pendingEscalation: false, pendingProposalRetry: false, result: round.result };
+    return { pendingToolCalls: undefined, pendingEscalation: false, pendingProposalRetry: false, result: { ...round.result, ...(proposalRequired && !state.proposal ? { outcome: "needs_clarification" as const } : {}) } };
   };
 }

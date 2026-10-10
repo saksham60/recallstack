@@ -8,7 +8,7 @@ import { parseReasonAIProposal, ReasonAIValidationError } from "./contract";
 export function prepareReasonAIApply(value: unknown, state: SystemDesignEditorState, diagramId: string): CanvasOperation[] {
   const diagram = state.document.diagrams[diagramId];
   if (!diagram || state.activeDiagramId !== diagramId || state.isPreviewMode) throw new ReasonAIValidationError("Return to the original diagram in edit mode to apply this proposal.");
-  const proposal = parseReasonAIProposal(value, { nodes: diagram.nodes.map((n) => ({ ...n, technology: n.technology?.name })), edges: diagram.edges });
+  const proposal = parseReasonAIProposal(value, { nodes: diagram.nodes.map((n) => ({ ...n, technology: n.technology?.name })), edges: diagram.edges }, "acceptance");
   const refs = new Map<string, string>();
   let simulated = state;
   const operations: CanvasOperation[] = [];
@@ -24,10 +24,10 @@ export function prepareReasonAIApply(value: unknown, state: SystemDesignEditorSt
       case "update_node": {
         const { op: _op, nodeId, technology, ...patch } = op;
         void _op;
-        operation = { kind: "node.update", diagramId, nodeId, patch: { ...patch, ...(technology === undefined ? {} : { technology: migrateLegacyTechnologyIdentity(technology) ?? null }) } }; break;
+        operation = { kind: "node.update", diagramId, nodeId: refs.get(nodeId) ?? nodeId, patch: { ...patch, ...(technology === undefined ? {} : { technology: migrateLegacyTechnologyIdentity(technology) ?? null }) } }; break;
       }
-      case "move_node": operation = { kind: "node.move", diagramId, positions: { [op.nodeId]: { x: op.x, y: op.y } } }; break;
-      case "delete_node": operation = { kind: "node.delete", diagramId, nodeIds: [op.nodeId] }; break;
+      case "move_node": operation = { kind: "node.move", diagramId, positions: { [refs.get(op.nodeId) ?? op.nodeId]: { x: op.x, y: op.y } } }; break;
+      case "delete_node": operation = { kind: "node.delete", diagramId, nodeIds: [refs.get(op.nodeId) ?? op.nodeId] }; break;
       case "add_edge": operation = { kind: "edge.add", diagramId, edge: createSystemDesignEdge(refs.get(op.sourceNodeId) ?? op.sourceNodeId, refs.get(op.targetNodeId) ?? op.targetNodeId, "right", "left", { type: op.type, label: op.label, protocol: op.protocol }) }; break;
       case "update_edge": {
         const { op: _op, edgeId, ...patch } = op;

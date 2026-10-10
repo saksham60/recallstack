@@ -19,6 +19,7 @@ export function createSystemDesignFinalizeNode(
         escalated: state.escalated,
       },
       ...(state.proposal ? { proposal: state.proposal } : {}),
+      outcome: state.proposal ? "awaiting_approval" as const : state.result.outcome ?? "completed" as const,
       ...(state.visualization ? { visualization: state.visualization } : {}),
       ...([state.result.notice, state.notice].filter(Boolean).join(" ") ? { notice: [state.result.notice, state.notice].filter(Boolean).join(" ") } : {}),
     };

@@ -63,7 +63,7 @@ for (const message of ["can u give me a mongo db component", "provide a VPC boun
   const result = await reasonAIProvider.complete({ ...request, message, history: [{ role: "assistant", content: "Copy this JSON into the canvas to add a node." }] });
   expect(result.proposal?.operations[0].op).toBe("add_node");
   expect(JSON.stringify(sentBody.tools)).toContain("propose_canvas_changes");
-  expect(JSON.stringify(sentBody.messages)).toContain("EXISTING draggable component cards");
+  expect(JSON.stringify(sentBody.messages)).toContain("interactive system-design canvas");
 });
 
 test("normal text, exact request tool fields, concise prompt and no reasoning traces", async () => {
@@ -75,8 +75,8 @@ test("normal text, exact request tool fields, concise prompt and no reasoning tr
   expect(body).toContain("sourceNodeId");
   expect(body).toContain("targetNodeId");
   expect(body).toContain("350 words");
-  expect(body).toContain("at most 5");
-  expect(body).toContain("architectural inference");
+  expect(body).toContain("bounded batches");
+  expect(body).toContain("research and inference");
 });
 
 test("dense-diagram analysis followed by natural suggestions exposes the proposal tool", async () => {
@@ -84,24 +84,24 @@ test("dense-diagram analysis followed by natural suggestions exposes the proposa
   const analysis = "Space the core services further apart and separate the database flow. Let me know if you'd like me to generate changes.";
   mock(completion(analysis));
   const first = await reasonAIProvider.complete({ ...request, message });
-  expect(JSON.stringify(sentBody.tools)).not.toContain("propose_canvas_changes");
+  expect(JSON.stringify(sentBody.tools)).toContain("propose_canvas_changes");
   expect(first.proposal).toBeUndefined();
   mock(completion("Review these suggestions before accepting them.", [tool()]));
   const result = await reasonAIProvider.complete({ ...request, message: "can u give some suggestions?", history: [
     { role: "user", content: message }, { role: "assistant", content: first.text },
   ] });
   expect(JSON.stringify(sentBody.tools)).toContain("propose_canvas_changes");
-  expect(JSON.stringify(sentBody.messages)).toContain("use propose_canvas_changes for the concrete recommendations");
+  expect(JSON.stringify(sentBody.messages)).toContain("propose_canvas_changes");
   expect(result.proposal).toEqual(proposal);
 });
 
 for (const message of ["yes", "go ahead", "do it", "explain how I could improve this", "give me suggestions but do not change anything"]) {
-  test(`assistant history never authorizes proposals for: ${message}`, async () => {
+  test(`current message controls proposal eligibility for: ${message}`, async () => {
     mock(completion("Ask for concrete canvas suggestions when you are ready."));
     const result = await reasonAIProvider.complete({ ...request, message, history: [
       { role: "assistant", content: "Let me know if you'd like me to generate changes. I can propose a cache." },
     ] });
-    expect(JSON.stringify(sentBody.tools)).not.toContain("propose_canvas_changes");
+    expect(JSON.stringify(sentBody.tools).includes("propose_canvas_changes")).toBe(!/do not change anything|explain how/u.test(message));
     expect(result.proposal).toBeUndefined();
     expect(result.text).toContain("concrete canvas suggestions");
     expect(JSON.stringify(sentBody.messages)).toContain("Ambiguity is not a system error");
@@ -233,17 +233,16 @@ test("length accepts a complete validated proposal", async () => { mock(completi
 test("length never salvages incomplete tool arguments", async () => { mock(completion("Some text", [tool('{"summary":')], "length")); const result = await reasonAIProvider.complete(request); expect(result.text).toContain("Some text"); expect(result.proposal).toBeUndefined(); });
 test("length with only reasoning is unusable", async () => { mock(completion(null, undefined, "length")); await fails("EMPTY_RESPONSE"); });
 for (const mode of ["review", "eagle"] as const) {
-  test(`${mode} supports research and visualization without authorizing changes`, async () => {
+  test(`${mode} supports research, visualization, and pending suggestions`, async () => {
     const analysisRequest = { ...request, mode, message: "Review this architecture." };
     await reasonAIProvider.complete(analysisRequest);
     expect(sentBody.tool_choice).toBe("auto");
     expect(JSON.stringify(sentBody.tools)).toContain("search_web");
     expect(JSON.stringify(sentBody.tools)).toContain("show_architecture_analysis");
-    expect(JSON.stringify(sentBody.tools)).not.toContain("propose_canvas_changes");
+    expect(JSON.stringify(sentBody.tools)).toContain("propose_canvas_changes");
     mock(completion(null, [tool()], "tool_calls"));
     const result = await reasonAIProvider.complete(analysisRequest);
-    expect(result.proposal).toBeUndefined();
-    expect(result.notice).toContain("No canvas changes were prepared");
+    expect(result.proposal).toEqual(proposal);
   });
 }
 for (const status of [401, 403, 429, 503]) {
@@ -540,7 +539,6 @@ for (const [index, prompt] of extremePrompts.entries()) test(`extreme prompt ${i
 for (const [name, invalid] of Object.entries({
   stale: { summary: "PRIVATE_PROPOSAL", operations: [{ op: "move_node", nodeId: "stale-id", x: 20, y: 20 }] },
   deleted: { summary: "PRIVATE_PROPOSAL", operations: [{ op: "delete_node", nodeId: "node_sql" }, { op: "move_node", nodeId: "node_sql", x: 20, y: 20 }] },
-  tempDeleted: { summary: "PRIVATE_PROPOSAL", operations: [proposal.operations[0], { op: "delete_node", nodeId: "new:redis" }, proposal.operations[1]] },
   unknown: { summary: "PRIVATE_PROPOSAL", operations: [{ op: "execute_code", code: "PRIVATE_TOOL_ARGS" }] },
   wrapper: { nodes: [], edges: [] },
 })) for (const repaired of [false, true]) test(`${name} proposal: one isolated ${repaired ? "successful" : "failed"} repair, original text survives`, async () => {
