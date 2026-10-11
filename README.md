@@ -6,6 +6,12 @@
 
 > AI can generate answers in seconds. ReasonAI helps engineers develop the judgment to decide what to build, why it works, and what to change.
 
+### ReasonAI in action — real production capture
+
+![ReasonAI live System Design canvas after a second collaborator moved an architecture node; four nodes and three connections synchronized](docs/evidence/screenshots/2026-10-11/collab-move-synced-a.png)
+
+*Live production capture, October 11, 2026: System Design canvas during a **successful two-browser Live Share test**. This is evidence of manual realtime collaboration, **not** proof of successful AI canvas generation. [View the full before/after/reconnect sequence](docs/evidence/INDEX.md#real-screenshots--october-11-2026).*
+
 ## Judge quickstart — try it in five minutes
 
 1. **Enter:** Open [ReasonAI's login page](https://www.reasonai.tech/login) and choose **Continue as Hackathon Judge**. No personal signup is needed.
@@ -24,6 +30,14 @@
 | **Reason** | Architecture review, scalability analysis, bottleneck/failure reasoning | LangGraph/Nemotron reason over the **current canvas**; results refer to real diagram elements |
 | **Build** | Editable Konva system-design canvas + Go WebSocket Live Share | AI proposes **validated, reviewable** node and edge operations; users control application |
 | **Master** | DSA workspace with hints, explanations, complexity, and visual lessons | Contextual agent tutoring with bounded conversation state and structured visual contracts |
+
+## More product screenshots
+
+| DSA tutor: actual 3Sum hint | Knowledge Feed: actual story cards |
+| --- | --- |
+| ![ReasonAI DSA workspace with a generated 3Sum hint shown beside the editor](docs/evidence/screenshots/2026-10-11/dsa-hint.png) | ![ReasonAI engineering Knowledge Feed showing technical story cards and Ask ReasonAI entry points](docs/evidence/screenshots/2026-10-11/knowledge-story.png) |
+
+**Evidence caveat:** The hint UI worked, but the captured DSA visual walkthrough contained mathematical errors; the Feed displayed stories, but AI follow-up answer generation failed in the recorded runs. These images **do not** establish successful end-to-end AI outcomes. [See the evidence, failures, and original screenshots](docs/evidence/INDEX.md#real-screenshots--october-11-2026).
 
 ## Architecture at a glance
 
