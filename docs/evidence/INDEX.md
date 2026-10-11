@@ -1,35 +1,33 @@
 # ReasonAI — Hackathon Evidence Hub
 
-> **Status: Evidence collection in progress.** This index separates inspectable implementation from **execution evidence** and **unmeasured claims**. Source code and test cases existing in GitHub are not proof that any particular production run succeeded.
+> **Status: First live capture completed on 2026-10-11 UTC; Issue #14 remains incomplete.** Source code and tests are inspectable implementation, not proof of a successful production run.
 
 **Project:** [ReasonAI](https://www.reasonai.tech) · [3-minute demonstration](https://www.youtube.com/watch?v=FoV2KkK72Xs) · [Devpost](https://devpost.com/software/reasonai) · [Judge walkthrough](../../README.md#judge-quickstart--try-it-in-five-minutes) · [Full architecture](../ARCHITECTURE.md).
 
 ## Evidence coverage
 
-| Area | Currently inspectable | Capture required before claiming measured success | State |
-| --- | --- | --- | --- |
-| **Sponsor integration** | [Nebius/Nemotron runtime map](../../HACKATHON_SUBMISSION.md), [System Design agent details](../../web/docs/system-design-reasonai.md) | Sanitized live provider request metadata and associated Nemotron response/trace | Source available; live artifact pending |
-| **System Design AI** | [Typed proposals and recovery](../../web/docs/reasonai-proposal-recovery.md), [browser test cases](../../web/e2e/reasonai.spec.ts) | Prompt + actual canvas state → model proposal → validation → user acceptance → after screenshot | Source available; run pending |
-| **DSA tutoring** | [DSA workspace](../../web/docs/dsa-workspace.md), [agent test cases](../../web/e2e/reasonai.spec.ts) | Complete hint/tool/visual trace and quality grading on fixed problems | Source available; run pending |
-| **Knowledge Feed** | [Pipeline](../../backend/docs/knowledge-shorts.md), [API tests](../../backend/tests/knowledge/test_api.py) | Actual story→research tool→cited answer sequence, redacted source IDs | Source available; run pending |
-| **Realtime collaboration** | [Go service](../../realtime/README.md), [room tests](../../realtime/internal/room/room_test.go) | Two authenticated sessions, shared edit, screenshot/video, logs and reconnect case | Source available; run pending |
-| **Tracing / observability** | [LangSmith integration tests](../../web/e2e/langsmith.spec.ts) | Real sanitized LangSmith parent/child trace, model/tier and tool calls, with timestamps | Source available; run pending |
-| **Automated verification** | [Documented commands](../DEVELOPMENT.md#verification) | Dated execution logs for web, backend, Go, and Flutter, including failures and exclusions | Commands available; run pending |
-| **User impact** | [Product demonstration](https://www.youtube.com/watch?v=FoV2KkK72Xs) | Consented user tasks, observed results and verbatim or attributed feedback | Not measured |
+| Area | Inspectable implementation | Observed result and remaining gap |
+| --- | --- | --- |
+| **Judge access** | [Judge walkthrough](../../README.md#judge-quickstart--try-it-in-five-minutes) | [Fresh production browser sign-in passed](runs/2026-10-11/JUDGE-01/record.md). |
+| **Sponsor integration** | [Nebius/Nemotron runtime map](../../HACKATHON_SUBMISSION.md), [System Design agent details](../../web/docs/system-design-reasonai.md) | [Direct local Nemotron Super and Tavily probes](runs/2026-10-11/provider-probe.json) returned HTTP 200. These are not app workflow evidence. Production provider/model ID remains unverified. |
+| **System Design AI** | [Typed proposals and recovery](../../web/docs/reasonai-proposal-recovery.md), [browser tests](../../web/e2e/reasonai.spec.ts) | [Two live product requests failed](runs/2026-10-11/SD-01/record.md) before proposal generation. The seed canvas remained unchanged; acceptance and discard are unverified. |
+| **DSA tutoring** | [DSA workspace](../../web/docs/dsa-workspace.md), [agent tests](../../web/e2e/dsa-reasonai-agent.spec.ts) | [Live 3Sum hint and schema-valid visuals](runs/2026-10-11/DSA-01/record.md) captured. Visual content quality failed: one skipped a pointer state, another named an invalid triplet. Production model ID was not surfaced. |
+| **Knowledge Feed** | [Pipeline](../../backend/docs/knowledge-shorts.md), [API tests](../../backend/tests/knowledge/test_api.py) | [Three live app requests failed](runs/2026-10-11/KNOW-01/record.md). No app-level Tavily tool call, citation, or completed Nemotron answer was observed. |
+| **Realtime collaboration** | [Go service](../../realtime/README.md), [room tests](../../realtime/internal/room/room_test.go) | [Two-session UI convergence and reconnect](runs/2026-10-11/COLLAB-01/record.md) observed with a new node, connection, and node move. Protocol ACK IDs and production topology were not captured. |
+| **Tracing / observability** | [LangSmith integration tests](../../web/e2e/langsmith.spec.ts) | [Mocked tracing tests passed](runs/2026-10-11/TESTS.md). No live LangSmith key or trace was available. SD app trace IDs are recorded separately. |
+| **Automated verification** | [Documented commands](../DEVELOPMENT.md#verification) | [Scoped results](runs/2026-10-11/TESTS.md): 166 web state tests, 46 backend tests, and typecheck passed. Browser suite server gate timed out; Go was not installed. |
+| **User impact** | [Product demonstration](https://www.youtube.com/watch?v=FoV2KkK72Xs) | No consented user task study or measured impact. |
 
-## Capture the evidence
+## 2026-10-11 capture summary
 
-1. Follow [CAPTURE_RUNBOOK.md](CAPTURE_RUNBOOK.md) to obtain real, reproducible product traces and screenshots; **do not generate mock screenshots as evidence**.
-2. Follow [EVALUATION_PROTOCOL.md](EVALUATION_PROTOCOL.md) for fixed prompts, objective checks, rubric scoring and reporting rules.
-3. Record each run using [RUN_RECORD_TEMPLATE.md](RUN_RECORD_TEMPLATE.md), including commit SHA, model name, timestamps, expected and actual outcomes, and redactions.
-4. Store reviewed reports under `docs/evidence/runs/YYYY-MM-DD/<case-id>/` and screenshots under `docs/evidence/screenshots/`. Do not commit session cookies, authorization headers, API tokens, personal details or full private model reasoning.
-5. Update this page's state and link **only after** an artifact exists and has been checked.
+The production judge flow worked in a fresh browser. DSA generated real tool and visual events, but its trace content failed quality checks. Two-client collaboration produced converged screenshots. System Design returned `PROVIDER_FAILURE` on a retry; Knowledge research returned `INCOMPLETE_RESPONSE` on retries. These failures and missing LangSmith provenance are included in the records. The [test report](runs/2026-10-11/TESTS.md) labels fixture-based results separately from live tasks.
 
-## Reporting rules
+## Capture and reporting rules
 
-- Label **unit/E2E tests**, **real live model runs**, and **subjective reviewer assessment** separately.
-- Include failures and attempts, not just the best result; fix rubric definitions before comparing models.
-- Report latency, cost, throughput, win rate or accuracy **only when the measurement source and sample size are recorded**.
-- The existing [README](../../README.md) distinguishes deployed capabilities from the roadmap. Nebius Sandboxes execution, GitHub-to-canvas, distributed durable realtime, and external MCP editing are **not** presented as completed features.
+1. Follow the [capture runbook](CAPTURE_RUNBOOK.md), [fixed evaluation protocol](EVALUATION_PROTOCOL.md), and [run record template](RUN_RECORD_TEMPLATE.md). Do not generate mock screenshots as evidence.
+2. Store reviewed records under `docs/evidence/runs/YYYY-MM-DD/<case-id>/` and screenshots under `docs/evidence/screenshots/`.
+3. Label live model calls, unit/E2E tests, direct provider probes, and subjective scoring separately. Include failures and all attempts.
+4. Report latency, cost, throughput, win rate, or accuracy only with a measurement source and sample size. The messaging prompt is an architecture exercise, not a million-user load test.
+5. Keep credentials, cookies, private rooms, identifying data, and private model reasoning out of public artifacts. Record only sanitized excerpts and public source URLs.
 
-**Next evidence milestone:** one fully reproducible System Design run, then one DSA run, one Knowledge Feed research run, and a two-client collaboration recording.
+**Next evidence milestone:** resolve the live System Design and Knowledge failures, capture proposal acceptance/discard and source-backed research, and obtain sanitized production model and LangSmith provenance.

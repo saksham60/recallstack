@@ -1,0 +1,9 @@
+{
+  "caseId": "KNOW-01",
+  "startedAt": "2026-10-11T08:21:53.224Z",
+  "execution": "live production browser",
+  "prompt": "Find two related technical developments from trustworthy sources and explain how they affect the architecture choices in this story.",
+  "error": "No Ask ReasonAI button appeared within 30 seconds after selecting the Architecture feed filter; no model request was sent.",
+  "finishedAt": "2026-10-11T08:22:24.592Z",
+  "requests": []
+}

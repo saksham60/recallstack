@@ -1,0 +1,20 @@
+{
+  "startedAt": "2026-10-11T08:28:50.330Z",
+  "execution": "direct provider probe; not a product workflow",
+  "nebius": {
+    "requestedModel": "nvidia/nemotron-3-super-120b-a12b",
+    "status": 200,
+    "durationMs": 1130,
+    "reportedModel": "nvidia/nemotron-3-super-120b-a12b",
+    "visibleAnswer": ""
+  },
+  "tavily": {
+    "status": 200,
+    "durationMs": 1796,
+    "urls": [
+      "https://docs.cloud.google.com/solutions/event-driven-architecture-pubsub",
+      "https://www.ibm.com/think/topics/message-queues"
+    ]
+  },
+  "finishedAt": "2026-10-11T08:28:53.261Z"
+}

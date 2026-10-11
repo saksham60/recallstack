@@ -1,0 +1,29 @@
+{
+  "caseId": "KNOW-01",
+  "startedAt": "2026-10-11T08:20:35.941Z",
+  "execution": "live production browser",
+  "prompt": "Find two related technical developments from trustworthy sources and explain how they affect the architecture choices in this story.",
+  "storyTitle": "Huawei and Qualcomm Announce Broad Patent License Agreement",
+  "storyUrl": "https://www.huawei.com/en/news/2026/10/qualcomm-broad-patent-agreement",
+  "durationMs": 8869,
+  "chatText": "AI · Story attached\n\nHuawei and Qualcomm Announce Broad Patent License Agreement\n\nYOU\n\nFind two related technical developments from trustworthy sources and explain how they affect the architecture choices in this story.\n\nREASONAI\n\nReasonAI couldn’t finish this answer. Please try again.\n\nTry again\nNemotron",
+  "citationUrls": [],
+  "finishedAt": "2026-10-11T08:20:48.569Z",
+  "requests": [
+    {
+      "status": 200,
+      "startedAt": "2026-10-11T08:20:41.344Z",
+      "events": [
+        {
+          "type": "run.started"
+        },
+        {
+          "type": "run.failed",
+          "code": "INCOMPLETE_RESPONSE",
+          "message": "ReasonAI couldn’t finish this answer. Please try again."
+        }
+      ],
+      "finishedAt": "2026-10-11T08:20:48.367Z"
+    }
+  ]
+}
