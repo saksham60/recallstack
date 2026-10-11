@@ -53,6 +53,7 @@ export function createPendingReasonAIProposal(proposal: ReasonAIProposal, contex
     version: (previous?.version ?? 0) + versionIncrement,
     diagramId: context.diagramId ?? "",
     baseFingerprint: rebased ? fingerprintReasonAIContext(context) : previous?.baseFingerprint ?? fingerprintReasonAIContext(context),
+    lastReportedFingerprint: fingerprintReasonAIContext(context),
     baseContext: rebased ? { diagramId: context.diagramId, nodes: context.nodes, edges: context.edges } : previous?.baseContext ?? { diagramId: context.diagramId, nodes: context.nodes, edges: context.edges },
     status: "pending",
     proposal: validated,
