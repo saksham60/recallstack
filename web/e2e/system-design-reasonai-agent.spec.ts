@@ -143,6 +143,9 @@ test("proposal versions retain IDs for unchanged operations and content fingerpr
   const second = createPendingReasonAIProposal({ ...proposal, summary: "Gateway revised" }, request.context, first);
   expect(second.proposalId).toBe(first.proposalId);
   expect(second.version).toBe(2);
+  // The production Supabase finalize_run RPC requires this key in every pending proposal.
+  expect(first.lastReportedFingerprint).toBe(first.baseFingerprint);
+  expect(second.lastReportedFingerprint).toBe(fingerprintReasonAIContext(request.context));
   expect(second.operationIds).toEqual(first.operationIds);
   expect(fingerprintReasonAIContext({ ...request.context, nodes: request.context.nodes.map((node) => node.id === "api" ? { ...node, x: node.x + 1 } : node) })).not.toBe(first.baseFingerprint);
 });
