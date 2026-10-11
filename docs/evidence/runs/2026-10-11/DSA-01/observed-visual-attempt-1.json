@@ -1,0 +1,50 @@
+{
+  "caseId": "DSA-01",
+  "startedAt": "2026-10-11T08:16:17.025Z",
+  "execution": "live production browser",
+  "slug": "ultimate-dsa-016-3sum",
+  "actions": [
+    {
+      "name": "visual walkthrough",
+      "durationMs": 32710,
+      "visibleText": "ReasonAI\nFeed\nSystem Design\nDSA\nU\nDSA\nArrays\n3Sum\n3Sum\nmedium\nArrays\nvia LeetCode\nOpen on LeetCode\nWorkspace\nNotes\nSimilar\nMy approach\nReview with ReasonAI\n\nStart with your thinking. An idea, an invariant, or a few lines of pseudocode.\n\nApproach and code stay in this workspace until you leave. Save lasting insights in Notes.\n\nMy code\nOptional\nProblem info\nTrack practice & revision\nReasonAI\n\nAI Tutor · Focus view\n\nWorkspace\n\n3Sum · Arrays\n\nLeetCode\nWalkthrough\nConversation\n\nVISUAL WALKTHROUGH\n\nUnderstanding 3Sum with Two‑Pointer Technique\n\nIllustrative example · not an official test case\n\n0\n-4\n1\n-1\n2\n-1\n3\n0\n4\n1\n5\n2\nnums\n[-4, -1, -1, 0, 1, 2]\n\nStep 1: Sort the input\n\nSorting enables the two‑pointer scan and helps skip duplicates.\n\n1 / 7\nAn example to reason through, one step at a time.\nAsk about this step →"
+    }
+  ],
+  "finishedAt": "2026-10-11T08:16:53.248Z",
+  "requests": [
+    {
+      "status": 200,
+      "startedAt": "2026-10-11T08:16:24.788Z",
+      "events": [
+        {
+          "type": "run.started"
+        },
+        {
+          "type": "tool.started",
+          "toolName": "create_visual",
+          "summary": "Creating visualization…"
+        },
+        {
+          "type": "tool.completed",
+          "summary": "Created visualization"
+        },
+        {
+          "type": "visual.ready",
+          "visualKind": "array"
+        },
+        {
+          "type": "text.final",
+          "text": "Here’s a short, step‑by‑step visual walkthrough of the classic **3Sum** two‑pointer approach (based on the illustrative example we just generated). It shows the core ideas without giving away the complete solution.\n\n---\n\n### 📊 Visual Walkthrough: 3Sum with Two‑Pointer Technique  \n\n| Step | What Happens | Why It Matters |\n|------|--------------|----------------|\n| **1️⃣ Sort the array** | `[-4, -1, -1, 0, 1, 2]` | Sorting lets us move pointers predictably and makes duplicate‑skipping easy. |\n| **2️⃣ Fix the first element** (`i = 0`) | Pick `-4` as the first number; set `left = i+1` (index 1) and `right = last` (index 5). | We now look for two numbers that together with `-4` sum to 0. |\n| **3️⃣ Compute the sum** | `sum = -4 + (-1) + 2 = -3` | The sum is too small (< 0), so we need a larger value → move `left` forward. |\n| **4️⃣ Move `left` pointer** | `left` goes from 1 → 2 (value `-1`). | Advancing `left` increases the sum because the array is sorted. |\n| **5️⃣ Re‑compute sum** | `sum = -4 + (-1) + 2 = -3` (still < 0) | Still need a larger sum → move `left` again. |\n| **6️⃣ Move `left` pointer again** | `left` becomes 4 (value `1`). | Each step pushes the sum upward. |\n| **7️⃣ Check for a match / adjust** | When `left` meets `right` we stop for this `i`. In the full algorithm we would have recorded any zero‑sum triples found (e.g., `[-1, -1, 2]` and `[-1, 0, 1]`). | The pointer movement continues until all possibilities for the current `i` are examined, then we increment `i` and repeat, skipping duplicates. |\n\n---\n\n### 🔑 Key Takeaways (no full solution)\n\n* **Sorting** is the prerequisite that makes the two‑pointer scan work in linear time for each fixed element.  \n* **Two pointers** (`left`, `right`) start at the ends of the remaining sub‑array and move inward based on whether the current sum is less than or greater than the target (0).  \n* **Duplicate handling**: after processing an element, advance the pointer past any equal values to avoid repeating the same triplet.  \n* The overall process runs in **O(n²)** time (sorting O(n log n) + the nested scan) and uses **O(1)** extra space (aside from the output list).\n\nFeel free to try applying these steps on your own example (e.g., `[-1,0,1,2,-1,-4]`). If you get stuck on a particular case—like when to skip duplicates or how to move the pointers—let me know and we can dig into that specific step!"
+        },
+        {
+          "type": "sources.ready"
+        },
+        {
+          "type": "run.completed"
+        }
+      ],
+      "finishedAt": "2026-10-11T08:16:52.859Z",
+      "textDeltaCount": 241
+    }
+  ]
+}

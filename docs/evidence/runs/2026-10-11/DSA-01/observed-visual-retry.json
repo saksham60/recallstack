@@ -1,0 +1,60 @@
+{
+  "caseId": "DSA-01",
+  "startedAt": "2026-10-11T08:35:32.295Z",
+  "execution": "live production browser",
+  "slug": "ultimate-dsa-016-3sum",
+  "actions": [
+    {
+      "name": "visual walkthrough",
+      "durationMs": 32673,
+      "visibleText": "ReasonAI\nFeed\nSystem Design\nDSA\nU\nDSA\nArrays\n3Sum\n3Sum\nmedium\nArrays\nvia LeetCode\nOpen on LeetCode\nWorkspace\nNotes\nSimilar\nMy approach\nReview with ReasonAI\n\nStart with your thinking. An idea, an invariant, or a few lines of pseudocode.\n\nApproach and code stay in this workspace until you leave. Save lasting insights in Notes.\n\nMy code\nOptional\nProblem info\nTrack practice & revision\nReasonAI\n\nAI Tutor · Focus view\n\nWorkspace\n\n3Sum · Arrays\n\nLeetCode\nWalkthrough\nConversation\n\nVISUAL WALKTHROUGH\n\nUnderstanding 3Sum: Sorting and Two‑Pointer Idea\n\nIllustrative example · not an official test case\n\n0\n-1\n1\n0\n2\n1\n3\n2\n4\n-1\n5\n-4\nnums\n[-1,0,1,2,-1,-4]\n\nInput array\n\nStart with an unsorted array of integers.\n\n1 / 6\nAn example to reason through, one step at a time.\nAsk about this step →"
+    }
+  ],
+  "finishedAt": "2026-10-11T08:36:09.931Z",
+  "requests": [
+    {
+      "status": 200,
+      "startedAt": "2026-10-11T08:35:41.324Z",
+      "events": [
+        {
+          "type": "run.started",
+          "runId": "41ffe4e2-391c-4a3b-b3a4-dfffaa98e025"
+        },
+        {
+          "type": "tool.started",
+          "runId": "41ffe4e2-391c-4a3b-b3a4-dfffaa98e025",
+          "toolCallId": "chatcmpl-tool-ad03479128bd492e",
+          "toolName": "create_visual",
+          "summary": "Creating visualization…"
+        },
+        {
+          "type": "tool.completed",
+          "runId": "41ffe4e2-391c-4a3b-b3a4-dfffaa98e025",
+          "toolCallId": "chatcmpl-tool-ad03479128bd492e",
+          "summary": "Created visualization"
+        },
+        {
+          "type": "visual.ready",
+          "runId": "41ffe4e2-391c-4a3b-b3a4-dfffaa98e025",
+          "visualKind": "array",
+          "visualStepCount": 6
+        },
+        {
+          "type": "text.final",
+          "runId": "41ffe4e2-391c-4a3b-b3a4-dfffaa98e025",
+          "text": "Here’s a short, step‑by‑step visual walkthrough of the core idea behind the **3Sum** problem (sorting + two‑pointer technique). Each frame shows what’s happening and why, without giving away the complete algorithm or final answer.\n\n---\n\n### 📊 Visual Walkthrough: Understanding 3Sum\n\n| Step | What’s shown | Why it matters |\n|------|--------------|----------------|\n| **1. Input array** | `[-1, 0, 1, 2, -1, -4]` (unsorted) | We start with the given numbers. |\n| **2. Sort** | `[-4, -1, -1, 0, 1, 2]` | Sorting puts equal values together, making it easy to skip duplicates later and lets us use the two‑pointer trick. |\n| **3. Fix first element** | Highlight index 0 (`-4`) as `i`. Target = `-nums[i]` → `4`. | By fixing one number, we reduce the problem to finding two numbers after `i` that sum to the target. |\n| **4. Two‑pointer search** | `left = i+1` (index 1, `-1`), `right = last` (index 5, `2`). Current sum = `-1 + 2 = 1`. | With the array sorted, moving `left` right increases the sum; moving `right` left decreases it. |\n| **5. Adjust pointers** | Since sum (1) < target (4), move `left` to index 2 (`-1`). New sum = `-1 + 2 = 1` (still too small). | We keep shifting `left` until the sum meets or exceeds the target. |\n| **6. Found a triplet** | When `left` points to `-1` (index 2) and `right` to `2` (index 5), sum = `-1 + 2 = 1` → actually we need sum = 4, so continue… *(In the visual, the step where sum matches target shows a valid triplet, e.g., `[-4, -1, 2]`).* | When the sum equals the target, we’ve found a triplet that adds to zero. We record it, then shift both pointers past any duplicates to avoid repeating the same triplet. |\n| **7. Continue** | Increment `i` to the next distinct value and repeat the two‑pointer scan. | This ensures we explore all possible first elements while avoiding duplicate work. |\n\n---\n\n### 🔑 Key Takeaways (no full solution)\n\n* **Sorting** is the enabler: it lets us decide deterministically whether to move the left or right pointer.\n* **Fixing one element** turns the 3‑sum into a 2‑sum problem for the sub‑array to its right.\n* **Two pointers** give us an O(n) scan for each fixed element, leading to an overall O(n²) approach.\n* **Duplicate skipping** (moving past equal values after recording a triplet) guarantees unique results.\n\nFeel free to try applying these ideas to a small example on your own—pick a sorted array, fix an index, and watch how the left and right pointers converge toward a sum that matches the target. If you get stuck on a particular step, let me know what you observe and we can dig deeper!"
+        },
+        {
+          "type": "sources.ready",
+          "runId": "41ffe4e2-391c-4a3b-b3a4-dfffaa98e025"
+        },
+        {
+          "type": "run.completed",
+          "runId": "41ffe4e2-391c-4a3b-b3a4-dfffaa98e025"
+        }
+      ],
+      "finishedAt": "2026-10-11T08:36:09.537Z",
+      "textDeltaCount": 241
+    }
+  ]
+}

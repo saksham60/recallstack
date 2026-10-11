@@ -1,0 +1,15 @@
+{
+  "caseId": "COLLAB-01",
+  "startedAt": "2026-10-11T08:21:13.595Z",
+  "execution": "live production, two isolated Chromium contexts",
+  "seedNodeCount": 3,
+  "seedEdgeCount": 2,
+  "preShareStatusA": "Nodes 3\n•\nConnections 2\n•\nSelected 0\nZoom 100%\nIn-memory canvas",
+  "roomCreated": true,
+  "joinStatusA": "Nodes 3\n•\nConnections 2\n•\nSelected 0\nZoom 100%\nIn-memory canvas",
+  "joinStatusB": "Nodes 3\n•\nConnections 2\n•\nSelected 0\nZoom 100%\nIn-memory canvas",
+  "afterEditStatusA": "Nodes 4\n•\nConnections 2\n•\nSelected 1\nZoom 100%\nIn-memory canvas",
+  "afterEditStatusB": "Nodes 4\n•\nConnections 2\n•\nSelected 0\nZoom 100%\nIn-memory canvas",
+  "afterReconnectStatusB": "Nodes 4\n•\nConnections 2\n•\nSelected 0\nZoom 100%\nIn-memory canvas",
+  "finishedAt": "2026-10-11T08:21:23.084Z"
+}

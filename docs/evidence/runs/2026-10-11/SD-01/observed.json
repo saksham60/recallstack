@@ -1,0 +1,108 @@
+{
+  "caseId": "SD-01",
+  "startedAt": "2026-10-11T08:22:02.933Z",
+  "execution": "live production browser",
+  "seed": {
+    "schemaVersion": 3,
+    "id": "evidence-messaging-document",
+    "title": "Messaging architecture evidence seed",
+    "status": "in_progress",
+    "rootDiagramId": "evidence-messaging-root",
+    "diagrams": {
+      "evidence-messaging-root": {
+        "id": "evidence-messaging-root",
+        "name": "Messaging platform",
+        "nodes": [
+          {
+            "id": "mobile-client",
+            "type": "mobile_app",
+            "label": "Mobile clients",
+            "x": 80,
+            "y": 210,
+            "width": 170,
+            "height": 92,
+            "layer": 0,
+            "locked": false,
+            "visible": true
+          },
+          {
+            "id": "chat-service",
+            "type": "service",
+            "label": "Chat service",
+            "x": 380,
+            "y": 210,
+            "width": 170,
+            "height": 92,
+            "layer": 0,
+            "locked": false,
+            "visible": true
+          },
+          {
+            "id": "message-store",
+            "type": "sql_database",
+            "label": "Message store",
+            "x": 680,
+            "y": 210,
+            "width": 170,
+            "height": 92,
+            "layer": 0,
+            "locked": false,
+            "visible": true
+          }
+        ],
+        "edges": [
+          {
+            "id": "client-chat",
+            "sourceNodeId": "mobile-client",
+            "targetNodeId": "chat-service",
+            "sourcePort": "right",
+            "targetPort": "left",
+            "type": "websocket",
+            "label": "Live messages"
+          },
+          {
+            "id": "chat-store",
+            "sourceNodeId": "chat-service",
+            "targetNodeId": "message-store",
+            "sourcePort": "right",
+            "targetPort": "left",
+            "type": "database_write",
+            "label": "Persist messages"
+          }
+        ],
+        "viewport": {
+          "x": 0,
+          "y": 0,
+          "zoom": 1
+        }
+      }
+    },
+    "createdAt": "2026-10-11T08:22:02.451Z",
+    "updatedAt": "2026-10-11T08:22:02.451Z"
+  },
+  "prompt": "Design a messaging platform for one million concurrent users. Review the current diagram for bottlenecks and propose missing components and links.",
+  "beforeStatus": "Nodes 3\n•\nConnections 2\n•\nSelected 0\nZoom 100%\nIn-memory canvas",
+  "durationMs": 39219,
+  "proposalVisible": false,
+  "pendingStatus": "Nodes 3\n•\nConnections 2\n•\nSelected 0\nZoom 100%\nIn-memory canvas",
+  "proposalText": "ReasonAI\n\nPrivate · Changes apply only when you choose\n\nYou\n\nDesign a messaging platform for one million concurrent users. Review the current diagram for bottlenecks and propose missing components and links.\n\nReasonAI is temporarily unavailable. Please try again.\n\nRetry\nChat\nReview\nFix\nEagle View\nModel\nAuto\nNemotron Lightning\nNemotron Super\nNemotron Ultra\nVisual analysis\nMessaging platform\n0/4000\nEnter to send",
+  "finishedAt": "2026-10-11T08:22:44.238Z",
+  "requests": [
+    {
+      "status": 200,
+      "traceId": "b7a8161f-f085-46ec-8d12-dabb5e728803",
+      "startedAt": "2026-10-11T08:22:08.879Z",
+      "events": [
+        {
+          "type": "run.started"
+        },
+        {
+          "type": "run.failed",
+          "code": "PROVIDER_FAILURE",
+          "message": "ReasonAI is temporarily unavailable. Please try again."
+        }
+      ],
+      "finishedAt": "2026-10-11T08:22:44.129Z"
+    }
+  ]
+}
