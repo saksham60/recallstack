@@ -147,7 +147,7 @@ function providerMessages(input: SystemDesignAgentRoundInput, offeredTools: stri
 async function openProvider(body: object, signal?: AbortSignal): Promise<{ response: Response; combined: AbortSignal }> {
   const { apiKey, baseUrl } = getReasonAIConfiguration();
   if (!apiKey) throw new ReasonAIProviderError("ReasonAI is not configured. Add the server API key.", 503);
-  const combined = signal ? AbortSignal.any([signal, AbortSignal.timeout(60_000)]) : AbortSignal.timeout(60_000);
+  const combined = signal ? AbortSignal.any([signal, AbortSignal.timeout(105_000)]) : AbortSignal.timeout(105_000);
   let response: Response;
   try {
     response = await traceLLMResponse(body as Record<string, unknown>, () => fetch(`${baseUrl.replace(/\/$/u, "")}/chat/completions`, {
@@ -290,7 +290,7 @@ export const systemDesignAgentProvider: SystemDesignAgentProvider = {
     const tool = { id: "", name: "", arguments: "" };
     let sawTool = false;
     try {
-      for await (const frame of decodeTokenFactorySSE(response.body!, combined)) {
+      for await (const frame of decodeTokenFactorySSE(response.body!, combined, { idleMs: 90_000 })) {
         if (frame.error) throw new ReasonAIProviderError("ReasonAI is temporarily unavailable. Please try again.");
         if (frame.choices === undefined) continue;
         if (!Array.isArray(frame.choices) || frame.choices.length > 1) throw new DSAProviderStreamError("ReasonAI provider returned invalid stream choices.");
