@@ -230,7 +230,8 @@ test("independent generated cards use native canvas drops, dependencies, private
   await page.keyboard.press("Control+Shift+z");
   await expect(page.getByLabel("Diagram status")).toContainText(/Nodes\s+2/);
   await page.getByRole("button", { name: "Open ReasonAI" }).click();
-  await expect(redis.first()).toHaveAttribute("data-suggestion-status", "added");
+  // A new JSON fallback proposal supersedes the previous suggestion cards.
+  await expect(redis.first()).toHaveAttribute("data-suggestion-status", "pending");
   await page.screenshot({ path: "test-results/reasonai-conversation.png" });
 });
 
@@ -287,7 +288,7 @@ test("discard, errors, and malicious proposals never change the canvas", async (
   await expect(page.getByRole("dialog", { name: "ReasonAI", exact: true }).getByRole("alert")).toHaveText("ReasonAI could not complete that response. Please try again.");
   await page.getByRole("button", { name: "Retry", exact: true }).click();
   await page.getByRole("button", { name: "Dismiss", exact: true }).first().click();
-  await expect(page.getByText("Dismissed", { exact: true })).toBeVisible();
+  await expect(page.getByText("Dismissed", { exact: true })).toHaveCount(2);
   await expect(page.getByLabel("Diagram status")).toContainText(/Nodes\s+0/);
 });
 
@@ -445,7 +446,7 @@ test("a connection suggestion becomes unavailable when an endpoint is deleted", 
   await page.getByRole("region", { name: "Suggestion: Redis", exact: true }).getByRole("button", { name: "Add to canvas", exact: true }).click();
   await input.fill("Connect them");
   await input.press("Enter");
-  await expect(page.getByRole("region", { name: "Suggestion: URL Service → Redis", exact: true })).toHaveCount(2);
+  await expect(page.getByRole("region", { name: "Suggestion: URL Service → Redis", exact: true })).toHaveCount(1);
   await page.getByRole("button", { name: "Close ReasonAI" }).click();
   await page.getByTestId("system-design-canvas").focus();
   await page.keyboard.press("Delete");
