@@ -4,6 +4,35 @@ ReasonAI is an **AI-native technical reasoning workspace** for developers, engin
 
 **Live demo:** [https://www.reasonai.tech](https://www.reasonai.tech)
 
+
+## Hackathon judge quickstart and evidence
+
+**Nebius × NVIDIA Global AI Hackathon — Best Apps and Agents.** ReasonAI existed before the hackathon; the [hackathon implementation record](HACKATHON_SUBMISSION.md) distinguishes the new Nebius/Nemotron-powered work from the earlier project.
+
+**Start here:** [3-minute demo](https://www.youtube.com/watch?v=FoV2KkK72Xs) · [Live application](https://www.reasonai.tech) · [Devpost entry](https://devpost.com/software/reasonai) · [Nebius/Nemotron implementation details](HACKATHON_SUBMISSION.md) · [Verification commands](#verification).
+
+**Five-minute hands-on judge path**
+
+1. **Enter:** Open the live app and choose **Continue as Hackathon Judge**; no account setup is needed.
+2. **Discover:** Open the Knowledge Feed, select a technical story and ask **Ask ReasonAI** for related developments or fresh evidence. Inspect the returned sources.
+3. **Reason + Build:** Open System Design, request a scalability review, then ask for specific components or connections. Check that suggestions are **reviewable** and the canvas changes **only after acceptance**.
+4. **Collaborate:** Start **Live Share**, join from a second browser session and verify that committed node/edge edits appear across both sessions.
+5. **Master:** Open a DSA problem, request a progressive hint and try a structured visual walkthrough.
+
+### Evidence map: claims you can inspect
+
+| Claim to verify | Public implementation and checks |
+| --- | --- |
+| **NVIDIA Nemotron via Nebius Token Factory**, model tiers and hackathon additions | [Hackathon implementation record](HACKATHON_SUBMISSION.md), [System Design runtime documentation](web/docs/system-design-reasonai.md) |
+| **AI proposes, the user accepts, the application validates** | [Proposal safety and recovery](web/docs/reasonai-proposal-recovery.md), [AI proposal browser tests](web/e2e/reasonai.spec.ts) |
+| **Realtime collaboration** with ordered operations, replay and reconnect | [Realtime service](realtime/README.md), [Room tests](realtime/internal/room/room_test.go) |
+| **Knowledge Feed and grounded research** | [Knowledge pipeline](backend/docs/knowledge-shorts.md), [Knowledge API tests](backend/tests/knowledge/test_api.py) |
+| **Tracing and reproducibility** | [LangSmith integration tests](web/e2e/langsmith.spec.ts), [local verification commands](#verification), [current vs planned capabilities](#current-vs-next-architecture) |
+
+**Evidence status:** These links lead to existing code, documentation and test cases—not invented benchmark results. Reproducible agent execution traces, quantitative model evaluations, load measurements and independent user-impact studies will be published separately when run and verified. Do not interpret proposed load-test scenarios or future architecture plans as measured outcomes.
+
+---
+
 > ReasonAI is not just a chat interface around an LLM. The product separates model reasoning, durable learning state, tools, deterministic application services, realtime collaboration, user-controlled mutations, and offline/client state into explicit architectural boundaries.
 
 ---
