@@ -69,6 +69,8 @@ System Design supports **Lightning**, **Super**, and **Ultra**, with **Auto** ro
 
 ## Technical evidence and reproducibility
 
+**[Hackathon Evidence Hub](docs/evidence/INDEX.md)** — claims-to-code mapping, [live evidence capture guide](docs/evidence/CAPTURE_RUNBOOK.md), [fixed evaluation protocol](docs/evidence/EVALUATION_PROTOCOL.md), and [run record template](docs/evidence/RUN_RECORD_TEMPLATE.md). Quantitative results remain unpublished until real trials are completed and reviewed.
+
 These links point to **existing implementation or tests**. They are not presented as measured benchmark results.
 
 | What to inspect | Evidence in this repository |
