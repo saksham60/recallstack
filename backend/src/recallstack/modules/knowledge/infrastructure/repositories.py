@@ -8,7 +8,7 @@ from sqlalchemy.sql.elements import ColumnElement
 
 from recallstack.modules.knowledge.application.ports import FeedPosition, RankedStory
 from recallstack.modules.knowledge.domain.entities import (
-    RETENTION,
+    STORY_VISIBILITY_WINDOW,
     KnowledgeSource,
     KnowledgeStory,
     PreferencePatch,
@@ -129,7 +129,7 @@ class SqlAlchemyKnowledgeRepository:
             .outerjoin(State, and_(State.story_id == Story.id, State.profile_id == profile_id))
             .where(
                 Story.status == "active",
-                Story.published_at >= now - RETENTION,
+                Story.published_at >= now - STORY_VISIBILITY_WINDOW,
                 Story.published_at <= anchor,
                 Story.created_at <= anchor,
                 Story.discovered_at <= anchor,
@@ -192,7 +192,7 @@ class SqlAlchemyKnowledgeRepository:
                 .where(
                     Story.id == story_id,
                     Story.status == "active",
-                    Story.published_at >= now - RETENTION,
+                    Story.published_at >= now - STORY_VISIBILITY_WINDOW,
                     Story.published_at <= now,
                     Source.enabled.is_(True),
                 )
