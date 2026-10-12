@@ -128,9 +128,11 @@ async def contract(contract_url):
                             image_key=f"shorts/test/{sid}.webp",
                             importance_score=Decimal("0.8"),
                             quality_score=Decimal("0.9"),
-                            published_at=now - timedelta(days=8)
-                            if index == 5
-                            else now - timedelta(hours=1),
+                            published_at=(
+                                now - timedelta(days=31) if index == 5
+                                else now - timedelta(days=8) if index == 4
+                                else now - timedelta(hours=1)
+                            ),
                             discovered_at=now - timedelta(minutes=2),
                             created_at=now - timedelta(minutes=2),
                             updated_at=now,
@@ -213,6 +215,8 @@ async def test_actual_schema_feed_filters_ranking_cursor_and_query_count(contrac
         page = await feed.query(user, topic=scope, limit=2, cursor=page.next_cursor)
         seen.extend(s.id for s in page.items)
     assert len(seen) == len(set(seen)) == 5 and set(seen) == set(ids[:5])
+    # An eight-day-old article is included in the temporary 30-day feed window.
+    assert (await feed.story(ids[4])).id == ids[4]
     for sid in ids[5:7]:
         with pytest.raises(AppError) as missing:
             await feed.story(sid)
