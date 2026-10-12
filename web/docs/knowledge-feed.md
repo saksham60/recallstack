@@ -40,7 +40,7 @@ Actual story fields: `id`, `title`, `summary`, `whyItMatters`, `source.key`, `so
 
 The chat handler verifies Supabase authentication, enforces same-origin requests when Origin is supplied, bounds/validates input, and re-fetches the story with the user's bearer token before calling the provider. Client-supplied story text cannot override canonical context. Expired or inaccessible stories never reach the provider. Provider credentials stay server-side. The answer is grounded in the summary, with no claim of having retrieved the full source article or searched the web.
 
-The backend retains active stories for seven days and returns ready-to-use R2/CDN image URLs. The UI has no storage credentials or provider-specific image URL construction. Categories are represented by topic keys; there is no categories endpoint or linked DSA/System Design problem metadata. Accordingly, no invented related-problem links are rendered.
+The backend temporarily retains active stories for 30 days while manual fresh-news ingestion is restored (revert to seven days afterward), and returns ready-to-use R2/CDN image URLs. The UI has no storage credentials or provider-specific image URL construction. Categories are represented by topic keys; there is no categories endpoint or linked DSA/System Design problem metadata. Accordingly, no invented related-problem links are rendered.
 
 The backend must enable Knowledge and deploy the merged viewer-state contract. `npm run api:generate` now exports the checked-out application's schema instead of relying on the stale checked-in `backend/openapi.json`, and writes only the generated web types. Source files in `backend` remain untouched by this generator.
 
