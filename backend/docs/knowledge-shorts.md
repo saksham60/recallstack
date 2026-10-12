@@ -83,7 +83,7 @@ Cursors are HMAC-signed, URL-safe, bounded to 2048 characters, profile/topic/sou
 after one hour. They contain a ranking anchor and `(score, published_at, story_id)` ordering tuple. Stories
 created or discovered after that anchor wait until a new pagination session. Preference/source-registry
 changes invalidate the cursor with 409; changing the requested topic or source also invalidates it. Secret
-rotation resets pagination. Every page independently checks the current seven-day cutoff and hidden state,
+rotation resets pagination. Every page independently checks the temporary 30-day cutoff and hidden state,
 so expiration or hiding can shorten a session but cannot expose stale stories.
 
 ## Offline lifecycle
@@ -118,8 +118,8 @@ outputs are not retried automatically. One failed candidate does not discard suc
 
 ## Retention and R2
 
-Retention is fixed at seven days. Read queries enforce active status and `published_at >= UTC now - 7 days`
-even if cleanup fails. Future publication timestamps are excluded. User preferences are never cleaned up.
+**Temporary demo behavior:** Existing stories remain visible for 30 days while fresh ingestion is restored. Read queries enforce active status and `published_at >= UTC now - 30 days`
+even if cleanup fails. Cleanup uses the same temporary 30-day window, so running the refresh job does not immediately delete older stories newly exposed by the feed. Discovery and event timestamp validation still use seven days; revert the temporary window once new ingestion is reliable. Future publication timestamps are excluded. User preferences are never cleaned up.
 The deep-link endpoint also excludes globally disabled sources; it does not apply a user's feed preferences.
 
 Cleanup deletes R2 objects in bounded batches, then deletes expired rows whose keys were acknowledged
