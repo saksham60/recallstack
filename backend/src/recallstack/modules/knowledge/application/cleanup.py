@@ -4,7 +4,7 @@ from datetime import datetime
 from uuid import UUID
 
 from recallstack.modules.knowledge.application.ports import ImageStore, StoryStore
-from recallstack.modules.knowledge.domain.entities import RETENTION
+from recallstack.modules.knowledge.domain.entities import STORY_VISIBILITY_WINDOW
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ class CleanupService:
         self._batch_size, self._max_batches = batch_size, max_batches
 
     async def run(self, now: datetime, *, dry_run: bool = False) -> CleanupResult:
-        cutoff = now - RETENTION
+        cutoff = now - STORY_VISIBILITY_WINDOW
         after: tuple[datetime, UUID] | None = None
         found = removed = images_deleted = failed = 0
         for _ in range(self._max_batches):
