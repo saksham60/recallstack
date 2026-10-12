@@ -6,6 +6,10 @@ from uuid import UUID
 
 RETENTION = timedelta(days=7)
 
+# TEMPORARY: show existing older stories while manual ingestion is restored.
+# Revert to RETENTION once fresh stories are reliably being generated.
+STORY_VISIBILITY_WINDOW = timedelta(days=30)
+
 
 class EventType(StrEnum):
     VIEW = "VIEW"
