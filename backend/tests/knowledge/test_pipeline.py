@@ -144,8 +144,8 @@ async def test_no_discovery_call_when_source_registry_is_empty():
 
 async def test_cleanup_retention_retry_and_preserved_preferences():
     now = datetime.now(UTC)
-    old = story(0, published_at=now - timedelta(days=8))
-    active = story(1, published_at=now - timedelta(days=7))
+    old = story(0, published_at=now - timedelta(days=31))
+    active = story(1, published_at=now - timedelta(days=30))
     store, images = FakeStore((old, active)), FakeImages()
     service = CleanupService(store, images, batch_size=1, max_batches=3)
     images.fail_delete = True
@@ -162,7 +162,7 @@ async def test_cleanup_retention_retry_and_preserved_preferences():
 
 async def test_cleanup_dry_run_is_bounded_and_strictly_read_only():
     now = datetime.now(UTC)
-    store = FakeStore(tuple(story(i, published_at=now - timedelta(days=8)) for i in range(10)))
+    store = FakeStore(tuple(story(i, published_at=now - timedelta(days=31)) for i in range(10)))
     images = FakeImages()
     result = await CleanupService(store, images, batch_size=2, max_batches=2).run(now, dry_run=True)
     assert result.found == 4 and result.removed == 0
