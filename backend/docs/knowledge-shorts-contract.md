@@ -97,7 +97,7 @@ Feed must ALWAYS additionally enforce:
 
 ```text
 status = 'active'
-published_at >= now() - interval '7 days'
+published_at >= now() - interval '30 days' -- TEMP: return to 7 after reliable ingestion
 ```
 
 regardless of whether cleanup has executed.
@@ -286,7 +286,7 @@ Indexes:
 (story_id)
 ```
 
-When a story is removed after seven days its raw event rows disappear through cascade.
+When a story is removed after the temporary 30-day cleanup window its raw event rows disappear through cascade. Event timestamps still use seven-day validation.
 
 ---
 
@@ -340,7 +340,7 @@ UNHIDE    -> hidden=false
 
 `user_story_state` = cheap current-state lookup for feed serving and `viewerState` response fields.
 
-Both disappear naturally when the seven-day story disappears.
+Both disappear naturally when the story disappears after the temporary 30-day cleanup window.
 
 ---
 
