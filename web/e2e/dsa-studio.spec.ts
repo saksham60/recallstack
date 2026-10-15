@@ -423,7 +423,7 @@ test("drafts are isolated by problem, version, language and account; reset requi
     .poll(() =>
       page.evaluate((key) => JSON.parse(localStorage.getItem(key)!).code, KEY),
     )
-    .toBe("");
+    .toContain("def array_total(*args, **kwargs):");
   await enterCode(page, "print('account one')");
   await page.goto(
     `/dsa?problem=${ID}&version=20000000-0000-4000-8000-000000000002`,
