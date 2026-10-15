@@ -44,7 +44,7 @@ import {
   Specification,
 } from "./Specification";
 import { PaneResize } from "./PaneResize";
-import { draftKey, readDraft, type Draft } from "./drafts";
+import { draftKey, pythonStarterCode, readDraft, type Draft } from "./drafts";
 import { useExecution } from "../execution/use-execution";
 import { ExecutionPanel } from "../execution/ExecutionPanel";
 import "./workspace.css";
@@ -252,7 +252,9 @@ function ProblemWorkspace({
     problem.problem_version_id,
     language,
   );
-  const [draft, setDraft] = useState(() => readDraft(storageKey));
+  const [draft, setDraft] = useState(() =>
+    readDraft(storageKey, pythonStarterCode(problem.function_contract, language)),
+  );
   const currentDraft = useRef(draft);
   const [storageError, setStorageError] = useState(false),
     [notice, setNotice] = useState("");
@@ -380,6 +382,7 @@ function ProblemWorkspace({
   function changeLanguage(next: string) {
     const recovered = readDraft(
       draftKey(userId, problem.id, problem.problem_version_id, next),
+      pythonStarterCode(problem.function_contract, next),
     );
     currentDraft.current = recovered;
     setDraft(recovered);
@@ -551,6 +554,15 @@ function ProblemWorkspace({
               >
                 {storageError ? "Draft not saved" : "Saved locally"}
               </span>
+              {!draft.code.trim() && pythonStarterCode(problem.function_contract, language) && (
+                <button
+                  type="button"
+                  className="studio-icon"
+                  onClick={() => persist({ code: pythonStarterCode(problem.function_contract, language), view: undefined })}
+                >
+                  Insert starter code
+                </button>
+              )}
               <button
                 type="button"
                 className="studio-icon"
@@ -583,13 +595,14 @@ function ProblemWorkspace({
           {reset && (
             <div className="studio-notice" role="alert">
               <p>
-                Reset this language’s code to an empty draft? No starter
-                template is supplied by this specification.
+                {pythonStarterCode(problem.function_contract, language)
+                  ? "Reset this language’s code to the starter template? Your current code will be replaced."
+                  : "Reset this language’s code to an empty draft? Your current code will be replaced."}
               </p>
               <button
                 type="button"
                 onClick={() => {
-                  persist({ code: "", view: undefined });
+                  persist({ code: pythonStarterCode(problem.function_contract, language), view: undefined });
                   setReset(false);
                 }}
               >
