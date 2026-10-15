@@ -99,11 +99,17 @@ export function Explorer({
             Reviewer preview · Specifications may still be awaiting approval.
           </p>
         )}
+        {!scope.preview && (
+          <p className="studio-notice">
+            Early access: some problem statements are still under review. Run
+            and Submit are enabled only for certified tests.
+          </p>
+        )}
         {statistics.data && (
           <div className="studio-stats">
             <div>
               <b>{statistics.data.total_catalog_problems}</b>
-              <span>Approved problems</span>
+              <span>Available problems</span>
             </div>
             <div>
               <b>{statistics.data.attempted_problem_count}</b>
@@ -213,12 +219,12 @@ export function Explorer({
               <h3>
                 {search || Object.values(filters).some(Boolean)
                   ? "No matching problems"
-                  : "No approved problems yet"}
+                  : "No available problems yet"}
               </h3>
               <p>
                 {search || Object.values(filters).some(Boolean)
                   ? "Try another title or clear your filters."
-                  : "Problem specifications will appear here after review and publication. Your existing study notes are available in the library."}
+                  : "Problems may be added during review. Your existing study notes are available in the library."}
               </p>
               <button
                 type="button"
