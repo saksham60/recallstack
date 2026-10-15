@@ -350,3 +350,12 @@ a loopback-only SSE provider for persistence assertions, selected solely by the
 Playwright web-server environment; production uses its existing configured
 provider. Real model checks remain separately opt-in and were run successfully.
 The complete backend lint/format/type checks and all 218 unit tests passed locally.
+
+
+The final local PostgreSQL run passed all 64 integration tests (including existing
+knowledge/content behavior), and the credential-free DSA browser run passed all
+44 cases. The broader browser run passed 171 cases with the opt-in real-API case
+skipped; its remaining navigation test was updated to dismiss the workspace's
+initial modal before interacting with the global user menu. That three-case
+bookmark regression suite then passed. Production Run/Submit eligibility remains
+subject to independent content publication and suite certification.

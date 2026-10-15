@@ -22,6 +22,7 @@ test.describe('Bookmarks Flow', () => {
       await route.fulfill({ json: { id: 'test-user-id', email: 'test@example.com', display_name: 'Student', roles: [] } });
     });
     await page.goto('/dsa');
+    await page.getByRole('button', { name: 'Close problem explorer', exact: true }).click();
 
     const header = page.locator('header');
     await expect(header.getByText('ReasonAI', { exact: true })).toBeVisible();
