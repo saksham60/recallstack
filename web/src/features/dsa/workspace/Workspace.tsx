@@ -32,6 +32,7 @@ import {
   useDSAScope,
   useProblem,
   useNotes,
+  useLearnerChange,
   usePublicTests,
   type Problem,
   type ProblemItem,
@@ -241,6 +242,8 @@ function ProblemWorkspace({
   );
   const localPython = useLocalPythonRun();
   const publicTests = usePublicTests(scope, problem);
+  const betaWrite = useLearnerChange(scope, problem.id);
+  const [betaSavedCode, setBetaSavedCode] = useState<string | null>(null);
   const [layout, setLayout] = useState<Layout>(() => savedLayout(userId));
   const [panel, setPanel] = useState(layout === "visual" ? "canvas" : "spec"),
     [mobile, setMobile] = useState("spec"),
@@ -332,17 +335,20 @@ function ProblemWorkspace({
   );
   const canRun =
     !preview && problem.availability === "available" && language === "python";
-  const localRunPassed = localPython.run?.state === "passed" &&
-    localPython.run.source === "verified" &&
+  const matchingRun = localPython.run?.state === "passed" &&
     localPython.run.code === draft.code;
-  const canSubmit =
-    canRun &&
-    !execution.availability.error &&
-    execution.availability.data?.submit === true &&
-    localRunPassed;
+  const certifiedSubmit = execution.availability.data?.submit === true;
+  const canSubmitTrusted =
+    canRun && !execution.availability.error && certifiedSubmit &&
+    matchingRun && localPython.run?.source === "verified";
+  const canSubmitBeta =
+    canRun && !certifiedSubmit &&
+    matchingRun && localPython.run?.source === "examples" &&
+    betaSavedCode !== draft.code;
+  const canSubmit = canSubmitTrusted || canSubmitBeta;
   const blocked =
     execution.creating || execution.active || execution.needsRetry ||
-    localPython.run?.state === "running";
+    localPython.run?.state === "running" || betaWrite.isPending;
   const runReason = preview
     ? "Switch to learner view to run published examples."
     : language !== "python"
@@ -352,8 +358,8 @@ function ProblemWorkspace({
     ? "Switch to learner view to submit a published specification."
     : language !== "python"
       ? "Only Python submissions are currently supported."
-      : !execution.availability.data?.submit
-        ? "Hidden grading is not certified for this early-access problem."
+      : !certifiedSubmit
+        ? "Early-access Submit saves an ungraded solution note after a passing local example Run."
         : "Pass all verified public tests with this exact code before Submit.";
   function execute(mode: "run" | "submit") {
     setTestTab("results");
@@ -379,11 +385,30 @@ function ProblemWorkspace({
         : problem.examples.map((example, index) => ({
             id: String(index), input: example.input, expected: example.output,
           }));
+      setBetaSavedCode(null);
       void localPython.start(currentDraft.current.code, cases, source);
       return;
     }
     if (!canSubmit) {
       setNotice(submitReason);
+      return;
+    }
+    if (canSubmitBeta) {
+      // An early-access attempt is a private learner note, NEVER an
+      // Accepted verdict, a hidden-suite claim, or mastered progress.
+      const code = currentDraft.current.code;
+      void betaWrite.mutateAsync({
+        kind: "create-note",
+        title: "Ungraded beta submission: " + problem.title.slice(0, 190),
+        body: "Ungraded ReasonAI early-access solution. Problem version: " +
+          problem.problem_version_id + "\\n\\n" + code,
+        noteKind: "note",
+      }).then(() => {
+        setBetaSavedCode(code);
+        setNotice("Beta attempt saved privately to your notes. Hidden judging is not yet available.");
+      }).catch((error: unknown) => {
+        setNotice(error instanceof Error ? error.message : "Could not save beta attempt.");
+      });
       return;
     }
     // The server still independently evaluates the exact source against
@@ -780,7 +805,9 @@ function ProblemWorkspace({
       <footer className="studio-bottom">
         <p id="studio-execution-reason">
           {canRun ? "Run is local, with no sandbox API request. " : runReason}
-          {canSubmit ? "Submit sends code for trusted hidden grading." : ` ${submitReason}`}
+          {canSubmitTrusted ? "Submit uses trusted hidden grading."
+            : canSubmitBeta ? "Submit (beta) saves an ungraded attempt in notes."
+            : ` ${submitReason}`}
         </p>
         <div className="studio-actions">
           <button
@@ -799,14 +826,13 @@ function ProblemWorkspace({
             onClick={() => execute("submit")}
             className="studio-primary"
             aria-describedby="studio-execution-reason"
-            title={
-              canSubmit
-                ? "Submit to hidden tests (Ctrl/Cmd+Shift+Enter)"
-                : submitReason
-            }
+            title={canSubmitTrusted
+              ? "Submit to hidden tests (Ctrl/Cmd+Shift+Enter)"
+              : canSubmitBeta ? "Save ungraded beta solution (Ctrl/Cmd+Shift+Enter)"
+              : submitReason}
           >
             <Send size={14} />
-            Submit
+            {certifiedSubmit ? "Submit" : betaSavedCode === draft.code ? "Beta saved" : "Submit (beta)"}
           </button>
         </div>
       </footer>
