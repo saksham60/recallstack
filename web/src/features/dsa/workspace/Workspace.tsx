@@ -401,7 +401,7 @@ function ProblemWorkspace({
         kind: "create-note",
         title: "Ungraded beta submission: " + problem.title.slice(0, 190),
         body: "Ungraded ReasonAI early-access solution. Problem version: " +
-          problem.problem_version_id + "\\n\\n" + code,
+          problem.problem_version_id + "\n\n" + code,
         noteKind: "note",
       }).then(() => {
         setBetaSavedCode(code);
