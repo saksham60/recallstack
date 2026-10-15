@@ -12,6 +12,15 @@ export function getReasonAIConfiguration() {
   };
 }
 
+export function getConTreeConfiguration() {
+  return {
+    apiKey: process.env.NEBIUS_API_KEY,
+    project: process.env.CONTREE_PROJECT,
+    baseUrl: process.env.CONTREE_URL || "https://api.tokenfactory.nebius.com/sandboxes",
+    pythonImage: process.env.CONTREE_PYTHON_IMAGE,
+  };
+}
+
 export function isReasonAIDSAStreamingEnabled(): boolean {
   const mode = process.env.REASONAI_V2_MODE?.trim().toLowerCase() ?? "off";
   return mode === "dsa" || mode === "all";

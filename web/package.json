@@ -6,6 +6,7 @@
     "node": ">=22.0.0"
   },
   "scripts": {
+    "sandbox:smoke": "node scripts/smoke-contree.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -15,21 +16,28 @@
     "test:system-design-state": "playwright test --config=playwright.system-design-state.config.ts",
     "test:e2e:system-design-disabled": "playwright test --config=playwright.system-design-disabled.config.ts",
     "api:generate": "node scripts/generate-api.mjs",
-    "verify": "npm run typecheck && npm run lint && npm run build && npm run test:system-design-state && npm run test:e2e && npm run test:e2e:system-design-disabled"
+    "verify": "npm run typecheck && npm run lint && npm run build && npm run test:system-design-state && npm run test:executions && npm run test:e2e && npm run test:e2e:system-design-disabled",
+    "predev": "node scripts/prepare-monaco.mjs",
+    "prebuild": "node scripts/prepare-monaco.mjs",
+    "test:executions": "playwright test --config=playwright.execution.config.ts"
   },
   "dependencies": {
     "@langchain/core": "^1.2.11",
     "@langchain/langgraph": "^1.4.16",
     "@likec4/icons": "^1.46.4",
+    "@monaco-editor/react": "^4.7.0",
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.110.7",
     "@tanstack/react-query": "^5.101.2",
+    "@vercel/queue": "0.8.0",
+    "contree-client": "0.4.1",
     "dompurify": "^3.4.13",
     "isomorphic-dompurify": "^3.19.0",
     "jspdf": "^4.2.1",
     "konva": "^10.3.0",
     "langsmith": "0.10.4",
     "lucide-react": "^1.27.0",
+    "monaco-editor": "^0.57.0",
     "next": "^16.3.3",
     "openapi-fetch": "^0.17.0",
     "qrcode.react": "^4.2.0",

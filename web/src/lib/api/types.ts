@@ -937,6 +937,248 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/dsa/problems": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Catalog */
+        get: operations["listDsaProblems"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dsa/problems/{problem_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Detail */
+        get: operations["getDsaProblem"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dsa/problems/{problem_id}/test-cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Test Cases */
+        get: operations["listDsaPublicTestCases"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dsa/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Categories */
+        get: operations["listDsaCategories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dsa/topics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Topics */
+        get: operations["listDsaTopics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dsa/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Capabilities */
+        get: operations["getDsaCapabilities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dsa/me/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Progress */
+        get: operations["listMyDsaProgress"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dsa/me/problems/{problem_id}/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Progress */
+        get: operations["getMyDsaProgress"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Patch Progress */
+        patch: operations["patchMyDsaProgress"];
+        trace?: never;
+    };
+    "/api/v1/dsa/me/bookmarks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Bookmarks */
+        get: operations["listMyDsaBookmarks"];
+        put?: never;
+        /** Create Bookmark */
+        post: operations["createMyDsaBookmark"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dsa/me/bookmarks/{problem_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Bookmark */
+        delete: operations["deleteMyDsaBookmark"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dsa/me/problems/{problem_id}/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Notes */
+        get: operations["listMyDsaProblemNotes"];
+        put?: never;
+        /** Create Note */
+        post: operations["createMyDsaProblemNote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dsa/me/notes/{note_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Note */
+        delete: operations["deleteMyDsaNote"];
+        options?: never;
+        head?: never;
+        /** Patch Note */
+        patch: operations["patchMyDsaNote"];
+        trace?: never;
+    };
+    "/api/v1/dsa/me/practice-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** History */
+        get: operations["listMyDsaPracticeHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dsa/me/statistics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Statistics */
+        get: operations["getMyDsaStatistics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/knowledge/feed": {
         parameters: {
             query?: never;
@@ -1177,6 +1419,14 @@ export interface components {
             items: components["schemas"]["AuditLogItem"][];
             pagination: components["schemas"]["recallstack__modules__admin__presentation__schemas__PaginationResponse"];
         };
+        /** BookmarkCreate */
+        BookmarkCreate: {
+            /**
+             * Problem Id
+             * Format: uuid
+             */
+            problem_id: string;
+        };
         /** BookmarkListResponse */
         BookmarkListResponse: {
             /** Items */
@@ -1199,6 +1449,42 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+        };
+        /** BookmarkWriteResponse */
+        BookmarkWriteResponse: {
+            /** Changed */
+            changed: boolean;
+            /** Sync Cursor */
+            sync_cursor: number | null;
+        };
+        /** CapabilitiesResponse */
+        CapabilitiesResponse: {
+            /** Catalog */
+            catalog: boolean;
+            /** Progress */
+            progress: boolean;
+            /** Bookmarks */
+            bookmarks: boolean;
+            /** Notes */
+            notes: boolean;
+            /** Practice History */
+            practice_history: boolean;
+            /**
+             * Sandbox Execution
+             * @constant
+             */
+            sandbox_execution: false;
+            /**
+             * Ai Tutoring
+             * @constant
+             */
+            ai_tutoring: false;
+            /** Published Contract Languages */
+            published_contract_languages: string[];
+            /** Configured Runtime Languages */
+            configured_runtime_languages: string[];
+            /** Execution Languages */
+            execution_languages: string[];
         };
         /** CatalogCategoryAssignmentResponse */
         CatalogCategoryAssignmentResponse: {
@@ -1373,6 +1659,18 @@ export interface components {
             is_primary: boolean;
             /** Sort Order */
             sort_order: number;
+        };
+        /** CatalogResponse */
+        CatalogResponse: {
+            /** Next Cursor */
+            next_cursor?: string | null;
+            /**
+             * Has More
+             * @default false
+             */
+            has_more: boolean;
+            /** Items */
+            items: components["schemas"]["ProblemItem"][];
         };
         /** CategoryContentItemResponse */
         CategoryContentItemResponse: {
@@ -1692,6 +1990,11 @@ export interface components {
             /** Expected Revision */
             expected_revision: number;
         };
+        /**
+         * DifficultyLevel
+         * @enum {string}
+         */
+        DifficultyLevel: "beginner" | "easy" | "medium" | "hard" | "expert";
         /** DifficultyProgress */
         DifficultyProgress: {
             /** Difficulty */
@@ -1755,6 +2058,61 @@ export interface components {
             category_ids: string[];
             /** Topics */
             topics: components["schemas"]["TopicAssignmentRequest"][];
+        };
+        /** DsaNoteResponse */
+        DsaNoteResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Content Item Id
+             * Format: uuid
+             */
+            content_item_id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "note" | "mistake" | "insight";
+            /** Title */
+            title: string | null;
+            /** Body */
+            body: string;
+            /** Row Version */
+            row_version: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Sync Cursor */
+            sync_cursor?: number | null;
+        };
+        /** DsaProgressResponse */
+        DsaProgressResponse: {
+            /**
+             * Content Item Id
+             * Format: uuid
+             */
+            content_item_id: string;
+            status: components["schemas"]["LearningStatus"];
+            /** Confidence */
+            confidence: number;
+            /** Last Opened At */
+            last_opened_at: string | null;
+            /** Row Version */
+            row_version: number;
+            /** Updated At */
+            updated_at: string | null;
+            /** Sync Cursor */
+            sync_cursor?: number | null;
         };
         /** DueItem */
         DueItem: {
@@ -1828,6 +2186,13 @@ export interface components {
          * @enum {string}
          */
         EventType: "VIEW" | "OPEN" | "SAVE" | "UNSAVE" | "HIDE" | "UNHIDE" | "SHARE" | "ASK_REASONAI";
+        /** Example */
+        Example: {
+            input: components["schemas"]["JsonValue"];
+            output: components["schemas"]["JsonValue"];
+            /** Explanation */
+            explanation?: string | null;
+        };
         /** FeedResponse */
         FeedResponse: {
             /** Items */
@@ -1866,6 +2231,76 @@ export interface components {
              * Format: uuid
              */
             device_id: string;
+        };
+        /**
+         * FunctionContract
+         * @description Public contract allowlist; absent attributes remain absent on the wire.
+         */
+        FunctionContract: {
+            /** Function */
+            function?: string | null;
+            /** Input */
+            input?: string | {
+                [key: string]: string;
+            } | null;
+            /** Output */
+            output?: string | {
+                [key: string]: string;
+            } | null;
+            /** Encoding */
+            encoding?: string | null;
+            /** Representation */
+            representation?: string | null;
+            /** Serialization */
+            serialization?: string | null;
+            /** Indexing */
+            indexing?: string | null;
+            /** Indices */
+            indices?: string | null;
+            /** Ordering */
+            ordering?: string | null;
+            /** Tie Break */
+            tie_break?: string | null;
+            /** Absolute Tolerance */
+            absolute_tolerance?: number | null;
+            /** Modulus */
+            modulus?: number | null;
+            /** Directed */
+            directed?: boolean | null;
+            /** Edge Direction */
+            edge_direction?: string | null;
+            /** Case Sensitive */
+            case_sensitive?: boolean | null;
+            /** Strictly Increasing */
+            strictly_increasing?: boolean | null;
+            /** Nonunique */
+            nonunique?: string | null;
+            /** Multiple Solutions */
+            multiple_solutions?: string | null;
+            /** Negative Values */
+            negative_values?: string | null;
+            /** Division Permitted */
+            division_permitted?: boolean | null;
+            /** Whole String Excluded */
+            whole_string_excluded?: boolean | null;
+            /** Empty Text */
+            empty_text?: string | null;
+            /** Blank */
+            blank?: string | null;
+            /** Blocked */
+            blocked?: string | null;
+            /** Stops */
+            stops?: string | null;
+            /** Scope */
+            scope?: string | null;
+            /** Operation */
+            operation?: string | null;
+            /** Operations */
+            operations?: string[] | null;
+            /** Job Fields */
+            job_fields?: string[] | null;
+            /** Result Keys */
+            result_keys?: string[] | null;
         };
         /** GrantRoleRequest */
         GrantRoleRequest: {
@@ -1939,6 +2374,7 @@ export interface components {
             /** Eligible */
             eligible: boolean;
         };
+        JsonValue: unknown;
         /**
          * LearningStatus
          * @enum {string}
@@ -2078,6 +2514,18 @@ export interface components {
             } | null;
             conflict?: components["schemas"]["MutationConflictResponse"] | null;
         };
+        /** NoteCreate */
+        NoteCreate: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "note" | "mistake" | "insight";
+            /** Title */
+            title?: string | null;
+            /** Body */
+            body: string;
+        };
         /** NoteCreateRequest */
         NoteCreateRequest: {
             /**
@@ -2214,6 +2662,49 @@ export interface components {
              * Format: date-time
              */
             attempted_at: string;
+        };
+        /** PracticeHistoryItem */
+        PracticeHistoryItem: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Content Item Id
+             * Format: uuid
+             */
+            content_item_id: string;
+            /**
+             * Attempted At
+             * Format: date-time
+             */
+            attempted_at: string;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "solved_independently" | "solved_with_hint" | "understood_not_coded" | "pattern_not_identified" | "skipped";
+            /** Duration Seconds */
+            duration_seconds: number | null;
+            /** Hint Used */
+            hint_used: boolean;
+            /** Confidence Before */
+            confidence_before: number | null;
+            /** Confidence After */
+            confidence_after: number | null;
+        };
+        /** PracticeHistoryResponse */
+        PracticeHistoryResponse: {
+            /** Next Cursor */
+            next_cursor?: string | null;
+            /**
+             * Has More
+             * @default false
+             */
+            has_more: boolean;
+            /** Items */
+            items: components["schemas"]["PracticeHistoryItem"][];
         };
         /** PracticeResourceRequest */
         PracticeResourceRequest: {
@@ -2381,6 +2872,42 @@ export interface components {
             /** Hint Usage Count */
             hint_usage_count: number | null;
         };
+        /** ProblemDetail */
+        ProblemDetail: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Problem Version Id
+             * Format: uuid
+             */
+            problem_version_id: string;
+            /** Slug */
+            slug: string;
+            /** Title */
+            title: string;
+            difficulty: components["schemas"]["DifficultyLevel"] | null;
+            /** Categories */
+            categories: components["schemas"]["TaxonomyItem"][];
+            /** Topics */
+            topics: components["schemas"]["TaxonomyItem"][];
+            /**
+             * Availability
+             * @enum {string}
+             */
+            availability: "available" | "review_pending" | "unavailable";
+            /** Description */
+            description: string;
+            function_contract: components["schemas"]["FunctionContract"];
+            /** Constraints */
+            constraints: string[];
+            /** Examples */
+            examples: components["schemas"]["Example"][];
+            /** Supported Contract Languages */
+            supported_contract_languages: string[];
+        };
         /** ProblemDetailResponse */
         ProblemDetailResponse: {
             problem: components["schemas"]["ProblemIdentity"];
@@ -2403,6 +2930,33 @@ export interface components {
             publication_status: string;
             /** Topics */
             topics: string[];
+        };
+        /** ProblemItem */
+        ProblemItem: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Problem Version Id
+             * Format: uuid
+             */
+            problem_version_id: string;
+            /** Slug */
+            slug: string;
+            /** Title */
+            title: string;
+            difficulty: components["schemas"]["DifficultyLevel"] | null;
+            /** Categories */
+            categories: components["schemas"]["TaxonomyItem"][];
+            /** Topics */
+            topics: components["schemas"]["TaxonomyItem"][];
+            /**
+             * Availability
+             * @enum {string}
+             */
+            availability: "available" | "review_pending" | "unavailable";
         };
         /** ProblemMetrics */
         ProblemMetrics: {
@@ -2467,6 +3021,14 @@ export interface components {
             /** Users With 100 Or More Completions */
             users_with_100_or_more_completions: number;
         };
+        /** ProgressPatch */
+        ProgressPatch: {
+            /** Row Version */
+            row_version: number;
+            status?: components["schemas"]["LearningStatus"] | null;
+            /** Confidence */
+            confidence?: number | null;
+        };
         /** ProgressPutRequest */
         ProgressPutRequest: {
             status: components["schemas"]["LearningStatus"];
@@ -2495,6 +3057,16 @@ export interface components {
             longest_streak?: null;
             /** Readiness Score */
             readiness_score?: null;
+        };
+        /** PublicTestCase */
+        PublicTestCase: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            input_json: components["schemas"]["JsonValue"];
+            expected_output_json: components["schemas"]["JsonValue"];
         };
         /**
          * PublishRequest
@@ -2866,6 +3438,23 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** StatisticsResponse */
+        StatisticsResponse: {
+            /** Total Catalog Problems */
+            total_catalog_problems: number;
+            /** Attempted Problem Count */
+            attempted_problem_count: number;
+            /** Practice Attempt Count */
+            practice_attempt_count: number;
+            /** Learning Status Counts */
+            learning_status_counts: {
+                [key: string]: number;
+            };
+            /** Mastered Problem Count */
+            mastered_problem_count: number;
+            /** Self Reported Solved Attempt Count */
+            self_reported_solved_attempt_count: number;
+        };
         /** StoryResponse */
         StoryResponse: {
             /**
@@ -3067,6 +3656,56 @@ export interface components {
             row_version: number;
             /** Newly Applied */
             newly_applied: boolean;
+        };
+        /** TaxonomyCount */
+        TaxonomyCount: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Slug */
+            slug: string;
+            /** Name */
+            name: string;
+            /** Problem Count */
+            problem_count: number;
+        };
+        /** TaxonomyItem */
+        TaxonomyItem: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Slug */
+            slug: string;
+            /** Name */
+            name: string;
+        };
+        /** TaxonomyResponse */
+        TaxonomyResponse: {
+            /** Items */
+            items: components["schemas"]["TaxonomyCount"][];
+        };
+        /** TestCasesResponse */
+        TestCasesResponse: {
+            /** Next Cursor */
+            next_cursor?: string | null;
+            /**
+             * Has More
+             * @default false
+             */
+            has_more: boolean;
+            /**
+             * Problem Version Id
+             * Format: uuid
+             */
+            problem_version_id: string;
+            /** Items */
+            items: components["schemas"]["PublicTestCase"][];
+            /** Has Verified Public Tests */
+            has_verified_public_tests: boolean;
         };
         /** TopicAssignmentRequest */
         TopicAssignmentRequest: {
@@ -5619,6 +6258,3212 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listDsaProblems: {
+        parameters: {
+            query?: {
+                search?: string | null;
+                difficulty?: components["schemas"]["DifficultyLevel"] | null;
+                category?: string | null;
+                topic?: string | null;
+                cursor?: string | null;
+                limit?: number;
+                sort?: "title_asc";
+                /** @description Explicit administrator/reviewer draft preview */
+                preview?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Preview role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Resource not accessible */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Stale learner state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Invalid request or progress transition */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Data dependency unavailable or timed out */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+        };
+    };
+    getDsaProblem: {
+        parameters: {
+            query?: {
+                problem_version_id?: string | null;
+                /** @description Explicit administrator/reviewer draft preview */
+                preview?: boolean;
+            };
+            header?: never;
+            path: {
+                problem_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Preview role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Resource not accessible */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Stale learner state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Invalid request or progress transition */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Data dependency unavailable or timed out */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+        };
+    };
+    listDsaPublicTestCases: {
+        parameters: {
+            query?: {
+                problem_version_id?: string | null;
+                cursor?: string | null;
+                limit?: number;
+                /** @description Explicit administrator/reviewer draft preview */
+                preview?: boolean;
+            };
+            header?: never;
+            path: {
+                problem_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestCasesResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Preview role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Resource not accessible */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Stale learner state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Invalid request or progress transition */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Data dependency unavailable or timed out */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+        };
+    };
+    listDsaCategories: {
+        parameters: {
+            query?: {
+                /** @description Explicit administrator/reviewer draft preview */
+                preview?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxonomyResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Preview role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Resource not accessible */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Stale learner state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Invalid request or progress transition */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Data dependency unavailable or timed out */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+        };
+    };
+    listDsaTopics: {
+        parameters: {
+            query?: {
+                /** @description Explicit administrator/reviewer draft preview */
+                preview?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxonomyResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Preview role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Resource not accessible */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Stale learner state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Invalid request or progress transition */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Data dependency unavailable or timed out */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+        };
+    };
+    getDsaCapabilities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CapabilitiesResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Preview role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Resource not accessible */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Stale learner state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Invalid request or progress transition */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Data dependency unavailable or timed out */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+        };
+    };
+    listMyDsaProgress: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["recallstack__modules__learning__presentation__schemas__ProgressListResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Preview role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Resource not accessible */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Stale learner state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Invalid request or progress transition */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Data dependency unavailable or timed out */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+        };
+    };
+    getMyDsaProgress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                problem_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DsaProgressResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Preview role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Resource not accessible */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Stale learner state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Invalid request or progress transition */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Data dependency unavailable or timed out */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+        };
+    };
+    patchMyDsaProgress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                problem_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgressPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DsaProgressResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Preview role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Resource not accessible */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Stale learner state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Invalid request or progress transition */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Data dependency unavailable or timed out */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+        };
+    };
+    listMyDsaBookmarks: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookmarkListResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Preview role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Resource not accessible */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Stale learner state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Invalid request or progress transition */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Data dependency unavailable or timed out */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+        };
+    };
+    createMyDsaBookmark: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookmarkCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookmarkWriteResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Preview role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Resource not accessible */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Stale learner state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Invalid request or progress transition */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Data dependency unavailable or timed out */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+        };
+    };
+    deleteMyDsaBookmark: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                problem_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Preview role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Resource not accessible */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Stale learner state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Invalid request or progress transition */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Data dependency unavailable or timed out */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+        };
+    };
+    listMyDsaProblemNotes: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path: {
+                problem_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteListResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Preview role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Resource not accessible */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Stale learner state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Invalid request or progress transition */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Data dependency unavailable or timed out */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+        };
+    };
+    createMyDsaProblemNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                problem_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NoteCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DsaNoteResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Preview role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Resource not accessible */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Stale learner state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Invalid request or progress transition */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Data dependency unavailable or timed out */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+        };
+    };
+    deleteMyDsaNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                note_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NoteDeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Preview role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Resource not accessible */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Stale learner state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Invalid request or progress transition */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Data dependency unavailable or timed out */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+        };
+    };
+    patchMyDsaNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                note_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotePatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DsaNoteResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Preview role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Resource not accessible */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Stale learner state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Invalid request or progress transition */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Data dependency unavailable or timed out */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+        };
+    };
+    listMyDsaPracticeHistory: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+                start_at?: string | null;
+                end_at?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeHistoryResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Preview role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Resource not accessible */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Stale learner state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Invalid request or progress transition */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Data dependency unavailable or timed out */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+        };
+    };
+    getMyDsaStatistics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatisticsResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Preview role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Resource not accessible */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Stale learner state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Invalid request or progress transition */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
+                };
+            };
+            /** @description Data dependency unavailable or timed out */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string;
+                        /** Instance */
+                        instance: string;
+                        /** Request Id */
+                        request_id: string;
+                    };
                 };
             };
         };

@@ -1,5 +1,20 @@
-import { DomainDashboard } from "@/features/catalog";
+import { WorkspaceClient } from "@/features/dsa/workspace/WorkspaceClient";
 
-export default function DSAPage() {
-  return <DomainDashboard domainSlug="dsa" title="Data Structures & Algorithms" description="Master the core patterns." />;
+export default async function DSAPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  return (
+    <WorkspaceClient
+      problemId={
+        typeof params.problem === "string" ? params.problem : undefined
+      }
+      versionId={
+        typeof params.version === "string" ? params.version : undefined
+      }
+      preview={params.preview === "true"}
+    />
+  );
 }

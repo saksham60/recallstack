@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "src/app/api/queues/dsa-executions/route.ts": {
+      "maxDuration": 60,
+      "experimentalTriggers": [
+        { "type": "queue/v2beta", "topic": "dsa-executions" }
+      ]
+    }
+  },
+  "crons": [{ "path": "/api/dsa/execution-recovery", "schedule": "0 3 * * *" }]
+}

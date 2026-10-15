@@ -5,12 +5,12 @@ test.describe('Core Flow', () => {
     await page.goto('/');
 
     await expect(page).toHaveURL(/.*\/$/);
-    await expect(page.getByRole('navigation').getByText('ReasonAI', { exact: true })).toBeVisible();
-    await expect(page.getByRole('heading', { name: /Think\. Connect\. Reason\./ })).toBeVisible();
-    await expect(page.getByRole('navigation')).toContainText('Login');
-    await expect(page.getByRole('navigation')).toContainText('Canvas');
+    await expect(page.getByRole('link', { name: 'ReasonAI home' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Build Better Judgment.', level: 1 })).toBeVisible();
+    await expect(page.getByRole('banner').getByRole('link', { name: 'Log in', exact: true })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Primary navigation' })).toContainText('System Design');
 
-    await page.getByRole('navigation').getByRole('link', { name: /Canvas/ }).click();
+    await page.goto('/system-design/canvas');
     await expect(page).toHaveURL(/.*\/login\?next=%2Fsystem-design%2Fcanvas/);
   });
 });

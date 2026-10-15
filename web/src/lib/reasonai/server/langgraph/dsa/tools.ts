@@ -11,6 +11,7 @@ export const MAX_VISUAL_ATTEMPTS = 2;
 export interface DSAToolExecutionContext {
   signal: AbortSignal;
   searchEvidence: WebContext["results"];
+  hasSpecificationExamples?: boolean;
   onValidationStage?: (stage: "tool.validation.started" | "tool.validation.completed" | "tool.validation.failed") => void;
 }
 
@@ -79,7 +80,7 @@ export const dsaToolExecutor: DSAToolExecutor = {
       context.onValidationStage?.("tool.validation.started");
       try {
         const visual = parseVisualLesson(parseObject(call.arguments));
-        if (visual.basis === "source_example" && !context.searchEvidence.length) {
+        if (visual.basis === "source_example" && !context.searchEvidence.length && !context.hasSpecificationExamples) {
           context.onValidationStage?.("tool.validation.failed");
           return invalid(call, "The visual required source evidence that was not available.", "VISUAL_SOURCE_EVIDENCE_MISSING");
         }

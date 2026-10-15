@@ -32,7 +32,7 @@ export function createDSAToolsNode(
     try {
       const result: DSAToolExecutionResult = visual && attempt > MAX_VISUAL_ATTEMPTS
         ? { ok: false, reason: "The visualization was invalid.", code: "VISUAL_ATTEMPTS_EXHAUSTED", message: { role: "tool", tool_call_id: call.id, content: '{"ok":false,"code":"VISUAL_ATTEMPTS_EXHAUSTED","error":"Explain in text without another visual."}' } }
-        : await executor.execute(call, { signal: toolSignal, searchEvidence: state.searchEvidence ?? [], onValidationStage: (stage) => onStage?.(stage, call.name, { attempt }) });
+        : await executor.execute(call, { signal: toolSignal, searchEvidence: state.searchEvidence ?? [], hasSpecificationExamples: Boolean(state.request.context.specification && state.request.context.specification.examples !== "[]"), onValidationStage: (stage) => onStage?.(stage, call.name, { attempt }) });
       toolSignal.throwIfAborted();
       if (result.ok) {
         onStage?.("tool.completed", call.name, { attempt, durationMs: Date.now() - started });

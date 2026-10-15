@@ -16,6 +16,7 @@ import { prepareDSARun, type PreparedDSARun } from "@/lib/reasonai/server/persis
 import { getReasonAIPersistenceRequestContext } from "@/lib/reasonai/server/persistence/request-context";
 import { persistReasonAITranscript } from "@/lib/reasonai/server/persistence/stream";
 import { ReasonAIPersistenceError } from "@/lib/reasonai/server/persistence/types";
+import { resolveTutorContext, TutorContextError } from "@/lib/dsa-execution/tutor-context";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -42,6 +43,8 @@ export async function POST(request: Request) {
     input = parseDSATutorRequest(await readBoundedJSON(request, 512 * 1024));
     record("request.parsed");
   } catch (error) { return reply({ error: error instanceof DSAValidationError ? error.message : "Invalid or oversized request." }, 400); }
+  try { input = await resolveTutorContext(input, persistenceContext.userId, request); }
+  catch (error) { return reply({ error: error instanceof TutorContextError ? error.message : "Problem context is temporarily unavailable." }, error instanceof TutorContextError ? error.status : 503); }
   const acceptsNDJSON = request.headers.get("accept")?.toLowerCase().split(",").some((value) => value.trim().startsWith(REASONAI_NDJSON_MEDIA_TYPE));
   if (isReasonAIDSAStreamingEnabled() && acceptsNDJSON) {
     if (!input.idempotencyKey) return reply({ error: "A valid idempotency key is required.", code: "IDEMPOTENCY_KEY_REQUIRED" }, 400);

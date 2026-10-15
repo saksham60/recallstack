@@ -1266,7 +1266,10 @@ export const dsaAgentProvider:
         ];
 
         requestBody.tool_choice =
-          "auto";
+          input.request.action === "visualize" && input.request.context.specification
+            && input.allowVisual !== false && !input.visual
+            ? { type: "function", function: { name: "create_visual" } }
+            : "auto";
       }
 
       const {

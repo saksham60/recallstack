@@ -16,6 +16,8 @@
 # next.js
 /.next/
 /out/
+/public/monaco/
+/supabase/.temp/
 
 # production
 /build

@@ -6,6 +6,10 @@ loadEnvConfig(process.cwd());
 export default defineConfig({
   testDir: './e2e',
   testIgnore: [
+    '**/langsmith.spec.ts',
+    '**/dsa-execution-unit.spec.ts',
+    '**/dsa-execution-live.spec.ts',
+    '**/dsa-execution-integration.spec.ts',
     '**/feed-reasonai.spec.ts',
     '**/demo-auth.spec.ts',
     '**/reasonai-auth.spec.ts',

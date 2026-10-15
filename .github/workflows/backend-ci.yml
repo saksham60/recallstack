@@ -92,7 +92,20 @@ jobs:
       - name: Verify database at migration head
         run: uv run alembic current --check-heads
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web worker dependencies for PostgreSQL execution integration
+        working-directory: web
+        run: npm ci
+
       - name: PostgreSQL integration tests
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
         run: uv run pytest -m integration
 
       - name: Dependency vulnerability audit

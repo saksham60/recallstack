@@ -19,6 +19,13 @@ export interface DSAProblemContext {
   userApproach: string;
   userNotes: string;
   userCode: string;
+  problemVersionId?: string;
+  language?: "python" | "typescript" | "cpp";
+  preview?: boolean;
+  publicExecutionId?: string;
+  /** Hydrated only by the server, never accepted from a caller. */
+  specification?: { description: string; constraints: string; functionContract: string; examples: string; truncated: boolean };
+  publicExecution?: { submissionId: string; status: string; result: string; resultTruncated: boolean; codeMayHaveChanged: true };
 }
 export interface DSATutorRequest {
   action: DSATutorAction;
@@ -31,6 +38,7 @@ export interface DSATutorRequest {
   visualFocus?: { lessonTitle: string; stepNumber: number; stepTitle: string };
   conversationId?: string;
   idempotencyKey?: string;
+  teachingMode?: "socratic" | "direct";
 }
 export interface DSATutorSource { title: string; url: string; kind?: "source" | "search" }
 export interface DSATutorResponse {
@@ -56,8 +64,8 @@ function only(value: Record<string, unknown>, fields: string[]) {
 }
 export function parseDSATutorRequest(value: unknown): DSATutorRequest {
   const input = record(value), context = record(input.context);
-  only(input, ["action", "message", "searchWeb", "hintLevel", "context", "history", "webContextToken", "visualFocus", "conversationId", "idempotencyKey"]);
-  only(context, ["contentId", "slug", "title", "difficulty", "category", "sourceProvider", "sourceUrl", "summary", "companies", "remarks", "userApproach", "userNotes", "userCode"]);
+  only(input, ["action", "message", "searchWeb", "hintLevel", "context", "history", "webContextToken", "visualFocus", "conversationId", "idempotencyKey", "teachingMode"]);
+  only(context, ["contentId", "slug", "title", "difficulty", "category", "sourceProvider", "sourceUrl", "summary", "companies", "remarks", "userApproach", "userNotes", "userCode", "problemVersionId", "language", "preview", "publicExecutionId"]);
   if (!DSA_ACTIONS.includes(input.action as DSATutorAction)) throw new DSAValidationError("Unknown tutor action.");
   if (typeof input.searchWeb !== "boolean" || !Number.isInteger(input.hintLevel) || Number(input.hintLevel) < 0 || Number(input.hintLevel) > 20) throw new DSAValidationError("Invalid tutor options.");
   if (!Array.isArray(input.history) || input.history.length > 12) throw new DSAValidationError("Conversation is too long.");
@@ -66,6 +74,23 @@ export function parseDSATutorRequest(value: unknown): DSATutorRequest {
     userApproach: text(context.userApproach, 12000), userNotes: text(context.userNotes, 12000), userCode: text(context.userCode, 24000),
   };
   if (!parsed.title.trim() || !parsed.contentId.trim() || !parsed.slug.trim()) throw new DSAValidationError("Problem metadata is required.");
+  if (context.problemVersionId !== undefined) {
+    parsed.problemVersionId = uuid(context.problemVersionId, "problem version");
+    uuid(parsed.contentId, "problem ID");
+  }
+  if (context.language !== undefined) {
+    if (!["python", "typescript", "cpp"].includes(String(context.language))) throw new DSAValidationError("Unsupported editor language.");
+    parsed.language = context.language as DSAProblemContext["language"];
+  }
+  if (context.preview !== undefined) {
+    if (typeof context.preview !== "boolean") throw new DSAValidationError("Invalid preview option.");
+    parsed.preview = context.preview;
+  }
+  if (context.publicExecutionId !== undefined) {
+    if (!parsed.problemVersionId) throw new DSAValidationError("Execution context requires a problem version.");
+    parsed.publicExecutionId = uuid(context.publicExecutionId, "public execution ID");
+  }
+  if (input.teachingMode !== undefined && input.teachingMode !== "socratic" && input.teachingMode !== "direct") throw new DSAValidationError("Invalid teaching mode.");
   for (const key of ["difficulty", "category", "sourceProvider", "summary", "remarks"] as const) {
     if (context[key] !== undefined) parsed[key] = text(context[key], key === "summary" || key === "remarks" ? 4000 : 300);
   }
@@ -92,6 +117,7 @@ export function parseDSATutorRequest(value: unknown): DSATutorRequest {
     ...(visualFocus ? { visualFocus } : {}),
     ...(input.conversationId !== undefined ? { conversationId: uuid(input.conversationId, "conversation ID") } : {}),
     ...(input.idempotencyKey !== undefined ? { idempotencyKey: uuid(input.idempotencyKey, "idempotency key") } : {}),
+    ...(input.teachingMode !== undefined ? { teachingMode: input.teachingMode as DSATutorRequest["teachingMode"] } : {}),
     history: input.history.map((value) => {
       const item = record(value);
       only(item, ["role", "content"]);

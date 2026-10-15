@@ -25,59 +25,6 @@ export interface TutorMessage {
 export const DSA_FIRST_EVENT_TIMEOUT_MS = 65_000;
 export const DSA_IDLE_STREAM_TIMEOUT_MS = 65_000;
 
-export function useDSATutor(context: DSAProblemContext) {
-  const [messages, setMessages] = useState<TutorMessage[]>([]);
-  const [draft, setDraft] = useState("");
-  const [searchWeb, setSearchWeb] = useState(false);
-  const [visualFocus, setVisualFocus] = useState<DSATutorRequest["visualFocus"]>();
-  const [pending, setPending] = useState(false);
-  const [activity, setActivity] = useState<string>();
-  const [error, setError] = useState<string>();
-  const [authExpired, setAuthExpired] = useState(false);
-  const [canRetry, setCanRetry] = useState(false);
-  const hints = useRef(0);
-  const sequence = useRef(0);
-  const inFlight = useRef<AbortController | null>(null);
-  const restoring = useRef<AbortController | null>(null);
-  const conversationId = useRef<string | undefined>(undefined);
-  const activeRun = useRef<{ conversationId: string; runId: string } | undefined>(undefined);
-  const lastRequest = useRef<DSATutorRequest | null>(null);
-  const webContextToken = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    return () => {
-      restoring.current?.abort();
-      restoring.current = null;
-      inFlight.current?.abort();
-      inFlight.current = null;
-    };
-  }, [context.contentId]);
-
-  async function restoreConversation(id: string, signal?: AbortSignal) {
-    try {
-      const response = await fetchReasonAIConversation(id, signal);
-      if (response.status === 404) return;
-      if (!response.ok) return;
-      const body = await response.json() as { conversation?: { id?: unknown; surface?: unknown; contextId?: unknown; messages?: unknown } };
-      const restored = body.conversation;
-      if (!restored || restored.id !== id || restored.surface !== "dsa" || restored.contextId !== context.contentId || !Array.isArray(restored.messages)) {
-        return;
-      }
-      const next: TutorMessage[] = [];
-      let latestToken: string | undefined;
-      for (const value of restored.messages) {
-        const parsed = restoredMessage(value, ++sequence.current);
-        if (parsed) {
-          next.push(parsed);
-          if (parsed.response?.webContextToken) latestToken = parsed.response.webContextToken;
-        }
-      }
-      if (signal?.aborted || inFlight.current) return;
-      conversationId.current = id;
-      webContextToken.current = latestToken;
-      setMessages(next);
-    } catch { /* Restoration is optional for the current workspace session. */ }
-  }
-
   function restoredMessage(value: unknown, id: number): TutorMessage | undefined {
     if (!value || typeof value !== "object" || Array.isArray(value)) return;
     const message = value as { role?: unknown; parts?: unknown; status?: unknown };
@@ -108,6 +55,84 @@ export function useDSATutor(context: DSAProblemContext) {
     };
     return text || visual ? { id, role: "assistant", content: text, response } : undefined;
   }
+
+
+export function useDSATutor(context: DSAProblemContext, persistenceKey?: string) {
+  const [teachingMode, setTeachingMode] = useState<"socratic" | "direct">("socratic");
+  const [messages, setMessages] = useState<TutorMessage[]>([]);
+  const [draft, setDraft] = useState("");
+  const [searchWeb, setSearchWeb] = useState(false);
+  const [visualFocus, setVisualFocus] = useState<DSATutorRequest["visualFocus"]>();
+  const [pending, setPending] = useState(false);
+  const [activity, setActivity] = useState<string>();
+  const [error, setError] = useState<string>();
+  const [authExpired, setAuthExpired] = useState(false);
+  const [canRetry, setCanRetry] = useState(false);
+  const hints = useRef(0);
+  const sequence = useRef(0);
+  const inFlight = useRef<AbortController | null>(null);
+  const restoring = useRef<AbortController | null>(null);
+  const conversationId = useRef<string | undefined>(undefined);
+  const activeRun = useRef<{ conversationId: string; runId: string } | undefined>(undefined);
+  const lastRequest = useRef<DSATutorRequest | null>(null);
+  const webContextToken = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    return () => {
+      restoring.current?.abort();
+      restoring.current = null;
+      inFlight.current?.abort();
+      inFlight.current = null;
+    };
+  }, [context.contentId]);
+
+  async function restoreConversation(id: string, signal?: AbortSignal) {
+    try {
+      const response = await fetchReasonAIConversation(id, signal);
+      if (response.status === 404) {
+        if (!signal?.aborted && conversationId.current === id) {
+          conversationId.current = undefined;
+          if (persistenceKey) { try { localStorage.removeItem(persistenceKey); } catch { /* Optional storage. */ } }
+        }
+        return;
+      }
+      if (!response.ok) return;
+      const body = await response.json() as { conversation?: { id?: unknown; surface?: unknown; contextId?: unknown; messages?: unknown } };
+      const restored = body.conversation;
+      if (!restored || restored.id !== id || restored.surface !== "dsa" || restored.contextId !== context.contentId || !Array.isArray(restored.messages)) {
+        return;
+      }
+      const next: TutorMessage[] = [];
+      let latestToken: string | undefined;
+      for (const value of restored.messages) {
+        const parsed = restoredMessage(value, ++sequence.current);
+        if (parsed) {
+          next.push(parsed);
+          if (parsed.response?.webContextToken) latestToken = parsed.response.webContextToken;
+        }
+      }
+      if (signal?.aborted || (inFlight.current && inFlight.current.signal !== signal)) return;
+      conversationId.current = id;
+      webContextToken.current = latestToken;
+      setMessages(next);
+    } catch { /* Restoration is optional for the current workspace session. */ }
+  }
+
+  useEffect(() => {
+    if (!persistenceKey) return;
+    const controller = new AbortController();
+    restoring.current = controller;
+    try {
+      const id = localStorage.getItem(persistenceKey);
+      if (id && /^[0-9a-f-]{36}$/i.test(id)) {
+        conversationId.current = id;
+        queueMicrotask(() => { if (!controller.signal.aborted) void restoreConversation(id, controller.signal); });
+      }
+    } catch { /* Browser storage is optional. */ }
+    return () => controller.abort();
+    // Workspace identity remounts the hook; editor updates must not restore chat again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [persistenceKey]);
+
 
   function runtimeResponse(state: ReasonAIRuntimeState): DSATutorResponse | undefined {
     const assistant = [...state.messages].reverse().find((message) => message.role === "assistant");
@@ -172,6 +197,7 @@ export function useDSATutor(context: DSAProblemContext) {
       const responseRunId = response.headers.get("X-ReasonAI-Run-Id") ?? undefined;
       if (responseConversationId && /^[0-9a-f-]{36}$/i.test(responseConversationId)) {
         conversationId.current = responseConversationId;
+        if (persistenceKey) { try { localStorage.setItem(persistenceKey, responseConversationId); } catch { /* Persistence is optional. */ } }
         if (responseRunId && /^[0-9a-f-]{36}$/i.test(responseRunId)) activeRun.current = { conversationId: responseConversationId, runId: responseRunId };
       }
       const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
@@ -268,7 +294,7 @@ export function useDSATutor(context: DSAProblemContext) {
     restoring.current?.abort();
     restoring.current = null;
     try {
-      request = parseDSATutorRequest({ action, message, searchWeb: webOverride ?? searchWeb, hintLevel: nextHint, context,
+      request = parseDSATutorRequest({ action, message, searchWeb: webOverride ?? searchWeb, hintLevel: nextHint, context, ...(context.problemVersionId ? { teachingMode } : {}),
         history: messages.slice(-12).map(({ role, content, response }) => ({ role, content: response?.visual ? (content + "\nVisual walkthrough (untrusted earlier explanation): " + JSON.stringify(response.visual)).slice(0, 12000) : content })),
         ...(webContextToken.current ? { webContextToken: webContextToken.current } : {}),
         ...(visualFocus ? { visualFocus } : {}),
@@ -285,6 +311,7 @@ export function useDSATutor(context: DSAProblemContext) {
     void perform(request);
   }
   async function clear() {
+    if (persistenceKey) { try { localStorage.removeItem(persistenceKey); } catch { /* Optional browser storage. */ } }
     const run = activeRun.current;
     inFlight.current?.abort(); inFlight.current = null; lastRequest.current = null;
     restoring.current?.abort(); restoring.current = null;
@@ -298,7 +325,7 @@ export function useDSATutor(context: DSAProblemContext) {
       catch { /* Stream cleanup and the finite server lease remain authoritative. */ }
     }
   }
-  return { messages, draft, setDraft, searchWeb, setSearchWeb, visualFocus, setVisualFocus, pending, activity, error, authExpired, send, clear,
+  return { teachingMode, setTeachingMode, messages, draft, setDraft, searchWeb, setSearchWeb, visualFocus, setVisualFocus, pending, activity, error, authExpired, send, clear,
     canRetry, retry: () => {
       if (!inFlight.current && lastRequest.current) {
         const next = { ...lastRequest.current, idempotencyKey: crypto.randomUUID(), ...(conversationId.current ? { conversationId: conversationId.current } : {}) };

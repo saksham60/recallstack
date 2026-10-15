@@ -15,6 +15,11 @@ export async function proxy(request: NextRequest) {
   if (['/api/reasonai/dsa/chat', '/api/reasonai/chat', '/api/reasonai/knowledge/chat'].includes(request.nextUrl.pathname)) {
     return NextResponse.next({ request })
   }
+  // Execution routes verify the user, cron secret, or Queue callback themselves.
+  // Webhook requests must never be redirected to the interactive login page.
+  if (request.nextUrl.pathname.startsWith('/api/dsa/') || request.nextUrl.pathname === '/api/queues/dsa-executions') {
+    return NextResponse.next({ request })
+  }
   if (PUBLIC_LIVE_CANVAS_PATH.test(request.nextUrl.pathname)) {
     return NextResponse.next({ request })
   }
