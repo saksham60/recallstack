@@ -129,8 +129,10 @@ async def contract(contract_url):
                             importance_score=Decimal("0.8"),
                             quality_score=Decimal("0.9"),
                             published_at=(
-                                now - timedelta(days=31) if index == 5
-                                else now - timedelta(days=8) if index == 4
+                                now - timedelta(days=31)
+                                if index == 5
+                                else now - timedelta(days=8)
+                                if index == 4
                                 else now - timedelta(hours=1)
                             ),
                             discovered_at=now - timedelta(minutes=2),

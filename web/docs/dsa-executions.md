@@ -320,3 +320,33 @@ No production content was approved or certified to make tests pass. Production
 has zero published DSA versions and zero execution certificates. Authenticated
 hosted judging of actual learner content remains dependent on independent
 publication and test certification; development fixtures do not establish it.
+
+
+## Hosted verification
+
+The production deployment of `0fbfd247824ee5d5caea2a43db57d2eb08ed49cb` reached
+READY. Against `https://www.reasonai.tech`, all eight authenticated/anonymous API
+smoke cases passed with the execution version header. The protected delivery probe
+`7694f657-69c6-49ce-9960-56cf32bb9638` was delivered to the real Queue consumer;
+Vercel runtime logs confirmed `acknowledged` and `sandboxStarted:false` after its
+private RPC read. No synthetic job or production certificate was inserted.
+
+The hosted browser check used an actual temporary Supabase session, without API
+fixtures. The canonical public catalog returned 200 with zero items, rendered
+the truthful empty state at 1440px and 390px, had no page errors and no horizontal
+overflow. Both screenshots were inspected. All temporary smoke accounts were
+deleted; the production database verified zero jobs, reserved slots, certificates,
+published versions and leftover smoke accounts.
+
+Use `DSA_SMOKE_BROWSER=1` with the opt-in API script to repeat the real browser
+check; `DSA_SMOKE_QUEUE_PROBE=1` adds the hosted queue probe. Match the returned
+probe ID in Vercel runtime logs. Neither result establishes judging against
+published learner content while publication/certification remain pending.
+
+Release checks also exposed two existing CI dependencies: formatting in one
+knowledge integration test and a browser persistence test requiring live model
+credentials. The formatting correction preserves behavior. Browser tests now run
+a loopback-only SSE provider for persistence assertions, selected solely by the
+Playwright web-server environment; production uses its existing configured
+provider. Real model checks remain separately opt-in and were run successfully.
+The complete backend lint/format/type checks and all 218 unit tests passed locally.

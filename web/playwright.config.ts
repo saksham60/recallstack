@@ -47,7 +47,11 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: {
+  webServer: [{
+    command: 'node scripts/e2e-reasonai-provider.mjs',
+    url: 'http://127.0.0.1:4159/health',
+    reuseExistingServer: process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === '1',
+  }, {
     command: 'npm run dev',
     url: 'http://localhost:3000',
     reuseExistingServer: process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === '1',
@@ -58,6 +62,8 @@ export default defineConfig({
       REASONAI_V2_MODE: 'dsa',
       SYSTEM_DESIGN_ENABLED: '1',
       NEXT_PUBLIC_REALTIME_BASE_URL: 'http://realtime.test',
+      REASONAI_BASE_URL: 'http://127.0.0.1:4159/v1',
+      NEBIUS_API_KEY: 'e2e-placeholder',
     },
-  },
+  }],
 });
