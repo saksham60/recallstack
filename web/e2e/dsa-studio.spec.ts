@@ -222,6 +222,42 @@ async function enterCode(page: Page, code: string) {
     .toBe(code);
 }
 
+test("Python starter is shown only for missing drafts and reset restores it", async ({
+  authenticatedPage: page,
+}) => {
+  await installAPI(page);
+  await page.goto(path);
+  const editorLines = page.locator(".monaco-editor .view-lines");
+  await expect(editorLines).toContainText("def array_total(*args, **kwargs):");
+  await expect(editorLines).toContainText("NotImplementedError");
+
+  await enterCode(page, "def array_total(nums): return sum(nums)");
+  await page.reload();
+  await expect(editorLines).toContainText("return sum(nums)");
+
+  await page.getByRole("button", { name: "Reset code" }).click();
+  await page.getByRole("button", { name: "Reset draft" }).click();
+  await expect(editorLines).toContainText("def array_total(*args, **kwargs):");
+
+  // Explicitly saved empty code is a user draft, not a missing draft.
+  await page.evaluate(
+    (key) => localStorage.setItem(
+      key,
+      JSON.stringify({ schema: 1, code: "", approach: "" }),
+    ),
+    KEY,
+  );
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Insert starter code" })).toBeVisible();
+  await page.getByRole("button", { name: "Insert starter code" }).click();
+  await expect(editorLines).toContainText("def array_total(*args, **kwargs):");
+  await expect
+    .poll(() =>
+      page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? "{}").code, KEY),
+    )
+    .toContain("NotImplementedError");
+});
+
 test("explorer debounces filters, uses opaque cursors and opens the exact canonical version", async ({
   authenticatedPage: page,
 }) => {
