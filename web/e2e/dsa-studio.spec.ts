@@ -384,9 +384,9 @@ test("Monaco drafts, cursor, examples and tutor conversation survive layout chan
   ).toBeTruthy();
   await expect(
     page.getByRole("button", { name: "Run", exact: true }),
-  ).toBeDisabled();
+  ).toBeEnabled();
   await expect(
-    page.getByRole("button", { name: "Submit", exact: true }),
+    page.getByRole("button", { name: "Submit (beta)", exact: true }),
   ).toBeDisabled();
 });
 
