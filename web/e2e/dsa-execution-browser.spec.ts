@@ -27,6 +27,15 @@ function job(
   };
 }
 async function setup(page: Page, available = { run: true, submit: true }) {
+  await page.route("**/dsa/python-worker.mjs", (route) =>
+    route.fulfill({
+      contentType: "text/javascript",
+      body: `self.onmessage = (event) => {
+        const cases = event.data.cases;
+        self.postMessage({ results: cases.map(c => ({id: c.id, ok: true, actual: 3, durationMs: 2})) });
+      };`,
+    }),
+  );
   await page.route("**/api/v1/me", (route) =>
     route.fulfill({ json: createProfile() }),
   );
@@ -49,10 +58,15 @@ async function setup(page: Page, available = { run: true, submit: true }) {
       return route.fulfill({
         json: {
           problem_version_id: problemVersionId,
-          items: [],
+          items: available.run ? [{
+            id: "30000000-0000-4000-8000-000000000001",
+            input_json: { nums: [1, 2] },
+            expected_output_json: 3,
+            visibility: "public",
+          }] : [],
           next_cursor: null,
           has_more: false,
-          has_verified_public_tests: false,
+          has_verified_public_tests: available.run,
         },
       });
     return route.fulfill({
@@ -72,7 +86,7 @@ async function setup(page: Page, available = { run: true, submit: true }) {
           output: "integer",
         },
         constraints: [],
-        examples: [],
+        examples: [{ input: { nums: [1, 2] }, output: 3 }],
         supported_contract_languages: ["python"],
       },
     });
@@ -101,65 +115,25 @@ async function setup(page: Page, available = { run: true, submit: true }) {
     },
   );
 }
-test("Run renders queued/running/real public results and keeps them across layouts", async ({
+test("Run executes Python locally and makes no execution POST", async ({
   authenticatedPage: page,
 }) => {
   await setup(page);
-  let polls = 0;
   const requests: ExecutionRequest[] = [];
   await page.route("**/api/dsa/executions", (route) => {
     requests.push(route.request().postDataJSON());
     return route.fulfill({ status: 202, json: job("queued") });
   });
-  await page.route(`**/api/dsa/executions/${submissionId}`, (route) =>
-    route.fulfill({
-      json:
-        ++polls === 1
-          ? job("running")
-          : {
-              ...job("completed"),
-              result: {
-                verdict: "passed_public_tests",
-                totalTests: 1,
-                passedTests: 1,
-                executionTimeMs: 14,
-                publicCases: [
-                  {
-                    id: "public-one",
-                    input: { nums: [1, 2] },
-                    expectedOutput: 3,
-                    actualOutput: 3,
-                    verdict: "passed_public_tests",
-                    stdout: "user diagnostic",
-                  },
-                ],
-              },
-            },
-    }),
-  );
   await page.goto(url);
   await page.getByRole("button", { name: "Run", exact: true }).click();
-  await expect(
-    page.getByRole("heading", { name: /Execution (queued|running)/ }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "Execution completed" }),
-  ).toBeVisible();
-  await expect(page.getByText("1 / 1 tests passed")).toBeVisible();
-  await expect(
-    page.getByText("user diagnostic", { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Local Run · All displayed cases passed" })).toBeVisible();
+  await expect(page.getByText("Locally checked against verified public fixtures. This is not hidden-test acceptance.")).toBeVisible();
   await page.getByLabel("Workspace layout").selectOption("classic");
-  await expect(page.getByText("1 / 1 tests passed")).toBeVisible();
-  expect(requests[0]).toMatchObject({
-    problemId,
-    problemVersionId,
-    mode: "run",
-    language: "python",
-    code,
-  });
-  expect(requests[0]).not.toHaveProperty("userId");
+  await expect(page.getByText("Local case 1 · Passed")).toBeVisible();
+  expect(requests).toHaveLength(0);
+  await expect(page.getByRole("button", { name: "Submit", exact: true })).toBeEnabled();
 });
+
 test("Submit displays only aggregates, while uncertified submission stays disabled", async ({
   authenticatedPage: page,
 }) => {
@@ -186,6 +160,9 @@ test("Submit displays only aggregates, while uncertified submission stays disabl
     }),
   );
   await page.goto(url);
+  await expect(page.getByRole("button", { name: "Submit", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Run", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Local Run · All displayed cases passed" })).toBeVisible();
   await page.getByRole("button", { name: "Submit", exact: true }).click();
   await expect(page.getByText("accepted", { exact: true })).toBeVisible();
   await expect(page.getByText("NEVER_SHOW_HIDDEN_DATA")).toHaveCount(0);
@@ -202,7 +179,7 @@ test("Submit displays only aggregates, while uncertified submission stays disabl
   );
   await page.reload();
   await expect(
-    page.getByRole("button", { name: "Submit", exact: true }),
+    page.getByRole("button", { name: "Submit (beta)", exact: true }),
   ).toBeDisabled();
 });
 test("unknown create response retries the original code/key after refresh", async ({
@@ -221,6 +198,8 @@ test("unknown create response retries the original code/key after refresh", asyn
   );
   await page.goto(url);
   await page.getByRole("button", { name: "Run", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Local Run · All displayed cases passed" })).toBeVisible();
+  await page.getByRole("button", { name: "Submit", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Retry execution request" }),
   ).toBeVisible();
@@ -250,6 +229,8 @@ test("cancellation stays requested until the backend confirms terminal status", 
   });
   await page.goto(url);
   await page.getByRole("button", { name: "Run", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Local Run · All displayed cases passed" })).toBeVisible();
+  await page.getByRole("button", { name: "Submit", exact: true }).click();
   await page.getByRole("button", { name: "Cancel execution" }).click();
   await expect(
     page.getByRole("heading", { name: "Execution cancelled" }),
@@ -273,6 +254,8 @@ test("refresh recovers the durable job and never creates a duplicate execution",
   );
   await page.goto(url);
   await page.getByRole("button", { name: "Run", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Local Run · All displayed cases passed" })).toBeVisible();
+  await page.getByRole("button", { name: "Submit", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Execution running" }),
   ).toBeVisible();
@@ -284,6 +267,29 @@ test("refresh recovers the durable job and never creates a duplicate execution",
   ).toBeVisible();
   expect(posts).toBe(1);
 });
+test("uncertified beta Submit saves a private ungraded note after local example Run", async ({
+  authenticatedPage: page,
+}) => {
+  await setup(page, { run: false, submit: false });
+  let note: Record<string, unknown> | undefined;
+  await page.route(`**/api/v1/dsa/me/problems/${problemId}/notes`, (route) => {
+    if (route.request().method() === "POST") {
+      note = route.request().postDataJSON();
+      return route.fulfill({ json: { id: crypto.randomUUID(), ...note } });
+    }
+    return route.fulfill({ json: { items: [], pagination: createPagination() } });
+  });
+  await page.goto(url);
+  await expect(page.getByRole("button", { name: "Run", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Submit (beta)", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Run", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Local Run · All displayed cases passed" })).toBeVisible();
+  await page.getByRole("button", { name: "Submit (beta)", exact: true }).click();
+  await expect(page.getByText(/Beta attempt saved privately/)).toBeVisible();
+  expect(note?.body).toContain(code);
+  expect(note?.body).toContain("Ungraded");
+});
+
 test("execution API rejects anonymous and cross-origin requests even with an E2E login cookie", async ({
   request,
 }) => {

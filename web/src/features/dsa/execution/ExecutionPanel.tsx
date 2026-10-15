@@ -1,7 +1,14 @@
 "use client";
 import type { ExecutionState } from "./use-execution";
+import type { LocalRun } from "./use-local-python-run";
 import { JsonBlock } from "../workspace/Specification";
-export function ExecutionPanel({ execution }: { execution: ExecutionState }) {
+export function ExecutionPanel({
+  execution, localRun, onCancelLocal,
+}: {
+  execution: ExecutionState;
+  localRun?: LocalRun | null;
+  onCancelLocal?: () => void;
+}) {
   const { job } = execution;
   return (
     <div
@@ -28,6 +35,40 @@ export function ExecutionPanel({ execution }: { execution: ExecutionState }) {
           </button>
         )}
       </div>
+      {localRun && (
+        <section aria-label="Local Python results">
+          <div className="studio-execution-status">
+            <h3>
+              Local Run · {localRun.state === "running" ? "Running Python…" :
+                localRun.state === "passed" ? "All displayed cases passed" : "Needs attention"}
+            </h3>
+            {localRun.state === "running" && onCancelLocal && (
+              <button type="button" onClick={onCancelLocal}>Cancel local Run</button>
+            )}
+          </div>
+          <p className="studio-muted">
+            {localRun.source === "verified"
+              ? "Locally checked against verified public fixtures. This is not hidden-test acceptance."
+              : "Locally checked against provisional statement examples. This is not a certified grading result."}
+          </p>
+          {localRun.message && <p role="alert" className="studio-notice">{localRun.message}</p>}
+          {localRun.state !== "running" && localRun.results.map((item, index) => (
+            <article className="studio-example" key={item.id}>
+              <h4>Local case {index + 1} · {item.passed ? "Passed" : "Failed"}</h4>
+              <span className="studio-eyebrow">INPUT</span>
+              <JsonBlock value={item.input} />
+              <span className="studio-eyebrow">EXPECTED</span>
+              <JsonBlock value={item.expected} />
+              {"actual" in item && <>
+                <span className="studio-eyebrow">ACTUAL</span>
+                <JsonBlock value={item.actual} />
+              </>}
+              {item.error && <pre className="studio-notice">{item.error}</pre>}
+              {item.durationMs !== undefined && <p className="studio-muted">Local execution: {item.durationMs} ms</p>}
+            </article>
+          ))}
+        </section>
+      )}
       {job && (
         <>
           <p className="studio-muted">
