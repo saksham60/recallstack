@@ -31,18 +31,14 @@ function canonical(value: unknown): string {
 export function useLocalPythonRun() {
   const worker = useRef<Worker | null>(null);
   const busy = useRef(false);
+  const activeCancel = useRef<(() => void) | null>(null);
   const [run, setRun] = useState<LocalRun | null>(null);
   useEffect(() => () => {
     worker.current?.terminate();
     worker.current = null;
   }, []);
   function cancel() {
-    worker.current?.terminate();
-    worker.current = null;
-    busy.current = false;
-    setRun((existing) => existing?.state === "running"
-      ? { ...existing, state: "failed", message: "Local execution cancelled." }
-      : existing);
+    activeCancel.current?.();
   }
   async function start(
     code: string,
@@ -87,6 +83,7 @@ export function useLocalPythonRun() {
           if (worker.current === current) worker.current = null;
         }
         busy.current = false;
+        activeCancel.current = null;
         setRun(next);
         resolve();
       };
@@ -133,6 +130,10 @@ export function useLocalPythonRun() {
         code, source, state: "failed", results: [],
         message: "Local execution exceeded the 30-second limit.",
       }, true), 30000);
+      activeCancel.current = () => finish({
+        code, source, state: "failed", results: [],
+        message: "Local execution cancelled.",
+      }, true);
       current.addEventListener("message", onMessage);
       current.addEventListener("error", onError);
       current.postMessage({ code, cases: cases.map(({ id, input }) => ({ id, input })) });
