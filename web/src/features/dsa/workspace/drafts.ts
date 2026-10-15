@@ -43,8 +43,8 @@ export function pythonStarterCode(
   ) return "";
   return [
     `def ${name}(*args, **kwargs):`,
-    `    # Input: ${summarizeContract(contract.input)}`,
-    `    # Output: ${summarizeContract(contract.output)}`,
+    `    # Input: ${summarizeContract(contract?.input)}`,
+    `    # Output: ${summarizeContract(contract?.output)}`,
     "    # Implement the contract above; adjust parameters once the judge input",
     "    # binding is certified. This scaffold is not a working solution.",
     '    raise NotImplementedError("Implement your solution")',
