@@ -11,6 +11,7 @@ from recallstack.composition.category_content_list_uow import (
     SqlAlchemyCategoryContentReadUnitOfWork,
 )
 from recallstack.composition.category_dashboard_uow import SqlAlchemyCategoryDashboardUnitOfWork
+from recallstack.composition.dsa import DsaLearningUnitOfWork, read_repository
 from recallstack.composition.knowledge_uow import SqlAlchemyKnowledgeUnitOfWork
 from recallstack.composition.learning_uow import SqlAlchemyLearningUnitOfWork
 from recallstack.composition.practice_attempt_uow import SqlAlchemyPracticeAttemptUnitOfWork
@@ -36,6 +37,9 @@ from recallstack.modules.content.presentation.routes import router as content_ro
 from recallstack.modules.content.presentation.study_note_routes import router as study_note_router
 from recallstack.modules.diagrams.application import DiagramService
 from recallstack.modules.diagrams.presentation.routes import router as diagram_router
+from recallstack.modules.dsa.application.services import DsaService
+from recallstack.modules.dsa.presentation.middleware import DsaCacheMiddleware
+from recallstack.modules.dsa.presentation.routes import router as dsa_router
 from recallstack.modules.identity.application.current_user_provider import (
     ApplicationCurrentUserProvider,
 )
@@ -141,6 +145,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 database.session_factory, sync_retention_days=resolved.sync_retention_days
             )
         )
+        app.state.dsa_service = DsaService(lambda: read_repository(database.session_factory))
+        app.state.dsa_learning_service = LearningService(
+            lambda: DsaLearningUnitOfWork(
+                database.session_factory, sync_retention_days=resolved.sync_retention_days
+            )
+        )
         app.state.event_publisher = InProcessEventPublisher()
         app.state.admin_content_service = AdminContentService(
             lambda: SqlAlchemyAdminContentUnitOfWork(
@@ -210,9 +220,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["X-Sync-Cursor", "X-Row-Version", "X-Request-ID"],
     )
     app.add_middleware(BodySizeLimitMiddleware, max_bytes=resolved.request_body_max_bytes)
     app.add_middleware(RequestContextMiddleware)
+    app.add_middleware(DsaCacheMiddleware)
     install_error_handlers(app)
     app.include_router(health_router)
     app.include_router(identity_router, prefix="/api/v1")
@@ -228,6 +240,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(admin_analytics_router, prefix="/api/v1")
     app.include_router(sync_router, prefix="/api/v1")
     app.include_router(diagram_router, prefix="/api/v1")
+    app.include_router(dsa_router, prefix="/api/v1")
     if resolved.knowledge_enabled:
         app.include_router(knowledge_router, prefix="/api/v1")
     return app

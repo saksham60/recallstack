@@ -14,7 +14,7 @@ A crucial architecture boundary is that this service is **not the primary intera
 | --- | --- |
 | Identity projection | Verify Supabase access tokens, resolve/create application profiles and roles |
 | Catalog | Domains, categories, topics, searchable published content |
-| DSA content | Published study-note documents, practice resources, taxonomy and progress projections |
+| DSA content | Publication-gated problem specifications, verified public fixtures, study-note documents, practice resources, taxonomy and progress projections |
 | Learning | Progress, bookmarks, notes and activity events |
 | Practice | Immutable practice attempts and initial review scheduling |
 | Recall / Revise | Review cards, submissions, scheduling and immutable history |
@@ -27,6 +27,10 @@ A crucial architecture boundary is that this service is **not the primary intera
 | Platform concerns | health/readiness, body limits, request IDs, structured errors, DB instrumentation |
 
 ### Explicitly outside this service
+
+The DSA REST contracts, reviewer preview rules, learner synchronization behavior and examples
+are documented in [DSA API contract](docs/dsa-api-contract.md), with the exported
+[OpenAPI specification](docs/dsa-openapi.json) and [verification results](docs/dsa-verification.md).
 
 The following currently live elsewhere:
 
