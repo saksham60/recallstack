@@ -16,16 +16,32 @@ pytestmark = pytest.mark.integration
 @pytest.fixture(scope="session")
 def report_schema(execution_schema):
     migration = Path(__file__).resolve().parents[3] / (
-        "web/supabase/migrations/20261016100348_dsa_v3_code_intelligence.sql"
+        "web/supabase/migrations/20261016144502_dsa_v3_report_orchestration.sql"
     )
     with execution_schema.begin() as connection:
+        installed = migration.with_name(
+            "20261016073423_dsa_certification_ledger_and_code_intelligence.sql"
+        ).read_text(encoding="utf-8")
+        # Exact installed public report tables, policies and deterministic job snapshot.
+        # Certificate-gate tests are separate from this report lifecycle fixture.
+        connection.connection.driver_connection.execute(
+            installed[
+                installed.index(
+                    "create table public.dsa_code_intelligence_reports"
+                ) : installed.index("-- Seed review registry")
+            ]
+        )
+        legacy = migration.with_name("20261016074500_dsa_code_intelligence_reconcile_and_claim.sql")
+        connection.connection.driver_connection.execute(legacy.read_text(encoding="utf-8"))
         connection.connection.driver_connection.execute(migration.read_text(encoding="utf-8"))
     return execution_schema
 
 
 @pytest.fixture
 def report_data(report_schema, execution_data):
-    return execution_data
+    yield execution_data
+    with report_schema.begin() as connection:
+        connection.exec_driver_sql("delete from public.dsa_code_intelligence_reports")
 
 
 def report_command(data, action, **args):
@@ -69,8 +85,17 @@ def dispatch(data):
 def test_durable_deduplication_owner_projection_and_verdict_immutability(report_data):
     data = report_data
     first, second = complete(data), complete(data)
+    with data["engine"].begin() as connection:
+        installed_report = connection.scalar(
+            text(
+                "insert into public.dsa_code_intelligence_reports(submission_id) "
+                "values(:id) returning id"
+            ),
+            {"id": first},
+        )
     due = dispatch(data)
     assert len(due) == 1
+    assert due[0]["id"] == str(installed_report)
     a = report_command(data, "get", submissionId=first, userId=data["owner"])
     b = report_command(data, "get", submissionId=second, userId=data["owner"])
     assert a["report"]["id"] == b["report"]["id"]
@@ -96,6 +121,16 @@ def test_durable_deduplication_owner_projection_and_verdict_immutability(report_
         data, "finish", id=due[0]["id"], token=token, document={"summary": "AI estimate"}
     )
     assert report_command(data, "claim", id=due[0]["id"], token=uuid4()) == "done"
+    with data["engine"].begin() as connection:
+        canonical = connection.execute(
+            text(
+                "select generation_status,assessment from public.dsa_code_intelligence_reports "
+                "where id=:id"
+            ),
+            {"id": installed_report},
+        ).one()
+        assert canonical.generation_status == "completed"
+        assert canonical.assessment == {"summary": "AI estimate"}
     assert command(data, "get", id=first, userId=data["owner"])["result"]["verdict"] == "accepted"
     assert dispatch(data) == []
 

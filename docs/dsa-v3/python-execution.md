@@ -29,7 +29,9 @@ The Nebius supervisor consumes the same harness source in a fresh unprivileged
 process per case, retaining existing process/resource, output and global budgets.
 Expected values and exact/unordered/numeric/fixed-predicate comparison remain in
 the trusted TypeScript judge. The new wrapper has compilation and source-parity
-evidence; live Nebius execution remains a release gate, not a claimed success.
+evidence. A real canonical 3Sum component operation passed all 36 actual fixtures;
+see `artifacts/dsa-v3-live-component.json`. Authenticated API/Queue/persisted result
+and report proof remains a release gate; component evidence does not satisfy it.
 
 Real browser suite: `npx playwright test e2e/dsa-python-real.spec.ts --workers=1`.
 It mirrors Pyodide 0.28.3 from the pinned dev dependency, executes actual Python
@@ -43,3 +45,5 @@ original checker mappings. It denies unsupported suites rather than evaluating
 a partial page. Expanding those bounds/checker mappings requires reviewed SQL
 and independently recertified exact contracts. Existing certificate flags are
 not sufficient evidence for V3 certification.
+The pending V3 registry migration expands supported complete plans to 100 cases
+and fixed predicates, tied to approved exact contract/fixture/harness digests.

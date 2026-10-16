@@ -56,10 +56,14 @@ contain only permitted public detail and policy-controlled aggregate metrics.
 
 ## Code Intelligence boundary
 
-Genuine terminal judged submissions create transactional report events. A durable
+Dispatch reconciles committed terminal judged submissions into durable report
+events outside the judge transaction. A durable
 report deduplicates by owner, problem version, source hash, verdict, model and
 rubric. Dispatch/claims enforce daily quota, global concurrency, attempt limits,
 retry backoff and fencing. The Queue payload contains only the report UUID.
+Private orchestration adopts or versions canonical public report rows and
+projects validated analysis into the installed Code Intelligence table. Existing
+report IDs, learner skill signals and judge-snapshot protections remain intact.
 An optional server-only submission allowlist scopes dispatch and claims for
 limited live verification, including messages queued before the scope changed.
 

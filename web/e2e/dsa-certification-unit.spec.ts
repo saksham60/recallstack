@@ -1,4 +1,29 @@
 import { test, expect } from "@playwright/test";
+import { attachOwnerEvidence } from "../scripts/dsa-certification/owner-evidence";
+test("owner output-oracle evidence is retained without granting typed or hosted certification", () => {
+  const { identity, problem } = fixture(),
+    row = initialRow(identity);
+  const evidence = {
+    problemId: identity.problemId,
+    problemVersionId: identity.problemVersionId,
+    suiteId: problem.suiteId,
+    checkId: crypto.randomUUID(),
+    result: "passed" as const,
+    verifier: "owner",
+    verifierVersion: "test:1",
+    verifiedAt: new Date().toISOString(),
+    recordedFixtureMd5: "a".repeat(32),
+    currentFixtureMd5: "a".repeat(32),
+    fixtureCount: 2,
+  };
+  expect(attachOwnerEvidence(row, evidence)).toBe(true);
+  expect(row.evidence[0].recordedDigestMatchesCurrent).toBe(true);
+  expect(row.referenceOracleVerified).toBe(false);
+  expect(row.sandboxSmokePassed).toBe(false);
+  expect(
+    attachOwnerEvidence(row, { ...evidence, suiteId: crypto.randomUUID() }),
+  ).toBe(false);
+});
 import { spawn } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";

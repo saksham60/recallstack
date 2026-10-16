@@ -268,6 +268,10 @@ def execution_schema(dsa_engine):
             create role service_role bypassrls;
           end if;
         end $$;
+        create or replace function auth.uid() returns uuid language sql stable as
+          $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+        grant usage on schema public,auth to authenticated;
+        grant execute on function auth.uid() to authenticated;
         """)
         connection.connection.driver_connection.execute(migration.read_text(encoding="utf-8"))
     return dsa_engine
@@ -314,7 +318,7 @@ def board_schema(dsa_engine):
     assert dsa_engine.url.database.startswith("dsa_api_test_")
     migration = (
         Path(__file__).resolve().parents[3]
-        / "web/supabase/migrations/20261016084605_dsa_v3_personal_boards_companies.sql"
+        / "web/supabase/migrations/20261016144501_dsa_v3_explorer_projection.sql"
     )
     with dsa_engine.begin() as connection:
         connection.exec_driver_sql("""
@@ -326,7 +330,7 @@ def board_schema(dsa_engine):
             if not exists(select 1 from pg_roles where rolname='service_role') then
               create role service_role bypassrls; end if;
           end $$;
-          create function auth.uid() returns uuid language sql stable as
+          create or replace function auth.uid() returns uuid language sql stable as
             $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
           grant usage on schema public, auth to authenticated;
           grant execute on function auth.uid() to authenticated;
@@ -337,6 +341,25 @@ def board_schema(dsa_engine):
             source_block_id uuid,match_method text);
           create table dsa_problem_company_sources(definition_id uuid,source_block_id uuid,
             review_status text,raw_companies text);
+        """)
+        installed = migration.with_name(
+            "20261016073209_dsa_explorer_company_metadata_and_boards.sql"
+        ).read_text(encoding="utf-8")
+        # Use the exact installed board table/index, followed by its owner policies.
+        connection.connection.driver_connection.execute(
+            installed[
+                installed.index("create table public.dsa_explorer_boards") : installed.index(
+                    "create table public.dsa_explorer_lanes"
+                )
+            ]
+        )
+        connection.exec_driver_sql("""
+          alter table public.dsa_explorer_boards enable row level security;
+          create policy dsa_boards_own on public.dsa_explorer_boards to authenticated
+            using(user_id=(select auth.uid())) with check(user_id=(select auth.uid()));
+          grant select,insert,delete on public.dsa_explorer_boards to authenticated;
+          grant update(title,grouping,layout,settings,updated_at)
+            on public.dsa_explorer_boards to authenticated;
         """)
         connection.connection.driver_connection.execute(migration.read_text(encoding="utf-8"))
     return dsa_engine

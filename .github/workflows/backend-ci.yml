@@ -4,11 +4,15 @@ on:
   pull_request:
     paths:
       - "backend/**"
+      - "web/supabase/migrations/**"
+      - "web/src/lib/dsa-execution/python/runner_harness.py"
       - ".github/workflows/backend-ci.yml"
   push:
     branches: [main]
     paths:
       - "backend/**"
+      - "web/supabase/migrations/**"
+      - "web/src/lib/dsa-execution/python/runner_harness.py"
       - ".github/workflows/backend-ci.yml"
 
 concurrency:

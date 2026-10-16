@@ -7,6 +7,7 @@ approves fixtures, inserts certificates or calls a paid provider.
 ```sh
 npm run dsa:certify -- --audit --dry-run
 npm run dsa:certify -- --audit --dry-run --imported-directory .next/cache/dsa-v3-private --evidence-directory ../artifacts
+npm run dsa:certify -- --audit --dry-run --imported-directory .next/cache/dsa-v3-private --evidence-directory ../artifacts --owner-evidence ../artifacts/dsa-v3-owner-oracle-evidence.json
 npm run dsa:certify -- --problem 3sum --reviewed-bundle /secure/reviewed-bundle.json --batch-size 1
 npm run dsa:certify -- --cohort source-review --reviewed-bundle /secure/reviewed-bundle.json --batch-size 20 --resume ../artifacts/dsa-certification-manifest.json
 npm run dsa:certify -- --ids <uuid>,<uuid> --reviewed-bundle /secure/reviewed-bundle.json --batch-size 2
@@ -59,6 +60,12 @@ The source/typed approval, pending fixture transitions and real authenticated
 Submit/report journey remain explicit gates. Existing 10 legacy certificates are
 not relabelled as V3 certification. Formal owner approval must reference exact
 registry/fixture/harness digests in the proposed ledger before eligibility changes.
+The separate owner's output-oracle work is retained as distinct evidence: the
+read-only snapshot has 370 latest passing checks, 340 with matching current MD5
+digests. Missing/mismatched digests need reconciliation. These do not set the
+typed Python/source/checker/sandbox flags. `--owner-evidence` requires exact
+version/suite identity and records check IDs, digest match status and verifier
+metadata, never hidden payloads. Counts describe that timestamped snapshot.
 
 The canonical 3Sum local proof can be reproduced with a private read-only export:
 

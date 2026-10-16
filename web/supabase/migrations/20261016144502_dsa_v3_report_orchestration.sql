@@ -1,5 +1,6 @@
 -- PROPOSED: separate Supabase owner must review/apply. No certificate changes.
--- Judge completion commits an outbox event; AI work never changes the verdict.
+-- Separate reconciliation discovers committed judge results; AI cannot block finalization.
+-- Installed public.dsa_code_intelligence_reports remains the canonical learner report projection.
 create schema dsa_reports_private;
 revoke all on schema dsa_reports_private from public, anon, authenticated;
 grant usage on schema dsa_reports_private to service_role;
@@ -13,7 +14,7 @@ create index dsa_report_events_pending on dsa_reports_private.events(created_at,
 where processed_at is null;
 
 create table dsa_reports_private.reports (
-  id uuid primary key default gen_random_uuid(),
+  id uuid primary key references public.dsa_code_intelligence_reports(id) on delete cascade,
   user_id uuid not null references public.profiles(id),
   problem_version_id uuid not null references public.dsa_problem_versions(id),
   code_sha256 text not null check(code_sha256 ~ '^[a-f0-9]{64}$'),
@@ -58,18 +59,26 @@ alter table dsa_reports_private.submissions enable row level security;
 alter table dsa_reports_private.attempts enable row level security;
 grant select,insert,update,delete on all tables in schema dsa_reports_private to service_role;
 
-create function dsa_reports_private.capture_terminal() returns trigger
-language plpgsql security definer set search_path='' as $$
+-- Disable the old unfenced worker entry points before deploying the new consumer.
+-- Preserve their definitions and existing records for an explicit rollback.
+revoke execute on function public.dsa_code_intelligence_enqueue(integer) from service_role;
+revoke execute on function public.dsa_code_intelligence_claim(integer) from service_role;
+create function dsa_reports_private.project_report() returns trigger
+language plpgsql security invoker set search_path='' as $$
 begin
-  if new.request->>'mode'='submit' and new.status in ('completed','timed_out')
-     and new.result->>'verdict' in ('accepted','wrong_answer','syntax_error','runtime_error','time_limit_exceeded','output_limit_exceeded') then
-    insert into dsa_reports_private.events(submission_id) values(new.id) on conflict do nothing;
-  end if;
-  return new;
+ update public.dsa_code_intelligence_reports set
+   generation_status=case when new.status='rate_limited' then 'skipped' else new.status end,
+   model_id=new.model,rubric_version=new.rubric,prompt_version='dsa-code-intelligence:1',
+   assessment=new.document,generation_attempts=new.attempts,
+   generation_started_at=case when new.status='generating' then now() else generation_started_at end,
+   generation_completed_at=case when new.status='completed' then now() else generation_completed_at end,
+   error_code=case when new.error is null then null else 'V3_REPORT_UNAVAILABLE' end
+ where id=new.id;
+ if not found then raise exception 'REPORT_PROJECTION_MISSING'; end if;
+ return new;
 end $$;
-revoke all on function dsa_reports_private.capture_terminal() from public,anon,authenticated;
-create trigger dsa_report_terminal after insert or update of status,result
-on dsa_execution_private.jobs for each row execute function dsa_reports_private.capture_terminal();
+create trigger dsa_v3_report_projection after insert or update on dsa_reports_private.reports
+ for each row execute function dsa_reports_private.project_report();
 
 create function dsa_reports_private.report_view(r dsa_reports_private.reports) returns jsonb
 language sql stable security invoker set search_path='' as $$
@@ -84,7 +93,7 @@ create function public.dsa_report_command(p_action text,p_args jsonb default '{}
 language plpgsql security invoker set search_path='' as $$
 declare
   e record; j dsa_execution_private.jobs%rowtype; r dsa_reports_private.reports%rowtype;
-  v_id uuid; v_limited boolean; v_items jsonb; v_rows jsonb; v_scope uuid[];
+  v_id uuid; v_source_id uuid; v_report_version integer; v_limited boolean; v_items jsonb; v_rows jsonb; v_scope uuid[];
 begin
   if p_args ? 'submissionIds' then
     if jsonb_typeof(p_args->'submissionIds')<>'array' then
@@ -128,6 +137,12 @@ begin
       return jsonb_build_object('code','INVALID_CONFIGURATION');
     end if;
     perform pg_advisory_xact_lock(20161016,2);
+    -- Reconcile separately from judge transactions; interrupted dispatch is retryable.
+    insert into dsa_reports_private.events(submission_id,created_at)
+    select id,created_at from dsa_execution_private.jobs where request->>'mode'='submit'
+      and status in ('completed','timed_out') and result->>'verdict' in
+        ('accepted','wrong_answer','syntax_error','runtime_error','time_limit_exceeded','output_limit_exceeded')
+      and (v_scope is null or id=any(v_scope)) on conflict do nothing;
     for e in select submission_id from dsa_reports_private.events where processed_at is null
       and (v_scope is null or submission_id=any(v_scope))
       order by created_at,submission_id limit 25 for update skip locked loop
@@ -140,9 +155,28 @@ begin
       if v_id is null then
         select count(*)>=10 into v_limited from dsa_reports_private.reports where user_id=j.user_id
           and created_at>=date_trunc('day',now() at time zone 'UTC') at time zone 'UTC' and status<>'rate_limited';
-        insert into dsa_reports_private.reports(user_id,problem_version_id,code_sha256,verdict,model,rubric,source_submission_id,status,error,max_attempts)
-        values(j.user_id,(j.request->>'problemVersionId')::uuid,encode(sha256(convert_to(j.request->>'code','UTF8')),'hex'),j.result->>'verdict',
-          p_args->>'model',p_args->>'rubric',j.id,case when v_limited then 'rate_limited' else 'queued' end,
+        -- Adopt an existing ungenerated row when its model/rubric is compatible.
+        -- Completed historical versions are retained; a new rubric gets a new version.
+        select canonical.id,canonical.submission_id into v_id,v_source_id
+          from public.dsa_code_intelligence_reports canonical
+          where canonical.user_id=j.user_id
+          and canonical.problem_version_id=(j.request->>'problemVersionId')::uuid
+          and canonical.code_sha256=encode(sha256(convert_to(j.request->>'code','UTF8')),'hex')
+          and canonical.verified_verdict=j.result->>'verdict'
+          and canonical.generation_status='queued' and canonical.assessment is null
+          and (canonical.model_id is null or canonical.model_id=p_args->>'model')
+          and (canonical.rubric_version is null or canonical.rubric_version=p_args->>'rubric')
+          order by canonical.created_at,canonical.id limit 1;
+        if v_id is null then
+          v_source_id:=j.id;
+          select coalesce(max(report_version),0)+1 into v_report_version
+            from public.dsa_code_intelligence_reports where submission_id=j.id;
+          insert into public.dsa_code_intelligence_reports(submission_id,report_version)
+            values(j.id,v_report_version) returning id into v_id;
+        end if;
+        insert into dsa_reports_private.reports(id,user_id,problem_version_id,code_sha256,verdict,model,rubric,source_submission_id,status,error,max_attempts)
+        values(v_id,j.user_id,(j.request->>'problemVersionId')::uuid,encode(sha256(convert_to(j.request->>'code','UTF8')),'hex'),j.result->>'verdict',
+          p_args->>'model',p_args->>'rubric',v_source_id,case when v_limited then 'rate_limited' else 'queued' end,
           case when v_limited then 'Daily Code Intelligence limit reached. The judge result is saved.' else null end,
           coalesce((p_args->>'maxAttempts')::integer,2)) returning id into v_id;
       end if;
@@ -212,7 +246,8 @@ grant execute on function public.dsa_report_command(text,jsonb) to service_role;
 revoke all on all functions in schema dsa_reports_private from public,anon,authenticated;
 grant execute on all functions in schema dsa_reports_private to service_role;
 
--- Backfill event identities only; no AI is called and no verdict changes.
+-- Seed event identities only; subsequent reconciliation discovers newer terminal jobs.
+-- No judge trigger, AI call or verdict mutation is installed.
 insert into dsa_reports_private.events(submission_id)
 select id from dsa_execution_private.jobs where request->>'mode'='submit'
   and status in ('completed','timed_out') and result->>'verdict' in

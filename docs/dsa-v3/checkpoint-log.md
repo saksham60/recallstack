@@ -74,3 +74,39 @@
   fixture analysis. No real AI generation or production persistence is claimed.
 - The actual canonical 3Sum suite remains uncertified. Source/reference metadata,
   owner application and the constrained live proof are outstanding. Paid calls 0/5.
+
+## Latest reconciliation and release gates (2026-10-16)
+
+This entry supersedes earlier 0/5 and metadata-waiting status above. Existing
+repository and Supabase data are authoritative; no additional document is needed.
+
+- Paid calls: **1/5 used**, 4 reserved for two genuine submissions and two reports.
+  Actual canonical 3Sum local oracles matched 36 fixtures, including a genuine
+  public-pass/hidden-fail candidate; one real Nebius operation passed all 36.
+  Saved hashes bind source, fixture snapshot and shared harness. This is component
+  evidence, not a persisted submission/report release proof.
+- Implemented shared runtime, exact Run receipt, approved typed registry,
+  certification ledger, bounded report worker/history/read-only submitted source,
+  and deterministic offline certification CLI with resume and privacy checks.
+- Merged main through 812e700 and retained the separate owner's installed
+  foundation/data work. Board compatibility now extends dsa_explorer_boards rather
+  than creating another storage table. Report orchestration adopts/versions
+  existing dsa_code_intelligence_reports and projects validated assessments there.
+  Reconciliation runs after committed judge results; no judge-finalization trigger.
+- Superseded the unshipped 084605/100348/133229 proposals with
+  20261016144501/144502/144503. No owner-applied SQL was rewritten or reapplied.
+  Existing eight-check certificate gate remains in force alongside the new ledger.
+- SELECT-only current owner oracle snapshot: 370 latest passed checks, 340 with
+  matching current digests. The manifest preserves them separately from missing
+  typed/source/checker/hosted proofs. All 375 audited; 0 V3-certified, 375 blocked.
+- Vercel report flags configured across Production/Preview/Development: enabled=0,
+  maxAttempts=1, submission scope=all-zero UUID. Local secrets/config preserved.
+  Keep the two exact pilot IDs scoped before enabling any live generation.
+- Full browser: 206 passed, 1 opt-in live skip; actual Pyodide matrix 25 passed.
+  State/provider contracts: 518 passed. DSA unit/CLI/report: 29 passed. Reconciled
+  storage: 9 passed. TypeScript, lint, production build, Ruff and mypy passed.
+  Full backend clean rerun and final release metadata are in verification.md.
+- Next/security dependency updates remove known runtime vulnerabilities. Five
+  development ESLint-chain advisories remain; no forced framework downgrade.
+- No mobile changes, production DB mutation, V3 deployment or 375/375 claim.
+  Owner application/approval and authenticated Submit/report proof remain gates.

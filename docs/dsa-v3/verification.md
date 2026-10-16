@@ -1,35 +1,54 @@
 # DSA V3 verification
 
-Story: signed-in learner opens topics -> canonical catalog/progress -> topic board
--> exact-version workspace -> existing learner APIs, tutor and saved drafts.
+Verified locally on 2026-10-16. Production release is **not complete**. Database
+application belongs to the separate owner; no production migration or content
+approval was performed by this web workstream. One of five combined paid calls
+was used for the genuine 3Sum Nebius component test; four remain.
 
-## Checkpoint 1 (2026-10-16)
-
-| Boundary | Evidence | Limit |
+| Boundary | Actual evidence | Limit |
 |---|---|---|
-| Topic/board/workspace rendering | Inspected desktop screenshots; narrow browser and no-overflow checks | UI fixtures, not production content verification |
-| Browser -> API contract | Canonical redirects, exact versions, all summary pages, composed filters, bookmarks/notes, CAS rollback | Browser fixtures and loopback server routing fixture |
-| API -> existing data | 42 API tests + PostgreSQL integration coverage for resolver and per-user visible counts | Disposable local PostgreSQL |
-| Personal storage -> response | Real migration applied in isolated DB; owner RLS/CAS and metadata privacy tests; 14 integration checks total | Proposed migration not installed in production |
-| Response -> UI | Full browser regression: 180 passed, 1 opt-in real API check skipped | Skipped check is not counted as real-provider proof |
-| Execution regression | 15 judge/lifecycle/tutor-context unit tests passed | Mock sandbox adapters; no paid live call |
-| Static quality | Ruff, mypy, ESLint, TypeScript and Next production build passed | No deployment claim |
-| Production readiness data | SELECT-only inventory: 375 published, 10 certificates, 365 needs-review suites | Existing flags are not V3 certification |
+| Canonical browser flows and existing functionality | 206 passed, 1 existing opt-in live check skipped | Full browser regression uses API fixtures/loopback providers |
+| Actual Pyodide/WASM/Worker | 25 tests within that browser run passed | Real interpreter and CSP; fixture public API data |
+| State, tutor/provider transport, conversations and diagrams | 518 passed | Injected transports; no paid generation |
+| Execution, contract, reports and certification CLI | 29 passed | Includes actual offline Python CLI execution/resume; no paid provider |
+| Reconciled boards/reports storage | 9 PostgreSQL tests passed | Exact installed base definitions plus pending proposals in disposable DB |
+| Full backend | Final clean run in progress | Fresh disposable PostgreSQL, not production |
+| Static checks | TypeScript, ESLint, Ruff, formatting and mypy passed | No deployment claim |
+| Production compilation | Next.js 16.3.8 build passed after owner merge | Build success does not prove hosted runtime |
+| Shared Python bytes | Browser/server source SHA parity passed | SHA 3e96d81f62c21bc4c51aa38c25a2b6d1ed7d7eb48aa1bf600f7e4c3b2286362a |
+| Runtime dependency audit | Zero known runtime vulnerabilities | Five high dev-only ESLint-chain findings remain |
+| Actual catalog audit | All 375 identities and 11,591 fixtures audited; zero duplicate inputs/public-hidden overlap | Publication/legacy certificate flags are not V3 certification |
+| Separate owner's oracle evidence | 370 latest passing output-oracle checks, 340 with matching current digests | Timestamped SELECT-only snapshot; typed/hosted approvals are separate |
+| Canonical 3Sum independent validation | Both local oracles matched all 36 actual cases; public-pass/hidden-fail candidate; two 3,000-element stress checks | Source variant requires approval; private data stays ignored |
+| Real Nebius compatibility | Operation 01a144ed-017b-73f2-b33b-2b648c0ae1b6, all 36 cases matched | Component proof; no persisted submission/report or authenticated hosted journey |
 
-Screenshots copied outside Playwright's disposable output to:
-`web/.next/cache/dsa-v3-checkpoint-1/{dsa-v3-home,dsa-v3-board,dsa-v3-workspace}.png`.
-The images use named UI fixtures and make no real grading or report-generation claim.
+The full browser run initially had five failures: two cold-route timeouts, a
+3Sum test-wide timeout, an obsolete uncertified-Submit expectation and an
+ambiguous saved-note locator. Those were corrected/rerun, then the complete
+207-test run passed with the one existing opt-in skip. A later screenshot pass
+had one route-load timeout; its isolated rerun passed. These failures were not
+silently skipped. Screenshots use labelled fixtures and are not production proof.
 
-## Pending production boundary
+The first full backend run found a pre-existing test-order logging issue:
+Alembic fileConfig disabled application loggers. Preserving existing loggers
+fixed the isolated knowledge cleanup test. A subsequent run reused persistent
+integration seed data and found one report-adoption ordering issue. Report reuse
+now adopts an existing compatible canonical row independently of processing
+order. Storage checks passed again; the final full run uses a fresh database.
 
-`public.dsa_personal_boards` is absent in production (confirmed read-only). The
-separate Supabase owner must review/apply the proposed migration and return its
-environment/version and relationship/RLS checks before hosted persistence can be
-claimed. Company metadata must come from reviewed sources supplied by the user.
+Production gates remain: owner review/application of the three 144501/144502/
+144503 proposals, per-version typed/source/checker/fixture approvals, linked
+certification ledger, backend rollout, real authenticated correct and
+public-pass/hidden-fail submissions with durable reports, then hosted browser
+verification. Current V3 certification is 0/375. All exact blocked IDs are in
+artifacts/dsa-certification-manifest.failures.json.
 
-The backend resolver/topic-progress additions must deploy before the web routes.
-Canonical 3Sum has an uncertified needs-review suite; no live judge or AI report
-evidence has been claimed. Remaining checkpoints need the shared harness,
-independent content certification, report persistence and deployed runtime checks.
+The owner's production status document reports 39 pre-existing public tables
+without RLS. That separate application-specific security review remains open;
+no blanket remediation was applied. New scoped storage was checked locally.
 
-Paid external verification calls used: 0 of maximum 5 combined, retries included.
+Vercel recallstack Production/Preview/Development and local ignored config have
+report generation disabled, maxAttempts=1 and an all-zero submission allowlist.
+Replace the allowlist with the two actual pilot IDs before limited live testing;
+never enable an unrestricted historical backlog within the remaining budget.
+Environment edits require a subsequent deployment. No V3 deployment was created.

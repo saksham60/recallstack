@@ -14,6 +14,10 @@ import { createCertificationRuntime } from "./dsa-certification/browser";
 import { HARNESS_SHA256 } from "../src/lib/dsa-execution/python/harness.generated";
 import { auditImportedProblem } from "./dsa-certification/import-audit";
 import { attachThreeSumEvidence } from "./dsa-certification/evidence";
+import {
+  attachOwnerEvidence,
+  ownerEvidenceSchema,
+} from "./dsa-certification/owner-evidence";
 
 async function main() {
   const { values } = parseArgs({
@@ -28,6 +32,7 @@ async function main() {
       inventory: { type: "string" },
       "imported-directory": { type: "string" },
       "evidence-directory": { type: "string" },
+      "owner-evidence": { type: "string" },
       "reviewed-bundle": { type: "string" },
       output: { type: "string" },
       strict: { type: "boolean" },
@@ -196,6 +201,21 @@ async function main() {
             "locally-validated-awaiting-sandbox-and-owner",
         ).length,
         certified: 0,
+        ownerOracleChecksRecorded: items.filter((row) =>
+          row.evidence.some(
+            (e) =>
+              e.kind === "owner-recorded-independent-oracle" &&
+              e.result === "passed",
+          ),
+        ).length,
+        ownerOracleChecksWithMatchingDigest: items.filter((row) =>
+          row.evidence.some(
+            (e) =>
+              e.kind === "owner-recorded-independent-oracle" &&
+              e.result === "passed" &&
+              e.recordedDigestMatchesCurrent === true,
+          ),
+        ).length,
         independentOraclesValidated: items.filter(
           (row) => row.referenceOracleVerified,
         ).length,
@@ -299,6 +319,28 @@ async function main() {
         .parse(importedRow).fixtures;
       const row = rows.get(local.problemId);
       if (row) attachThreeSumEvidence(row, fixtures, local, provider);
+    }
+  }
+  if (values["owner-evidence"]) {
+    const owner = ownerEvidenceSchema.parse(
+      JSON.parse(
+        await readFile(path.resolve(values["owner-evidence"]), "utf8"),
+      ),
+    );
+    if (
+      new Set(owner.items.map((item) => item.problemId)).size !==
+      owner.items.length
+    )
+      throw new Error("Duplicate owner evidence identity");
+    for (const item of owner.items) {
+      const row = rows.get(item.problemId);
+      if (
+        !row ||
+        row.problemVersionId !== item.problemVersionId ||
+        row.suiteId !== item.suiteId
+      )
+        throw new Error("Owner evidence identity mismatch");
+      attachOwnerEvidence(row, item);
     }
   }
   const manifest = snapshot(),

@@ -3,7 +3,9 @@
 Project: `jlqawpdsyptfxspyqnsu`. The separate Supabase owner reviews and applies
 production changes. Codex has performed read-only production inspection and
 disposable local PostgreSQL migration tests only. No production migration,
-fixture approval, publication change or certificate insertion has been applied.
+fixture approval, publication change or certificate insertion has been applied by
+this web workstream. The separate owner's installed foundation and evidence
+migrations are retained; see supabase-production-status-20261016.md.
 
 Use this repository and the existing Supabase data. Additional user documents are
 not a prerequisite for implementation. Keep all private schemas below unexposed
@@ -28,6 +30,16 @@ hidden cases, worker tokens, outboxes or service credentials to learners.
 - Existing execution objects from `20261015172042_dsa_execution_jobs.sql` must
   remain intact: private certificates/jobs, fenced slots, frozen plans, admissions,
   durable dispatch and service-only `dsa_execution_command` RPC.
+- Main's owner foundation was merged into this branch from `812e700`. Installed
+  explorer boards/lanes/cards, public Code Intelligence reports/skill signals and
+  private certification checks/reviews remain authoritative. Do not reapply their
+  historical migration files. The three proposals below extend those objects.
+- Latest SELECT-only oracle evidence snapshot: 370 current suites have a latest
+  passing independent output-oracle check; 340 recorded digests match current
+  fixture digests. Others need digest reconciliation or additional review. These
+  are not typed Python, source, checker or hosted certifications. Exact IDs and
+  check references are in `artifacts/dsa-v3-owner-oracle-evidence.json` and the
+  certification manifest. The owner's work may continue after this snapshot.
 - `artifacts/dsa-v3-catalog-inventory.json` and
   `artifacts/dsa-certification-manifest.json` identify every exact version/suite.
   One suite pointer changed between read-only snapshots; the inventory records its
@@ -37,28 +49,30 @@ hidden cases, worker tokens, outboxes or service credentials to learners.
 
 | Order | Proposed migration | Purpose |
 |---|---|---|
-| 1 | `20261016084605_dsa_v3_personal_boards_companies.sql` | Owner layouts and a safe projection of existing company tables |
-| 2 | `20261016100348_dsa_v3_code_intelligence.sql` | Private report outbox, deduplication, claims, attempts and owned projections |
-| 3 | `20261016133229_dsa_v3_versioned_contracts_certification.sql` | Approved typed registry, exact certification ledger and eligibility checks |
+| 1 | `20261016144501_dsa_v3_explorer_projection.sql` | Owner layouts and a safe projection of existing company tables |
+| 2 | `20261016144502_dsa_v3_report_orchestration.sql` | Private report outbox, deduplication, claims, attempts and owned projections |
+| 3 | `20261016144503_dsa_v3_versioned_contracts_certification.sql` | Approved typed registry, exact certification ledger and eligibility checks |
 
 All files are under `web/supabase/migrations/`, generated using the existing CLI
 convention. Compare installed history first; apply in staging and run advisors and
 the checks below before production. These are schema proposals, not certification
 data seeds. No blanket approval SQL is supplied.
 
-The first migration was corrected after inspecting the installed company schema.
-**Use its current contents.** An earlier unshipped proposal created competing
-company/tag tables; that proposal is superseded. If a different version was already
-applied by another workstream, reconcile it through an explicit owner-reviewed
-follow-up migration rather than rerunning an installed migration identifier.
+These replace the unshipped proposals timestamped 084605, 100348 and 133229.
+**Use only the current 144501/144502/144503 files.** No competing company table or
+personal-board storage table is created. If an earlier proposal was applied by
+another workstream, reconcile it through an explicit owner-reviewed follow-up;
+do not blindly apply this sequence or rerun an installed migration identifier.
 
 ## 1. Boards and company projection
 
-`public.dsa_personal_boards` uses `(user_id,category_id)` as its primary key, JSON
-layout schema 1, a monotonic `row_version`, and server timestamps. Authenticated
-CRUD has owner RLS through `(select auth.uid())`. A trigger rejects owner/category
-reassignment, skipped revisions and first inserts starting above revision 1. Web
-PUT uses compare-and-swap, returns 409 on conflicts, and rolls back optimistic UI.
+`public.dsa_personal_boards` is a SECURITY INVOKER compatibility **view** over the
+installed `dsa_explorer_boards`, using additive `v3_category_id`/`v3_layout`
+columns and a unique owner/category index. It projects the existing board revision
+as `row_version`; original settings, lanes, cards and board IDs remain intact.
+Owner RLS protects reads. An INSTEAD OF trigger with explicit authenticated-owner
+checks handles writes and rejects identity/revision changes. Web PUT uses
+compare-and-swap, returns 409 on conflicts, and rolls back optimistic UI.
 
 `dsa_v3_private.visible_version(uuid)` is a narrow boolean SECURITY DEFINER helper
 with empty search path. It verifies current published DSA version, active domain,
@@ -75,10 +89,20 @@ overwritten. Missing migration storage produces a visible recoverable UI state.
 
 ## 2. Reports, history and limits
 
-Private schema `dsa_reports_private` contains events, reports, submission links and
-attempt telemetry. Judge terminal completion inserts an idempotent event in the
-same transaction. Only judged Submit results qualify; infrastructure failures,
-cancelled work and local Run do not schedule AI. No trigger changes a verdict.
+Private schema `dsa_reports_private` adds orchestration events, deduplication,
+submission links and attempt telemetry around canonical
+`public.dsa_code_intelligence_reports`. Dispatch reconciles already committed
+terminal judged jobs into idempotent events in a **separate transaction**. There
+is no trigger on judge finalization. Report storage failures cannot roll back a
+verdict. Infrastructure failures, cancelled work and local Run do not schedule AI.
+
+An existing compatible ungenerated public report is adopted with its original ID.
+Otherwise a new version is inserted without replacing old reports or skill signals.
+Each private control row references that public report ID; its validated state and
+assessment are projected back atomically. The original job-snapshot trigger keeps
+judge facts authoritative. The proposal revokes service execution of the old
+unfenced `dsa_code_intelligence_enqueue`/`claim` functions so two worker paths cannot
+race. Their definitions are retained for an owner-reviewed rollback.
 
 Reports deduplicate on `(user_id,problem_version_id,code_sha256,verdict,model,
 rubric)`. Each submission links to its report. Generation reads the original
@@ -88,7 +112,8 @@ reuse the durable result.
 
 `dsa_report_command` is service-role only, SECURITY INVOKER with empty search path.
 Actions: history, get, dispatch, claim, finish and operator-only regenerate.
-Learners/anon have no schema usage, table access or RPC execution. The web server
+Learners/anon have no private schema usage, table access or RPC execution. The
+existing public report/skill read-own policies remain intact. The web server
 supplies userId exclusively from verified Supabase auth, enforces same origin and
 returns no-store responses. History pages contain 20 items with a stable timestamp
 and UUID cursor. Owned report reads include a read-only copy of that submission's
@@ -153,6 +178,10 @@ to an approved run. Their approved registry contract must match exactly; changed
 fixtures or revoked approval invalidate both Run and Submit. The app also requires
 the approved harness SHA to equal the deployed generated source. Existing legacy
 certificates retain compatibility and are not relabelled V3-certified.
+The installed `check_certification_gate` and its eight named certification checks
+remain intact. The V3 ledger supplements that gate; approval must satisfy both.
+Existing owner output-oracle checks can be referenced as evidence after confirming
+their exact suite/digest, rather than discarded or relabelled as hosted proof.
 
 Use `dsa_execution_private.v3_fixture_sha(suite)` for the database fixture digest.
 Contract digest is `encode(sha256(convert_to(contract::text,'UTF8')),'hex')` in

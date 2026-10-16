@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "status": "implementation-and-owner-integration-in-progress",
+  "status": "implemented-locally-pending-owner-certification-and-hosted-proof",
   "baselineCommit": "11e6a7a",
   "targetProblemCount": 375,
   "identityInventoryProblemCount": 375,
@@ -39,5 +39,9 @@
   "verifiedFixtureCount": 320,
   "pendingFixtureCount": 11271,
   "currentDuplicateInputs": 0,
-  "currentPublicHiddenOverlap": 0
+  "currentPublicHiddenOverlap": 0,
+  "fixtureAuditedProblemCount": 375,
+  "ownerOracleChecksRecorded": 370,
+  "ownerOracleChecksWithMatchingCurrentDigest": 340,
+  "ownerEvidenceSnapshot": "artifacts/dsa-v3-owner-oracle-evidence.json"
 }
