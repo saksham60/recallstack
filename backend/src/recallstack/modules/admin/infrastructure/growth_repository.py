@@ -35,31 +35,29 @@ async def load_platform_growth(session: AsyncSession, days: int) -> dict[str, An
     since = datetime.combine(start_date, time.min, tzinfo=UTC)
     params = {"since": since}
 
-    overview = (
-        await session.execute(
-            text(
-                """
+    overview_result = await session.execute(
+        text(
+            """
                 SELECT COUNT(*)::int total_users,
                        COUNT(*) FILTER (WHERE created_at >= :since)::int new_users
                 FROM profiles
                 """
-            ),
-            params,
-        )
-    ).mappings().one()
+        ),
+        params,
+    )
+    overview = overview_result.mappings().one()
 
-    daily_rows = (
-        await session.execute(
-            text(
-                """
+    daily_rows_result = await session.execute(
+        text(
+            """
                 SELECT (created_at AT TIME ZONE 'UTC')::date day, COUNT(*)::int signups
                 FROM profiles WHERE created_at >= :since
                 GROUP BY 1 ORDER BY 1
                 """
-            ),
-            params,
-        )
-    ).mappings().all()
+        ),
+        params,
+    )
+    daily_rows = daily_rows_result.mappings().all()
     daily_map = {row["day"]: int(row["signups"]) for row in daily_rows}
     daily_signups = [
         {
@@ -69,10 +67,9 @@ async def load_platform_growth(session: AsyncSession, days: int) -> dict[str, An
         for i in range(days)
     ]
 
-    engagement = (
-        await session.execute(
-            text(
-                f"""
+    engagement_result = await session.execute(
+        text(
+            f"""
                 WITH tracked AS ({_TRACKED_EVENTS}),
                 unique_users AS (SELECT DISTINCT user_id FROM tracked)
                 SELECT
@@ -82,29 +79,27 @@ async def load_platform_growth(session: AsyncSession, days: int) -> dict[str, An
                   )::int newly_engaged_users
                 FROM unique_users
                 """
-            ),
-            params,
-        )
-    ).mappings().one()
+        ),
+        params,
+    )
+    engagement = engagement_result.mappings().one()
 
-    feature_rows = (
-        await session.execute(
-            text(
-                f"""
+    feature_rows_result = await session.execute(
+        text(
+            f"""
                 WITH tracked AS ({_TRACKED_EVENTS})
                 SELECT feature, COUNT(DISTINCT user_id)::int unique_users
                 FROM tracked GROUP BY feature ORDER BY unique_users DESC, feature
                 """
-            ),
-            params,
-        )
-    ).mappings().all()
+        ),
+        params,
+    )
+    feature_rows = feature_rows_result.mappings().all()
     features = {str(row["feature"]): int(row["unique_users"]) for row in feature_rows}
 
-    product_counts = (
-        await session.execute(
-            text(
-                """
+    product_counts_result = await session.execute(
+        text(
+            """
                 SELECT
                   (SELECT COUNT(*) FROM reasonai_runs WHERE started_at >= :since)::int ai_runs,
                   (SELECT COUNT(*) FROM reasonai_runs
@@ -113,10 +108,10 @@ async def load_platform_growth(session: AsyncSession, days: int) -> dict[str, An
                   (SELECT COUNT(*) FROM user_story_events WHERE occurred_at >= :since)::int knowledge_events,
                   (SELECT COUNT(*) FROM dsa_practice_submissions WHERE created_at >= :since)::int dsa_submissions
                 """
-            ),
-            params,
-        )
-    ).mappings().one()
+        ),
+        params,
+    )
+    product_counts = product_counts_result.mappings().one()
 
     new_users = int(overview["new_users"])
     newly_engaged_users = int(engagement["newly_engaged_users"])
