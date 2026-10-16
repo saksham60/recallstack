@@ -375,7 +375,17 @@ async function main() {
   )
     process.exitCode = 1;
 }
-main().catch(() => {
+main().catch((error) => {
+  if (
+    error instanceof Error &&
+    error.message === "LOCAL_SANDBOX_BROWSER_UNAVAILABLE"
+  ) {
+    console.error(
+      "LOCAL_SANDBOX_BROWSER_UNAVAILABLE: install Playwright Chromium and permit its sandboxed launch. Ubuntu may require an executable-specific AppArmor userns profile. No private data was executed or printed.",
+    );
+    process.exitCode = 1;
+    return;
+  }
   console.error(
     "Certification failed. Check input schemas, local interpreter assets and exact version metadata. No private fixture/source data is printed.",
   );

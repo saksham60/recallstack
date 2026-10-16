@@ -124,3 +124,15 @@ repository and Supabase data are authoritative; no additional document is needed
   Later packaging commits contain documentation/manifest metadata only.
 - Release remains unapproved by evidence, not awaiting an additional user content
   document. See release-report.md for the concrete owner and hosted proof gates.
+
+## Remote CI follow-up
+
+- Backend GitHub CI passed for 03db2f6. The Vercel preview built READY.
+- Preview HTTP inspection was blocked by Vercel authentication even through the
+  connector; no local CLI authentication is available. Hosted runtime is unverified.
+- Web CI found a Linux sandbox-launch failure in the certification CLI. The CI
+  runner now installs an executable-specific AppArmor userns profile and preflights
+  Chromium with chromiumSandbox=true. No global sysctl change or --no-sandbox
+  fallback is used. The CLI reports a safe launch error code without private data.
+- Local certification CLI regression is rerun after this change. Remote rerun
+  results are tracked on draft PR #34; no paid provider operation was added.

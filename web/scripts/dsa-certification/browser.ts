@@ -48,9 +48,9 @@ export async function createCertificationRuntime() {
   let browser;
   try {
     browser = await chromium.launch({ headless: true, chromiumSandbox: true });
-  } catch (error) {
+  } catch {
     server.close();
-    throw error;
+    throw new Error("LOCAL_SANDBOX_BROWSER_UNAVAILABLE");
   }
   const context = await browser.newContext({ serviceWorkers: "block" });
   // tsx preserves function names using this identity helper in serialized
