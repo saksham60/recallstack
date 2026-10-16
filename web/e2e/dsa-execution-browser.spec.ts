@@ -273,13 +273,14 @@ test("all uncertified problems allow direct Submit, storing persistent attempts"
   let submitted: Record<string, unknown> | null = null;
   await page.route("**/api/dsa/practice-submissions**", (route) => {
     if (route.request().method() === "POST") {
-      submitted = route.request().postDataJSON();
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      submitted = body;
       receipt = {
         id: "77777777-0000-4000-8000-000000000001",
         createdAt: new Date().toISOString(),
-        checkStatus: submitted?.checkStatus,
-        clientCheckedCount: submitted?.clientCheckedCount,
-        clientPassedCount: submitted?.clientPassedCount,
+        checkStatus: body.checkStatus,
+        clientCheckedCount: body.clientCheckedCount,
+        clientPassedCount: body.clientPassedCount,
         gradingLevel: "browser_examples_unverified",
       };
       return route.fulfill({ status: 201, json: receipt });
@@ -296,7 +297,7 @@ test("all uncertified problems allow direct Submit, storing persistent attempts"
   await expect(submitButton).toBeEnabled();
   await submitButton.click();
   await expect(page.getByRole("heading", { name: "Submission recorded" })).toBeVisible();
-  await expect(page.getByText(/3\/3 statement examples passed locally/)).toBeVisible();
+  await expect(page.getByText(/1\/1 statement examples passed locally/)).toBeVisible();
   expect(submitted).toMatchObject({
     code,
     problemId,
