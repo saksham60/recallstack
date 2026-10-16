@@ -9,10 +9,10 @@ was used for the genuine 3Sum Nebius component test; four remain.
 |---|---|---|
 | Canonical browser flows and existing functionality | 206 passed, 1 existing opt-in live check skipped | Full browser regression uses API fixtures/loopback providers |
 | Actual Pyodide/WASM/Worker | 25 tests within that browser run passed | Real interpreter and CSP; fixture public API data |
-| State, tutor/provider transport, conversations and diagrams | 518 passed | Injected transports; no paid generation |
+| State, tutor/provider transport, conversations and diagrams | 518 passed; feature-disabled browser 1 passed | Injected transports; no paid generation |
 | Execution, contract, reports and certification CLI | 29 passed | Includes actual offline Python CLI execution/resume; no paid provider |
 | Reconciled boards/reports storage | 9 PostgreSQL tests passed | Exact installed base definitions plus pending proposals in disposable DB |
-| Full backend | Final clean run in progress | Fresh disposable PostgreSQL, not production |
+| Full backend | 319 passed, including PostgreSQL integration and CPython harness checks | Fresh disposable PostgreSQL, not production |
 | Static checks | TypeScript, ESLint, Ruff, formatting and mypy passed | No deployment claim |
 | Production compilation | Next.js 16.3.8 build passed after owner merge | Build success does not prove hosted runtime |
 | Shared Python bytes | Browser/server source SHA parity passed | SHA 3e96d81f62c21bc4c51aa38c25a2b6d1ed7d7eb48aa1bf600f7e4c3b2286362a |
@@ -34,7 +34,7 @@ Alembic fileConfig disabled application loggers. Preserving existing loggers
 fixed the isolated knowledge cleanup test. A subsequent run reused persistent
 integration seed data and found one report-adoption ordering issue. Report reuse
 now adopts an existing compatible canonical row independently of processing
-order. Storage checks passed again; the final full run uses a fresh database.
+order. Storage checks passed again; the final full run used a fresh database and passed all 319 tests.
 
 Production gates remain: owner review/application of the three 144501/144502/
 144503 proposals, per-version typed/source/checker/fixture approvals, linked

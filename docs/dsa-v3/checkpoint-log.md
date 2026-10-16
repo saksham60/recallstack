@@ -110,3 +110,17 @@ repository and Supabase data are authoritative; no additional document is needed
   development ESLint-chain advisories remain; no forced framework downgrade.
 - No mobile changes, production DB mutation, V3 deployment or 375/375 claim.
   Owner application/approval and authenticated Submit/report proof remain gates.
+
+## Final local checks and review package
+
+- Final clean full backend: **319 passed**, with all integration tests enabled
+  against a newly created loopback-only disposable database. The database was
+  removed after the run. Reconciled report adoption/projection and all DSA tests
+  are included. The logging test-order issue is fixed without weakening assertions.
+- Final frontend: 206 browser passed/1 explicit opt-in skip; 518 state/provider
+  passed; 29 DSA unit/CLI passed; disabled-feature browser 1 passed; TypeScript,
+  ESLint, Next production build, source parity, Ruff/formatting and mypy passed.
+- Application/reconciliation commit: 26fc1f12b22473d9163a1698742c1e10edb30817.
+  Later packaging commits contain documentation/manifest metadata only.
+- Release remains unapproved by evidence, not awaiting an additional user content
+  document. See release-report.md for the concrete owner and hosted proof gates.
