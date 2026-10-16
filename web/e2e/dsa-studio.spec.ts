@@ -262,7 +262,8 @@ test("explorer debounces filters, uses opaque cursors and opens the exact canoni
   authenticatedPage: page,
 }) => {
   const calls = await installAPI(page);
-  await page.goto("/dsa");
+  await page.goto(path);
+  await page.getByRole("button", { name: /Problems/ }).click();
   await expect(
     page.getByRole("dialog", { name: "Problem explorer" }),
   ).toBeVisible();
@@ -292,7 +293,7 @@ test("explorer debounces filters, uses opaque cursors and opens the exact canoni
   await expect(
     page.getByRole("heading", { name: "Array total", exact: true }).first(),
   ).toBeVisible();
-  await expect(page).toHaveURL(new RegExp(`problem=${ID}&version=${VERSION}`));
+  await expect(page).toHaveURL(new RegExp(`/dsa/problem/array-total\\?version=${VERSION}`));
   expect(
     calls.some(
       (call) =>
@@ -514,7 +515,8 @@ test("reviewer denial, empty approved fixtures and unavailable specifications ha
       json: { detail: "Reviewer access required" },
     }),
   );
-  await page.goto("/dsa?preview=true");
+  await page.goto(`/dsa/problem/array-total?version=${VERSION}&preview=true`);
+  await page.getByRole("button", { name: /Problems/ }).click();
   await expect(
     page.getByText("You do not have permission to perform this action."),
   ).toBeVisible();

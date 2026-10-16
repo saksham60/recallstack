@@ -2,6 +2,8 @@ type SessionResult = { data: { session: { access_token: string } | null }; error
 interface SessionAuth { getSession(): Promise<SessionResult>; refreshSession(): Promise<SessionResult> }
 export type ReasonAIEndpoint = "/api/reasonai/chat" | "/api/reasonai/dsa/chat" | "/api/reasonai/knowledge/chat";
 export type ReasonAIResourceEndpoint = ReasonAIEndpoint
+  | `/api/dsa/boards/${string}`
+  | "/api/dsa/board-companies"
   | "/api/dsa/executions"
   | "/api/dsa/practice-submissions"
   | `/api/dsa/practice-submissions?problemId=${string}&problemVersionId=${string}`
@@ -14,6 +16,8 @@ const unavailable = () => new Error("Session verification is temporarily unavail
 
 function allowedEndpoint(endpoint: string): endpoint is ReasonAIResourceEndpoint {
   return endpoint === "/api/reasonai/chat"
+    || endpoint === "/api/dsa/board-companies"
+    || /^\/api\/dsa\/boards\/[0-9a-f-]{36}$/i.test(endpoint)
     || endpoint === "/api/dsa/executions"
     || endpoint === "/api/dsa/practice-submissions"
     || /^\/api\/dsa\/practice-submissions\?problemId=[0-9a-f-]{36}&problemVersionId=[0-9a-f-]{36}$/i.test(endpoint)

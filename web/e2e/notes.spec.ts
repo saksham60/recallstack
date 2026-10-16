@@ -1,132 +1,44 @@
-import { test, expect } from './fixtures/authenticated-test';
-import { createPagination, createStudyNoteResponse } from './helpers/factories';
+import { test, expect } from "./fixtures/authenticated-test";
+import { createPagination } from "./helpers/factories";
+import { installV3API, ID, canonical } from "./helpers/dsa-v3";
 
-interface NotePayload {
-  content_item_id?: string;
-  body?: string;
-  kind?: string;
-}
+const note = { id: "60000000-0000-4000-8000-000000000001", content_item_id: ID, title: null, kind: "note", body: "Existing Note", row_version: 1, created_at: "2026-10-16T00:00:00Z", updated_at: "2026-10-16T00:00:00Z" };
 
-test.describe('Notes Flow', () => {
-  let inMemoryNotes: Record<string, unknown>[] = [];
-
-  test.beforeEach(async ({ authenticatedPage: page }) => {
-    inMemoryNotes = []; // Reset state
-
-    // Mock Study Note content
-    await page.route('**/api/v1/content/*', async route => {
-      await route.fulfill({
-        json: createStudyNoteResponse({ content_item_id: 'c1' }),
-      });
-    });
-
-    // Mock GET notes
-    await page.route('**/api/v1/me/content/*/notes', async route => {
-      await route.fulfill({
-        json: {
-          items: inMemoryNotes,
-          pagination: createPagination(inMemoryNotes.length)
-        }
-      });
-    });
+test("creates a note in the canonical workspace with the existing content ID", async ({ authenticatedPage: page }) => {
+  await installV3API(page);
+  let rows: Array<Record<string, unknown>> = [], captured: unknown;
+  await page.route(`**/api/v1/dsa/me/problems/${ID}/notes*`, route => {
+    if (route.request().method() === "POST") {
+      captured = route.request().postDataJSON(); rows = [{ ...note, ...captured as object }];
+      return route.fulfill({ json: rows[0] });
+    }
+    return route.fulfill({ json: { items: rows, pagination: createPagination(rows.length) } });
   });
+  await page.goto(canonical);
+  await page.getByRole("button", { name: "Notes", exact: true }).first().click();
+  await page.getByLabel("Note body", { exact: true }).fill("My invariant is preserved after each step.");
+  await page.getByRole("button", { name: "Save note", exact: true }).click();
+  await expect(page.getByText("My invariant is preserved after each step.", { exact: true })).toBeVisible();
+  expect(captured).toEqual({ body: "My invariant is preserved after each step.", kind: "note", title: null });
+});
 
-  test('creates a note', async ({ authenticatedPage: page }) => {
-    let postCaptured = false;
-    let postBody: NotePayload = {} as NotePayload;
-
-    // Mock POST notes
-    await page.route('**/api/v1/me/notes', async route => {
-      if (route.request().method() === 'POST') {
-        postCaptured = true;
-        postBody = JSON.parse(route.request().postData() || '{}') as NotePayload;
-
-        const newNote = {
-          id: 'n1',
-          content_item_id: postBody.content_item_id,
-          body: postBody.body,
-          kind: postBody.kind,
-          row_version: 1,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-        inMemoryNotes.push(newNote);
-
-        await route.fulfill({ json: newNote });
-      } else {
-        await route.continue();
-      }
-    });
-
-    await page.goto('/content/mock-slug');
-    await page.getByRole('tab', { name: 'Notes', exact: true }).click();
-    
-    // Click Add Note
-    await page.locator('text=Add Note').click();
-
-    // Type a note and save
-    const textarea = page.getByPlaceholder(/Write your note/i);
-    await textarea.fill('This is a test note.');
-    
-    await page.getByRole('button', { name: /Save/i }).click();
-
-    expect(postCaptured).toBe(true);
-    expect(postBody?.body).toBe('This is a test note.');
-    expect(postBody?.kind).toBe('note'); // Default kind
-    expect(postBody?.content_item_id).toBe('c1');
-
-    // Note should now appear in UI after React Query refetches
-    await expect(page.locator('text=This is a test note.')).toBeVisible();
+test("deletes an existing note only after confirmation and includes its row version", async ({ authenticatedPage: page }) => {
+  await installV3API(page);
+  let rows = [note], captured: unknown;
+  await page.route(`**/api/v1/dsa/me/problems/${ID}/notes*`, route => route.fulfill({ json: { items: rows, pagination: createPagination(rows.length) } }));
+  await page.route(`**/api/v1/dsa/me/notes/${note.id}`, route => {
+    captured = route.request().postDataJSON(); rows = [];
+    return route.fulfill({ status: 204 });
   });
-
-  test('deletes a note', async ({ authenticatedPage: page }) => {
-    // Add an initial note to the state
-    inMemoryNotes.push({
-      id: 'n1',
-      content_item_id: 'c1',
-      body: 'Existing Note',
-      kind: 'note',
-      row_version: 2,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    });
-
-    let deleteCaptured = false;
-    let deletedRowVersion: number | undefined;
-
-    // Mock DELETE notes
-    await page.route('**/api/v1/me/notes/n1', async route => {
-      if (route.request().method() === 'DELETE') {
-        deleteCaptured = true;
-        const deleteBody = JSON.parse(route.request().postData() || '{}') as { row_version?: number };
-        deletedRowVersion = deleteBody.row_version;
-
-        inMemoryNotes = inMemoryNotes.filter(n => n.id !== 'n1');
-
-        await route.fulfill({ status: 204 });
-      } else {
-        await route.continue();
-      }
-    });
-
-    await page.goto('/content/mock-slug');
-    await page.getByRole('tab', { name: 'Notes', exact: true }).click();
-
-    // Note should initially be visible
-    await expect(page.locator('text=Existing Note')).toBeVisible();
-
-    // Handle potential confirmation dialog natively
-    page.on('dialog', dialog => dialog.accept());
-
-    // Click delete
-    const deleteBtn = page.locator('button[title="Delete Note"]').first();
-    await deleteBtn.click();
-
-    // Wait for the note to disappear after TanStack Query refetches
-    await expect(page.locator('text=Existing Note')).not.toBeVisible();
-
-    // Verify DELETE request occurred and included row_version
-    expect(deleteCaptured).toBe(true);
-    expect(deletedRowVersion).toBe(2);
-  });
+  await page.goto(canonical);
+  await page.getByRole("button", { name: "Notes", exact: true }).first().click();
+  await expect(page.getByText("Existing Note", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Delete note", exact: true }).click();
+  expect(captured).toBeUndefined();
+  await page.getByRole("button", { name: "Keep note", exact: true }).click();
+  await expect(page.getByText("Existing Note", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Delete note", exact: true }).click();
+  await page.getByRole("button", { name: "Delete note", exact: true }).last().click();
+  await expect(page.getByText("Existing Note", { exact: true })).toHaveCount(0);
+  expect(captured).toEqual({ row_version: 1 });
 });

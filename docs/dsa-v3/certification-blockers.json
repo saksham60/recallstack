@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "status": "awaiting-reviewed-content-and-owner-handoff",
+  "baselineCommit": "11e6a7a",
+  "targetProblemCount": 375,
+  "identityInventoryProblemCount": 375,
+  "independentlyAuditedProblemCount": 0,
+  "existingPublicCertificateCount": 10,
+  "existingHiddenCertificateCount": 10,
+  "suitesNeedingReview": 365,
+  "certifiedProblemCount": null,
+  "problemBlockersFile": "artifacts/dsa-v3-catalog-inventory.json",
+  "priorityProblem": { "problemId": "6bf047e9-6735-4892-b063-f59e4c8ce29f", "problemVersionId": "62b831b6-4c58-438e-9442-a78be83e3469", "suiteId": "c34f14dd-3de2-4199-bf8f-67d0db67f9fb", "blockers": ["suite-needs-review", "no-execution-certificate", "reviewed-typed-contract-and-reference-evidence-pending"] },
+  "dependencies": [
+    "Reviewed problem sources/reference solutions/company metadata from user",
+    "Supabase owner migration and versioned execution/report contract handoff",
+    "Shared harness and real interpreter validation (Checkpoint 2)",
+    "Read-only identity/readiness inventory completed; independent certification remains pending"
+  ],
+  "paidLiveVerification": { "maxCombinedCallsIncludingRetries": 5, "callsUsed": 0 }
+}

@@ -11,8 +11,6 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  BookOpen,
-  Braces,
   ChevronRight,
   Copy,
   Layers3,
@@ -50,6 +48,9 @@ import { useExecution } from "../execution/use-execution";
 import { ExecutionPanel } from "../execution/ExecutionPanel";
 import { useLocalPythonRun, type LocalTestCase } from "../execution/use-local-python-run";
 import { usePracticeSubmissions } from "../execution/use-practice-submissions";
+import { problemHref } from "../navigation/urls";
+import { LearningResources } from "./LearningResources";
+import { rememberProblem } from "../navigation/resume";
 import "./workspace.css";
 
 const CodeEditor = dynamic(() => import("./CodeEditor"), {
@@ -79,10 +80,12 @@ export default function Workspace({
   problemId,
   versionId,
   preview,
+  submissionId,
 }: {
   problemId?: string;
   versionId?: string;
   preview: boolean;
+  submissionId?: string;
 }) {
   const router = useRouter(),
     { user, isLoading } = useAuth();
@@ -90,13 +93,16 @@ export default function Workspace({
     scope = useDSAScope(preview);
   const [explorerOpen, setExplorerOpen] = useState(!problemId);
   const problem = useProblem(scope, problemId, versionId);
+  useEffect(() => {
+    if (user?.id && problem.data && !preview) rememberProblem(user.id, problem.data);
+  }, [user?.id, problem.data, preview]);
   const canPreview = profile.data?.roles.some(
     (role) => role === "admin" || role === "reviewer",
   );
   function select(item: ProblemItem) {
     setExplorerOpen(false);
     router.replace(
-      `/dsa?problem=${encodeURIComponent(item.id)}&version=${encodeURIComponent(item.problem_version_id)}${preview ? "&preview=true" : ""}`,
+      problemHref(item, { preview }),
       { scroll: false },
     );
   }
@@ -113,26 +119,18 @@ export default function Workspace({
   return (
     <div className="dsa-studio">
       <div className="studio-topbar">
-        <div className="studio-brand">
-          <span className="studio-logo">
-            <Braces size={19} />
-          </span>
-          <span>
-            DSA <ChevronRight size={13} />
-            <b>Workspace</b>
-          </span>
-        </div>
+        <nav className="studio-brand" aria-label="Breadcrumb">
+          <Link href={preview ? "/dsa?preview=true" : "/dsa"}>DSA</Link><ChevronRight size={13} />
+          {problem.data?.categories[0] && <><Link href={`/dsa/${encodeURIComponent(problem.data.categories[0].slug)}${preview ? "?preview=true" : ""}`}>{problem.data.categories[0].name}</Link><ChevronRight size={13} /></>}
+          <span>{problem.data?.title ?? "Problem"}</span>
+        </nav>
         <div className="studio-actions">
-          <Link className="studio-library-link" href="/dsa/library">
-            <BookOpen size={15} />
-            Study notes
-          </Link>
           {canPreview && (
             <Link
               className={
                 preview ? "studio-preview-link active" : "studio-preview-link"
               }
-              href={preview ? "/dsa" : "/dsa?preview=true"}
+              href={problem.data ? problemHref(problem.data, { preview: !preview }) : "/dsa"}
             >
               {preview ? "Exit preview" : "Reviewer preview"}
             </Link>
@@ -172,17 +170,18 @@ export default function Workspace({
             Choose another problem
           </button>
           <Link
-            href={`/dsa?problem=${encodeURIComponent(problemId)}${preview ? "&preview=true" : ""}`}
+            href={problem.data ? `/dsa/problem/${encodeURIComponent(problem.data.slug)}${preview ? "?preview=true" : ""}` : "/dsa"}
           >
             Load current specification
           </Link>
         </div>
       ) : problem.data && user ? (
         <ProblemWorkspace
-          key={`${user.id}:${preview}:${problem.data.id}:${problem.data.problem_version_id}`}
+          key={`${user.id}:${preview}:${problem.data.id}:${problem.data.problem_version_id}:${submissionId ?? "latest"}`}
           problem={problem.data}
           preview={preview}
           userId={user.id}
+          submissionId={submissionId}
         />
       ) : (
         <div className="studio-welcome">
@@ -229,16 +228,19 @@ function ProblemWorkspace({
   problem,
   preview,
   userId,
+  submissionId,
 }: {
   problem: Problem;
   preview: boolean;
   userId: string;
+  submissionId?: string;
 }) {
   const scope = useDSAScope(preview);
   const execution = useExecution(
     userId,
     problem.id,
     problem.problem_version_id,
+    submissionId,
   );
   const localPython = useLocalPythonRun();
   const publicTests = usePublicTests(scope, problem);
@@ -499,6 +501,7 @@ function ProblemWorkspace({
           />
           <div className="studio-scroll" hidden={panel !== "spec"}>
             <Specification problem={problem} />
+            <LearningResources id={problem.id} slug={problem.slug} />
           </div>
           <div
             className="studio-scroll studio-canvas"

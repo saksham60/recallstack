@@ -1,3 +1,4 @@
+import { installV3API, ID } from "./helpers/dsa-v3";
 import { test, expect } from './fixtures/authenticated-test';
 
 test.describe('Bookmarks Flow', () => {
@@ -21,8 +22,8 @@ test.describe('Bookmarks Flow', () => {
     await page.route('**/api/v1/me', async route => {
       await route.fulfill({ json: { id: 'test-user-id', email: 'test@example.com', display_name: 'Student', roles: [] } });
     });
+    await installV3API(page);
     await page.goto('/dsa');
-    await page.getByRole('button', { name: 'Close problem explorer', exact: true }).click();
 
     const header = page.locator('header');
     await expect(header.getByText('ReasonAI', { exact: true })).toBeVisible();
@@ -55,56 +56,16 @@ test.describe('Bookmarks Flow', () => {
   });
 
   test('toggles bookmark state (PUT and DELETE)', async ({ authenticatedPage: page }) => {
-    let isBookmarked = false;
-    // Mock category content to show a bookmarkable item
-    await page.route('**/api/v1/categories/*/content*', async route => {
-      await route.fulfill({
-        json: {
-          items: [{
-            content_item_id: 'c1',
-            title: 'Mock Problem',
-            slug: 'mock-problem',
-            type: 'problem',
-            summary: null,
-            difficulty: 'easy',
-            primary_topic: null,
-            primary_practice_resource: null,
-            user_progress: { status: 'new', confidence: 0, last_opened_at: null },
-            is_bookmarked: isBookmarked,
-            last_opened_at: null,
-            next_review_at: null
-          }],
-          pagination: { total_items: 1, page: 1, page_size: 25, total_pages: 1 }
-        }
-      });
-    });
-
-    let putCaptured = false;
-    await page.route('**/api/v1/me/bookmarks/c1', async route => {
-      if (route.request().method() === 'PUT') {
-        putCaptured = true;
-        isBookmarked = true;
-        await route.fulfill({ json: { success: true } });
-      } else if (route.request().method() === 'DELETE') {
-        isBookmarked = false;
-        await route.fulfill({ json: { success: true } });
-      } else {
-        await route.continue();
-      }
-    });
-
-    await page.goto('/dsa/mock-category');
-    
-    const bookmarkButton = page.getByRole('button', { name: /Bookmark/i }).first();
-    await expect(bookmarkButton).toBeVisible();
-
-    await bookmarkButton.click();
-    expect(putCaptured).toBe(true);
-    await expect(bookmarkButton).toHaveAttribute('aria-label', 'Remove Bookmark');
-
-    const requestPromise = page.waitForRequest(req => req.url().includes('/api/v1/me/bookmarks/c1') && req.method() === 'DELETE');
-    await bookmarkButton.click();
-    const deleteReq = await requestPromise;
-    expect(deleteReq.method()).toBe('DELETE');
+    await installV3API(page, { count: 1, bookmarked: false });
+    const methods: string[] = [];
+    page.on('request', request => { if (request.url().includes(`/api/v1/me/bookmarks/${ID}`)) methods.push(request.method()); });
+    await page.goto('/dsa/arrays');
+    const button = page.getByRole('button', { name: 'Bookmark problem', exact: true });
+    await button.click();
+    await expect(page.getByRole('button', { name: 'Remove Bookmark', exact: true })).toBeVisible();
+    expect(methods).toContain('PUT');
+    await page.getByRole('button', { name: 'Remove Bookmark', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Bookmark problem', exact: true })).toBeVisible();
+    expect(methods).toContain('DELETE');
   });
 });

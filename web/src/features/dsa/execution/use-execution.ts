@@ -60,9 +60,10 @@ export function useExecution(
   userId: string,
   problemId: string,
   problemVersionId: string,
+  submissionId?: string,
 ) {
   const storageKey = `reasonai:dsa:execution:1:${userId}:${problemId}:${problemVersionId}`;
-  const [local, setLocal] = useState(() => read(storageKey));
+  const [local, setLocal] = useState<LocalExecution>(() => submissionId ? { schema: 1, id: submissionId } : read(storageKey));
   const [created, setCreated] = useState<ExecutionView>();
   const [creating, setCreating] = useState(false),
     [cancelling, setCancelling] = useState(false);
@@ -112,6 +113,9 @@ export function useExecution(
           ),
         );
         failures.current = 0;
+        if (result.problemId !== problemId || result.problemVersionId !== problemVersionId || result.submissionId !== local.id) {
+          throw new RequestError("This submission does not belong to the selected problem and version.", 404);
+        }
         return result;
       } catch (failure) {
         if (!signal.aborted && ++failures.current >= 5) setPollingStopped(true);
@@ -120,6 +124,7 @@ export function useExecution(
     },
     retry: false,
     refetchInterval: (query) => {
+      if (query.state.error instanceof RequestError && query.state.error.status === 404) return false;
       if (query.state.data && terminal(query.state.data.status)) return false;
       if (polls.current >= 120 || failures.current >= 5) return false;
       return Math.min(10000, 1000 * 1.5 ** Math.min(polls.current, 6));
@@ -127,7 +132,8 @@ export function useExecution(
     refetchIntervalInBackground: false,
   });
   const job = execution.data ?? created;
-  const active = !!local.id && (!job || !terminal(job.status));
+  const inaccessible = execution.error instanceof RequestError && execution.error.status === 404;
+  const active = !!local.id && !inaccessible && (!job || !terminal(job.status));
   async function create(request: ExecutionRequest) {
     if (busy.current) return;
     busy.current = true;

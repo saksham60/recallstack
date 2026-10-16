@@ -12,6 +12,7 @@ import {
   type useDSAScope,
 } from "./api";
 import { RequestError } from "./Explorer";
+import { PracticePanel } from "@/features/practice";
 
 type Scope = ReturnType<typeof useDSAScope>;
 export function BookmarkControl({ scope, id }: { scope: Scope; id: string }) {
@@ -74,7 +75,7 @@ export function LearnerPanel({ scope, id }: { scope: Scope; id: string }) {
     <div className="studio-copy">
       <h3>Learning progress</h3>
       <p className="studio-muted">
-        Your self-assessment. Judged submissions will arrive with execution.
+        Your self-assessment, independent of official submission verdicts.
       </p>
       {progress.isPending ? (
         <p role="status">Loading progress…</p>
@@ -152,6 +153,7 @@ export function LearnerPanel({ scope, id }: { scope: Scope; id: string }) {
           </label>
         </div>
       )}
+      <details><summary>Practice history & revision</summary><PracticePanel contentId={id} practiceResources={[]} /></details>
       <h3>Notes & insights</h3>
       {notes.error && (
         <RequestError error={notes.error} retry={() => void notes.refetch()} />

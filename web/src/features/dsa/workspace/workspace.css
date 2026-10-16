@@ -69,6 +69,13 @@
   height: 55px;
   background: var(--studio-surface);
 }
+.studio-topbar .studio-brand { min-width: 0; flex: 1; overflow: hidden; white-space: nowrap; }
+.studio-topbar .studio-brand > span { overflow: hidden; text-overflow: ellipsis; display: block; }
+.studio-topbar .studio-brand > a { flex-shrink: 0; }
+.studio-topbar .studio-actions { flex-shrink: 0; }
+.studio-resources { border-top: 1px solid var(--studio-border); padding: 15px 20px; }
+.studio-resources summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+.studio-resources a { color: var(--accent); }
 .studio-brand,
 .studio-brand > span:last-child,
 .studio-actions,

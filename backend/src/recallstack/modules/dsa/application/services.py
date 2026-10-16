@@ -16,6 +16,10 @@ class ReadRepository(Protocol):
         self, problem_id: UUID, preview: bool, version_id: UUID | None
     ) -> dict[str, Any] | None: ...
     async def metadata(self, kind: str, preview: bool) -> list[dict[str, Any]]: ...
+    async def resolve(
+        self, identifier: str, preview: bool, version_id: UUID | None
+    ) -> dict[str, Any] | None: ...
+    async def topic_progress(self, profile_id: UUID) -> list[dict[str, Any]]: ...
     async def tests(
         self, version_id: UUID, key: tuple[int, UUID] | None, limit: int
     ) -> list[dict[str, Any]]: ...
@@ -163,6 +167,19 @@ class DsaService:
     async def metadata(self, kind: str, preview: bool) -> dict[str, Any]:
         async with self.repository() as repository:
             return {"items": await repository.metadata(kind, preview)}
+
+    async def resolve(
+        self, identifier: str, preview: bool, version_id: UUID | None
+    ) -> dict[str, Any]:
+        async with self.repository() as repository:
+            row = await repository.resolve(identifier, preview, version_id)
+        if row is None:
+            raise not_found()
+        return self.item(row)
+
+    async def topic_progress(self, profile_id: UUID) -> dict[str, Any]:
+        async with self.repository() as repository:
+            return {"items": await repository.topic_progress(profile_id)}
 
     async def tests(
         self,

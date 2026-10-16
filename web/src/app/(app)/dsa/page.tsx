@@ -1,4 +1,7 @@
-import { WorkspaceClient } from "@/features/dsa/workspace/WorkspaceClient";
+import { redirect } from "next/navigation";
+import { resolveProblem } from "@/lib/dsa-execution/catalog-server";
+import { problemHref } from "@/features/dsa/navigation/urls";
+import { TopicHome } from "@/features/dsa/navigation/TopicHome";
 
 export default async function DSAPage({
   searchParams,
@@ -6,15 +9,10 @@ export default async function DSAPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
-  return (
-    <WorkspaceClient
-      problemId={
-        typeof params.problem === "string" ? params.problem : undefined
-      }
-      versionId={
-        typeof params.version === "string" ? params.version : undefined
-      }
-      preview={params.preview === "true"}
-    />
-  );
+  const preview = params.preview === "true";
+  if (typeof params.problem === "string") {
+    const problem = await resolveProblem(params.problem, typeof params.version === "string" ? params.version : undefined, preview);
+    redirect(problemHref(problem, { preview, submission: typeof params.submission === "string" ? params.submission : undefined }));
+  }
+  return <TopicHome preview={preview} />;
 }

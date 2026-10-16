@@ -48,6 +48,7 @@ export function useToggleBookmark() {
         queryClient.invalidateQueries({ queryKey: bookmarkKeys.all }),
         queryClient.invalidateQueries({ queryKey: categoryContentKeys.all }),
         queryClient.invalidateQueries({ queryKey: studyNoteKeys.all }),
+        queryClient.invalidateQueries({ queryKey: ["dsa"] }),
       ]),
   });
 }

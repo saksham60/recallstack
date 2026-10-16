@@ -57,6 +57,58 @@ def filters(dataset, **kwargs):
     return {"category": str(dataset["category"]), **kwargs}
 
 
+async def test_v3_slug_uuid_resolution_and_exact_version_gates(api, dataset):
+    row = dataset["rows"]["a"]
+    detail = (await api.get(f"/api/v1/dsa/problems/{row['id']}")).json()
+    for identifier in (str(row["id"]), detail["slug"]):
+        response = await api.get(
+            "/api/v1/dsa/resolve",
+            params={"problem": identifier, "problem_version_id": str(row["version"])},
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["id"] == str(row["id"])
+        assert "function_contract" not in response.json()
+    response = await api.get(
+        "/api/v1/dsa/resolve",
+        params={"problem": detail["slug"], "problem_version_id": str(uuid4())},
+    )
+    assert response.status_code == 404
+    for kind in ("draft", "unapproved", "other"):
+        response = await api.get(
+            "/api/v1/dsa/resolve", params={"problem": str(dataset["rows"][kind]["id"])}
+        )
+        assert response.status_code == 404
+
+
+async def test_v3_topic_progress_joins_only_visible_content(api, dataset):
+    from recallstack.modules.learning.infrastructure.sqlalchemy_models import UserProgressModel
+
+    with dataset["engine"].begin() as connection:
+        for kind in ("a", "unapproved"):
+            connection.execute(
+                insert(UserProgressModel).values(
+                    user_id=dataset["owner"],
+                    content_item_id=dataset["rows"][kind]["id"],
+                    status="mastered",
+                )
+            )
+        connection.execute(
+            insert(UserProgressModel).values(
+                user_id=dataset["other"],
+                content_item_id=dataset["rows"]["b"]["id"],
+                status="mastered",
+            )
+        )
+    response = await api.get(
+        "/api/v1/dsa/me/topic-progress", headers={"Authorization": "Bearer owner"}
+    )
+    assert response.status_code == 200, response.text
+    category = next(
+        item for item in response.json()["items"] if item["id"] == str(dataset["category"])
+    )
+    assert category["attempted_count"] == category["mastered_count"] == 1
+
+
 async def test_catalog_publication_domain_and_keyset(api, dataset):
     response = await api.get("/api/v1/dsa/problems", params=filters(dataset, limit=1))
     assert response.status_code == 200, response.text
