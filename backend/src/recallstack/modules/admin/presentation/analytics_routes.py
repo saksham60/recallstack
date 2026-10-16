@@ -80,7 +80,10 @@ async def overview(
     response_model=GrowthResponse,
     operation_id="adminPlatformGrowth",
     summary="Get cross-surface platform growth",
-    description="Authenticated admin-only signup and recorded engagement aggregates; referral attribution is not yet captured.",
+    description=(
+        "Authenticated admin-only signup and recorded engagement aggregates; "
+        "referral attribution is not yet captured."
+    ),
 )
 async def platform_growth(
     request: Request,
