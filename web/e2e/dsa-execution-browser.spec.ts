@@ -297,7 +297,7 @@ test("all uncertified problems allow direct Submit, storing persistent attempts"
   await expect(submitButton).toBeEnabled();
   await submitButton.click();
   await expect(page.getByRole("heading", { name: "Submission recorded" })).toBeVisible();
-  await expect(page.getByText(/1\/1 statement examples passed locally/)).toBeVisible();
+  await expect(page.getByText("1/1 statement examples passed locally.", { exact: true })).toBeVisible();
   expect(submitted).toMatchObject({
     code,
     problemId,
