@@ -58,11 +58,11 @@ const oracles={
  83:p=>p.array.map((_,i)=>median(p.array.slice(0,i+1))),
  84:p=>zeroSumPairs(p.nums)
 };
-export function independentOracle(slug,payload){const n=Number(slug.match(/^ultimate-dsa-(\\d{3})-/)?.[1]);if(!oracles[n])throw Error("No independent oracle for "+slug);return oracles[n](payload)}
+export function independentOracle(slug,payload){const n=Number(slug.match(/^ultimate-dsa-(\d{3})-/)?.[1]);if(!oracles[n])throw Error("No independent oracle for "+slug);return oracles[n](payload)}
 if(process.argv[1]&&import.meta.url.endsWith(process.argv[1].replaceAll("\\","/"))){
  const data=JSON.parse(readFileSync(0,"utf8"));if(!Array.isArray(data))throw Error("Expected an array of fixture records");
  const groups={};let errors=0;
  for(const row of data){const k=row.slug;groups[k]??={cases:0,matched:0};groups[k].cases++;
  try{const output=independentOracle(k,row.input_json);if(canonical(output)===canonical(row.expected_json))groups[k].matched++;else errors++;}catch{errors++}}
- process.stdout.write(JSON.stringify({problems:Object.keys(groups).length,groups,errors})+"\\n");if(errors)process.exitCode=1;
+ process.stdout.write(JSON.stringify({problems:Object.keys(groups).length,groups,errors})+"\n");if(errors)process.exitCode=1;
 }
