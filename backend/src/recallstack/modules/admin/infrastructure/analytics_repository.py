@@ -6,9 +6,9 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from recallstack.modules.admin.infrastructure.growth_repository import load_platform_growth
-from sqlalchemy.ext.asyncio import AsyncSession
 
 ACCEPTED_OUTCOME = "solved_independently"
 
