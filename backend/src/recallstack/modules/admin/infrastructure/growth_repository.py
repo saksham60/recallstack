@@ -3,8 +3,11 @@
 No referral data is fabricated: acquisition source is unknown until explicitly
 captured at first visit and associated with consented signup attribution.
 """
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import UTC, datetime, time, timedelta
 from typing import Any
+
+# SQL interpolations below use only a module-owned constant, never user input.
+# ruff: noqa: S608
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
