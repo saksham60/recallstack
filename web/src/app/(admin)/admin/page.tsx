@@ -1,5 +1,5 @@
-import { OverviewScreen } from "@/features/admin";
+import { GrowthScreen } from "@/features/admin";
 
 export default function AdminOverviewPage() {
-  return <OverviewScreen />;
+  return <GrowthScreen />;
 }
