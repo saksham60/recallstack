@@ -1,13 +1,15 @@
 "use client";
 import type { ExecutionState } from "./use-execution";
 import type { LocalRun } from "./use-local-python-run";
+import type { PracticeSubmission } from "./use-practice-submissions";
 import { JsonBlock } from "../workspace/Specification";
 export function ExecutionPanel({
-  execution, localRun, onCancelLocal,
+  execution, localRun, onCancelLocal, practiceSubmission,
 }: {
   execution: ExecutionState;
   localRun?: LocalRun | null;
   onCancelLocal?: () => void;
+  practiceSubmission?: PracticeSubmission | null;
 }) {
   const { job } = execution;
   return (
@@ -35,11 +37,28 @@ export function ExecutionPanel({
           </button>
         )}
       </div>
+      {practiceSubmission && (
+        <section aria-label="Practice submission receipt">
+          <div role="status" className="studio-execution-status">
+            <h3>Submission recorded</h3>
+          </div>
+          <p>
+            {practiceSubmission.checkStatus === "not_evaluated"
+              ? "Example checks could not be completed."
+              : `${practiceSubmission.clientPassedCount}/${practiceSubmission.clientCheckedCount} statement examples passed locally.`}
+          </p>
+          <p className="studio-muted">
+            Submission {practiceSubmission.id.slice(0, 8)} · Saved to your account.
+            These browser example checks are provisional, not a hidden-test
+            Accepted verdict or certified progress.
+          </p>
+        </section>
+      )}
       {localRun && (
         <section aria-label="Local Python results">
           <div className="studio-execution-status">
             <h3>
-              Local Run · {localRun.state === "running" ? "Running Python…" :
+              {localRun.purpose === "submit" ? "Submission check" : "Local Run"} · {localRun.state === "running" ? "Running Python…" :
                 localRun.state === "passed" ? "All displayed cases passed" : "Needs attention"}
             </h3>
             {localRun.state === "running" && onCancelLocal && (
