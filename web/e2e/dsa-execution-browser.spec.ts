@@ -287,11 +287,11 @@ test("uncertified examples never unlock Submit; historical practice receipts rem
   await page.getByRole("button", {name:"Run",exact:true}).click();
   await expect(page.getByRole("heading", {name:"Local Run · All displayed cases passed"})).toBeVisible();
   await expect(page.getByRole("button", {name:"Submit", exact:true})).toBeDisabled();
-  await expect(page.getByRole("heading", {name:"Submission recorded"})).toBeVisible();
+  await expect(page.getByRole("heading", {name:"Historical practice attempt"})).toBeVisible();
   expect(writes).toBe(0);
   await page.reload();
   await page.getByRole("button", {name:"Results",exact:true}).click();
-  await expect(page.getByRole("heading", {name:"Submission recorded"})).toBeVisible();
+  await expect(page.getByRole("heading", {name:"Historical practice attempt"})).toBeVisible();
   await expect(page.getByRole("button", {name:"Submit",exact:true})).toBeDisabled();
 });
 

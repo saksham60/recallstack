@@ -7,6 +7,7 @@ import { pythonContractSchema, typedStarter, type PythonContract } from "../src/
 import { equal } from "../src/lib/dsa-execution/public-comparator";
 import { HARNESS_SOURCE, HARNESS_SHA256 } from "../src/lib/dsa-execution/python/harness.generated";
 import { executionPayload, PYTHON_SUPERVISOR } from "../src/lib/dsa-execution/runner";
+import { validatePlan } from "../src/lib/dsa-execution/judge";
 
 const base: PythonContract = {entrypoint:"solve",inputMode:"kwargs",checker:"exact_json"};
 test("generated browser and server harnesses match authoritative bytes",()=>{
@@ -52,4 +53,13 @@ test("predicate checkers accept alternative valid answers and reject malformed o
   expect(equal([2,0,1],[0,1,2],topo,input)).toBe(false);
   expect(equal([],[],topo,input)).toBe(false);
   expect(equal([],[],topo,{numCourses:2,prerequisites:[[0,1],[1,0]]})).toBe(true);
+});
+
+test("typed trusted plans require exact certification and matching harness metadata",()=>{
+  const id=crypto.randomUUID();
+  const plan={problemId:id,problemVersionId:id,suiteId:id,certificateId:id,exposeCounts:false,contract:{...base,adapter:{id:"reasonai-python",version:1,invocation:"function",parameters:[{name:"nums",pythonType:"List[int]",codec:"json"}],returnType:"int",result:{source:"return",codec:"json"}}},cases:[{id,input:{nums:[1]},expected:1,visibility:"public"}]};
+  expect(()=>validatePlan(plan)).toThrow("matching V3 harness");
+  const approved={...plan,harnessSha256:HARNESS_SHA256,certificationRunId:id,contractRevision:"a".repeat(64),fixturesRevision:"b".repeat(64)};
+  expect(validatePlan(approved).harnessSha256).toBe(HARNESS_SHA256);
+  expect(()=>validatePlan({...approved,harnessSha256:"0".repeat(64)})).toThrow("matching V3 harness");
 });

@@ -238,6 +238,9 @@ export function TopicBoard({
             {p.difficulty ?? "Unrated"}
             {tags.length ? ` · ${tags.map((c) => c.name).join(" · ")}` : ""}
           </span>
+          {tags.some((tag) => tag.reviewStatus === "imported") && (
+            <small className="dsa-card-meta">Imported company metadata</small>
+          )}
           <span className="dsa-card-status">
             {learning === "new" ? "Not started" : learning}
             {p.availability !== "available" ? " · Under review" : ""}

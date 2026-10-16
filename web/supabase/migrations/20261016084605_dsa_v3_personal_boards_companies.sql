@@ -49,28 +49,6 @@ revoke all on function dsa_v3_private.check_board_revision() from public, anon, 
 create trigger dsa_board_revision before insert or update on public.dsa_personal_boards
   for each row execute function dsa_v3_private.check_board_revision();
 
-create table public.dsa_companies (
-  id uuid primary key default gen_random_uuid(),
-  slug text not null unique check (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
-  name text not null check (char_length(name) between 1 and 120)
-);
-create table public.dsa_problem_company_tags (
-  problem_version_id uuid not null references public.dsa_problem_versions(id),
-  company_id uuid not null references public.dsa_companies(id),
-  reviewed boolean not null default false,
-  source_url text,
-  reviewed_by uuid references public.profiles(id),
-  reviewed_at timestamptz,
-  primary key (problem_version_id, company_id),
-  check (not reviewed or (reviewed_by is not null and reviewed_at is not null and source_url is not null))
-);
-create index dsa_company_tags_company_idx on public.dsa_problem_company_tags(company_id, problem_version_id);
-alter table public.dsa_companies enable row level security;
-alter table public.dsa_problem_company_tags enable row level security;
-revoke all on public.dsa_companies, public.dsa_problem_company_tags from public, anon, authenticated;
-grant select on public.dsa_companies to authenticated;
-grant select (problem_version_id, company_id, reviewed) on public.dsa_problem_company_tags to authenticated;
-
 -- Narrow boolean lookup is needed because raw version JSON contains private
 -- oracle/provenance material and must never be granted to authenticated clients.
 -- This private schema is NOT a PostgREST exposed schema.
@@ -91,7 +69,24 @@ language sql stable security definer set search_path = '' as $$
 $$;
 revoke all on function dsa_v3_private.visible_version(uuid) from public, anon, authenticated;
 grant execute on function dsa_v3_private.visible_version(uuid) to authenticated;
-create policy dsa_companies_read on public.dsa_companies for select to authenticated using (true);
-create policy dsa_company_tags_read on public.dsa_problem_company_tags for select to authenticated
-  using (reviewed and dsa_v3_private.visible_version(problem_version_id));
-grant all on public.dsa_personal_boards, public.dsa_companies, public.dsa_problem_company_tags to service_role;
+-- Reuse the installed canonical company/alias/source associations. Do not
+-- create a competing company table or change the original review evidence.
+create function public.dsa_v3_board_companies(p_versions uuid[], p_offset integer default 0)
+returns table(problem_version_id uuid,slug text,name text,review_status text)
+language sql stable security definer set search_path='' as $$
+  select distinct v.id,c.slug,c.canonical_name,
+    case when src.review_status='approved' then 'reviewed' else 'imported' end
+  from public.dsa_problem_versions v
+  join public.dsa_problem_definitions def on def.id=v.definition_id and def.current_version_id=v.id
+  join public.dsa_problem_companies pc on pc.definition_id=def.id
+  join public.dsa_companies c on c.id=pc.company_id and c.review_status='approved'
+  join public.dsa_problem_company_sources src on src.definition_id=pc.definition_id and src.source_block_id=pc.source_block_id
+  where (select auth.uid()) is not null and cardinality(p_versions) between 1 and 1000
+    and p_offset between 0 and 9500 and v.id=any(p_versions)
+    and dsa_v3_private.visible_version(v.id)
+    and src.review_status in ('approved','auto_exact','auto_delimited','auto_segmented')
+  order by v.id,c.slug,c.canonical_name,4 limit 500 offset greatest(p_offset,0);
+$$;
+revoke all on function public.dsa_v3_board_companies(uuid[],integer) from public,anon,authenticated;
+grant execute on function public.dsa_v3_board_companies(uuid[],integer) to authenticated;
+grant all on public.dsa_personal_boards to service_role;

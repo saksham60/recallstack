@@ -2,7 +2,10 @@
 
 Baseline: `11e6a7a`, inspected 2026-10-16. Web only. Production schema and content
 are owned by a separate Supabase workstream; no V3 production mutation is authorized
-by this inventory. Reviewed content/metadata handoff is pending.
+by this inventory. This is the baseline inventory; subsequent implementation and
+read-only audit results are recorded in checkpoint-log.md and verification.md.
+Existing repository/Supabase imports are authoritative. No extra user document
+is required; source/contract/certificate approvals remain owner review work.
 
 ## Reuse
 

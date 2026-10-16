@@ -1,0 +1,3 @@
+web/src/lib/dsa-execution/python/runner_harness.py text eol=lf
+web/src/lib/dsa-execution/python/harness.generated.ts text eol=lf
+web/public/dsa/runner-harness.mjs text eol=lf

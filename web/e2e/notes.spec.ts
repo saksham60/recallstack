@@ -18,7 +18,7 @@ test("creates a note in the canonical workspace with the existing content ID", a
   await page.getByRole("button", { name: "Notes", exact: true }).first().click();
   await page.getByLabel("Note body", { exact: true }).fill("My invariant is preserved after each step.");
   await page.getByRole("button", { name: "Save note", exact: true }).click();
-  await expect(page.getByText("My invariant is preserved after each step.", { exact: true })).toBeVisible();
+  await expect(page.locator(".studio-prewrap").filter({hasText:"My invariant is preserved after each step."})).toBeVisible();
   expect(captured).toEqual({ body: "My invariant is preserved after each step.", kind: "note", title: null });
 });
 

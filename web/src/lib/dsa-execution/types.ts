@@ -18,6 +18,19 @@ export const planSchema = z
     problemId: z.uuid(),
     problemVersionId: z.uuid(),
     contract: judgeContractSchema,
+    harnessSha256: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
+    certificationRunId: z.uuid().optional(),
+    contractRevision: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
+    fixturesRevision: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
     exposeCounts: z.boolean(),
     cases: z
       .array(

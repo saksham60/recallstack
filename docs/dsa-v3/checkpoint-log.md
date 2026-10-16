@@ -58,3 +58,19 @@
 - Live Nebius/AI calls remain 0/5. Code Intelligence persistence/lifecycle and
   real canonical 3Sum positive/hidden-failure proof are still pending. Do not mark
   this checkpoint complete or deploy the work as a certified 375-problem release.
+
+## Checkpoint 2 — report lifecycle implemented; live boundary still pending
+
+- Private terminal-event outbox, versioned report deduplication, two global slots,
+  two bounded attempts, 10-report daily user quota, fenced leases and token/latency
+  telemetry prepared as an additive owner-reviewed migration. It has only been
+  applied to disposable local Postgres. No live environment flag was enabled.
+- Existing ReasonAI transport and Vercel Queue reused. Evidence excludes hidden
+  cases/oracles/logs. Strict structured reports cannot update judge verdicts.
+- Owned paginated history and persisted report surface distinguish Verified by
+  Judge, Estimated by AI and Not Yet Available, with loading/failure/retry states.
+- Local report SQL: 5 integration tests passed; worker/provider transport: 3 unit
+  tests passed with injected transport; browser report/history/auth: 2 passed with
+  fixture analysis. No real AI generation or production persistence is claimed.
+- The actual canonical 3Sum suite remains uncertified. Source/reference metadata,
+  owner application and the constrained live proof are outstanding. Paid calls 0/5.

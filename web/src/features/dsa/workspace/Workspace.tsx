@@ -44,9 +44,19 @@ import {
 import { PaneResize } from "./PaneResize";
 import { draftKey, pythonStarterCode, readDraft, type Draft } from "./drafts";
 import { useExecution, type ExecutionState } from "../execution/use-execution";
-import { publicRunBundleSchema, typedStarter, type PublicRunBundle } from "@/lib/dsa-execution/python-contract";
+import {
+  publicRunBundleSchema,
+  approvedContractSchema,
+  typedStarter,
+  type PublicRunBundle,
+  type ApprovedContract,
+} from "@/lib/dsa-execution/python-contract";
 import { ExecutionPanel } from "../execution/ExecutionPanel";
-import { useLocalPythonRun, type LocalTestCase } from "../execution/use-local-python-run";
+import { SubmissionIntelligence } from "../execution/CodeIntelligence";
+import {
+  useLocalPythonRun,
+  type LocalTestCase,
+} from "../execution/use-local-python-run";
 import { usePracticeSubmissions } from "../execution/use-practice-submissions";
 import { problemHref } from "../navigation/urls";
 import { LearningResources } from "./LearningResources";
@@ -94,17 +104,15 @@ export default function Workspace({
   const [explorerOpen, setExplorerOpen] = useState(!problemId);
   const problem = useProblem(scope, problemId, versionId);
   useEffect(() => {
-    if (user?.id && problem.data && !preview) rememberProblem(user.id, problem.data);
+    if (user?.id && problem.data && !preview)
+      rememberProblem(user.id, problem.data);
   }, [user?.id, problem.data, preview]);
   const canPreview = profile.data?.roles.some(
     (role) => role === "admin" || role === "reviewer",
   );
   function select(item: ProblemItem) {
     setExplorerOpen(false);
-    router.replace(
-      problemHref(item, { preview }),
-      { scroll: false },
-    );
+    router.replace(problemHref(item, { preview }), { scroll: false });
   }
   useEffect(() => {
     function shortcut(event: KeyboardEvent) {
@@ -120,8 +128,18 @@ export default function Workspace({
     <div className="dsa-studio">
       <div className="studio-topbar">
         <nav className="studio-brand" aria-label="Breadcrumb">
-          <Link href={preview ? "/dsa?preview=true" : "/dsa"}>DSA</Link><ChevronRight size={13} />
-          {problem.data?.categories[0] && <><Link href={`/dsa/${encodeURIComponent(problem.data.categories[0].slug)}${preview ? "?preview=true" : ""}`}>{problem.data.categories[0].name}</Link><ChevronRight size={13} /></>}
+          <Link href={preview ? "/dsa?preview=true" : "/dsa"}>DSA</Link>
+          <ChevronRight size={13} />
+          {problem.data?.categories[0] && (
+            <>
+              <Link
+                href={`/dsa/${encodeURIComponent(problem.data.categories[0].slug)}${preview ? "?preview=true" : ""}`}
+              >
+                {problem.data.categories[0].name}
+              </Link>
+              <ChevronRight size={13} />
+            </>
+          )}
           <span>{problem.data?.title ?? "Problem"}</span>
         </nav>
         <div className="studio-actions">
@@ -130,7 +148,11 @@ export default function Workspace({
               className={
                 preview ? "studio-preview-link active" : "studio-preview-link"
               }
-              href={problem.data ? problemHref(problem.data, { preview: !preview }) : "/dsa"}
+              href={
+                problem.data
+                  ? problemHref(problem.data, { preview: !preview })
+                  : "/dsa"
+              }
             >
               {preview ? "Exit preview" : "Reviewer preview"}
             </Link>
@@ -170,7 +192,11 @@ export default function Workspace({
             Choose another problem
           </button>
           <Link
-            href={problem.data ? `/dsa/problem/${encodeURIComponent(problem.data.slug)}${preview ? "?preview=true" : ""}` : "/dsa"}
+            href={
+              problem.data
+                ? `/dsa/problem/${encodeURIComponent(problem.data.slug)}${preview ? "?preview=true" : ""}`
+                : "/dsa"
+            }
           >
             Load current specification
           </Link>
@@ -224,21 +250,87 @@ export default function Workspace({
   );
 }
 
-function ProblemWorkspace(props: { problem: Problem; preview: boolean; userId: string; submissionId?: string }) {
-  const execution = useExecution(props.userId, props.problem.id, props.problem.problem_version_id, props.submissionId);
-  const parsed = publicRunBundleSchema.safeParse(execution.availability.data?.publicRun);
-  const bundle = parsed.success && parsed.data.problemId === props.problem.id && parsed.data.problemVersionId === props.problem.problem_version_id ? parsed.data : undefined;
-  if (execution.availability.isPending) return <p className="studio-empty" role="status">Loading the versioned execution contract…</p>;
-  return <EditorWorkspace key={bundle?.contract.adapter ? bundle.contractRevision : "legacy"} {...props} execution={execution} bundle={bundle} />;
+function ProblemWorkspace(props: {
+  problem: Problem;
+  preview: boolean;
+  userId: string;
+  submissionId?: string;
+}) {
+  const execution = useExecution(
+    props.userId,
+    props.problem.id,
+    props.problem.problem_version_id,
+    props.submissionId,
+  );
+  const parsed = publicRunBundleSchema.safeParse(
+    execution.availability.data?.publicRun,
+  );
+  const bundle =
+    parsed.success &&
+    parsed.data.problemId === props.problem.id &&
+    parsed.data.problemVersionId === props.problem.problem_version_id
+      ? parsed.data
+      : undefined;
+  const contractResult = approvedContractSchema.safeParse(
+    execution.availability.data?.approvedContract,
+  );
+  const registry =
+    contractResult.success &&
+    contractResult.data.problemId === props.problem.id &&
+    contractResult.data.problemVersionId === props.problem.problem_version_id
+      ? contractResult.data
+      : undefined;
+  const approved: ApprovedContract | undefined = bundle
+    ? {
+        problemId: bundle.problemId,
+        problemVersionId: bundle.problemVersionId,
+        contract: bundle.contract,
+        contractRevision: bundle.contractRevision,
+        sourceNotice:
+          registry?.contractRevision === bundle.contractRevision
+            ? registry.sourceNotice
+            : null,
+      }
+    : registry;
+  if (execution.availability.isPending)
+    return (
+      <p className="studio-empty" role="status">
+        Loading the versioned execution contract…
+      </p>
+    );
+  return (
+    <EditorWorkspace
+      key={approved?.contract.adapter ? approved.contractRevision : "legacy"}
+      {...props}
+      execution={execution}
+      bundle={bundle}
+      approved={approved}
+    />
+  );
 }
 
-function EditorWorkspace({ problem, preview, userId, execution, bundle }: {
-  problem: Problem; preview: boolean; userId: string; execution: ExecutionState; bundle?: PublicRunBundle;
+function EditorWorkspace({
+  problem,
+  preview,
+  userId,
+  execution,
+  bundle,
+  approved,
+}: {
+  problem: Problem;
+  preview: boolean;
+  userId: string;
+  execution: ExecutionState;
+  bundle?: PublicRunBundle;
+  approved?: ApprovedContract;
 }) {
   const scope = useDSAScope(preview);
   const localPython = useLocalPythonRun();
   const { invalidate: invalidateLocalRun } = localPython;
-  const practice = usePracticeSubmissions(problem.id, problem.problem_version_id);
+  const practice = usePracticeSubmissions(
+    problem.id,
+    problem.problem_version_id,
+  );
   const [layout, setLayout] = useState<Layout>(() => savedLayout(userId));
   const [panel, setPanel] = useState(layout === "visual" ? "canvas" : "spec"),
     [mobile, setMobile] = useState("spec"),
@@ -253,15 +345,28 @@ function EditorWorkspace({ problem, preview, userId, execution, bundle }: {
     problem.id,
     problem.problem_version_id,
     language,
-    bundle?.contract.adapter ? bundle.contractRevision : undefined,
+    language === "python" && approved?.contract.adapter
+      ? approved.contractRevision
+      : undefined,
   );
-  const starterCode = (next: string) => next === "python" && bundle?.contract.adapter ? typedStarter(bundle.contract)! : pythonStarterCode(problem.function_contract, next);
+  const starterCode = (next: string) =>
+    next === "python" && approved?.contract.adapter
+      ? typedStarter(approved.contract)!
+      : pythonStarterCode(problem.function_contract, next);
   const [draft, setDraft] = useState(() =>
     readDraft(storageKey, starterCode(language)),
   );
   const currentDraft = useRef(draft);
-  const [previousDraft] = useState(() => bundle?.contract.adapter ? readDraft(draftKey(userId, problem.id, problem.problem_version_id, "python")) : null);
-  const [customInput, setCustomInput] = useState(() => JSON.stringify(problem.examples[0]?.input ?? {}, null, 2));
+  const [previousDraft] = useState(() =>
+    approved?.contract.adapter
+      ? readDraft(
+          draftKey(userId, problem.id, problem.problem_version_id, "python"),
+        )
+      : null,
+  );
+  const [customInput, setCustomInput] = useState(() =>
+    JSON.stringify(problem.examples[0]?.input ?? {}, null, 2),
+  );
   const [storageError, setStorageError] = useState(false),
     [notice, setNotice] = useState("");
   const [reset, setReset] = useState(false);
@@ -271,7 +376,9 @@ function EditorWorkspace({ problem, preview, userId, execution, bundle }: {
     problemVersionId: problem.problem_version_id,
     language: language as "python" | "typescript" | "cpp",
     preview,
-    ...(execution.job?.mode === "run" && execution.job.result ? { publicExecutionId: execution.job.submissionId } : {}),
+    ...(execution.job?.mode === "run" && execution.job.result
+      ? { publicExecutionId: execution.job.submissionId }
+      : {}),
     slug: problem.slug,
     title: problem.title,
     difficulty: problem.difficulty ?? undefined,
@@ -289,7 +396,10 @@ function EditorWorkspace({ problem, preview, userId, execution, bundle }: {
         .join("\n\n") ?? ""
     ).slice(0, 12000),
   };
-  const tutor = useDSATutor(context, `reasonai:dsa:conversation:1:${userId}:${problem.id}:${problem.problem_version_id}:${preview}`);
+  const tutor = useDSATutor(
+    context,
+    `reasonai:dsa:conversation:1:${userId}:${problem.id}:${problem.problem_version_id}:${preview}`,
+  );
   const visualMessage = [...tutor.messages]
     .reverse()
     .find((message) => message.response?.visual);
@@ -337,32 +447,84 @@ function EditorWorkspace({ problem, preview, userId, execution, bundle }: {
     !preview && problem.availability === "available" && language === "python";
   const certifiedSubmit = execution.availability.data?.submit === true;
   const receipt = localPython.run?.receipt;
-  const matchedRun = localPython.run?.state === "passed" && localPython.run.source === "verified" && localPython.run.code === draft.code && language === "python" && !!bundle && receipt?.userId === userId && receipt.problemId === problem.id && receipt.problemVersionId === problem.problem_version_id && receipt.publicRevision === bundle.revision && receipt.harnessSha256 === bundle.harnessSha256;
+  const matchedRun =
+    localPython.run?.state === "passed" &&
+    localPython.run.source === "verified" &&
+    localPython.run.code === draft.code &&
+    language === "python" &&
+    !!bundle &&
+    receipt?.userId === userId &&
+    receipt.problemId === problem.id &&
+    receipt.problemVersionId === problem.problem_version_id &&
+    receipt.publicRevision === bundle.revision &&
+    receipt.harnessSha256 === bundle.harnessSha256;
   const canSubmitTrusted = canRun && certifiedSubmit && matchedRun;
-  const canSubmit = !!draft.code.trim() && draft.code.length <= 24000 && canSubmitTrusted;
+  const canSubmit =
+    !!draft.code.trim() && draft.code.length <= 24000 && canSubmitTrusted;
   const blocked =
-    execution.creating || execution.active || execution.needsRetry ||
-    localPython.run?.state === "running" || practice.pending;
+    execution.creating ||
+    execution.active ||
+    execution.needsRetry ||
+    localPython.run?.state === "running";
   const runReason = preview
     ? "Switch to learner view to run published examples."
     : language !== "python"
       ? "Browser execution currently supports Python only."
       : "Run Python locally against public statement examples; no Nebius request.";
-  const submitReason = preview ? "Switch to learner view to submit a published specification."
-    : language !== "python" ? "Only Python submissions are currently supported."
-      : !certifiedSubmit ? "Trusted submission is awaiting independent suite and contract certification."
+  const submitReason = preview
+    ? "Switch to learner view to submit a published specification."
+    : language !== "python"
+      ? "Only Python submissions are currently supported."
+      : !certifiedSubmit
+        ? "Trusted submission is awaiting independent suite and contract certification."
         : "Pass all certified public tests with unchanged code to unlock Submit.";
   async function execute(mode: "run" | "submit") {
-    setTestTab("results"); setMobile("tests");
+    setTestTab("results");
+    setMobile("tests");
     if (blocked) return;
     if (mode === "run") {
-      if (!canRun) { setNotice(runReason); return; }
-      if (execution.availability.data?.run && !bundle) { setNotice("The certified execution contract could not be loaded. Reload before running."); return; }
-      const cases: LocalTestCase[] = bundle ? bundle.cases : problem.examples.map((example, index) => ({ id: String(index), input: example.input, expected: example.output }));
-      void localPython.start(currentDraft.current.code, cases, bundle ? "verified" : "examples", "run", bundle ? { contract: bundle.contract, contractRevision: bundle.contractRevision, harnessSha256: bundle.harnessSha256, publicRevision: bundle.revision, userId, problemId: problem.id, problemVersionId: problem.problem_version_id } : undefined);
+      if (!canRun) {
+        setNotice(runReason);
+        return;
+      }
+      if (execution.availability.data?.run && !bundle) {
+        setNotice(
+          "The certified execution contract could not be loaded. Reload before running.",
+        );
+        return;
+      }
+      const cases: LocalTestCase[] = bundle
+        ? bundle.cases
+        : problem.examples.map((example, index) => ({
+            id: String(index),
+            input: example.input,
+            expected: example.output,
+          }));
+      void localPython.start(
+        currentDraft.current.code,
+        cases,
+        bundle ? "verified" : "examples",
+        "run",
+        bundle
+          ? {
+              contract: bundle.contract,
+              contractRevision: bundle.contractRevision,
+              harnessSha256: bundle.harnessSha256,
+              publicRevision: bundle.revision,
+              userId,
+              problemId: problem.id,
+              problemVersionId: problem.problem_version_id,
+            }
+          : approved
+            ? { contract: approved.contract }
+            : undefined,
+      );
       return;
     }
-    if (!canSubmit) { setNotice(submitReason); return; }
+    if (!canSubmit) {
+      setNotice(submitReason);
+      return;
+    }
     void execution.start(currentDraft.current.code, "submit");
   }
   function changeLayout(next: Layout) {
@@ -385,7 +547,15 @@ function EditorWorkspace({ problem, preview, userId, execution, bundle }: {
   function changeLanguage(next: string) {
     localPython.invalidate();
     const recovered = readDraft(
-      draftKey(userId, problem.id, problem.problem_version_id, next, bundle?.contract.adapter ? bundle.contractRevision : undefined),
+      draftKey(
+        userId,
+        problem.id,
+        problem.problem_version_id,
+        next,
+        next === "python" && approved?.contract.adapter
+          ? approved.contractRevision
+          : undefined,
+      ),
       starterCode(next),
     );
     currentDraft.current = recovered;
@@ -421,6 +591,9 @@ function EditorWorkspace({ problem, preview, userId, execution, bundle }: {
           </select>
         </label>
       </header>
+      {approved?.sourceNotice && (
+        <p className="studio-preview-banner">{approved.sourceNotice}</p>
+      )}
       <div
         className={`studio-grid layout-${layout} mobile-${mobile} ${showTutor ? "with-tutor" : ""}`}
         style={styles}
@@ -561,7 +734,9 @@ function EditorWorkspace({ problem, preview, userId, execution, bundle }: {
                 <button
                   type="button"
                   className="studio-icon"
-                  onClick={() => persist({ code: starterCode(language), view: undefined })}
+                  onClick={() =>
+                    persist({ code: starterCode(language), view: undefined })
+                  }
                 >
                   Insert starter code
                 </button>
@@ -650,16 +825,52 @@ function EditorWorkspace({ problem, preview, userId, execution, bundle }: {
               selected={testTab}
               onSelect={setTestTab}
             />
-            <div className="studio-scroll studio-result-copy" hidden={testTab !== "custom"}>
-              <p className="studio-muted">Custom inputs are exploratory and never unlock Submit.</p>
-              <label>Custom input JSON<textarea aria-label="Custom input JSON" value={customInput} onChange={(event) => setCustomInput(event.target.value)} maxLength={65536} rows={6} /></label>
-              <button type="button" disabled={!canRun || blocked} onClick={() => {
-                try {
-                  const input = JSON.parse(customInput);
-                  setTestTab("results"); setMobile("tests");
-                  void localPython.start(currentDraft.current.code, [{ id: "custom", input, expected: null }], "custom", "run", bundle ? { contract: bundle.contract, harnessSha256: bundle.harnessSha256 } : undefined);
-                } catch { setNotice("Custom input must be valid JSON."); }
-              }}>Run custom input</button>
+            <div
+              className="studio-scroll studio-result-copy"
+              hidden={testTab !== "custom"}
+            >
+              <p className="studio-muted">
+                Custom inputs are exploratory and never unlock Submit.
+              </p>
+              <label>
+                Custom input JSON
+                <textarea
+                  aria-label="Custom input JSON"
+                  value={customInput}
+                  onChange={(event) => setCustomInput(event.target.value)}
+                  maxLength={65536}
+                  rows={6}
+                />
+              </label>
+              <button
+                type="button"
+                disabled={!canRun || blocked}
+                onClick={() => {
+                  try {
+                    const input = JSON.parse(customInput);
+                    setTestTab("results");
+                    setMobile("tests");
+                    void localPython.start(
+                      currentDraft.current.code,
+                      [{ id: "custom", input, expected: null }],
+                      "custom",
+                      "run",
+                      bundle
+                        ? {
+                            contract: bundle.contract,
+                            harnessSha256: bundle.harnessSha256,
+                          }
+                        : approved
+                          ? { contract: approved.contract }
+                          : undefined,
+                    );
+                  } catch {
+                    setNotice("Custom input must be valid JSON.");
+                  }
+                }}
+              >
+                Run custom input
+              </button>
             </div>
             <div
               className="studio-scroll studio-result-copy"
@@ -689,7 +900,27 @@ function EditorWorkspace({ problem, preview, userId, execution, bundle }: {
               </p>
             </div>
             <div className="studio-scroll" hidden={testTab !== "results"}>
-              <ExecutionPanel execution={execution} localRun={localPython.run} onCancelLocal={localPython.cancel} practiceSubmission={practice.latest} />
+              <ExecutionPanel
+                execution={execution}
+                localRun={localPython.run}
+                onCancelLocal={localPython.cancel}
+                practiceSubmission={practice.latest}
+              />
+              <SubmissionIntelligence
+                userId={userId}
+                problemId={problem.id}
+                versionId={problem.problem_version_id}
+                slug={problem.slug}
+                job={execution.job}
+                onFollowup={(summary) => {
+                  tutor.send(
+                    "review",
+                    `Explain the AI estimates for submission ${execution.job?.submissionId}. The saved analysis summary was: ${summary}. My current editor draft may differ from that submission.`,
+                  );
+                  setPanel("tutor");
+                  setMobile("tutor");
+                }}
+              />
             </div>
           </div>
           <div className="studio-code-footer">
@@ -739,7 +970,32 @@ function EditorWorkspace({ problem, preview, userId, execution, bundle }: {
           />
         </aside>
       </div>
-      {previousDraft?.code && <details className="studio-resources"><summary>Previous contract draft retained</summary><p>Your earlier code remains associated with its original contract. Copy it only if you want to adapt it to this signature.</p><pre className="studio-json">{previousDraft.code}</pre><button type="button" onClick={() => { if (window.confirm("Replace the current code with your previous contract draft?")) persist({ code: previousDraft.code, approach: previousDraft.approach }); }}>Copy previous draft into this contract</button></details>}
+      {previousDraft?.code && (
+        <details className="studio-resources">
+          <summary>Previous contract draft retained</summary>
+          <p>
+            Your earlier code remains associated with its original contract.
+            Copy it only if you want to adapt it to this signature.
+          </p>
+          <pre className="studio-json">{previousDraft.code}</pre>
+          <button
+            type="button"
+            onClick={() => {
+              if (
+                window.confirm(
+                  "Replace the current code with your previous contract draft?",
+                )
+              )
+                persist({
+                  code: previousDraft.code,
+                  approach: previousDraft.approach,
+                });
+            }}
+          >
+            Copy previous draft into this contract
+          </button>
+        </details>
+      )}
       <div className="studio-approach">
         <label htmlFor="studio-approach">My approach</label>
         <textarea
@@ -770,7 +1026,9 @@ function EditorWorkspace({ problem, preview, userId, execution, bundle }: {
       <footer className="studio-bottom">
         <p id="studio-execution-reason">
           {canRun ? "Run is local, with no sandbox API request. " : runReason}
-          {canSubmitTrusted ? "Submit uses trusted hidden grading." : ` ${submitReason}`}
+          {canSubmitTrusted
+            ? "Submit uses trusted hidden grading."
+            : ` ${submitReason}`}
         </p>
         <div className="studio-actions">
           <button
@@ -789,9 +1047,11 @@ function EditorWorkspace({ problem, preview, userId, execution, bundle }: {
             onClick={() => execute("submit")}
             className="studio-primary"
             aria-describedby="studio-execution-reason"
-            title={canSubmitTrusted
-              ? "Submit to certified hidden tests (Ctrl/Cmd+Shift+Enter)"
-              : submitReason}
+            title={
+              canSubmitTrusted
+                ? "Submit to certified hidden tests (Ctrl/Cmd+Shift+Enter)"
+                : submitReason
+            }
           >
             <Send size={14} />
             Submit

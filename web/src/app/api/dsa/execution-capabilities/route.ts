@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { approvedContractSchema } from "@/lib/dsa-execution/python-contract";
 import {
   executionHttpError,
   executionIdentity,
@@ -13,14 +14,6 @@ export async function GET(request: Request) {
   try {
     const identity = await executionIdentity(request);
     if (identity instanceof Response) return identity;
-    if (!executionConfigured())
-      return reply({
-        run: false,
-        submit: false,
-        languages: [],
-        runReason: "Code execution is not enabled.",
-        submitReason: "Judged submissions are not enabled.",
-      });
     const query = new URL(request.url).searchParams;
     const id = z.uuid().safeParse(query.get("problemId")),
       version = z.uuid().safeParse(query.get("problemVersionId"));
@@ -29,12 +22,35 @@ export async function GET(request: Request) {
         { error: "Provide valid problem and specification version IDs." },
         422,
       );
-    const result = await createExecutionRepository().availability(
-      id.data,
-      version.data,
+    const [executionResult, contractResult] = await Promise.allSettled([
+      executionConfigured()
+        ? createExecutionRepository().availability(id.data, version.data)
+        : Promise.resolve({ run: false, submit: false }),
+      identity.supabase
+        .rpc("dsa_v3_problem_contract", {
+          p_problem: id.data,
+          p_version: version.data,
+        })
+        .abortSignal(AbortSignal.timeout(8000)),
+    ]);
+    const result =
+      executionResult.status === "fulfilled"
+        ? executionResult.value
+        : { run: false, submit: false };
+    const parsed = approvedContractSchema.safeParse(
+      contractResult.status === "fulfilled" && !contractResult.value.error
+        ? contractResult.value.data
+        : null,
     );
+    const approvedContract =
+      parsed.success &&
+      parsed.data.problemId === id.data &&
+      parsed.data.problemVersionId === version.data
+        ? parsed.data
+        : undefined;
     return reply({
       ...result,
+      ...(approvedContract ? { approvedContract } : {}),
       languages: result.run || result.submit ? ["python"] : [],
       ...(!result.run
         ? {

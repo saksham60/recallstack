@@ -150,6 +150,7 @@ export function useCompanies(scope: Scope, items?: ProblemItem[]) {
         problemVersionId: string;
         slug: string;
         name: string;
+        reviewStatus?: "imported" | "reviewed";
       }>;
     },
   });

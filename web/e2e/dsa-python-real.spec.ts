@@ -6,6 +6,7 @@ import path from "node:path";
 import { installV3API, ID, VERSION, canonical } from "./helpers/dsa-v3";
 import { HARNESS_SHA256 } from "../src/lib/dsa-execution/python/harness.generated";
 import type { PythonContract, PublicRunBundle } from "../src/lib/dsa-execution/python-contract";
+test.describe.configure({timeout:180000});
 
 const sumContract: PythonContract = {
   entrypoint: "array_total", inputMode: "kwargs", checker: "exact_json",
@@ -196,4 +197,17 @@ test("Python worker CSP blocks first-party authenticated fetch",async({authentic
   await page.getByRole("button",{name:"Run",exact:true}).click();
   await expect(page.getByRole("heading",{name:"Local Run · All displayed cases passed"})).toBeVisible({timeout:70000});
   expect(requests).toBe(0);
+});
+
+test("approved typed starter works before suite certification; provisional examples cannot unlock Submit",async({authenticatedPage:page})=>{
+  const {bundle}=await setup(page);
+  await page.route("**/api/dsa/execution-capabilities?**",r=>r.fulfill({json:{run:false,submit:false,languages:["python"],approvedContract:{problemId:ID,problemVersionId:VERSION,contract:sumContract,contractRevision:bundle.contractRevision,sourceNotice:"This authored version has its own published input contract."}}}));
+  await page.reload();
+  await expect(page.getByText("This authored version has its own published input contract.",{exact:true})).toBeVisible();
+  await expect(page.locator(".monaco-editor .view-lines")).toContainText("def array_total(nums: List[int]) -> int:");
+  await paste(page,"def array_total(nums):\n    return sum(nums)\n");
+  await page.getByRole("button",{name:"Run",exact:true}).click();
+  await expect(page.getByRole("heading",{name:"Local Run · All displayed cases passed"})).toBeVisible({timeout:70000});
+  await expect(page.getByText(/Locally checked against provisional statement examples/)).toBeVisible();
+  await expect(page.getByRole("button",{name:"Submit",exact:true})).toBeDisabled();
 });

@@ -7,7 +7,9 @@ const input = z
   .strict();
 const company = z.object({
   problem_version_id: z.uuid(),
-  company: z.object({ slug: z.string(), name: z.string() }),
+  slug: z.string(),
+  name: z.string(),
+  review_status: z.enum(["reviewed", "imported"]),
 });
 
 export async function POST(request: Request) {
@@ -17,27 +19,30 @@ export async function POST(request: Request) {
   try {
     body = await readBoundedJSON(request, 65536);
   } catch (error) {
-    if (error instanceof Error && error.message === "Body too large.") return reply({ error: "Request too large." }, 413);
+    if (error instanceof Error && error.message === "Body too large.")
+      return reply({ error: "Request too large." }, 413);
     return reply({ error: "Invalid JSON." }, 400);
   }
   const parsed = input.safeParse(body);
   if (!parsed.success) return reply({ error: "Invalid version IDs." }, 422);
   // User-scoped client and owner-reviewed public metadata only. No service key.
-  const items: Array<{ problemVersionId: string; slug: string; name: string }> =
-    [];
+  const items: Array<{
+    problemVersionId: string;
+    slug: string;
+    name: string;
+    reviewStatus: string;
+  }> = [];
   for (let page = 0; page < 20; page++) {
     const result = await identity.supabase
-      .from("dsa_problem_company_tags")
-      .select("problem_version_id,company:dsa_companies!inner(slug,name)")
-      .in("problem_version_id", parsed.data.versions)
-      .eq("reviewed", true)
-      .order("problem_version_id")
-      .order("company_id")
-      .range(page * 500, page * 500 + 499);
+      .rpc("dsa_v3_board_companies", {
+        p_versions: parsed.data.versions,
+        p_offset: page * 500,
+      })
+      .abortSignal(AbortSignal.timeout(8000));
     if (result.error)
       return reply(
         {
-          error: "Reviewed company metadata is not available.",
+          error: "Company metadata is not available.",
           code: "COMPANY_METADATA_UNAVAILABLE",
         },
         503,
@@ -48,7 +53,9 @@ export async function POST(request: Request) {
     items.push(
       ...rows.data.map((row) => ({
         problemVersionId: row.problem_version_id,
-        ...row.company,
+        slug: row.slug,
+        name: row.name,
+        reviewStatus: row.review_status,
       })),
     );
     if (rows.data.length < 500) return reply({ items });

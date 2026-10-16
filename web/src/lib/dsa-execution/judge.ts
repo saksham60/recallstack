@@ -11,6 +11,7 @@ import {
 } from "./types";
 
 import { safeJson, equal } from "./public-comparator";
+import { HARNESS_SHA256 } from "./python/harness.generated";
 export { safeJson, equal };
 
 export function validatePlan(raw: unknown): EvaluationPlan {
@@ -22,6 +23,18 @@ export function validatePlan(raw: unknown): EvaluationPlan {
       409,
     );
   const plan = parsed.data;
+  if (
+    plan.contract.adapter &&
+    (plan.harnessSha256 !== HARNESS_SHA256 ||
+      !plan.certificationRunId ||
+      !plan.contractRevision ||
+      !plan.fixturesRevision)
+  )
+    throw new ExecutionError(
+      "CONTRACT_UNAVAILABLE",
+      "This typed contract requires matching V3 harness and certification evidence.",
+      409,
+    );
   if (
     !plan.cases.every(
       (item) => safeJson(item.input) && safeJson(item.expected),

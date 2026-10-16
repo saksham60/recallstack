@@ -40,7 +40,7 @@ export function ExecutionPanel({
       {practiceSubmission && (
         <section aria-label="Practice submission receipt">
           <div role="status" className="studio-execution-status">
-            <h3>Submission recorded</h3>
+            <h3>Historical practice attempt</h3>
           </div>
           <p>
             {practiceSubmission.checkStatus === "not_evaluated"
@@ -139,6 +139,7 @@ export function ExecutionPanel({
       )}
       {job?.result && (
         <>
+          <span className="studio-eyebrow">Verified by Judge</span>
           <h3 className="studio-verdict">
             {job.result.verdict.replaceAll("_", " ")}
           </h3>

@@ -37,7 +37,9 @@ IDs are references; they NEVER alter canonical difficulty/category assignments.
 Conflict 409, validation 422, missing schema/unavailable storage 503.
 
 `POST /api/dsa/board-companies` accepts `{versions:[<uuid>]}` (1..1000). Returns
-`{items:[{problemVersionId,slug,name}]}` from reviewed, learner-visible associations.
+`{items:[{problemVersionId,slug,name,reviewStatus}]}` from existing learner-visible
+canonical company associations. `reviewStatus` is reviewed or imported. Recognized
+legacy parse states are explicitly imported; needs_review sources are excluded.
 The server explicitly paginates metadata. Missing schema 503; absence of tags is
 an empty result, not a fabricated company association. Reviewer preview currently
 does not expose unreviewed company metadata or editable personal arrangements.
@@ -53,5 +55,41 @@ does not expose unreviewed company metadata or editable personal arrangements.
 - `/dsa/library`: permanent redirect to `/dsa`.
 - Generic `/content/<dsa-slug>` compatibility forwards to the sole workspace.
 
-Draft storage keeps its original account/problem/version/language key, so URL
-migration never rebinds a saved solution to a different version.
+Legacy draft keys remain intact. Approved typed Python contracts use a separate
+contract-revision suffix and retain the original draft for explicit copy/adaptation.
+Non-Python legacy keys remain unchanged. URL migration never rebinds a draft.
+
+## Versioned execution metadata
+
+Existing `GET /api/dsa/execution-capabilities?problemId=&problemVersionId=` now
+optionally includes `publicRun` and `approvedContract`. No new Submit endpoint.
+`publicRun` contains the complete certified public case set, suite ID, public
+revision, contract revision, shared harness SHA and typed/legacy Python contract.
+The private submit plan is never serialized. At most 100 cases, no partial pages.
+
+`approvedContract` is `{problemId,problemVersionId,contract,contractRevision,
+sourceNotice}`. It comes from authenticated `dsa_v3_problem_contract` and can be
+available before a hidden suite is certified. It provides typed starters and
+provisional example/custom invocation without granting Submit eligibility.
+Matching public Run receipts are a client UX gate only; the server independently
+judges the exact source and checks registry, certificate and fixture revisions.
+
+## Saved submissions and Code Intelligence (proposed owner migration required)
+
+- `GET /api/dsa/submissions?problemId=<uuid>&problemVersionId=<uuid>`:
+  `{items: SubmissionView[], next: {before, beforeId}|null}`. Optional paired
+  `before` ISO timestamp and `beforeId` UUID select older rows. Page size 20,
+  owner only, exact version, no source/plan/private fields. Existing Submit POST
+  remains `/api/dsa/executions`; no second submission endpoint was introduced.
+- `GET /api/dsa/submissions/<uuid>/report`: `{submissionId,sourceCode,codeSha256,
+  enabled,report}`. Source is owner-only, read-only, from the durable submission;
+  it never replaces the current editor draft.
+  `report` is null until scheduled, otherwise has `id,status,model,rubric,attempts,
+  createdAt,updatedAt` and optional `analysis/error`. States: queued, generating,
+  completed, failed, rate_limited. Reads reuse persisted reports and cannot choose
+  arbitrary source/model/rubric. Unknown/foreign submission returns 404.
+- Both use real Supabase identity, same-origin checks, no-store responses and no
+  development auth bypass. Missing proposed storage returns 503 with a recoverable
+  UI state. The official judge result remains independently visible.
+- Queue payload `{reportId:<uuid>}` contains no code, fixtures or credentials.
+  The consumer claims a durable fenced row before any provider call.

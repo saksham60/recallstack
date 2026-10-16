@@ -109,6 +109,46 @@ async def test_v3_topic_progress_joins_only_visible_content(api, dataset):
     assert category["attempted_count"] == category["mastered_count"] == 1
 
 
+async def test_published_historical_versions_keep_their_exact_deep_links(api, dataset):
+    row = dataset["rows"]["a"]
+    with dataset["engine"].begin() as connection:
+        original = (
+            connection.execute(select(VersionModel).where(VersionModel.id == row["version"]))
+            .mappings()
+            .one()
+        )
+        latest = connection.scalar(
+            insert(VersionModel)
+            .values(
+                definition_id=row["definition"],
+                version_number=3,
+                status="published",
+                specification={**original["specification"], "title": "Current V3 title"},
+                provenance=original["provenance"],
+            )
+            .returning(VersionModel.id)
+        )
+        connection.execute(
+            update(DefinitionModel)
+            .where(DefinitionModel.id == row["definition"])
+            .values(current_version_id=latest)
+        )
+    current = (await api.get(f"/api/v1/dsa/problems/{row['id']}")).json()
+    assert current["problem_version_id"] == str(latest)
+    historical = await api.get(
+        f"/api/v1/dsa/problems/{row['id']}", params={"problem_version_id": str(row["version"])}
+    )
+    assert historical.status_code == 200
+    assert historical.json()["problem_version_id"] == str(row["version"])
+    assert historical.json()["title"] == row["title"]
+    resolved = await api.get(
+        "/api/v1/dsa/resolve",
+        params={"problem": current["slug"], "problem_version_id": str(row["version"])},
+    )
+    assert resolved.status_code == 200
+    assert resolved.json()["problem_version_id"] == str(row["version"])
+
+
 async def test_catalog_publication_domain_and_keyset(api, dataset):
     response = await api.get("/api/v1/dsa/problems", params=filters(dataset, limit=1))
     assert response.status_code == 200, response.text

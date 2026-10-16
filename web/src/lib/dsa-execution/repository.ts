@@ -78,14 +78,51 @@ export class SupabaseExecutionRepository implements ExecutionRepository {
     let publicRun: PublicRunBundle | undefined;
     if (usable(plans.run)) {
       const plan = validatePlan(plans.run);
-      if (plan.problemId === problemId && plan.problemVersionId === problemVersionId && plan.cases.every((c) => c.visibility === "public")) {
-        const cases = plan.cases.map(({ id, input, expected }) => ({ id, input, expected }));
-        const revision = createHash("sha256").update(JSON.stringify({ suiteId: plan.suiteId, certificateId: plan.certificateId, contract: plan.contract, cases, harness: HARNESS_SHA256 })).digest("hex");
-        const contractRevision = createHash("sha256").update(JSON.stringify(plan.contract)).digest("hex");
-        publicRun = { schemaVersion: 1, problemId, problemVersionId, suiteId: plan.suiteId, revision, contractRevision, harnessSha256: HARNESS_SHA256, contract: plan.contract, cases };
+      if (
+        plan.problemId === problemId &&
+        plan.problemVersionId === problemVersionId &&
+        plan.cases.every((c) => c.visibility === "public")
+      ) {
+        const cases = plan.cases.map(({ id, input, expected }) => ({
+          id,
+          input,
+          expected,
+        }));
+        const revision = createHash("sha256")
+          .update(
+            JSON.stringify({
+              suiteId: plan.suiteId,
+              certificateId: plan.certificateId,
+              certificationRunId: plan.certificationRunId,
+              contract: plan.contract,
+              cases,
+              harness: HARNESS_SHA256,
+            }),
+          )
+          .digest("hex");
+        const contractRevision =
+          plan.contractRevision ??
+          createHash("sha256")
+            .update(JSON.stringify(plan.contract))
+            .digest("hex");
+        publicRun = {
+          schemaVersion: 1,
+          problemId,
+          problemVersionId,
+          suiteId: plan.suiteId,
+          revision,
+          contractRevision,
+          harnessSha256: HARNESS_SHA256,
+          contract: plan.contract,
+          cases,
+        };
       }
     }
-    return { run: !!publicRun, submit: usable(plans.submit), ...(publicRun ? { publicRun } : {}) };
+    return {
+      run: !!publicRun,
+      submit: usable(plans.submit),
+      ...(publicRun ? { publicRun } : {}),
+    };
   }
   create: ExecutionRepository["create"] = (userId, request, hash) =>
     this.command("create", { userId, request, hash });

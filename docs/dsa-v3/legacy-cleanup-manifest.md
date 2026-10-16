@@ -12,6 +12,13 @@
 - `workspace/Workspace.tsx`: canonical links and contextual breadcrumbs.
 - `workspace/LearnerPanel.tsx`: retained practice tracking entry point alongside
   existing notes and self-assessed progress.
+- Removed the provisional practice Submit action and its unused client mutation
+  path. `use-practice-submissions.ts` now reads historical receipts only; the
+  existing API remains compatible for older consumers. UI labels these records
+  Historical practice attempt and never treats them as trusted Accepted verdicts.
+- Python invocation and comparator duplicates were replaced with a generated
+  shared harness and a fixed comparator registry; old solve(payload)-only worker
+  behavior is gone. Typed contract changes retain earlier drafts for explicit copy.
 
 ## Retained intentionally
 

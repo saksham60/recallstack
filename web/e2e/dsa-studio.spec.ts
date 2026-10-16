@@ -388,7 +388,7 @@ test("Monaco drafts, cursor, examples and tutor conversation survive layout chan
   ).toBeEnabled();
   await expect(
     page.getByRole("button", { name: "Submit", exact: true }),
-  ).toBeEnabled();
+  ).toBeDisabled();
 });
 
 test("drafts are isolated by problem, version, language and account; reset requires confirmation", async ({

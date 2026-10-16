@@ -2337,7 +2337,7 @@
       "problemId": "5db70f2a-f3e9-45ef-a36f-9009fb7a63cf",
       "slug": "ultimate-dsa-094-printing-all-solutions-in-n-queen-problem",
       "problemVersionId": "5d0ce052-0873-4bba-ac9c-a0c445c6cb1c",
-      "suiteId": "fd1c90e9-38b2-498e-99cc-87c622c6fe2f",
+      "suiteId": "250529f8-9a1d-4dcb-b058-965469e70940",
       "suiteStatus": "needs_review",
       "checkerType": "exact",
       "existingPublicCertificate": false,
@@ -2347,7 +2347,8 @@
         "reviewed-versioned-contract-and-independent-oracle-evidence-pending",
         "suite-not-published",
         "no-existing-hidden-execution-certificate"
-      ]
+      ],
+      "priorObservedSuiteId": "fd1c90e9-38b2-498e-99cc-87c622c6fe2f"
     },
     {
       "problemId": "5debf84e-a462-4adf-8e68-b26596fc43ff",
@@ -5987,5 +5988,9 @@
         "no-existing-hidden-execution-certificate"
       ]
     }
+  ],
+  "latestReadOnlySnapshotAt": "2026-10-16T13:30:42.711701+00:00",
+  "refreshedSuitePointers": [
+    "5db70f2a-f3e9-45ef-a36f-9009fb7a63cf"
   ]
 }

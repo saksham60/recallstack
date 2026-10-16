@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "maxCombinedCallsIncludingRetries": 5,
+  "callsUsed": 1,
+  "entries": [
+    {
+      "id": "20c221de-5879-4e6e-8a42-342e757ddb3d",
+      "kind": "Nebius 3Sum component compatibility",
+      "status": "passed",
+      "reservedAt": "2026-10-16T13:34:31.478Z",
+      "operationId": "01a144ed-017b-73f2-b33b-2b648c0ae1b6"
+    }
+  ]
+}

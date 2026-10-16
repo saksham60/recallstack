@@ -143,9 +143,11 @@ class DsaReadRepository:
             if version_id is not None:
                 versions = versions.where(Version.id == version_id)
         else:
-            versions = versions.where(Definition.current_version_id == Version.id, approved())
+            versions = versions.where(approved())
             if version_id is not None:
                 versions = versions.where(Version.id == version_id)
+            else:
+                versions = versions.where(Definition.current_version_id == Version.id)
         draft_first = [case((Version.status != "published", 0), else_=1)] if preview else []
         selected = (
             versions.order_by(
@@ -175,7 +177,6 @@ class DsaReadRepository:
                     .where(
                         Definition.content_item_id == Item.id,
                         Definition.id == Version.definition_id,
-                        Definition.current_version_id == Version.id,
                     )
                     .correlate(Item, Version)
                     .exists(),
