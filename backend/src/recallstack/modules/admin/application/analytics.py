@@ -55,6 +55,9 @@ class AdminAnalyticsService:
         finally:
             await session.close()
 
+    async def growth(self, days: int, *, audit: dict[str, Any]) -> dict[str, Any]:
+        return await self._run(lambda repository: repository.growth(days), audit=audit)
+
     async def overview(self, *, audit: dict[str, Any]) -> dict[str, Any]:
         return await self._run(lambda repository: repository.overview(), audit=audit)
 
