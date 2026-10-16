@@ -27,12 +27,38 @@ test.describe('Admin access and overview', () => {
       requests += 1;
       return route.fulfill({ json: createAdminOverview() });
     });
-    await page.goto('/admin');
+    await page.goto('/admin/dsa');
     await expect(page.getByRole('link', { name: 'ReasonAI Admin', exact: true })).toBeVisible();
     await expect(page.getByText('1,234')).toBeVisible();
     await expect(page.getByText('60%')).toBeVisible();
     await page.getByRole('button', { name: 'Refresh' }).click();
     await expect.poll(() => requests).toBeGreaterThan(1);
+  });
+});
+
+test.describe('Platform growth analytics', () => {
+  test('shows persisted registration and feature metrics without inventing attribution', async ({ authenticatedPage: page }) => {
+    await mockProfile(page);
+    await page.route('**/api/v1/admin/growth?*', route => route.fulfill({ json: {
+      period_days: 30, generated_at: '2026-10-16T00:00:00Z',
+      total_users: 40, new_users: 32, tracked_engaged_users: 7,
+      newly_engaged_users: 2, activation_rate: 0.0625,
+      ai_runs: 12, ai_failed_runs: 1, knowledge_events: 31, dsa_submissions: 2,
+      tracking_source_available: false, signup_source_unknown: 32,
+      daily_signups: [{ day: '2026-10-15', signups: 15 }],
+      feature_usage: [
+        { feature: 'dsa', unique_users: 3 },
+        { feature: 'ai_dsa', unique_users: 2 },
+        { feature: 'ai_system_design', unique_users: 1 },
+        { feature: 'knowledge_feed', unique_users: 4 },
+      ],
+    } }));
+    await page.goto('/admin');
+    await expect(page.getByRole('heading', { name: 'Platform intelligence' })).toBeVisible();
+    await expect(page.getByText('Recorded activation rate')).toBeVisible();
+    await expect(page.getByText('Unknown source · historical registrations')).toBeVisible();
+    await page.getByLabel('Reporting period').selectOption('7');
+    await expect(page).toHaveURL(/\\/admin/);
   });
 });
 
