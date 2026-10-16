@@ -3,7 +3,7 @@
 No referral data is fabricated: acquisition source is unknown until explicitly
 captured at first visit and associated with consented signup attribution.
 """
-# ruff: noqa: E501, S608
+# ruff: noqa: E501, S608, I001
 
 from datetime import UTC, datetime, time, timedelta
 from typing import Any
@@ -62,8 +62,10 @@ async def load_platform_growth(session: AsyncSession, days: int) -> dict[str, An
     ).mappings().all()
     daily_map = {row["day"]: int(row["signups"]) for row in daily_rows}
     daily_signups = [
-        {"day": start_date + timedelta(days=i),
-         "signups": daily_map.get(start_date + timedelta(days=i), 0)}
+        {
+            "day": start_date + timedelta(days=i),
+            "signups": daily_map.get(start_date + timedelta(days=i), 0),
+        }
         for i in range(days)
     ]
 
