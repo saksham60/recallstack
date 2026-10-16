@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 from uuid import UUID
 
@@ -50,6 +50,34 @@ class OverviewResponse(AdminSchema):
     problems: ProblemMetrics
     progress: ProgressMetrics
     generated_at: datetime
+
+
+class GrowthDailyPoint(AdminSchema):
+    day: date
+    signups: int
+
+
+class GrowthFeatureMetric(AdminSchema):
+    feature: str
+    unique_users: int
+
+
+class GrowthResponse(AdminSchema):
+    period_days: int
+    generated_at: datetime
+    total_users: int
+    new_users: int
+    tracked_engaged_users: int
+    newly_engaged_users: int
+    activation_rate: float
+    ai_runs: int
+    ai_failed_runs: int
+    knowledge_events: int
+    dsa_submissions: int
+    tracking_source_available: bool
+    signup_source_unknown: int
+    daily_signups: list[GrowthDailyPoint]
+    feature_usage: list[GrowthFeatureMetric]
 
 
 class AdminUserListItem(AdminSchema):
