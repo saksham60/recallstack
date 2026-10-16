@@ -6,6 +6,8 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import text
+
+from recallstack.modules.admin.infrastructure.growth_repository import load_platform_growth
 from sqlalchemy.ext.asyncio import AsyncSession
 
 ACCEPTED_OUTCOME = "solved_independently"
@@ -16,6 +18,9 @@ class SqlAlchemyAdminAnalyticsRepository:
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+
+    async def growth(self, days: int) -> dict[str, Any]:
+        return await load_platform_growth(self._session, days)
 
     async def overview(self) -> dict[str, Any]:
         row = (
