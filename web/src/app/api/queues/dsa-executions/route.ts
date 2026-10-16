@@ -6,6 +6,7 @@ import {
 } from "@/lib/dsa-execution/repository";
 import { createSandboxAdapter } from "@/lib/dsa-execution/contree";
 import { processExecution, RetryExecution } from "@/lib/dsa-execution/worker";
+import { dispatchReports } from "@/lib/dsa-reports/queue";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 export const POST = handleCallback(
@@ -21,6 +22,7 @@ export const POST = handleCallback(
       createExecutionRepository(),
       createSandboxAdapter(),
     );
+    try { await dispatchReports(); } catch { /* Judge is durable; report outbox recovers independently. */ }
   },
   {
     retry: (error, metadata) =>

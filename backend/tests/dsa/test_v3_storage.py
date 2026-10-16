@@ -1,7 +1,6 @@
 """Proposed V3 migration verification in a disposable, loopback-only database."""
 
 import json
-from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -9,33 +8,6 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
 pytestmark = pytest.mark.integration
-
-
-@pytest.fixture(scope="session")
-def board_schema(dsa_engine):
-    assert dsa_engine.url.host in {"localhost", "127.0.0.1", "::1"}
-    assert dsa_engine.url.database.startswith("dsa_api_test_")
-    migration = (
-        Path(__file__).resolve().parents[3]
-        / "web/supabase/migrations/20261016084605_dsa_v3_personal_boards_companies.sql"
-    )
-    with dsa_engine.begin() as connection:
-        connection.exec_driver_sql("""
-          do $$ begin
-            if not exists(select 1 from pg_roles where rolname='anon') then
-              create role anon; end if;
-            if not exists(select 1 from pg_roles where rolname='authenticated') then
-              create role authenticated; end if;
-            if not exists(select 1 from pg_roles where rolname='service_role') then
-              create role service_role bypassrls; end if;
-          end $$;
-          create function auth.uid() returns uuid language sql stable as
-            $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
-          grant usage on schema public, auth to authenticated;
-          grant execute on function auth.uid() to authenticated;
-        """)
-        connection.connection.driver_connection.execute(migration.read_text(encoding="utf-8"))
-    return dsa_engine
 
 
 def as_user(connection, user):
@@ -109,25 +81,40 @@ def test_company_projection_does_not_expose_unpublished_versions_or_review_mater
     company = uuid4()
     with board_schema.begin() as connection:
         connection.execute(
-            text("insert into dsa_companies(id,slug,name) values(:id,:slug,'Reviewed Company')"),
+            text(
+                "insert into dsa_companies(id,slug,canonical_name,review_status) "
+                "values(:id,:slug,'Legacy Company','approved')"
+            ),
             {"id": company, "slug": f"company-{company.hex}"},
         )
-        for kind in ("a", "unapproved"):
+        for kind in ("a", "unapproved", "b"):
+            source = uuid4()
             connection.execute(
                 text(
                     "insert into "
-                    "dsa_problem_company_tags(problem_version_id,company_id,reviewed,"
-                    "reviewed_by,reviewed_at,source_url) "
-                    "values(:v,:c,true,:u,now(),'https://example.com/review')"
+                    "dsa_problem_companies(definition_id,company_id,source_block_id,match_method) "
+                    "values(:d,:c,:s,'exact')"
                 ),
-                {"v": dataset["rows"][kind]["version"], "c": company, "u": dataset["owner"]},
+                {"d": dataset["rows"][kind]["definition"], "c": company, "s": source},
+            )
+            connection.execute(
+                text(
+                    "insert into "
+                    "dsa_problem_company_sources(definition_id,source_block_id,"
+                    "review_status,raw_companies) values(:d,:s,:status,'PRIVATE raw source')"
+                ),
+                {
+                    "d": dataset["rows"][kind]["definition"],
+                    "s": source,
+                    "status": "needs_review" if kind == "b" else "auto_exact",
+                },
             )
     with board_schema.begin() as connection:
         as_user(connection, dataset["owner"])
         versions = (
             connection.execute(
-                text("select problem_version_id from dsa_problem_company_tags where company_id=:c"),
-                {"c": company},
+                text("select problem_version_id from dsa_v3_board_companies(:versions,0)"),
+                {"versions": [row["version"] for row in dataset["rows"].values()]},
             )
             .scalars()
             .all()
@@ -140,7 +127,7 @@ def test_company_projection_does_not_expose_unpublished_versions_or_review_mater
         )
     with pytest.raises(DBAPIError), board_schema.begin() as connection:
         as_user(connection, dataset["owner"])
-        connection.execute(text("select source_url from dsa_problem_company_tags"))
+        connection.execute(text("select raw_companies from dsa_problem_company_sources"))
     with board_schema.begin() as connection:
         assert not connection.scalar(
             text("select has_table_privilege('anon','public.dsa_personal_boards','SELECT')")
