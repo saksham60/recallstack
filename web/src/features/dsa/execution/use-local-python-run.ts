@@ -13,6 +13,7 @@ export type LocalCaseResult = LocalTestCase & {
 export type LocalRun = {
   state: "running" | "passed" | "failed";
   source: "verified" | "examples";
+  purpose: "run" | "submit";
   code: string;
   results: LocalCaseResult[];
   message?: string;
@@ -44,33 +45,39 @@ export function useLocalPythonRun() {
     code: string,
     cases: LocalTestCase[],
     source: "verified" | "examples",
-  ) {
-    if (busy.current) return;
+    purpose: "run" | "submit" = "run",
+  ): Promise<LocalRun> {
+    if (busy.current) return {
+      code, source, purpose, state: "failed", results: [],
+      message: "A Python execution is already running.",
+    };
     if (!code.trim() || cases.length === 0 || cases.length > 20) {
-      setRun({
-        code, source, state: "failed", results: [],
+      const failed: LocalRun = {
+        code, source, purpose, state: "failed", results: [],
         message: !code.trim()
           ? "Write a Python solution before running."
           : "No executable public cases are available for this version.",
-      });
-      return;
+      };
+      setRun(failed);
+      return failed;
     }
     busy.current = true;
-    setRun({ code, source, state: "running", results: [] });
+    setRun({ code, source, purpose, state: "running", results: [] });
     if (!worker.current) {
       try {
         worker.current = new Worker("/dsa/python-worker.mjs", { type: "module" });
       } catch {
         busy.current = false;
-        setRun({
-          code, source, state: "failed", results: [],
+        const failed: LocalRun = {
+          code, source, purpose, state: "failed", results: [],
           message: "This browser cannot initialize the local Python worker.",
-        });
-        return;
+        };
+        setRun(failed);
+        return failed;
       }
     }
     const current = worker.current;
-    await new Promise<void>((resolve) => {
+    return await new Promise<LocalRun>((resolve) => {
       let completed = false;
       const finish = (next: LocalRun, terminate = false) => {
         if (completed) return;
@@ -85,7 +92,7 @@ export function useLocalPythonRun() {
         busy.current = false;
         activeCancel.current = null;
         setRun(next);
-        resolve();
+        resolve(next);
       };
       const onMessage = (event: MessageEvent) => {
         const payload = event.data as {
@@ -97,7 +104,7 @@ export function useLocalPythonRun() {
         };
         if (payload.error || !payload.results) {
           finish({
-            code, source, state: "failed", results: [],
+            code, source, purpose, state: "failed", results: [],
             message: payload.error ?? "The Python worker did not return results.",
           }, !!payload.error);
           return;
@@ -118,20 +125,20 @@ export function useLocalPythonRun() {
           };
         });
         finish({
-          code, source, results: mapped,
+          code, source, purpose, results: mapped,
           state: mapped.every((test) => test.passed) ? "passed" : "failed",
         });
       };
       const onError = () => finish({
-        code, source, state: "failed", results: [],
+        code, source, purpose, state: "failed", results: [],
         message: "The local Python worker could not load or execute.",
       }, true);
       const timer = window.setTimeout(() => finish({
-        code, source, state: "failed", results: [],
+        code, source, purpose, state: "failed", results: [],
         message: "Local execution exceeded the 30-second limit.",
       }, true), 30000);
       activeCancel.current = () => finish({
-        code, source, state: "failed", results: [],
+        code, source, purpose, state: "failed", results: [],
         message: "Local execution cancelled.",
       }, true);
       current.addEventListener("message", onMessage);
