@@ -2,6 +2,8 @@
 .env.*
 !.env.example
 backend/.env
+__pycache__/
+*.pyc
 data/
 /video/
 !web/src/features/system-design/data/

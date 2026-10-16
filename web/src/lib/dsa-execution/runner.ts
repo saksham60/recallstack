@@ -1,5 +1,7 @@
 import type { ExecutionRequest } from "@/features/dsa/execution/contract";
 import { ExecutionError, type EvaluationPlan } from "./types";
+import { HARNESS_SOURCE, HARNESS_SHA256 } from "./python/harness.generated";
+export { HARNESS_SHA256 };
 
 export function executionPayload(
   request: ExecutionRequest,
@@ -29,28 +31,25 @@ resource.setrlimit(resource.RLIMIT_AS, (536870912, 536870912))
 resource.setrlimit(resource.RLIMIT_FSIZE, (1048576, 1048576))
 resource.setrlimit(resource.RLIMIT_NOFILE, (64, 64))
 payload = json.loads(sys.stdin.buffer.read(131073))
+harness_source = ${JSON.stringify(HARNESS_SOURCE)}
 child = r'''
-import json, resource, sys, traceback
+import json, resource, sys
 resource.setrlimit(resource.RLIMIT_AS, (268435456, 268435456))
 resource.setrlimit(resource.RLIMIT_CPU, (2, 2))
 resource.setrlimit(resource.RLIMIT_NPROC, (0, 0))
 resource.setrlimit(resource.RLIMIT_NOFILE, (32, 32))
 resource.setrlimit(resource.RLIMIT_FSIZE, (1048576, 1048576))
 request = json.loads(sys.stdin.buffer.read(131073))
-try:
-    scope = {'__name__': 'solution'}
-    exec(compile(request['code'], 'solution.py', 'exec'), scope)
-    fn = scope[request['entrypoint']]
-    value = request['input']
-    result = fn(**value) if request['inputMode'] == 'kwargs' else fn(*value) if request['inputMode'] == 'args' else fn(value)
-    print('\n__REASONAI_RESULT__' + json.dumps(result, allow_nan=False, separators=(',', ':')))
-except SyntaxError:
-    traceback.print_exc(limit=3)
-    sys.exit(65)
-except BaseException:
-    traceback.print_exc(limit=3)
-    sys.exit(70)
+''' + harness_source + r'''
+outcome = run_case(request['code'], request['contract'], request['input'])
+if outcome.get('stdout'): sys.stdout.write(outcome['stdout'])
+if outcome.get('stderr'): sys.stderr.write(outcome['stderr'])
+if outcome['status'] == 'syntax_error': sys.exit(65)
+if outcome['status'] == 'output_limit_exceeded': sys.exit(71)
+if outcome['status'] != 'ok': sys.exit(70)
+print('\n__REASONAI_RESULT__' + json.dumps(outcome['actual'], allow_nan=False, ensure_ascii=False, separators=(',', ':')))
 '''
+
 deadline = time.monotonic() + 22
 results = []
 budget = 48000
@@ -62,7 +61,7 @@ for case in payload['cases']:
         row['status'] = 'time_limit_exceeded'
         results.append(row)
         continue
-    data = json.dumps({'code': payload['code'], 'entrypoint': payload['contract']['entrypoint'], 'inputMode': payload['contract']['inputMode'], 'input': case['input']}).encode()
+    data = json.dumps({'code': payload['code'], 'contract': payload['contract'], 'input': case['input']}).encode()
     process = subprocess.Popen(['/usr/local/bin/python3', '-I', '-c', child], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={}, user=65534, group=65534, extra_groups=[], start_new_session=True)
     output, errors = bytearray(), bytearray()
     selector = selectors.DefaultSelector()
@@ -93,7 +92,7 @@ for case in payload['cases']:
                         continue
                     target = output if key.data == 'stdout' else errors
                     target.extend(chunk)
-                    if len(output) > 16384 or len(errors) > 4096:
+                    if len(output) > 24576 or len(errors) > 4096:
                         reason = 'output_limit_exceeded'
                         break
             if reason:
@@ -116,6 +115,8 @@ for case in payload['cases']:
     row['stderr'] = errors[:4096].decode('utf-8', 'replace')
     if reason:
         row['status'] = reason
+    elif process.returncode == 71:
+        row['status'] = 'output_limit_exceeded'
     elif process.returncode == 65:
         row['status'] = 'syntax_error'
     elif process.returncode == -signal.SIGXCPU or process.returncode == -signal.SIGKILL:

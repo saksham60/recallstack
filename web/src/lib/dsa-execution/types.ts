@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { pythonContractSchema } from "./python-contract";
+import type { PublicRunBundle } from "./python-contract";
 import type {
   ExecutionRequest,
   ExecutionResult,
@@ -8,20 +10,7 @@ import type {
 export const MAX_CASES = 100;
 export const MAX_INPUT_BYTES = 65536;
 export const OPERATION_TIMEOUT_SECONDS = 25;
-export const judgeContractSchema = z
-  .object({
-    entrypoint: z.string().regex(/^[A-Za-z_][A-Za-z_0-9]{0,99}$/),
-    inputMode: z.enum(["kwargs", "args", "single"]),
-    checker: z.enum(["exact_json", "unordered_json", "numeric"]),
-    absoluteTolerance: z.number().finite().min(0).max(1).optional(),
-  })
-  .strict()
-  .refine(
-    (contract) =>
-      contract.checker !== "numeric" ||
-      contract.absoluteTolerance !== undefined,
-    "Numeric comparison requires an explicit tolerance.",
-  );
+export const judgeContractSchema = pythonContractSchema;
 export const planSchema = z
   .object({
     certificateId: z.uuid(),
@@ -104,7 +93,7 @@ export interface ExecutionRepository {
   availability(
     problemId: string,
     versionId: string,
-  ): Promise<{ run: boolean; submit: boolean }>;
+  ): Promise<{ run: boolean; submit: boolean; publicRun?: PublicRunBundle }>;
   create(
     userId: string,
     request: ExecutionRequest,

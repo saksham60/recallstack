@@ -30,7 +30,6 @@ import {
   useDSAScope,
   useProblem,
   useNotes,
-  usePublicTests,
   type Problem,
   type ProblemItem,
 } from "./api";
@@ -44,7 +43,8 @@ import {
 } from "./Specification";
 import { PaneResize } from "./PaneResize";
 import { draftKey, pythonStarterCode, readDraft, type Draft } from "./drafts";
-import { useExecution } from "../execution/use-execution";
+import { useExecution, type ExecutionState } from "../execution/use-execution";
+import { publicRunBundleSchema, typedStarter, type PublicRunBundle } from "@/lib/dsa-execution/python-contract";
 import { ExecutionPanel } from "../execution/ExecutionPanel";
 import { useLocalPythonRun, type LocalTestCase } from "../execution/use-local-python-run";
 import { usePracticeSubmissions } from "../execution/use-practice-submissions";
@@ -224,26 +224,20 @@ export default function Workspace({
   );
 }
 
-function ProblemWorkspace({
-  problem,
-  preview,
-  userId,
-  submissionId,
-}: {
-  problem: Problem;
-  preview: boolean;
-  userId: string;
-  submissionId?: string;
+function ProblemWorkspace(props: { problem: Problem; preview: boolean; userId: string; submissionId?: string }) {
+  const execution = useExecution(props.userId, props.problem.id, props.problem.problem_version_id, props.submissionId);
+  const parsed = publicRunBundleSchema.safeParse(execution.availability.data?.publicRun);
+  const bundle = parsed.success && parsed.data.problemId === props.problem.id && parsed.data.problemVersionId === props.problem.problem_version_id ? parsed.data : undefined;
+  if (execution.availability.isPending) return <p className="studio-empty" role="status">Loading the versioned execution contract…</p>;
+  return <EditorWorkspace key={bundle?.contract.adapter ? bundle.contractRevision : "legacy"} {...props} execution={execution} bundle={bundle} />;
+}
+
+function EditorWorkspace({ problem, preview, userId, execution, bundle }: {
+  problem: Problem; preview: boolean; userId: string; execution: ExecutionState; bundle?: PublicRunBundle;
 }) {
   const scope = useDSAScope(preview);
-  const execution = useExecution(
-    userId,
-    problem.id,
-    problem.problem_version_id,
-    submissionId,
-  );
   const localPython = useLocalPythonRun();
-  const publicTests = usePublicTests(scope, problem);
+  const { invalidate: invalidateLocalRun } = localPython;
   const practice = usePracticeSubmissions(problem.id, problem.problem_version_id);
   const [layout, setLayout] = useState<Layout>(() => savedLayout(userId));
   const [panel, setPanel] = useState(layout === "visual" ? "canvas" : "spec"),
@@ -259,11 +253,15 @@ function ProblemWorkspace({
     problem.id,
     problem.problem_version_id,
     language,
+    bundle?.contract.adapter ? bundle.contractRevision : undefined,
   );
+  const starterCode = (next: string) => next === "python" && bundle?.contract.adapter ? typedStarter(bundle.contract)! : pythonStarterCode(problem.function_contract, next);
   const [draft, setDraft] = useState(() =>
-    readDraft(storageKey, pythonStarterCode(problem.function_contract, language)),
+    readDraft(storageKey, starterCode(language)),
   );
   const currentDraft = useRef(draft);
+  const [previousDraft] = useState(() => bundle?.contract.adapter ? readDraft(draftKey(userId, problem.id, problem.problem_version_id, "python")) : null);
+  const [customInput, setCustomInput] = useState(() => JSON.stringify(problem.examples[0]?.input ?? {}, null, 2));
   const [storageError, setStorageError] = useState(false),
     [notice, setNotice] = useState("");
   const [reset, setReset] = useState(false);
@@ -314,6 +312,7 @@ function ProblemWorkspace({
   );
   const persist = useCallback(
     (change: Partial<Draft>, render = true) => {
+      if ("code" in change) invalidateLocalRun();
       const next = { ...currentDraft.current, ...change };
       currentDraft.current = next;
       if (render) setDraft(next);
@@ -324,7 +323,7 @@ function ProblemWorkspace({
         setStorageError(true);
       }
     },
-    [storageKey],
+    [storageKey, invalidateLocalRun],
   );
   const changeCode = useCallback(
     (code: string) => persist({ code }),
@@ -337,15 +336,10 @@ function ProblemWorkspace({
   const canRun =
     !preview && problem.availability === "available" && language === "python";
   const certifiedSubmit = execution.availability.data?.submit === true;
-  // Submission is available independently of a prior Run. The server
-  // independently checks all certified jobs. Other attempts are always
-  // recorded as unverified practice submissions, never Accepted verdicts.
-  const canSubmitTrusted = canRun && certifiedSubmit;
-  const canSubmitPractice =
-    canRun && !certifiedSubmit && !execution.availability.isPending;
-  const canSubmit =
-    !!draft.code.trim() && draft.code.length <= 24000 &&
-    (canSubmitTrusted || canSubmitPractice);
+  const receipt = localPython.run?.receipt;
+  const matchedRun = localPython.run?.state === "passed" && localPython.run.source === "verified" && localPython.run.code === draft.code && language === "python" && !!bundle && receipt?.userId === userId && receipt.problemId === problem.id && receipt.problemVersionId === problem.problem_version_id && receipt.publicRevision === bundle.revision && receipt.harnessSha256 === bundle.harnessSha256;
+  const canSubmitTrusted = canRun && certifiedSubmit && matchedRun;
+  const canSubmit = !!draft.code.trim() && draft.code.length <= 24000 && canSubmitTrusted;
   const blocked =
     execution.creating || execution.active || execution.needsRetry ||
     localPython.run?.state === "running" || practice.pending;
@@ -354,70 +348,21 @@ function ProblemWorkspace({
     : language !== "python"
       ? "Browser execution currently supports Python only."
       : "Run Python locally against public statement examples; no Nebius request.";
-  const submitReason = preview
-    ? "Switch to learner view to submit a published specification."
-    : language !== "python"
-      ? "Only Python submissions are currently supported."
-      : !certifiedSubmit
-        ? "Submit saves a real practice attempt and checks statement examples. Certified hidden grading is pending."
-        : "Submit directly to the certified hidden judge; Run is optional.";
+  const submitReason = preview ? "Switch to learner view to submit a published specification."
+    : language !== "python" ? "Only Python submissions are currently supported."
+      : !certifiedSubmit ? "Trusted submission is awaiting independent suite and contract certification."
+        : "Pass all certified public tests with unchanged code to unlock Submit.";
   async function execute(mode: "run" | "submit") {
-    setTestTab("results");
-    setMobile("tests");
+    setTestTab("results"); setMobile("tests");
     if (blocked) return;
     if (mode === "run") {
-      if (!canRun) {
-        setNotice(runReason);
-        return;
-      }
-      // Never call the remote execution API for Run. Prefer certified public
-      // fixtures; otherwise evaluate the public statement examples as
-      // educational, provisional evidence only.
-      const verified = publicTests.data?.pages.flatMap((page) => page.items) ?? [];
-      if (execution.availability.data?.run === true &&
-          (publicTests.isPending || publicTests.hasNextPage)) {
-        setNotice("Waiting for all verified public tests to load.");
-        return;
-      }
-      const source = execution.availability.data?.run === true ? "verified" : "examples";
-      const cases: LocalTestCase[] = source === "verified"
-        ? verified.map((row) => ({ id: row.id, input: row.input_json, expected: row.expected_output_json }))
-        : problem.examples.map((example, index) => ({
-            id: String(index), input: example.input, expected: example.output,
-          }));
-      void localPython.start(currentDraft.current.code, cases, source);
+      if (!canRun) { setNotice(runReason); return; }
+      if (execution.availability.data?.run && !bundle) { setNotice("The certified execution contract could not be loaded. Reload before running."); return; }
+      const cases: LocalTestCase[] = bundle ? bundle.cases : problem.examples.map((example, index) => ({ id: String(index), input: example.input, expected: example.output }));
+      void localPython.start(currentDraft.current.code, cases, bundle ? "verified" : "examples", "run", bundle ? { contract: bundle.contract, contractRevision: bundle.contractRevision, harnessSha256: bundle.harnessSha256, publicRevision: bundle.revision, userId, problemId: problem.id, problemVersionId: problem.problem_version_id } : undefined);
       return;
     }
-    if (!canSubmit) {
-      setNotice(submitReason);
-      return;
-    }
-    if (canSubmitPractice) {
-      const code = currentDraft.current.code;
-      const cases: LocalTestCase[] = problem.examples.map((example, index) => ({
-        id: String(index), input: example.input, expected: example.output,
-      }));
-      const local = await localPython.start(code, cases, "examples", "submit");
-      const checked = local.results.length;
-      const passed = local.results.filter((item) => item.passed).length;
-      const checkStatus = checked === 0
-        ? "not_evaluated"
-        : passed === checked ? "examples_passed" : "examples_failed";
-      try {
-        const saved = await practice.submit(code, {
-          checkStatus, clientCheckedCount: checked, clientPassedCount: passed,
-        });
-        setNotice("Submission " + saved.id.slice(0, 8) + " recorded. " +
-          (checked ? passed + "/" + checked + " statement examples passed locally. "
-            : "Example checks could not be completed. ") +
-          "Hidden grading is not yet certified.");
-      } catch (error) {
-        setNotice(error instanceof Error ? error.message : "Could not record submission.");
-      }
-      return;
-    }
-    // The server still independently evaluates the exact source against
-    // its certified plan; browser results are never treated as trusted proof.
+    if (!canSubmit) { setNotice(submitReason); return; }
     void execution.start(currentDraft.current.code, "submit");
   }
   function changeLayout(next: Layout) {
@@ -438,9 +383,10 @@ function ProblemWorkspace({
     }
   }
   function changeLanguage(next: string) {
+    localPython.invalidate();
     const recovered = readDraft(
-      draftKey(userId, problem.id, problem.problem_version_id, next),
-      pythonStarterCode(problem.function_contract, next),
+      draftKey(userId, problem.id, problem.problem_version_id, next, bundle?.contract.adapter ? bundle.contractRevision : undefined),
+      starterCode(next),
     );
     currentDraft.current = recovered;
     setDraft(recovered);
@@ -611,11 +557,11 @@ function ProblemWorkspace({
               >
                 {storageError ? "Draft not saved" : "Saved locally"}
               </span>
-              {!draft.code.trim() && pythonStarterCode(problem.function_contract, language) && (
+              {!draft.code.trim() && starterCode(language) && (
                 <button
                   type="button"
                   className="studio-icon"
-                  onClick={() => persist({ code: pythonStarterCode(problem.function_contract, language), view: undefined })}
+                  onClick={() => persist({ code: starterCode(language), view: undefined })}
                 >
                   Insert starter code
                 </button>
@@ -652,14 +598,14 @@ function ProblemWorkspace({
           {reset && (
             <div className="studio-notice" role="alert">
               <p>
-                {pythonStarterCode(problem.function_contract, language)
+                {starterCode(language)
                   ? "Reset this language’s code to the starter template? Your current code will be replaced."
                   : "Reset this language’s code to an empty draft? Your current code will be replaced."}
               </p>
               <button
                 type="button"
                 onClick={() => {
-                  persist({ code: pythonStarterCode(problem.function_contract, language), view: undefined });
+                  persist({ code: starterCode(language), view: undefined });
                   setReset(false);
                 }}
               >
@@ -696,6 +642,7 @@ function ProblemWorkspace({
               label="Test panels"
               options={[
                 { id: "examples", label: "Examples" },
+                { id: "custom", label: "Custom testcase" },
                 { id: "approved", label: "Approved tests" },
                 { id: "hidden", label: "Hidden suite" },
                 { id: "results", label: "Results" },
@@ -703,6 +650,17 @@ function ProblemWorkspace({
               selected={testTab}
               onSelect={setTestTab}
             />
+            <div className="studio-scroll studio-result-copy" hidden={testTab !== "custom"}>
+              <p className="studio-muted">Custom inputs are exploratory and never unlock Submit.</p>
+              <label>Custom input JSON<textarea aria-label="Custom input JSON" value={customInput} onChange={(event) => setCustomInput(event.target.value)} maxLength={65536} rows={6} /></label>
+              <button type="button" disabled={!canRun || blocked} onClick={() => {
+                try {
+                  const input = JSON.parse(customInput);
+                  setTestTab("results"); setMobile("tests");
+                  void localPython.start(currentDraft.current.code, [{ id: "custom", input, expected: null }], "custom", "run", bundle ? { contract: bundle.contract, harnessSha256: bundle.harnessSha256 } : undefined);
+                } catch { setNotice("Custom input must be valid JSON."); }
+              }}>Run custom input</button>
+            </div>
             <div
               className="studio-scroll studio-result-copy"
               hidden={testTab !== "examples"}
@@ -781,6 +739,7 @@ function ProblemWorkspace({
           />
         </aside>
       </div>
+      {previousDraft?.code && <details className="studio-resources"><summary>Previous contract draft retained</summary><p>Your earlier code remains associated with its original contract. Copy it only if you want to adapt it to this signature.</p><pre className="studio-json">{previousDraft.code}</pre><button type="button" onClick={() => { if (window.confirm("Replace the current code with your previous contract draft?")) persist({ code: previousDraft.code, approach: previousDraft.approach }); }}>Copy previous draft into this contract</button></details>}
       <div className="studio-approach">
         <label htmlFor="studio-approach">My approach</label>
         <textarea
@@ -811,9 +770,7 @@ function ProblemWorkspace({
       <footer className="studio-bottom">
         <p id="studio-execution-reason">
           {canRun ? "Run is local, with no sandbox API request. " : runReason}
-          {canSubmitTrusted ? "Submit uses trusted hidden grading."
-            : canSubmitPractice ? "Submit saves your attempt and checks statement examples. Results are provisional."
-            : ` ${submitReason}`}
+          {canSubmitTrusted ? "Submit uses trusted hidden grading." : ` ${submitReason}`}
         </p>
         <div className="studio-actions">
           <button
@@ -834,7 +791,6 @@ function ProblemWorkspace({
             aria-describedby="studio-execution-reason"
             title={canSubmitTrusted
               ? "Submit to certified hidden tests (Ctrl/Cmd+Shift+Enter)"
-              : canSubmitPractice ? "Submit and check statement examples (Ctrl/Cmd+Shift+Enter)"
               : submitReason}
           >
             <Send size={14} />

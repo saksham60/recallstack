@@ -6,6 +6,7 @@ loadEnvConfig(process.cwd());
 export default defineConfig({
   testDir: './e2e',
   testIgnore: [
+    '**/dsa-python-contract-unit.spec.ts',
     '**/langsmith.spec.ts',
     '**/dsa-execution-unit.spec.ts',
     '**/dsa-execution-live.spec.ts',

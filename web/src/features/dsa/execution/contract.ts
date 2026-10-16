@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { PublicRunBundle } from "@/lib/dsa-execution/python-contract";
 
 export const executionRequestSchema = z
   .object({
@@ -65,6 +66,7 @@ export interface ExecutionView {
   updatedAt: string;
 }
 export interface ExecutionAvailability {
+  publicRun?: PublicRunBundle;
   run: boolean;
   submit: boolean;
   runReason?: string;

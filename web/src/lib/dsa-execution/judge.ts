@@ -10,23 +10,9 @@ import {
   type OperationResult,
 } from "./types";
 
-export function safeJson(value: unknown, depth = 0): boolean {
-  if (depth > 32) return false;
-  if (value === null || typeof value === "boolean" || typeof value === "string")
-    return true;
-  if (typeof value === "number")
-    return (
-      Number.isFinite(value) &&
-      (!Number.isInteger(value) || Number.isSafeInteger(value))
-    );
-  if (Array.isArray(value))
-    return value.every((item) => safeJson(item, depth + 1));
-  return (
-    !!value &&
-    typeof value === "object" &&
-    Object.values(value).every((item) => safeJson(item, depth + 1))
-  );
-}
+import { safeJson, equal } from "./public-comparator";
+export { safeJson, equal };
+
 export function validatePlan(raw: unknown): EvaluationPlan {
   const parsed = planSchema.safeParse(raw);
   if (!parsed.success)
@@ -62,36 +48,6 @@ export function validatePlan(raw: unknown): EvaluationPlan {
   }
   return plan;
 }
-function canonical(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (value && typeof value === "object")
-    return `{${Object.entries(value)
-      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-      .map(([key, entry]) => `${JSON.stringify(key)}:${canonical(entry)}`)
-      .join(",")}}`;
-  return JSON.stringify(value);
-}
-export function equal(
-  actual: unknown,
-  expected: unknown,
-  contract: EvaluationPlan["contract"],
-): boolean {
-  if (!safeJson(actual)) return false;
-  if (contract.checker === "numeric")
-    return (
-      typeof actual === "number" &&
-      typeof expected === "number" &&
-      Math.abs(actual - expected) <= contract.absoluteTolerance!
-    );
-  if (contract.checker === "unordered_json")
-    return (
-      Array.isArray(actual) &&
-      Array.isArray(expected) &&
-      canonical(actual.map(canonical).sort()) ===
-        canonical(expected.map(canonical).sort())
-    );
-  return canonical(actual) === canonical(expected);
-}
 export function judge(
   plan: EvaluationPlan,
   operation: OperationResult,
@@ -114,7 +70,7 @@ export function judge(
     const fixture = plan.cases[index];
     const verdict: Verdict =
       row.status === "ok"
-        ? equal(row.actual, fixture.expected, plan.contract)
+        ? equal(row.actual, fixture.expected, plan.contract, fixture.input)
           ? "passed_public_tests"
           : "wrong_answer"
         : row.status;
