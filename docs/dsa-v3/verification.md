@@ -51,4 +51,6 @@ Vercel recallstack Production/Preview/Development and local ignored config have
 report generation disabled, maxAttempts=1 and an all-zero submission allowlist.
 Replace the allowlist with the two actual pilot IDs before limited live testing;
 never enable an unrestricted historical backlog within the remaining budget.
-Environment edits require a subsequent deployment. No V3 deployment was created.
+Environment edits require a subsequent deployment. No V3 production deployment was created. Pushing draft PR #34 starts an
+automatic preview build; remote checks are tracked on the PR separately from
+the local results above.

@@ -3,7 +3,10 @@
 Status: implemented and verified locally; **not a completed production release**.
 Application/reconciliation commit: `26fc1f12b22473d9163a1698742c1e10edb30817`.
 Integrated owner main baseline: `812e700`. Later packaging changes are metadata.
+Draft PR: [#34](https://github.com/saksham60/recallstack/pull/34), branch
+`codex/dsa-v3`. Remote CI and the automatic Vercel preview are separate checks.
 No V3 production deployment ID or persisted 3Sum submission/report ID exists.
+The branch push starts an automatic preview build; that is not a production rollout.
 
 | Deliverable | Review artifact |
 |---|---|
