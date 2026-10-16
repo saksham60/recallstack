@@ -58,7 +58,7 @@ test.describe('Platform growth analytics', () => {
     await expect(page.getByText('Recorded activation rate')).toBeVisible();
     await expect(page.getByText('Unknown source · historical registrations')).toBeVisible();
     await page.getByLabel('Reporting period').selectOption('7');
-    await expect(page).toHaveURL(/\\/admin/);
+    await expect(page).toHaveURL(/admin/);
   });
 });
 
