@@ -12,7 +12,7 @@ import {
   reportResponseSchema,
   type CodeAnalysis,
 } from "@/lib/dsa-reports/contracts";
-import type { ExecutionView } from "./contract";
+import { verdictLabel, type ExecutionView } from "./contract";
 
 const transport = () =>
   createAuthenticatedReasonAIFetch(getBrowserClient().auth);
@@ -319,12 +319,9 @@ export function SubmissionIntelligence({
                     job?.submissionId === row.submissionId ? "page" : undefined
                   }
                 >
-                  {row.result?.verdict.replaceAll("_", " ") ??
-                    row.status.replaceAll("_", " ")}{" "}
-                  {row.gradingLevel === "provisional" &&
-                  row.result?.verdict !== "provisional_pass"
-                    ? " · provisional"
-                    : ""}
+                  {row.result?.verdict
+                    ? verdictLabel(row.result.verdict)
+                    : row.status.replaceAll("_", " ")}
                   · {new Date(row.createdAt).toLocaleString()}
                 </Link>
               </li>
