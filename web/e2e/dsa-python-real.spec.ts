@@ -43,20 +43,20 @@ async function paste(page: Page, source: string) {
   await page.keyboard.press("ControlOrMeta+A"); await page.keyboard.press("ControlOrMeta+V");
 }
 
-test("actual Python executes typed signatures, unlocks exact-code Submit and makes zero sandbox POSTs", async ({ authenticatedPage: page }) => {
+test("actual Python Run is optional; Submit remains available when the source changes", async ({ authenticatedPage: page }) => {
   const { posts } = await setup(page);
   await expect(page.locator(".monaco-editor .view-lines")).toContainText("def array_total(nums: List[int]) -> int:");
-  await expect(page.getByRole("button", { name: "Submit", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Submit", exact: true })).toBeEnabled();
   await paste(page, "def array_total(nums: List[int]) -> int:\n    total = 0\n    for value in nums:\n        total += value\n    return total\n");
   await page.getByRole("button", { name: "Run", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Local Run · All displayed cases passed" })).toBeVisible({ timeout: 70000 });
   await expect(page.getByRole("button", { name: "Submit", exact: true })).toBeEnabled();
   expect(posts).toEqual([]);
   await paste(page, "def array_total(nums):\n    return 0\n");
-  await expect(page.getByRole("button", { name: "Submit", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Submit", exact: true })).toBeEnabled();
 });
 
-test("provisional local Run preserves unsafe integers through actual WASM and unlocks Submit",async({authenticatedPage:page})=>{
+test("suite-based local Run preserves unsafe integers through actual WASM",async({authenticatedPage:page})=>{
   const contract:PythonContract={entrypoint:"solve",inputMode:"single",checker:"exact_json",integerEncoding:"tagged-v1"};
   const {bundle,posts}=await setup(page,contract,[{input:{n:{$reasonaiInteger:"9007199254740993"}},expected:{$reasonaiInteger:"9007199254740995"}}]);
   await page.route("**/api/dsa/execution-capabilities?**",r=>r.fulfill({json:{run:true,submit:true,gradingLevel:"provisional",languages:["python"],publicRun:{...bundle,gradingLevel:"provisional"}}}));
@@ -65,7 +65,7 @@ test("provisional local Run preserves unsafe integers through actual WASM and un
   await page.getByRole("button",{name:"Run",exact:true}).click();
   await expect(page.getByRole("heading",{name:"Local Run · All displayed cases passed"})).toBeVisible({timeout:70000});
   await expect(page.getByRole("button",{name:"Submit",exact:true})).toBeEnabled();
-  await expect(page.locator("#studio-execution-reason")).toContainText("Provisional submission · independently verified fixtures. Passing does not award official Accepted or mastery.");
+  await expect(page.locator("#studio-execution-reason")).toContainText("Submit runs the current test suite in the sandbox and saves a separate AI review. Local Run is optional.");
   expect(posts).toEqual([]);
 });
 
@@ -75,7 +75,7 @@ test("actual Python reports syntax errors with solution line numbers", async ({ 
   await page.getByRole("button", { name: "Run", exact: true }).click();
   await expect(page.getByRole("region", { name: "Code and tests" })).toContainText("SyntaxError", { timeout: 70000 });
   await expect(page.getByText(/File "solution.py", line 2/)).toBeVisible();
-  await expect(page.getByRole("button", { name: "Submit", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Submit", exact: true })).toBeEnabled();
 });
 
 test("actual infinite Python is terminated and a subsequent Run gets a clean worker", async ({ authenticatedPage: page }) => {
@@ -125,7 +125,7 @@ test("real 3Sum: standard, empty, duplicates and zeros pass; wrong solution fail
   await paste(page, "def three_sum(nums):\n    return []\n");
   await page.getByRole("button", {name:"Run", exact:true}).click();
   await expect(page.getByRole("heading", {name:"Local Run · Some cases failed"})).toBeVisible({timeout:70000});
-  await expect(page.getByRole("button", {name:"Submit", exact:true})).toBeDisabled();
+  await expect(page.getByRole("button", {name:"Submit", exact:true})).toBeEnabled();
 });
 
 for (const [name, source, error] of [
@@ -176,7 +176,7 @@ test("real local cancellation and navigation terminate active work", async ({aut
   await expect(page.getByRole("button",{name:"Submit",exact:true})).toBeDisabled();
 });
 
-test("runtime download failure is diagnosed and does not unlock Submit", async ({authenticatedPage:page}) => {
+test("runtime download failure is diagnosed without disabling independent Submit", async ({authenticatedPage:page}) => {
   await setup(page);
   await page.context().route("https://cdn.jsdelivr.net/pyodide/**",r=>r.abort("failed"));
   await page.getByRole("button",{name:"Run",exact:true}).click();
@@ -184,7 +184,7 @@ test("runtime download failure is diagnosed and does not unlock Submit", async (
   await expect(page.getByRole("button",{name:"Submit",exact:true})).toBeDisabled();
 });
 
-test("real repeated warm Run, refresh, and custom input preserve the eligibility boundary",async({authenticatedPage:page})=>{
+test("real repeated warm Run, refresh and custom input do not gate Submit",async({authenticatedPage:page})=>{
   await setup(page); await paste(page,"def array_total(nums):\n    return sum(nums)");
   for(let i=0;i<2;i++){
     await page.getByRole("button",{name:"Run",exact:true}).click();
@@ -212,7 +212,7 @@ test("Python worker CSP blocks first-party authenticated fetch",async({authentic
   expect(requests).toBe(0);
 });
 
-test("approved typed starter works before suite certification; provisional examples cannot unlock Submit",async({authenticatedPage:page})=>{
+test("typed starter works when the server has no executable suite, and Submit stays unavailable",async({authenticatedPage:page})=>{
   const {bundle}=await setup(page);
   await page.route("**/api/dsa/execution-capabilities?**",r=>r.fulfill({json:{run:false,submit:false,languages:["python"],approvedContract:{problemId:ID,problemVersionId:VERSION,contract:sumContract,contractRevision:bundle.contractRevision,sourceNotice:"This authored version has its own published input contract."}}}));
   await page.reload();
