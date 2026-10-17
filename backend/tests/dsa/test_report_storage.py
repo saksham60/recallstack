@@ -34,6 +34,10 @@ def report_schema(execution_schema):
         legacy = migration.with_name("20261016074500_dsa_code_intelligence_reconcile_and_claim.sql")
         connection.connection.driver_connection.execute(legacy.read_text(encoding="utf-8"))
         connection.connection.driver_connection.execute(migration.read_text(encoding="utf-8"))
+        no_ceiling = migration.with_name(
+            "20261017150000_dsa_remove_report_attempt_ceiling.sql"
+        )
+        connection.connection.driver_connection.execute(no_ceiling.read_text(encoding="utf-8"))
     return execution_schema
 
 
@@ -150,7 +154,7 @@ def test_report_schema_is_private_and_infrastructure_failures_do_not_schedule(re
         connection.exec_driver_sql("select public.dsa_report_command('dispatch','{}')")
 
 
-def test_bounded_retries_expiry_fences_and_versioned_dedup(report_data):
+def test_retries_beyond_two_expiry_fences_and_versioned_dedup(report_data):
     data = report_data
     first = complete(data, "wrong_answer")
     due = dispatch(data)
@@ -177,9 +181,23 @@ def test_bounded_retries_expiry_fences_and_versioned_dedup(report_data):
     assert report_command(
         data, "finish", id=report_id, token=second_token, error="last", retry=True
     )
+    with data["engine"].begin() as connection:
+        connection.execute(
+            text(
+                "update dsa_reports_private.reports set next_dispatch_at=now(),"
+                "available_at=now() where id=:id"
+            ),
+            {"id": report_id},
+        )
+    third_token = uuid4()
+    assert report_command(data, "claim", id=report_id, token=third_token)["attempt"] == 3
+    assert report_command(
+        data, "finish", id=report_id, token=third_token, error="permanent", retry=False
+    )
     assert report_command(data, "claim", id=report_id, token=uuid4()) == "done"
     result = report_command(data, "get", submissionId=first, userId=data["owner"])
     assert result["report"]["status"] == "failed"
+    assert result["report"]["attempts"] == 3
     # Identical code with another actual verdict has an independent report.
     complete(data, "accepted")
     assert len(dispatch(data)) == 1
@@ -234,7 +252,7 @@ def test_history_keyset_pagination_is_bounded_and_exact_version_scoped(report_da
     assert report_command(data, "history", **{**args, "problemVersionId": uuid4()}) == {"items": []}
 
 
-def test_first_live_verification_can_disable_chargeable_retries_durably(report_data):
+def test_legacy_attempt_limit_parameter_no_longer_caps_retries(report_data):
     data = report_data
     complete(data)
     due = report_command(
@@ -245,7 +263,12 @@ def test_first_live_verification_can_disable_chargeable_retries_durably(report_d
     assert report_command(
         data, "finish", id=due[0]["id"], token=token, error="provider unavailable", retry=True
     )
-    assert report_command(data, "claim", id=due[0]["id"], token=uuid4()) == "done"
+    with data["engine"].begin() as connection:
+        connection.execute(
+            text("update dsa_reports_private.reports set available_at=now() where id=:id"),
+            {"id": due[0]["id"]},
+        )
+    assert report_command(data, "claim", id=due[0]["id"], token=uuid4())["attempt"] == 2
 
 
 def test_live_scope_does_not_drain_backlog_or_claim_unscoped_delivery(report_data):
@@ -256,7 +279,7 @@ def test_live_scope_does_not_drain_backlog_or_claim_unscoped_delivery(report_dat
     assert report_command(data, "dispatch", **args, submissionIds=[]) == {
         "code": "INVALID_CONFIGURATION"
     }
-    due = report_command(data, "dispatch", **args, submissionIds=[pilot], maxAttempts=1)
+    due = report_command(data, "dispatch", **args, submissionIds=[pilot])
     assert len(due) == 1
     assert report_command(data, "get", submissionId=old, userId=data["owner"])["report"] is None
     assert (
