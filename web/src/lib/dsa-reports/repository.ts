@@ -47,12 +47,26 @@ export function createReportRepository() {
   return {
     claim,
     finish,
-    dispatch: () =>
+    dispatch: (submissionId?: string) =>
       command<Array<{ id: string; generation: number }>>("dispatch", {
         model: getReasonAIConfiguration().model,
         rubric: REPORT_RUBRIC,
-        createdAfter: reportActivationBoundary(),
+        ...(submissionId
+          ? { submissionIds: [submissionId] }
+          : { createdAfter: reportActivationBoundary() }),
       }),
+    retry: async (userId: string, submissionId: string) => {
+      const { data, error } = await client.rpc("dsa_retry_code_intelligence", {
+        p_user_id: userId,
+        p_submission_id: submissionId,
+      }).abortSignal(AbortSignal.timeout(8000));
+      if (error || typeof data !== "string")
+        throw new ExecutionError(
+          "REPORT_STORAGE_UNAVAILABLE",
+          "Code Intelligence recovery is temporarily unavailable.",
+        );
+      return data as "queued" | "generating" | "completed" | "failed" | "rate_limited" | "not_found";
+    },
     get: (userId: string, submissionId: string) =>
       command<unknown>("get", { userId, submissionId }),
     history: (
