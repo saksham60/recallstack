@@ -36,6 +36,8 @@ def report_schema(execution_schema):
         connection.connection.driver_connection.execute(migration.read_text(encoding="utf-8"))
         no_ceiling = migration.with_name("20261017083528_dsa_remove_report_attempt_ceiling.sql")
         connection.connection.driver_connection.execute(no_ceiling.read_text(encoding="utf-8"))
+        recovery = migration.with_name("20261017180000_dsa_code_intelligence_failed_report_recovery.sql")
+        connection.connection.driver_connection.execute(recovery.read_text(encoding="utf-8"))
     return execution_schema
 
 
@@ -203,6 +205,39 @@ def test_retries_beyond_two_expiry_fences_and_versioned_dedup(report_data):
     # Identical code with another actual verdict has an independent report.
     complete(data, "accepted")
     assert len(dispatch(data)) == 1
+
+
+def test_failed_report_retry_is_owner_scoped_idempotent_and_keeps_judge_result(report_data):
+    data = report_data
+    submission_id = complete(data, "wrong_answer")
+    report_id = dispatch(data)[0]["id"]
+    token = uuid4()
+    assert report_command(data, "claim", id=report_id, token=token)["attempt"] == 1
+    assert report_command(data, "finish", id=report_id, token=token, retry=False, error="provider failure")
+
+    def retry(owner_id):
+        with data["engine"].begin() as connection:
+            connection.exec_driver_sql("set local role service_role")
+            return connection.scalar(
+                text("select public.dsa_retry_code_intelligence(:user_id,:submission_id)"),
+                {"user_id": owner_id, "submission_id": submission_id},
+            )
+
+    assert retry(data["other"]) == "not_found"
+    assert retry(data["owner"]) == "queued"
+    assert retry(data["owner"]) == "queued"
+    result = report_command(data, "get", submissionId=submission_id, userId=data["owner"])
+    assert result["report"]["id"] == report_id
+    assert result["report"]["status"] == "queued"
+    assert result["report"]["attempts"] == 1
+    assert dispatch(data)[0]["id"] == report_id
+    next_token = uuid4()
+    assert report_command(data, "claim", id=report_id, token=next_token)["attempt"] == 2
+    assert not report_command(data, "finish", id=report_id, token=token, document={"summary": "stale"})
+    assert report_command(data, "finish", id=report_id, token=next_token, document={"summary": "review restored"})
+    assert retry(data["owner"]) == "completed"
+    assert report_command(data, "get", submissionId=submission_id, userId=data["owner"])["report"]["status"] == "completed"
+    assert command(data, "get", id=submission_id, userId=data["owner"])["result"]["verdict"] == "wrong_answer"
 
 
 def test_daily_report_quota_global_concurrency_and_expired_worker_recovery(report_data):
