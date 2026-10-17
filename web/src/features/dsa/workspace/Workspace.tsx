@@ -445,26 +445,16 @@ function EditorWorkspace({
   );
   const canRun =
     !preview && problem.availability === "available" && language === "python";
-  const certifiedSubmit =
+  // Run is optional practice. Submitting requires only an available server-side
+  // suite; judging and AI feedback are independent from certification.
+  const submitAvailable =
     execution.availability.data?.submit === true &&
     !execution.availability.isError;
-  const provisionalSubmit =
-    execution.availability.data?.gradingLevel === "provisional";
-  const receipt = localPython.run?.receipt;
-  const matchedRun =
-    localPython.run?.state === "passed" &&
-    localPython.run.source === "verified" &&
-    localPython.run.code === draft.code &&
-    language === "python" &&
-    !!bundle &&
-    receipt?.userId === userId &&
-    receipt.problemId === problem.id &&
-    receipt.problemVersionId === problem.problem_version_id &&
-    receipt.publicRevision === bundle.revision &&
-    receipt.harnessSha256 === bundle.harnessSha256;
-  const canSubmitTrusted = canRun && certifiedSubmit && matchedRun;
   const canSubmit =
-    !!draft.code.trim() && draft.code.length <= 24000 && canSubmitTrusted;
+    canRun &&
+    submitAvailable &&
+    !!draft.code.trim() &&
+    draft.code.length <= 24000;
   const blocked =
     execution.creating ||
     execution.active ||
@@ -481,9 +471,11 @@ function EditorWorkspace({
       ? "Only Python submissions are currently supported."
       : execution.availability.isError
         ? "Submission availability could not be checked. Check availability again."
-        : !certifiedSubmit
-          ? "This problem's hidden tests are awaiting review. Passing statement examples does not enable Submit yet."
-          : "Pass all verified public tests with unchanged code to unlock Submit.";
+        : !submitAvailable
+          ? "This problem does not currently have an executable test suite."
+          : !draft.code.trim()
+            ? "Write a Python solution to submit."
+            : "Submit directly to the sandbox. Run is optional.";
   async function execute(mode: "run" | "submit") {
     setTestTab("results");
     setMobile("tests");
@@ -495,7 +487,7 @@ function EditorWorkspace({
       }
       if (execution.availability.data?.run && !bundle) {
         setNotice(
-          "The certified execution contract could not be loaded. Reload before running.",
+          "The execution contract could not be loaded. Reload before running.",
         );
         return;
       }
@@ -836,7 +828,7 @@ function EditorWorkspace({
               hidden={testTab !== "custom"}
             >
               <p className="studio-muted">
-                Custom inputs are exploratory and never unlock Submit.
+                Custom inputs are exploratory and are not used for sandbox grading.
               </p>
               <label>
                 Custom input JSON
@@ -899,12 +891,10 @@ function EditorWorkspace({
             >
               <h3>Hidden-suite status</h3>
               <p className="studio-muted">
-                {execution.availability.data?.submit
-                  ? provisionalSubmit
-                    ? "Provisional hidden grading is available using independently verified fixtures. Results are not official Accepted verdicts. Hidden case details remain private."
-                    : "A certified hidden suite is available for this version. Hidden case details remain private."
+                {submitAvailable
+                  ? "Sandbox judging uses the current test suite. Hidden case details remain private; test cases may be corrected over time."
                   : (execution.availability.data?.submitReason ??
-                    "Hidden-suite availability is being checked.")}
+                    "Test-suite availability is being checked.")}
               </p>
             </div>
             <div
@@ -919,7 +909,7 @@ function EditorWorkspace({
                 localRun={localPython.run}
                 onCancelLocal={localPython.cancel}
                 practiceSubmission={practice.latest}
-                submitBlockReason={canSubmitTrusted ? undefined : submitReason}
+                submitBlockReason={submitAvailable ? undefined : submitReason}
                 onCheckSubmission={() => void execution.availability.refetch()}
                 checkingSubmission={execution.availability.isFetching}
               />
@@ -1043,10 +1033,8 @@ function EditorWorkspace({
       <footer className="studio-bottom">
         <p id="studio-execution-reason">
           {canRun ? "Run is local, with no sandbox API request. " : runReason}
-          {canSubmitTrusted
-            ? provisionalSubmit
-              ? "Provisional submission · independently verified fixtures. Passing does not award official Accepted or mastery."
-              : "Submit uses trusted hidden grading."
+          {submitAvailable
+            ? "Submit runs the current test suite in the sandbox and saves a separate AI review. Local Run is optional."
             : ` ${submitReason}`}
         </p>
         <div className="studio-submission-actions">
@@ -1067,33 +1055,19 @@ function EditorWorkspace({
               onClick={() => execute("submit")}
               className="studio-primary"
               aria-describedby={
-                canSubmitTrusted
+                submitAvailable
                   ? "studio-execution-reason"
                   : "studio-execution-reason studio-submit-status"
               }
-              title={
-                canSubmitTrusted
-                  ? provisionalSubmit
-                    ? "Submit for provisional hidden grading (Ctrl/Cmd+Shift+Enter)"
-                    : "Submit to certified hidden tests (Ctrl/Cmd+Shift+Enter)"
-                  : submitReason
-              }
+              title={submitAvailable ? "Submit to sandbox (Ctrl/Cmd+Shift+Enter)" : submitReason}
             >
               <Send size={14} />
               Submit
             </button>
           </div>
-          {!canSubmitTrusted && (
+          {!submitAvailable && (
             <span id="studio-submit-status" className="studio-submit-state">
-              {preview
-                ? "Submit unavailable in reviewer preview"
-                : language !== "python"
-                  ? "Submit supports Python only"
-                  : execution.availability.isError
-                    ? "Submit availability unavailable"
-                    : !certifiedSubmit
-                      ? "Submit unavailable · hidden tests under review"
-                      : "Pass verified public tests to unlock Submit"}
+              {submitReason}
             </span>
           )}
         </div>
