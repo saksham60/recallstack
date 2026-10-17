@@ -118,6 +118,8 @@ function Report({
 }) {
   const polls = useRef(0);
   const [pollingStopped, setPollingStopped] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState("");
   const query = useQuery({
     queryKey: ["dsa-code-intelligence", userId, job.submissionId],
     queryFn: async ({ signal }) => {
@@ -138,6 +140,26 @@ function Report({
     refetchIntervalInBackground: false,
   });
   const report = query.data?.report;
+  async function retryReview() {
+    if (retrying) return;
+    setRetrying(true);
+    setRetryError("");
+    try {
+      const response = await transport()(
+        `/api/dsa/submissions/${job.submissionId}/report`,
+        { method: "POST" },
+        AbortSignal.timeout(12000),
+      );
+      if (!response.ok) throw new Error("Retry unavailable");
+      polls.current = 0;
+      setPollingStopped(false);
+      await query.refetch();
+    } catch {
+      setRetryError("Could not restart your AI review. Please try again.");
+    } finally {
+      setRetrying(false);
+    }
+  }
   return (
     <section
       className="studio-code-intelligence"
@@ -168,11 +190,12 @@ function Report({
         </p>
       ) : report?.status === "completed" && report.analysis ? (
         <Analysis analysis={report.analysis} onFollowup={onFollowup} />
-      ) : report?.status === "failed" || report?.status === "rate_limited" ? (
+      ) : report?.status === "failed" ? (
         <p role="status">
-          {report.error ??
-            "Analysis is not yet available. The judge result is saved."}
+          AI review could not finish. Your judge result and submitted code are saved.
         </p>
+      ) : report?.status === "rate_limited" ? (
+        <p role="status">{report.error ?? "AI review is temporarily unavailable."}</p>
       ) : query.data?.enabled ? (
         <p role="status">
           {pollingStopped
@@ -185,6 +208,12 @@ function Report({
           this environment.
         </p>
       )}
+      {report?.status === "failed" && query.data?.enabled && (
+        <button type="button" disabled={retrying} onClick={() => void retryReview()}>
+          {retrying ? "Restarting AI review…" : "Retry AI Review"}
+        </button>
+      )}
+      {retryError && <p role="alert">{retryError}</p>}
       {(query.error || pollingStopped) && (
         <button
           type="button"
