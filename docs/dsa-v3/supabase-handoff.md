@@ -139,8 +139,10 @@ reads and the authenticated recovery sweep dispatch the durable outbox. The flag
 `DSA_CODE_INTELLIGENCE_ENABLED` defaults to `0`; it has not been enabled live.
 Vercel project `recallstack` has the feature flag configured in Production,
 Preview and Development. The `DSA_CODE_INTELLIGENCE_MAX_ATTEMPTS` environment
-setting was retired: dispatch uses the database default of two bounded attempts.
-Previously created reports retain their original stored attempt limits.
+setting was retired. Report generation no longer has a fixed attempt ceiling;
+only transient errors are retried, respecting the queue lease/backoff and
+concurrency protections. Previously failed reports are not automatically
+requeued; an operator must explicitly request a fresh analysis.
 Environment edits take effect on a subsequent deployment, not an existing one.
 Keep generation disabled until schema/application compatibility is verified.
 Submission-ID allowlisting was removed after the initial pilot. Report creation now applies to all eligible judged submissions when generation is enabled, with per-user quotas and bounded concurrency preserved. Historical pending events remain intact.
