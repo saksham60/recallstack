@@ -101,8 +101,8 @@ export function Explorer({
         )}
         {!scope.preview && (
           <p className="studio-notice">
-            Early access: published problems support Python Run and Submit.
-            Results are provisional unless the hidden suite is officially certified.
+            Published problems support Python Run and direct sandbox Submit.
+            Results reflect the current test suite, which may be updated.
           </p>
         )}
         {statistics.data && (
