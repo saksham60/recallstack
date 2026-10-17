@@ -36,7 +36,7 @@ def report_schema(execution_schema):
         connection.connection.driver_connection.execute(migration.read_text(encoding="utf-8"))
         no_ceiling = migration.with_name("20261017083528_dsa_remove_report_attempt_ceiling.sql")
         connection.connection.driver_connection.execute(no_ceiling.read_text(encoding="utf-8"))
-        recovery = migration.with_name("20261017180000_dsa_code_intelligence_failed_report_recovery.sql")
+        recovery = migration.with_name("20261017134338_dsa_code_intelligence_failed_report_recovery.sql")
         connection.connection.driver_connection.execute(recovery.read_text(encoding="utf-8"))
     return execution_schema
 
