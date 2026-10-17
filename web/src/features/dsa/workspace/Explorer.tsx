@@ -101,8 +101,8 @@ export function Explorer({
         )}
         {!scope.preview && (
           <p className="studio-notice">
-            Early access: some problem statements are still under review. Run
-            and Submit are enabled only for certified tests.
+            Early access: problem statements and execution are still under review.
+            Run and Submit availability may vary by problem.
           </p>
         )}
         {statistics.data && (
