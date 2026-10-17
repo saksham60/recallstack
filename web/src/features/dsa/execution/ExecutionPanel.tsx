@@ -1,5 +1,6 @@
 "use client";
 import type { ExecutionState } from "./use-execution";
+import { verdictLabel } from "./contract";
 import type { LocalRun } from "./use-local-python-run";
 import type { PracticeSubmission } from "./use-practice-submissions";
 import { JsonBlock } from "../workspace/Specification";
@@ -195,7 +196,7 @@ export function ExecutionPanel({
           <p className="studio-muted">
             {job.mode === "run"
               ? "Public fixture run"
-              : "Hidden-suite submission"}{" "}
+              : "Sandbox test-suite submission"}{" "}
             · {job.language} · Results belong to the code submitted for this
             execution.
           </p>
@@ -243,17 +244,17 @@ export function ExecutionPanel({
         <>
           <span className="studio-eyebrow">
             {job.gradingLevel === "provisional"
-              ? "Provisional judge result"
+              ? "Sandbox judge · current test suite"
               : "Verified by Judge"}
           </span>
           {job.gradingLevel === "provisional" && (
             <p className="studio-notice">
-              Independently verified fixtures; suite review is pending. This
-              result does not award official Accepted or mastery.
+              Results reflect the available test cases. We may correct the
+              suite over time; a passing result is not a correctness guarantee.
             </p>
           )}
           <h3 className="studio-verdict">
-            {job.result.verdict.replaceAll("_", " ")}
+            {verdictLabel(job.result.verdict)}
           </h3>
           {job.result.totalTests !== undefined && (
             <p>
@@ -270,7 +271,7 @@ export function ExecutionPanel({
             job.result.publicCases?.map((row, index) => (
               <article className="studio-example" key={row.id}>
                 <h4>
-                  Public case {index + 1} · {row.verdict.replaceAll("_", " ")}
+                  Public case {index + 1} · {verdictLabel(row.verdict)}
                 </h4>
                 <span className="studio-eyebrow">INPUT</span>
                 <JsonBlock value={row.input} />
