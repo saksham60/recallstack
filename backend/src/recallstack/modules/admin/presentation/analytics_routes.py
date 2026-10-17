@@ -1,4 +1,5 @@
 from datetime import datetime
+from enum import IntEnum
 from typing import Annotated, Any, Literal, cast
 from uuid import UUID
 
@@ -30,6 +31,12 @@ def get_admin_analytics_service(request: Request) -> AdminAnalyticsService:
 
 AnalyticsDependency = Annotated[AdminAnalyticsService, Depends(get_admin_analytics_service)]
 SortOrder = Literal["asc", "desc"]
+
+
+class GrowthDays(IntEnum):
+    WEEK = 7
+    MONTH = 30
+    QUARTER = 90
 
 
 def _audit(
@@ -89,10 +96,10 @@ async def platform_growth(
     request: Request,
     current_user: AdminUserDependency,
     service: AnalyticsDependency,
-    days: Annotated[Literal[7, 30, 90], Query()] = 30,
+    days: Annotated[GrowthDays, Query()] = GrowthDays.MONTH,
 ) -> GrowthResponse:
     result = await service.growth(
-        days, audit=_audit(request, current_user.profile_id, "admin.growth.viewed", "platform")
+        int(days), audit=_audit(request, current_user.profile_id, "admin.growth.viewed", "platform")
     )
     return GrowthResponse.model_validate(result)
 
