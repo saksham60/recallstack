@@ -22,7 +22,6 @@ async function json<T>(response: Response): Promise<T> {
 
 export function usePracticeSubmissions(problemId: string, problemVersionId: string) {
   const [latest, setLatest] = useState<PracticeSubmission | null>(null);
-  const [pending, setPending] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
     void (async () => {
@@ -41,28 +40,5 @@ export function usePracticeSubmissions(problemId: string, problemVersionId: stri
     return () => controller.abort();
   }, [problemId, problemVersionId]);
 
-  async function submit(code: string, check: {
-    checkStatus: PracticeSubmission["checkStatus"];
-    clientCheckedCount: number;
-    clientPassedCount: number;
-  }) {
-    setPending(true);
-    try {
-      const result = await json<PracticeSubmission>(
-        await client()("/api/dsa/practice-submissions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            problemId, problemVersionId, language: "python", code,
-            ...check,
-          }),
-        }, AbortSignal.timeout(25000)),
-      );
-      setLatest(result);
-      return result;
-    } finally {
-      setPending(false);
-    }
-  }
-  return { latest, pending, submit };
+  return { latest };
 }

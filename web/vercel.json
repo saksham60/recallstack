@@ -1,6 +1,12 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
+    "src/app/api/queues/dsa-code-intelligence/route.ts": {
+      "maxDuration": 60,
+      "experimentalTriggers": [
+        { "type": "queue/v2beta", "topic": "dsa-code-intelligence" }
+      ]
+    },
     "src/app/api/queues/dsa-executions/route.ts": {
       "maxDuration": 60,
       "experimentalTriggers": [

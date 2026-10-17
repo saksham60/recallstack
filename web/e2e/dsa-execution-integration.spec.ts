@@ -25,10 +25,14 @@ test("worker repository uses HTTP RPC, real PostgreSQL leases, and trusted persi
   const user = process.env.DSA_EXECUTION_TEST_USER!,
     problemId = process.env.DSA_EXECUTION_TEST_PROBLEM!,
     problemVersionId = process.env.DSA_EXECUTION_TEST_VERSION!;
-  expect(await repository.availability(problemId, problemVersionId)).toEqual({
+  const availability = await repository.availability(problemId, problemVersionId);
+  expect(availability).toMatchObject({
     run: true,
     submit: true,
   });
+  expect(availability.publicRun?.cases).toHaveLength(1);
+  expect(availability.publicRun?.cases[0].input).toEqual({nums:[1]});
+  expect(availability.publicRun?.harnessSha256).toMatch(/^[a-f0-9]{64}$/);
   const owned = new Set<string>();
   const base =
     process.env.DSA_LIVE_SANDBOX === "1" ? createSandboxAdapter() : undefined;

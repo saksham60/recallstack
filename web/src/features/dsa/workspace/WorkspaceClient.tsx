@@ -13,12 +13,14 @@ export function WorkspaceClient({
   problemId,
   versionId,
   preview,
+  submissionId,
 }: {
   problemId?: string;
   versionId?: string;
   preview: boolean;
+  submissionId?: string;
 }) {
   return (
-    <Studio problemId={problemId} versionId={versionId} preview={preview} />
+    <Studio problemId={problemId} versionId={versionId} preview={preview} submissionId={submissionId} />
   );
 }

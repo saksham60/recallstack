@@ -51,6 +51,8 @@ async def api():
         catalog=AsyncMock(return_value=[]),
         detail=AsyncMock(return_value=None),
         metadata=AsyncMock(return_value=[]),
+        resolve=AsyncMock(return_value=None),
+        topic_progress=AsyncMock(return_value=[]),
         tests=AsyncMock(return_value=[]),
         history=AsyncMock(return_value=[]),
         statistics=AsyncMock(),
@@ -348,6 +350,47 @@ def test_all_routes_registered_once_and_existing_routes_preserved():
         if path.startswith("/api/v1/dsa/")
         for op in methods.values()
     ]
-    assert len(operations) == len(set(operations)) == 18
+    assert len(operations) == len(set(operations)) == 20
     assert "/api/v1/me/progress/{contentId}" in schema["paths"]
     assert "/api/v1/practice/attempts" in schema["paths"]
+
+
+async def test_resolver_pins_version_and_never_returns_private_specification(api):
+    row = problem(reference_solution_python="SECRET", approved=False)
+    api.store.resolve.return_value = row
+    response = await api.client.get("/api/v1/dsa/resolve", params={"problem": row["slug"]})
+    assert response.status_code == 200
+    assert response.json()["availability"] == "review_pending"
+    assert "SECRET" not in response.text and "function_contract" not in response.text
+    api.store.resolve.assert_awaited_once_with(row["slug"], False, None)
+    api.store.resolve.reset_mock()
+    response = await api.client.get(
+        "/api/v1/dsa/resolve",
+        params={"problem": str(row["id"]), "problem_version_id": str(row["problem_version_id"])},
+    )
+    assert response.status_code == 200
+    api.store.resolve.assert_awaited_once_with(str(row["id"]), False, row["problem_version_id"])
+
+
+async def test_resolver_missing_and_preview_auth(api):
+    response = await api.client.get("/api/v1/dsa/resolve", params={"problem": "missing"})
+    assert response.status_code == 404
+    response = await api.client.get(
+        "/api/v1/dsa/resolve", params={"problem": "two-sum", "preview": True}
+    )
+    assert response.status_code == 401
+    response = await api.client.get("/api/v1/dsa/resolve", params={"problem": "../../private"})
+    assert response.status_code == 422
+
+
+async def test_topic_progress_uses_verified_identity(api):
+    response = await api.client.get("/api/v1/dsa/me/topic-progress")
+    assert response.status_code == 401
+    api.app.dependency_overrides[get_current_user] = lambda: api.user
+    api.store.topic_progress.return_value = [
+        {"id": uuid4(), "attempted_count": 2, "mastered_count": 1}
+    ]
+    response = await api.client.get("/api/v1/dsa/me/topic-progress")
+    assert response.status_code == 200
+    assert response.json()["items"][0]["mastered_count"] == 1
+    api.store.topic_progress.assert_awaited_once_with(api.user.profile_id)

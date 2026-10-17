@@ -6,6 +6,7 @@ import {
   executionConfigured,
 } from "@/lib/dsa-execution/repository";
 import { executionHttpError, reply } from "@/lib/dsa-execution/http";
+import { dispatchReports } from "@/lib/dsa-reports/queue";
 export const runtime = "nodejs";
 export const maxDuration = 30;
 function authorized(request: Request) {
@@ -18,7 +19,9 @@ export async function GET(request: Request) {
   if (!authorized(request)) return reply({ error: "Unauthorized." }, 401);
   if (!executionConfigured()) return reply({ dispatched: 0, disabled: true });
   try {
-    return reply(await dispatchExecutions(createExecutionRepository()));
+    const executions = await dispatchExecutions(createExecutionRepository());
+    const reports = await dispatchReports();
+    return reply({ ...executions, reports });
   } catch (error) {
     return executionHttpError(error);
   }

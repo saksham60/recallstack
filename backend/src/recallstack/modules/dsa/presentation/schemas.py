@@ -36,6 +36,16 @@ class TaxonomyResponse(BaseModel):
     items: list[TaxonomyCount]
 
 
+class DsaTopicProgress(BaseModel):
+    id: UUID
+    attempted_count: int
+    mastered_count: int
+
+
+class DsaTopicProgressResponse(BaseModel):
+    items: list[DsaTopicProgress]
+
+
 class ProblemItem(BaseModel):
     id: UUID
     problem_version_id: UUID

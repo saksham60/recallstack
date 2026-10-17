@@ -14,10 +14,12 @@ from recallstack.modules.dsa.presentation.schemas import (
     CatalogResponse,
     DsaNoteResponse,
     DsaProgressResponse,
+    DsaTopicProgressResponse,
     NoteCreate,
     PracticeHistoryResponse,
     ProblemDetail,
     ProblemError,
+    ProblemItem,
     ProgressPatch,
     StatisticsResponse,
     TaxonomyResponse,
@@ -55,6 +57,25 @@ router = APIRouter(prefix="/dsa", tags=["dsa"], route_class=DsaRoute, responses=
 Limit = Annotated[int, Query(ge=1, le=50)]
 Cursor = Annotated[str | None, Query(max_length=2048)]
 Page = Annotated[int, Query(ge=1, le=1000)]
+
+
+@router.get("/resolve", response_model=ProblemItem, operation_id="resolveDsaProblem")
+async def resolve_problem(
+    service: Service,
+    preview: Preview,
+    problem: Annotated[str, Query(min_length=1, max_length=160, pattern=r"^[a-zA-Z0-9_-]+$")],
+    problem_version_id: UUID | None = None,
+) -> ProblemItem:
+    return ProblemItem.model_validate(await service.resolve(problem, preview, problem_version_id))
+
+
+@router.get(
+    "/me/topic-progress",
+    response_model=DsaTopicProgressResponse,
+    operation_id="getMyDsaTopicProgress",
+)
+async def topic_progress(user: CurrentUserDependency, service: Service) -> DsaTopicProgressResponse:
+    return DsaTopicProgressResponse.model_validate(await service.topic_progress(user.profile_id))
 
 
 @router.get("/problems", response_model=CatalogResponse, operation_id="listDsaProblems")

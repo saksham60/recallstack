@@ -1,150 +1,114 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { equal, safeJson } from "@/lib/dsa-execution/public-comparator";
+import type { PythonContract } from "@/lib/dsa-execution/python-contract";
 
 export type LocalTestCase = { id: string; input: unknown; expected: unknown };
-export type LocalCaseResult = LocalTestCase & {
-  passed: boolean;
-  actual?: unknown;
-  error?: string;
-  stdout?: string;
-  durationMs?: number;
-};
+export type LocalCaseResult = LocalTestCase & { passed: boolean; actual?: unknown; error?: string; stdout?: string; durationMs?: number; status?: string };
+export type RunReceipt = { userId: string; problemId: string; problemVersionId: string; language: "python"; codeSha256: string; adapterVersion: string; publicRevision: string; harnessSha256: string };
 export type LocalRun = {
-  state: "running" | "passed" | "failed";
-  source: "verified" | "examples";
-  purpose: "run" | "submit";
-  code: string;
-  results: LocalCaseResult[];
-  message?: string;
+  state: "running" | "passed" | "failed" | "cancelled";
+  phase?: "initializing" | "running" | "completed" | "failed" | "cancelled";
+  source: "verified" | "examples" | "custom"; purpose: "run" | "submit"; code: string;
+  results: LocalCaseResult[]; message?: string; currentCase?: number; totalCases?: number;
+  initializationMs?: number; totalExecutionMs?: number; durationMs?: number; receipt?: RunReceipt;
 };
-function canonical(value: unknown): string {
-  if (Array.isArray(value)) return "[" + value.map(canonical).join(",") + "]";
-  if (value && typeof value === "object")
-    return "{" + Object.entries(value)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, entry]) => JSON.stringify(key) + ":" + canonical(entry))
-      .join(",") + "}";
-  return JSON.stringify(value);
-}
-// Client-only educational execution against public inputs, never an official
-// hidden-test verdict. Results are untrusted by the backend.
+export type LocalRunOptions = { contract: PythonContract; contractRevision?: string; harnessSha256?: string; publicRevision?: string; userId?: string; problemId?: string; problemVersionId?: string };
+const PROVISIONAL: PythonContract = { entrypoint: "solve", inputMode: "single", checker: "exact_json" };
+const INITIALIZATION_LIMIT_MS = 60000, CASE_LIMIT_MS = 3000, RUN_LIMIT_MS = 120000;
+
+type WorkerResult = { id: string; status: string; actual?: unknown; stderr?: string; stdout?: string; durationMs?: number };
+function createWorker() { return new Worker("/dsa/python-worker.mjs", { type: "module", name: "reasonai-local-python" }); }
+
 export function useLocalPythonRun() {
-  const worker = useRef<Worker | null>(null);
-  const busy = useRef(false);
-  const activeCancel = useRef<(() => void) | null>(null);
+  const idle = useRef<Worker | null>(null), active = useRef<Worker | null>(null);
+  const busy = useRef(false), serial = useRef(0), activeCancel = useRef<(() => void) | null>(null);
   const [run, setRun] = useState<LocalRun | null>(null);
+  const cancel = useCallback(() => { activeCancel.current?.(); }, []);
+  const invalidate = useCallback(() => { serial.current++; activeCancel.current?.(); setRun(null); }, []);
   useEffect(() => () => {
-    worker.current?.terminate();
-    worker.current = null;
+    serial.current++; activeCancel.current?.(); active.current?.terminate(); idle.current?.terminate(); idle.current = null;
   }, []);
-  function cancel() {
-    activeCancel.current?.();
+  function prewarm() {
+    try {
+      const worker = createWorker(); idle.current = worker;
+      worker.onerror = (event) => { event.preventDefault(); worker.terminate(); if (idle.current === worker) idle.current = null; };
+      worker.postMessage({ action: "initialize" });
+    } catch { /* Initialization diagnostics appear on the next explicit Run. */ }
   }
-  async function start(
-    code: string,
-    cases: LocalTestCase[],
-    source: "verified" | "examples",
-    purpose: "run" | "submit" = "run",
-  ): Promise<LocalRun> {
-    if (busy.current) return {
-      code, source, purpose, state: "failed", results: [],
-      message: "A Python execution is already running.",
-    };
-    if (!code.trim() || cases.length === 0 || cases.length > 20) {
-      const failed: LocalRun = {
-        code, source, purpose, state: "failed", results: [],
-        message: !code.trim()
-          ? "Write a Python solution before running."
-          : "No executable public cases are available for this version.",
-      };
-      setRun(failed);
-      return failed;
+  async function start(code: string, cases: LocalTestCase[], source: "verified" | "examples" | "custom", purpose: "run" | "submit" = "run", options?: LocalRunOptions): Promise<LocalRun> {
+    if (busy.current) return { code, source, purpose, state: "failed", results: [], message: "A Python execution is already running." };
+    const failed = (message: string): LocalRun => ({ code, source, purpose, state: "failed", phase: "failed", results: [], message });
+    if (!code.trim() || code.length > 24000 || !cases.length || cases.length > 100 || !cases.every((test) => safeJson(test.input) && safeJson(test.expected)) || new TextEncoder().encode(JSON.stringify(cases.map((t) => t.input))).byteLength > 65536) {
+      const result = failed(!code.trim() ? "Write a Python solution before running." : "Public inputs are missing or exceed supported execution limits."); setRun(result); return result;
     }
+    if (source === "verified" && (!options?.harnessSha256 || !options.publicRevision)) { const result = failed("The certified runner contract is not loaded. Refresh and try again."); setRun(result); return result; }
     busy.current = true;
-    setRun({ code, source, purpose, state: "running", results: [] });
-    if (!worker.current) {
-      try {
-        worker.current = new Worker("/dsa/python-worker.mjs", { type: "module" });
-      } catch {
-        busy.current = false;
-        const failed: LocalRun = {
-          code, source, purpose, state: "failed", results: [],
-          message: "This browser cannot initialize the local Python worker.",
-        };
-        setRun(failed);
-        return failed;
-      }
-    }
-    const current = worker.current;
-    return await new Promise<LocalRun>((resolve) => {
-      let completed = false;
-      const finish = (next: LocalRun, terminate = false) => {
-        if (completed) return;
-        completed = true;
-        clearTimeout(timer);
-        current.removeEventListener("message", onMessage);
-        current.removeEventListener("error", onError);
-        if (terminate) {
-          current.terminate();
-          if (worker.current === current) worker.current = null;
-        }
-        busy.current = false;
-        activeCancel.current = null;
-        setRun(next);
-        resolve(next);
-      };
-      const onMessage = (event: MessageEvent) => {
-        const payload = event.data as {
-          error?: string;
-          results?: Array<{
-            id: string; ok: boolean; actual?: unknown;
-            error?: string; stdout?: string; durationMs?: number;
-          }>;
-        };
-        if (payload.error || !payload.results) {
-          finish({
-            code, source, purpose, state: "failed", results: [],
-            message: payload.error ?? "The Python worker did not return results.",
-          }, !!payload.error);
-          return;
-        }
-        const mapped = cases.map((test, index) => {
-          const response = payload.results?.[index];
-          const passed = response?.id === test.id &&
-            response.ok === true &&
-            canonical(response.actual) === canonical(test.expected);
-          return {
-            ...test,
-            passed,
-            ...(response?.ok && Object.prototype.hasOwnProperty.call(response, "actual")
-              ? { actual: response.actual } : {}),
-            ...(response?.error ? { error: response.error } : {}),
-            ...(response?.stdout ? { stdout: response.stdout } : {}),
-            durationMs: response?.durationMs,
+    const current = ++serial.current, started = performance.now(), contract = options?.contract ?? PROVISIONAL;
+    let cancelled = false, terminateCase: (() => void) | undefined, initializationMs = 0;
+    const results: LocalCaseResult[] = [];
+    const update = (state: Partial<LocalRun>) => { if (serial.current === current) setRun({ code, source, purpose, state: "running", results: [...results], totalCases: cases.length, initializationMs, ...state }); };
+    activeCancel.current = () => { cancelled = true; terminateCase?.(); };
+    const wholeTimer = window.setTimeout(() => { terminateCase?.(); }, RUN_LIMIT_MS);
+    let codeSha256 = "";
+    try {
+      update({ phase: "initializing", currentCase: 1 });
+      codeSha256 = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(code))), (n) => n.toString(16).padStart(2, "0")).join("");
+      for (let index = 0; index < cases.length; index++) {
+        if (cancelled || serial.current !== current) throw new Error("Local Run cancelled.");
+        if (performance.now() - started > RUN_LIMIT_MS) throw new Error("The whole-run execution budget was exceeded.");
+        const test = cases[index];
+        update({ phase: "initializing", currentCase: index + 1 });
+        const worker = idle.current ?? createWorker(); idle.current = null; active.current = worker;
+        const response = await new Promise<{ result: WorkerResult; initializationMs: number }>((resolve, reject) => {
+          let complete = false, timer: number, initialized = 0;
+          const finish = (error?: Error, result?: WorkerResult) => {
+            if (complete) return; complete = true; window.clearTimeout(timer);
+            worker.removeEventListener("message", message); worker.removeEventListener("error", errorEvent);
+            worker.terminate(); if (active.current === worker) active.current = null;
+            terminateCase = undefined;
+            if (error) reject(error); else resolve({ result: result!, initializationMs: initialized });
           };
+          const arm = (ms: number, text: string) => { window.clearTimeout(timer); timer = window.setTimeout(() => finish(new Error(text)), ms); };
+          const message = (event: MessageEvent) => {
+            const data = event.data;
+            if (data.phase === "ready") return;
+            if (options?.harnessSha256 && data.harnessSha256 !== options.harnessSha256) { finish(new Error("The Python harness changed. Reload the workspace before running again.")); return; }
+            if (data.error) { finish(new Error(data.error)); return; }
+            if (data.phase === "initializing") return;
+            if (data.phase === "running") {
+              initialized = typeof data.initializationMs === "number" ? data.initializationMs : 0;
+              update({ phase: "running", currentCase: index + 1 });
+              arm(CASE_LIMIT_MS, `Timeout: case ${index + 1} exceeded the 3-second execution budget.`); return;
+            }
+            const row = data.results?.[0] as WorkerResult | undefined;
+            if (!row || data.results.length !== 1 || row.id !== test.id) { finish(new Error("The Python worker returned an invalid case result.")); return; }
+            finish(undefined, row);
+          };
+          const errorEvent = (event: ErrorEvent) => { event.preventDefault(); finish(new Error("Python worker initialization failed. Check runtime downloads, browser CSP/WASM support and network access.")); };
+          terminateCase = () => finish(new Error(cancelled ? "Local Run cancelled." : "The whole-run budget was exceeded."));
+          worker.addEventListener("message", message); worker.addEventListener("error", errorEvent);
+          arm(INITIALIZATION_LIMIT_MS, "Python initialization timed out. Check the pinned runtime download and retry.");
+          worker.postMessage({ code, contract, cases: [{ id: test.id, input: test.input }] });
         });
-        finish({
-          code, source, purpose, results: mapped,
-          state: mapped.every((test) => test.passed) ? "passed" : "failed",
-        });
-      };
-      const onError = () => finish({
-        code, source, purpose, state: "failed", results: [],
-        message: "The local Python worker could not load or execute.",
-      }, true);
-      const timer = window.setTimeout(() => finish({
-        code, source, purpose, state: "failed", results: [],
-        message: "Local execution exceeded the 30-second limit.",
-      }, true), 30000);
-      activeCancel.current = () => finish({
-        code, source, purpose, state: "failed", results: [],
-        message: "Local execution cancelled.",
-      }, true);
-      current.addEventListener("message", onMessage);
-      current.addEventListener("error", onError);
-      current.postMessage({ code, cases: cases.map(({ id, input }) => ({ id, input })) });
-    });
+        initializationMs += response.initializationMs;
+        let row = response.result;
+        if (row.status === "ok" && (!safeJson(row.actual) || new TextEncoder().encode(JSON.stringify(row.actual)).byteLength > 16384)) row = { id: test.id, status: "runtime_error", stderr: "Unsupported serialization: return a bounded JSON-compatible value." };
+        const passed = row.status === "ok" && (source === "custom" || equal(row.actual, test.expected, contract, test.input));
+        results.push({ ...test, passed, status: row.status, ...(Object.hasOwn(row, "actual") ? { actual: row.actual } : {}), ...(row.stderr ? { error: row.stderr } : {}), ...(row.stdout ? { stdout: row.stdout } : {}), durationMs: row.durationMs });
+        update({ phase: "running", currentCase: index + 1 });
+      }
+      const passed = results.every((result) => result.passed);
+      const receipt = passed && source === "verified" && options?.userId && options.problemId && options.problemVersionId && options.publicRevision && options.harnessSha256 ? { userId: options.userId, problemId: options.problemId, problemVersionId: options.problemVersionId, language: "python" as const, codeSha256, adapterVersion: contract.adapter ? `${contract.adapter.id}:${contract.adapter.version}:${options.contractRevision}` : "legacy-function:1", publicRevision: options.publicRevision, harnessSha256: options.harnessSha256 } : undefined;
+      const next: LocalRun = { code, source, purpose, state: passed ? "passed" : "failed", phase: "completed", results, totalCases: cases.length, currentCase: cases.length, initializationMs, totalExecutionMs: results.reduce((sum, row) => sum + (row.durationMs ?? 0), 0), durationMs: Math.round(performance.now() - started), ...(receipt ? { receipt } : {}) };
+      if (serial.current === current) { setRun(next); prewarm(); }
+      return next;
+    } catch (error) {
+      const next: LocalRun = { code, source, purpose, state: cancelled ? "cancelled" : "failed", phase: cancelled ? "cancelled" : "failed", results, initializationMs, durationMs: Math.round(performance.now() - started), message: error instanceof Error ? error.message : "Local Python could not complete." };
+      if (serial.current === current) setRun(next);
+      return next;
+    } finally { window.clearTimeout(wholeTimer); active.current?.terminate(); active.current = null; activeCancel.current = null; busy.current = false; }
   }
-  return { run, start, cancel };
+  return { run, start, cancel, invalidate };
 }

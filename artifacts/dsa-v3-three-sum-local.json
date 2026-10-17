@@ -1,0 +1,320 @@
+{
+  "schemaVersion": 1,
+  "kind": "actual-imported-suite-local-audit",
+  "problemId": "6bf047e9-6735-4892-b063-f59e4c8ce29f",
+  "problemVersionId": "62b831b6-4c58-438e-9442-a78be83e3469",
+  "suiteId": "c34f14dd-3de2-4199-bf8f-67d0db67f9fb",
+  "harnessSha256": "3e96d81f62c21bc4c51aa38c25a2b6d1ed7d7eb48aa1bf600f7e4c3b2286362a",
+  "fixtureSnapshotSha256": "1dd45423f129614bb6b3beca8f0ebc8f618b3298a14790f6f0b1f3696a6fd325",
+  "importedReferenceSha256": "9c0787fc245e10373d5574043013ef148a88191c89720e8d1534de7ac850b717",
+  "independentOracleSha256": "5766b10458f0beccd2c7ce8bc169cbccd1383bb30bc414e837ad1af78da7c3ca",
+  "candidateSha256": "01da505df47bb3f1a375461b0072aa2ee8e184fc5a6aa1bf17badf36635c1aec",
+  "contract": {
+    "entrypoint": "three_sum",
+    "inputMode": "kwargs",
+    "checker": "exact_json",
+    "adapter": {
+      "id": "reasonai-python",
+      "version": 1,
+      "invocation": "function",
+      "parameters": [
+        {
+          "name": "values",
+          "pythonType": "List[int]",
+          "codec": "json"
+        }
+      ],
+      "returnType": "List[List[int]]",
+      "result": {
+        "source": "return",
+        "codec": "json"
+      }
+    }
+  },
+  "sourceReview": {
+    "provider": "leetcode",
+    "url": "https://leetcode.com/problems/3sum/description/",
+    "sourceExact": false,
+    "requiredOwnerDecision": "Current ReasonAI version requires lexicographic output and permits short arrays; the linked source permits any order and constrains length >= 3. Approve this clearly attributed authored variant or publish a corrected version. Do not rewrite existing IDs or silently change checker semantics."
+  },
+  "typedStarterExecuted": true,
+  "fixtureResults": [
+    {
+      "id": "1dcb53e8-c0f7-4dfc-a747-d5b467ffb898",
+      "visibility": "public",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "154be2d5-0891-4355-a9bc-e320de0dd5fe",
+      "visibility": "public",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "b3ad28e0-96bd-4198-85a8-9a5f2feb74af",
+      "visibility": "public",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "37392049-c0e5-43f6-b3a2-e36c3ecd6bfa",
+      "visibility": "public",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "92184d24-723c-42df-946a-0609c1508b9e",
+      "visibility": "public",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "6e97f428-fb85-49af-b66c-c3a263214c1e",
+      "visibility": "public",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "0ef9ee8e-b03e-4207-bd4c-5c14942a9e65",
+      "visibility": "public",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "a2cadcaf-042b-413b-ac17-39c3c8ea63f4",
+      "visibility": "public",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "656a243f-469c-43c5-b1fe-daf349773470",
+      "visibility": "hidden",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "9ec42022-651d-4c01-9dd7-1ca03f0c12fc",
+      "visibility": "hidden",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "2775bba0-248a-4fee-9e85-fbf8417f6c05",
+      "visibility": "hidden",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "a5db6318-9d20-4481-be16-81e5804c0424",
+      "visibility": "hidden",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "7eb76ebb-f5c0-498b-827d-694b4f10753c",
+      "visibility": "hidden",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "de9a6637-b8de-4721-9399-14aefc59bac6",
+      "visibility": "hidden",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "0c4e516c-96c7-4415-b5be-c971d7eacc2d",
+      "visibility": "hidden",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "9a6f2b7d-ea39-46cc-9cc6-e7d50a11d878",
+      "visibility": "hidden",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "04dbb1d2-f8ce-4b15-964c-d7047385bdd9",
+      "visibility": "hidden",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "cd860f6a-68d0-4c64-b051-44994d485c54",
+      "visibility": "hidden",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "c56f81a2-d65c-4d2e-b70d-e1e03ffe2406",
+      "visibility": "hidden",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "956fd126-48e1-4440-b617-dafc7a9a55ec",
+      "visibility": "hidden",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "172c5909-414a-4149-ba78-e5f60d6c2673",
+      "visibility": "hidden",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "30f91c32-7a3d-40df-97ca-91b12c1a77b5",
+      "visibility": "hidden",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "b5274f48-ef53-46ff-9407-0ff7db76afbe",
+      "visibility": "hidden",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "0b893ff6-167d-4bcf-a718-85b3269a7f0b",
+      "visibility": "hidden",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "bb4c1ae6-b88c-406f-853b-6c40e5f11850",
+      "visibility": "hidden",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "d7de3db5-ebe6-4cb6-9a13-5c4817999725",
+      "visibility": "hidden",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "cdad2785-3ad4-4620-b82e-958867574561",
+      "visibility": "hidden",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "9726024d-e7b2-4e7f-89f9-e0621430f001",
+      "visibility": "hidden",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "6313dcf5-bb42-42e2-b7d8-aa270c9ac035",
+      "visibility": "hidden",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "baf18cbc-bc59-46c2-8e2c-596f134836cf",
+      "visibility": "hidden",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "6818bef9-fd77-434a-a63a-aa8574e98755",
+      "visibility": "public",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "95ec06aa-f03f-4d56-93b7-81887593bc1b",
+      "visibility": "hidden",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "fe4f067f-efef-48b6-83c7-303f4e85fb07",
+      "visibility": "hidden",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "5f41b9df-0ddf-42cf-bd4b-4e06038eefff",
+      "visibility": "hidden",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "efc0a6ba-28fb-4e04-b0e4-498b5c911ca9",
+      "visibility": "hidden",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    },
+    {
+      "id": "bc9fb334-8b5a-4c1e-bfdd-35dfe6a67d12",
+      "visibility": "hidden",
+      "importedReferenceStatus": "ok",
+      "independentOracleStatus": "ok",
+      "bothMatchExpected": true
+    }
+  ],
+  "publicPassHiddenFail": {
+    "publicCases": 9,
+    "publicPassed": 9,
+    "hiddenFailureFixtureId": "656a243f-469c-43c5-b1fe-daf349773470",
+    "candidateExecuted": true
+  },
+  "additionalStress": [
+    {
+      "label": "3000 positive values",
+      "length": 3000,
+      "bothPass": true
+    },
+    {
+      "label": "3000 zeros",
+      "length": 3000,
+      "bothPass": true
+    }
+  ],
+  "sandboxSmokePassed": false,
+  "productionMutations": 0,
+  "paidVerificationCalls": 0,
+  "certificationStatus": "blocked-awaiting-owner-review-and-real-provider-proof",
+  "completedAt": "2026-10-16T13:31:17.273Z",
+  "fixtureContentSha256": "a4054602245b531ff05a1ce1aa6e9e3b1227244d63957bf4432ed3774ea50f3f",
+  "executionSourceSha256": "d8d4d99f80d9fd808533dd4ae1d06edd13107d18498015d9547ce582410f182a"
+}

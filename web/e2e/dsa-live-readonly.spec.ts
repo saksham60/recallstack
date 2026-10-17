@@ -18,7 +18,7 @@ test("deployed public catalog reaches the browser without fixtures or learner wr
       learnerRequests.push(request.url());
   });
   const response = page.waitForResponse(
-    (result) => new URL(result.url()).pathname === "/api/v1/dsa/problems",
+    (result) => new URL(result.url()).pathname === "/api/v1/dsa/categories",
   );
   await page.goto("/dsa");
   const catalog = await response;
@@ -27,11 +27,11 @@ test("deployed public catalog reaches the browser without fixtures or learner wr
   expect(Array.isArray(body.items)).toBeTruthy();
   if (!body.items.length)
     await expect(
-      page.getByRole("heading", { name: "No approved problems yet" }),
+      page.getByRole("heading", { name: "No topics available yet" }),
     ).toBeVisible();
   else
     await expect(
-      page.getByRole("button", { name: new RegExp(body.items[0].title) }),
+      page.locator(".dsa-topic-card").filter({ hasText: body.items[0].name }),
     ).toBeVisible();
   expect(learnerRequests).toEqual([]);
   await page.addStyleTag({

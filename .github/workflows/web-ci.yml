@@ -40,8 +40,36 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
+      # Ubuntu 24.04 restricts user namespaces for downloaded browsers. Allow only
+      # these installed executables; keep Chromium's sandbox and global policy on.
+      # https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md
+      - name: Permit sandboxed certification Chromium
+        run: |
+          profile_file="$RUNNER_TEMP/reasonai-playwright-apparmor"
+          printf 'abi <abi/4.0>,\ninclude <tunables/global>\n' > "$profile_file"
+          profile_index=0
+          while IFS= read -r browser_path; do
+            printf 'profile reasonai-playwright-%s "%s" flags=(unconfined) {\n  userns,\n}\n' "$profile_index" "$browser_path" >> "$profile_file"
+            profile_index=$((profile_index + 1))
+          done < <(find "$HOME/.cache/ms-playwright" -type f \( -name chrome -o -name chrome-headless-shell -o -name headless_shell \))
+          test "$profile_index" -gt 0
+          sudo install -m 644 "$profile_file" /etc/apparmor.d/reasonai-playwright
+          sudo apparmor_parser -r /etc/apparmor.d/reasonai-playwright
+          node --input-type=module <<'NODE'
+          import { chromium } from '@playwright/test';
+          const browser = await chromium.launch({ headless: true, chromiumSandbox: true });
+          await browser.close();
+          NODE
+
       - name: Typecheck
         run: npm run typecheck
+
+      - name: Shared Python source parity
+        run: npm run dsa:harness:check
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
       - name: Lint
         run: npm run lint
@@ -68,10 +96,15 @@ jobs:
           : > node_modules/server-only/index.js
 
       - name: DSA execution contracts and worker lifecycle
+        env:
+          DSA_TEST_PYTHON: python3
         run: npm run test:executions
 
       - name: DSA browser regression
-        run: npx playwright test e2e/dsa-studio.spec.ts e2e/dsa-execution-browser.spec.ts e2e/dsa-workspace.spec.ts e2e/dsa-pagination.spec.ts --reporter=line
+        run: npx playwright test e2e/dsa-studio.spec.ts e2e/dsa-execution-browser.spec.ts e2e/dsa-workspace.spec.ts e2e/dsa-pagination.spec.ts e2e/dsa-navigation.spec.ts e2e/dsa-report-browser.spec.ts --reporter=line
+
+      - name: Actual Pyodide execution matrix
+        run: npx playwright test e2e/dsa-python-real.spec.ts --workers=1 --reporter=line
 
       # Keep E2E coverage visible without allowing a flaky browser timing test to
       # block an otherwise healthy web build. Typecheck, lint, and production build

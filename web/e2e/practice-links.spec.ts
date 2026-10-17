@@ -1,13 +1,16 @@
 import { expect, test } from "./fixtures/authenticated-test";
+import { installV3API, ID } from "./helpers/dsa-v3";
 import { createStudyNoteResponse } from "./helpers/factories";
 
 test.describe("Practice links", () => {
   test("uses the content item's primary imported practice resource", async ({
     authenticatedPage: page,
   }) => {
+    await installV3API(page);
     await page.route("**/api/v1/content/*", async (route) => {
       await route.fulfill({
         json: createStudyNoteResponse({
+          content_item_id: ID,
           title: "3Sum",
           slug: "ultimate-dsa-016-3sum",
           practice_resources: [
@@ -38,6 +41,7 @@ test.describe("Practice links", () => {
 
     await page.goto("/content/ultimate-dsa-016-3sum");
 
+    await page.getByText("Sources, related resources & practice", { exact: true }).click();
     const practiceLink = page.getByRole("link", { name: "Open on LeetCode" });
     await expect(practiceLink).toHaveAttribute(
       "href",

@@ -16,10 +16,13 @@
     "test:system-design-state": "playwright test --config=playwright.system-design-state.config.ts",
     "test:e2e:system-design-disabled": "playwright test --config=playwright.system-design-disabled.config.ts",
     "api:generate": "node scripts/generate-api.mjs",
-    "verify": "npm run typecheck && npm run lint && npm run build && npm run test:system-design-state && npm run test:executions && npm run test:e2e && npm run test:e2e:system-design-disabled",
-    "predev": "node scripts/prepare-monaco.mjs",
-    "prebuild": "node scripts/prepare-monaco.mjs",
-    "test:executions": "playwright test --config=playwright.execution.config.ts"
+    "verify": "npm run dsa:harness:check && npm run typecheck && npm run lint && npm run build && npm run test:system-design-state && npm run test:executions && npm run test:e2e && npm run test:e2e:system-design-disabled",
+    "predev": "node scripts/prepare-monaco.mjs && node scripts/prepare-python-harness.mjs",
+    "prebuild": "node scripts/prepare-monaco.mjs && node scripts/prepare-python-harness.mjs",
+    "test:executions": "node scripts/prepare-python-harness.mjs --check && playwright test --config=playwright.execution.config.ts",
+    "dsa:harness": "node scripts/prepare-python-harness.mjs",
+    "dsa:harness:check": "node scripts/prepare-python-harness.mjs --check",
+    "dsa:certify": "node scripts/prepare-python-harness.mjs --check && tsx scripts/certify-catalog.ts"
   },
   "dependencies": {
     "@langchain/core": "^1.2.11",
@@ -31,14 +34,14 @@
     "@tanstack/react-query": "^5.101.2",
     "@vercel/queue": "0.8.0",
     "contree-client": "0.4.1",
-    "dompurify": "^3.4.13",
+    "dompurify": "^3.4.17",
     "isomorphic-dompurify": "^3.19.0",
     "jspdf": "^4.2.1",
     "konva": "^10.3.0",
     "langsmith": "0.10.4",
     "lucide-react": "^1.27.0",
     "monaco-editor": "^0.57.0",
-    "next": "^16.3.3",
+    "next": "~16.3.8",
     "openapi-fetch": "^0.17.0",
     "qrcode.react": "^4.2.0",
     "react": "19.2.4",
@@ -57,9 +60,14 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "^16.3.1",
+    "eslint-config-next": "~16.3.8",
     "openapi-typescript": "^7.13.0",
+    "pyodide": "0.28.3",
     "tailwindcss": "^4",
+    "tsx": "4.23.15",
     "typescript": "^5"
+  },
+  "overrides": {
+    "dompurify": "$dompurify"
   }
 }

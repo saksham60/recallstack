@@ -18,65 +18,6 @@ from recallstack.modules.dsa.infrastructure.sqlalchemy_models import TestCaseMod
 pytestmark = pytest.mark.integration
 
 
-@pytest.fixture(scope="session")
-def execution_schema(dsa_engine):
-    migration = (
-        Path(__file__).resolve().parents[3]
-        / "web/supabase/migrations/20261015172042_dsa_execution_jobs.sql"
-    )
-    assert dsa_engine.url.host in {"localhost", "127.0.0.1", "::1"}
-    assert dsa_engine.url.database.startswith("dsa_api_test_")
-    with dsa_engine.begin() as connection:
-        connection.exec_driver_sql("""
-        do $$ begin
-          if not exists(select 1 from pg_roles where rolname='anon') then create role anon; end if;
-          if not exists(select 1 from pg_roles where rolname='authenticated') then
-            create role authenticated;
-          end if;
-          if not exists(select 1 from pg_roles where rolname='service_role') then
-            create role service_role bypassrls;
-          end if;
-        end $$;
-        """)
-        connection.connection.driver_connection.execute(migration.read_text(encoding="utf-8"))
-    return dsa_engine
-
-
-@pytest.fixture
-def execution_data(execution_schema, dataset):
-    engine, row = execution_schema, dataset["rows"]["a"]
-    with engine.begin() as connection:
-        for ordinal, visibility in enumerate(("public", "hidden")):
-            connection.execute(
-                insert(Case).values(
-                    suite_id=row["suite"],
-                    ordinal=ordinal,
-                    category="official",
-                    visibility=visibility,
-                    validation_status="verified",
-                    input_json={"nums": [ordinal + 1]},
-                    expected_json=ordinal + 1,
-                )
-            )
-        connection.execute(
-            text("""insert into dsa_execution_private.certificates
-          (problem_version_id,suite_id,contract,public_run_approved,hidden_submit_approved,certified_by,certified_at)
-          values (:version,:suite,cast(:contract as jsonb),true,true,:owner,now())"""),
-            {
-                "version": row["version"],
-                "suite": row["suite"],
-                "owner": dataset["owner"],
-                "contract": json.dumps(
-                    {"entrypoint": "solve", "inputMode": "kwargs", "checker": "exact_json"}
-                ),
-            },
-        )
-    yield {**dataset, "row": row}
-    with engine.begin() as connection:
-        # This database exists exclusively for these tests; no production URLs accepted.
-        connection.execute(text("delete from dsa_execution_private.jobs"))
-
-
 def command(data, action, **args):
     with data["engine"].begin() as connection:
         connection.exec_driver_sql("set local role service_role")

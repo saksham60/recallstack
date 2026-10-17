@@ -1,5 +1,6 @@
 import { expect, test } from "./fixtures/authenticated-test";
 import type { Page } from "@playwright/test";
+import { HARNESS_SHA256 } from "../src/lib/dsa-execution/python/harness.generated";
 import { createProfile, createPagination } from "./helpers/factories";
 import type {
   ExecutionRequest,
@@ -31,8 +32,10 @@ async function setup(page: Page, available = { run: true, submit: true }) {
     route.fulfill({
       contentType: "text/javascript",
       body: `self.onmessage = (event) => {
+        if (event.data.action === "initialize") return;
         const cases = event.data.cases;
-        self.postMessage({ results: cases.map(c => ({id: c.id, ok: true, actual: 3, durationMs: 2})) });
+        self.postMessage({harnessSha256: "${HARNESS_SHA256}", phase: "running", initializationMs: 1});
+        self.postMessage({harnessSha256: "${HARNESS_SHA256}", results: cases.map(c => ({id: c.id, status: "ok", actual: 3, durationMs: 2})) });
       };`,
     }),
   );
@@ -95,6 +98,13 @@ async function setup(page: Page, available = { run: true, submit: true }) {
     route.fulfill({
       json: {
         ...available,
+        ...(available.run ? { publicRun: {
+          schemaVersion: 1, problemId, problemVersionId,
+          suiteId: "60000000-0000-4000-8000-000000000001",
+          revision: "a".repeat(64), contractRevision: "b".repeat(64), harnessSha256: HARNESS_SHA256,
+          contract: {entrypoint: "solve", inputMode: "kwargs", checker: "exact_json"},
+          cases: [{id: "30000000-0000-4000-8000-000000000001", input: {nums:[1,2]}, expected:3}],
+        }} : {}),
         languages: ["python"],
         ...(!available.submit
           ? { submitReason: "Hidden suite is not certified." }
@@ -134,7 +144,7 @@ test("Run executes Python locally and makes no execution POST", async ({
   await expect(page.getByRole("button", { name: "Submit", exact: true })).toBeEnabled();
 });
 
-test("Submit displays only trusted aggregates, with no required prior Run", async ({
+test("Submit requires matching local Run and displays only trusted aggregates", async ({
   authenticatedPage: page,
 }) => {
   await setup(page);
@@ -160,6 +170,8 @@ test("Submit displays only trusted aggregates, with no required prior Run", asyn
     }),
   );
   await page.goto(url);
+  await expect(page.getByRole("button", { name: "Submit", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Run", exact: true }).click();
   await expect(page.getByRole("button", { name: "Submit", exact: true })).toBeEnabled();
   await page.getByRole("button", { name: "Submit", exact: true }).click();
   await expect(page.getByText("accepted", { exact: true })).toBeVisible();
@@ -176,9 +188,7 @@ test("Submit displays only trusted aggregates, with no required prior Run", asyn
     }),
   );
   await page.reload();
-  await expect(
-    page.getByRole("button", { name: "Submit", exact: true }),
-  ).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Submit", exact: true })).toBeDisabled();
 });
 test("unknown create response retries the original code/key after refresh", async ({
   authenticatedPage: page,
@@ -265,88 +275,24 @@ test("refresh recovers the durable job and never creates a duplicate execution",
   ).toBeVisible();
   expect(posts).toBe(1);
 });
-test("all uncertified problems allow direct Submit, storing persistent attempts", async ({
-  authenticatedPage: page,
-}) => {
-  await setup(page, { run: false, submit: false });
-  let receipt: Record<string, unknown> | null = null;
-  let submitted: Record<string, unknown> | null = null;
-  await page.route("**/api/dsa/practice-submissions**", (route) => {
-    if (route.request().method() === "POST") {
-      const body = route.request().postDataJSON() as Record<string, unknown>;
-      submitted = body;
-      receipt = {
-        id: "77777777-0000-4000-8000-000000000001",
-        createdAt: new Date().toISOString(),
-        checkStatus: body.checkStatus,
-        clientCheckedCount: body.clientCheckedCount,
-        clientPassedCount: body.clientPassedCount,
-        gradingLevel: "browser_examples_unverified",
-      };
-      return route.fulfill({ status: 201, json: receipt });
-    }
-    return route.fulfill({ json: { latest: receipt } });
-  });
-  const remoteExecutions: unknown[] = [];
-  await page.route("**/api/dsa/executions", (route) => {
-    remoteExecutions.push(route.request().postDataJSON());
-    return route.fulfill({ status: 409, json: { error: "Not certified" } });
+test("uncertified examples never unlock Submit; historical practice receipts remain readable", async ({authenticatedPage: page}) => {
+  await setup(page, {run:false, submit:false});
+  let writes = 0;
+  await page.route("**/api/dsa/practice-submissions**", r => {
+    if (r.request().method() === "POST") writes++;
+    return r.fulfill({json:{latest:{id:"77777777-0000-4000-8000-000000000001", createdAt:new Date().toISOString(), checkStatus:"examples_passed", clientCheckedCount:1, clientPassedCount:1, gradingLevel:"browser_examples_unverified"}}});
   });
   await page.goto(url);
-  const submitButton = page.getByRole("button", { name: "Submit", exact: true });
-  await expect(submitButton).toBeEnabled();
-  await submitButton.click();
-  await expect(page.getByRole("heading", { name: "Submission recorded" })).toBeVisible();
-  await expect(page.getByText("1/1 statement examples passed locally.", { exact: true })).toBeVisible();
-  expect(submitted).toMatchObject({
-    code,
-    problemId,
-    problemVersionId,
-    language: "python",
-    checkStatus: "examples_passed",
-    clientCheckedCount: 1,
-    clientPassedCount: 1,
-  });
-  expect(remoteExecutions).toHaveLength(0);
+  await expect(page.getByRole("button", {name:"Submit", exact:true})).toBeDisabled();
+  await page.getByRole("button", {name:"Run",exact:true}).click();
+  await expect(page.getByRole("heading", {name:"Local Run · All displayed cases passed"})).toBeVisible();
+  await expect(page.getByRole("button", {name:"Submit", exact:true})).toBeDisabled();
+  await expect(page.getByRole("heading", {name:"Historical practice attempt"})).toBeVisible();
+  expect(writes).toBe(0);
   await page.reload();
-  await page.getByRole("button", { name: "Results", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Submission recorded" })).toBeVisible();
-});
-
-test("practice Submit stores failed checks rather than falsely claiming acceptance", async ({
-  authenticatedPage: page,
-}) => {
-  await setup(page, { run: false, submit: false });
-  let submitted: Record<string, unknown> | undefined;
-  await page.route("**/dsa/python-worker.mjs", (route) =>
-    route.fulfill({
-      contentType: "text/javascript",
-      body: `self.onmessage = e => self.postMessage({results:e.data.cases.map(c=>({id:c.id,ok:true,actual:-42}))});`,
-    }),
-  );
-  await page.route("**/api/dsa/practice-submissions**", (route) => {
-    if (route.request().method() === "POST") {
-      submitted = route.request().postDataJSON();
-      return route.fulfill({ status: 201, json: {
-        id: "77777777-0000-4000-8000-000000000002",
-        createdAt: new Date().toISOString(),
-        checkStatus: "examples_failed",
-        clientCheckedCount: 1,
-        clientPassedCount: 0,
-        gradingLevel: "browser_examples_unverified",
-      } });
-    }
-    return route.fulfill({ json: { latest: null } });
-  });
-  await page.goto(url);
-  await page.getByRole("button", { name: "Submit", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Submission recorded" })).toBeVisible();
-  expect(submitted).toMatchObject({
-    checkStatus: "examples_failed",
-    clientCheckedCount: 1,
-    clientPassedCount: 0,
-  });
-  await expect(page.getByText(/not a hidden-test/)).toBeVisible();
+  await page.getByRole("button", {name:"Results",exact:true}).click();
+  await expect(page.getByRole("heading", {name:"Historical practice attempt"})).toBeVisible();
+  await expect(page.getByRole("button", {name:"Submit",exact:true})).toBeDisabled();
 });
 
 test("execution API rejects anonymous and cross-origin requests even with an E2E login cookie", async ({

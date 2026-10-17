@@ -14,7 +14,7 @@ export function AppShell({
   const pathname = usePathname();
   const isSystemDesignEditor =
     pathname.startsWith("/system-design/") && pathname !== "/system-design/";
-  const isDSAWorkspace = pathname === "/dsa";
+  const isDSAWorkspace = pathname === "/dsa" || pathname.startsWith("/dsa/");
 
   return (
     <div className="flex flex-col min-h-screen">

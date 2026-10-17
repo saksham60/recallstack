@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "status": "implemented-locally-pending-owner-certification-and-hosted-proof",
+  "baselineCommit": "11e6a7a",
+  "targetProblemCount": 375,
+  "identityInventoryProblemCount": 375,
+  "independentlyAuditedProblemCount": 0,
+  "existingPublicCertificateCount": 10,
+  "existingHiddenCertificateCount": 10,
+  "suitesNeedingReview": 365,
+  "certifiedProblemCount": 0,
+  "problemBlockersFile": "artifacts/dsa-certification-manifest.failures.json",
+  "priorityProblem": {
+    "problemId": "6bf047e9-6735-4892-b063-f59e4c8ce29f",
+    "problemVersionId": "62b831b6-4c58-438e-9442-a78be83e3469",
+    "suiteId": "c34f14dd-3de2-4199-bf8f-67d0db67f9fb",
+    "blockers": [
+      "source-variant-or-corrected-version-review",
+      "typed-registry-approval-and-exact-certification-ledger",
+      "suite-and-fixtures-still-pending-owner-review",
+      "authenticated-api-queue-persisted-verdict-and-live-report-proof"
+    ]
+  },
+  "dependencies": [
+    "Separate Supabase owner reviews/applies the three prepared SQL migrations",
+    "Per-version source/typed-contract/oracle review uses existing repository and Supabase snapshot; no additional user document is required to continue",
+    "365 current suites require reviewed fixture/eligibility transitions; no blanket approval is permitted",
+    "Authenticated deployed integration follows owner application; source IDs and history remain intact"
+  ],
+  "paidLiveVerification": {
+    "maxCombinedCallsIncludingRetries": 5,
+    "callsUsed": 1,
+    "remaining": 4,
+    "ledger": "artifacts/dsa-v3-live-budget.json"
+  },
+  "independentOracleValidatedProblemCount": 1,
+  "realSandboxComponentVerifiedProblemCount": 1,
+  "currentFixtureCount": 11591,
+  "verifiedFixtureCount": 320,
+  "pendingFixtureCount": 11271,
+  "currentDuplicateInputs": 0,
+  "currentPublicHiddenOverlap": 0,
+  "fixtureAuditedProblemCount": 375,
+  "ownerOracleChecksRecorded": 370,
+  "ownerOracleChecksWithMatchingCurrentDigest": 340,
+  "ownerEvidenceSnapshot": "artifacts/dsa-v3-owner-oracle-evidence.json"
+}

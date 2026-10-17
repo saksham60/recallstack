@@ -143,9 +143,11 @@ class DsaReadRepository:
             if version_id is not None:
                 versions = versions.where(Version.id == version_id)
         else:
-            versions = versions.where(Definition.current_version_id == Version.id, approved())
+            versions = versions.where(approved())
             if version_id is not None:
                 versions = versions.where(Version.id == version_id)
+            else:
+                versions = versions.where(Definition.current_version_id == Version.id)
         draft_first = [case((Version.status != "published", 0), else_=1)] if preview else []
         selected = (
             versions.order_by(
@@ -175,7 +177,6 @@ class DsaReadRepository:
                     .where(
                         Definition.content_item_id == Item.id,
                         Definition.id == Version.definition_id,
-                        Definition.current_version_id == Version.id,
                     )
                     .correlate(Item, Version)
                     .exists(),
@@ -286,6 +287,64 @@ class DsaReadRepository:
         result = dict(row)
         await self.taxonomy([result])
         return result
+
+    async def resolve(
+        self, identifier: str, preview: bool, version_id: UUID | None
+    ) -> dict[str, Any] | None:
+        try:
+            condition = Item.id == UUID(identifier)
+        except ValueError:
+            condition = Item.slug == identifier
+        row = (
+            (
+                await self.session.execute(
+                    self.catalog_statement(preview, version_id).where(condition)
+                )
+            )
+            .mappings()
+            .first()
+        )
+        if row is None:
+            return None
+        result = dict(row)
+        await self.taxonomy([result])
+        return result
+
+    async def topic_progress(self, profile_id: UUID) -> list[dict[str, Any]]:
+        visible = self.catalog_statement().subquery()
+        query = (
+            select(
+                VersionCategory.category_id.label("id"),
+                func.count(func.distinct(visible.c.id))
+                .filter(
+                    Progress.status.in_(
+                        [
+                            LearningStatus.ATTEMPTED,
+                            LearningStatus.CONFIDENT,
+                            LearningStatus.MASTERED,
+                        ]
+                    )
+                )
+                .label("attempted_count"),
+                func.count(func.distinct(visible.c.id))
+                .filter(Progress.status == LearningStatus.MASTERED)
+                .label("mastered_count"),
+            )
+            .join(
+                visible,
+                and_(
+                    visible.c.content_version_id == VersionCategory.content_version_id,
+                    visible.c.id == VersionCategory.content_item_id,
+                    visible.c.domain_id == VersionCategory.domain_id,
+                ),
+            )
+            .outerjoin(
+                Progress,
+                and_(Progress.content_item_id == visible.c.id, Progress.user_id == profile_id),
+            )
+            .group_by(VersionCategory.category_id)
+        )
+        return [dict(row) for row in (await self.session.execute(query)).mappings()]
 
     async def taxonomy(self, rows: list[dict[str, Any]]) -> None:
         if not rows:

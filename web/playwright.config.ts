@@ -6,6 +6,10 @@ loadEnvConfig(process.cwd());
 export default defineConfig({
   testDir: './e2e',
   testIgnore: [
+    '**/dsa-v3-live-component.spec.ts',
+    '**/dsa-certification-unit.spec.ts',
+    '**/dsa-report-unit.spec.ts',
+    '**/dsa-python-contract-unit.spec.ts',
     '**/langsmith.spec.ts',
     '**/dsa-execution-unit.spec.ts',
     '**/dsa-execution-live.spec.ts',
@@ -48,6 +52,10 @@ export default defineConfig({
     },
   ],
   webServer: [{
+    command: 'node scripts/e2e-dsa-catalog.mjs',
+    url: 'http://127.0.0.1:4160/health',
+    reuseExistingServer: process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === '1',
+  }, {
     command: 'node scripts/e2e-reasonai-provider.mjs',
     url: 'http://127.0.0.1:4159/health',
     reuseExistingServer: process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === '1',
@@ -59,6 +67,7 @@ export default defineConfig({
     env: {
       DEMO_ACCESS_ENABLED: '0',
       E2E_BYPASS_AUTH: '1',
+      DSA_API_BASE_URL: 'http://127.0.0.1:4160',
       REASONAI_V2_MODE: 'dsa',
       SYSTEM_DESIGN_ENABLED: '1',
       NEXT_PUBLIC_REALTIME_BASE_URL: 'http://realtime.test',

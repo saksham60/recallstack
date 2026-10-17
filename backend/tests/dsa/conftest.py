@@ -1,7 +1,9 @@
 import hashlib
+import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -23,6 +25,9 @@ from recallstack.modules.dsa.infrastructure.sqlalchemy_models import (
     DsaReadBase,
     SuiteModel,
     VersionModel,
+)
+from recallstack.modules.dsa.infrastructure.sqlalchemy_models import (
+    TestCaseModel as Case,
 )
 from recallstack.modules.practice.infrastructure.sqlalchemy_models import (
     PracticeProviderModel,
@@ -242,3 +247,119 @@ def dataset(dsa_engine):
         # These records live only for this disposable cluster; other tests may inspect
         # them. Random identifiers and per-test filters prevent cross-test coupling.
         session.commit()
+
+
+@pytest.fixture(scope="session")
+def execution_schema(dsa_engine):
+    migration = (
+        Path(__file__).resolve().parents[3]
+        / "web/supabase/migrations/20261015172042_dsa_execution_jobs.sql"
+    )
+    assert dsa_engine.url.host in {"localhost", "127.0.0.1", "::1"}
+    assert dsa_engine.url.database.startswith("dsa_api_test_")
+    with dsa_engine.begin() as connection:
+        connection.exec_driver_sql("""
+        do $$ begin
+          if not exists(select 1 from pg_roles where rolname='anon') then create role anon; end if;
+          if not exists(select 1 from pg_roles where rolname='authenticated') then
+            create role authenticated;
+          end if;
+          if not exists(select 1 from pg_roles where rolname='service_role') then
+            create role service_role bypassrls;
+          end if;
+        end $$;
+        create or replace function auth.uid() returns uuid language sql stable as
+          $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+        grant usage on schema public,auth to authenticated;
+        grant execute on function auth.uid() to authenticated;
+        """)
+        connection.connection.driver_connection.execute(migration.read_text(encoding="utf-8"))
+    return dsa_engine
+
+
+@pytest.fixture
+def execution_data(execution_schema, dataset):
+    engine, row = execution_schema, dataset["rows"]["a"]
+    with engine.begin() as connection:
+        for ordinal, visibility in enumerate(("public", "hidden")):
+            connection.execute(
+                insert(Case).values(
+                    suite_id=row["suite"],
+                    ordinal=ordinal,
+                    category="official",
+                    visibility=visibility,
+                    validation_status="verified",
+                    input_json={"nums": [ordinal + 1]},
+                    expected_json=ordinal + 1,
+                )
+            )
+        connection.execute(
+            text("""insert into dsa_execution_private.certificates
+          (problem_version_id,suite_id,contract,public_run_approved,hidden_submit_approved,certified_by,certified_at)
+          values (:version,:suite,cast(:contract as jsonb),true,true,:owner,now())"""),
+            {
+                "version": row["version"],
+                "suite": row["suite"],
+                "owner": dataset["owner"],
+                "contract": json.dumps(
+                    {"entrypoint": "solve", "inputMode": "kwargs", "checker": "exact_json"}
+                ),
+            },
+        )
+    yield {**dataset, "row": row}
+    with engine.begin() as connection:
+        # This database exists exclusively for these tests; no production URLs accepted.
+        connection.execute(text("delete from dsa_execution_private.jobs"))
+
+
+@pytest.fixture(scope="session")
+def board_schema(dsa_engine):
+    assert dsa_engine.url.host in {"localhost", "127.0.0.1", "::1"}
+    assert dsa_engine.url.database.startswith("dsa_api_test_")
+    migration = (
+        Path(__file__).resolve().parents[3]
+        / "web/supabase/migrations/20261016144501_dsa_v3_explorer_projection.sql"
+    )
+    with dsa_engine.begin() as connection:
+        connection.exec_driver_sql("""
+          do $$ begin
+            if not exists(select 1 from pg_roles where rolname='anon') then
+              create role anon; end if;
+            if not exists(select 1 from pg_roles where rolname='authenticated') then
+              create role authenticated; end if;
+            if not exists(select 1 from pg_roles where rolname='service_role') then
+              create role service_role bypassrls; end if;
+          end $$;
+          create or replace function auth.uid() returns uuid language sql stable as
+            $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+          grant usage on schema public, auth to authenticated;
+          grant execute on function auth.uid() to authenticated;
+          -- Minimal installed legacy contracts; production owns these tables.
+          create table dsa_companies(id uuid primary key,slug text,
+            canonical_name text,review_status text);
+          create table dsa_problem_companies(definition_id uuid,company_id uuid,
+            source_block_id uuid,match_method text);
+          create table dsa_problem_company_sources(definition_id uuid,source_block_id uuid,
+            review_status text,raw_companies text);
+        """)
+        installed = migration.with_name(
+            "20261016073209_dsa_explorer_company_metadata_and_boards.sql"
+        ).read_text(encoding="utf-8")
+        # Use the exact installed board table/index, followed by its owner policies.
+        connection.connection.driver_connection.execute(
+            installed[
+                installed.index("create table public.dsa_explorer_boards") : installed.index(
+                    "create table public.dsa_explorer_lanes"
+                )
+            ]
+        )
+        connection.exec_driver_sql("""
+          alter table public.dsa_explorer_boards enable row level security;
+          create policy dsa_boards_own on public.dsa_explorer_boards to authenticated
+            using(user_id=(select auth.uid())) with check(user_id=(select auth.uid()));
+          grant select,insert,delete on public.dsa_explorer_boards to authenticated;
+          grant update(title,grouping,layout,settings,updated_at)
+            on public.dsa_explorer_boards to authenticated;
+        """)
+        connection.connection.driver_connection.execute(migration.read_text(encoding="utf-8"))
+    return dsa_engine

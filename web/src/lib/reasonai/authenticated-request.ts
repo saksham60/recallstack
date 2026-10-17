@@ -2,6 +2,10 @@ type SessionResult = { data: { session: { access_token: string } | null }; error
 interface SessionAuth { getSession(): Promise<SessionResult>; refreshSession(): Promise<SessionResult> }
 export type ReasonAIEndpoint = "/api/reasonai/chat" | "/api/reasonai/dsa/chat" | "/api/reasonai/knowledge/chat";
 export type ReasonAIResourceEndpoint = ReasonAIEndpoint
+  | `/api/dsa/submissions?${string}`
+  | `/api/dsa/submissions/${string}/report`
+  | `/api/dsa/boards/${string}`
+  | "/api/dsa/board-companies"
   | "/api/dsa/executions"
   | "/api/dsa/practice-submissions"
   | `/api/dsa/practice-submissions?problemId=${string}&problemVersionId=${string}`
@@ -13,7 +17,17 @@ export type ReasonAIResponseMediaType = "application/json" | "application/x-ndjs
 const unavailable = () => new Error("Session verification is temporarily unavailable. Please try again.");
 
 function allowedEndpoint(endpoint: string): endpoint is ReasonAIResourceEndpoint {
+  if (/^\/api\/dsa\/submissions\/[0-9a-f-]{36}\/report$/i.test(endpoint)) return true;
+  if (endpoint.startsWith("/api/dsa/submissions?")) {
+    const query = new URLSearchParams(endpoint.slice(endpoint.indexOf("?") + 1));
+    const id = (value: string | null) => !!value && /^[0-9a-f-]{36}$/i.test(value);
+    return endpoint.length < 512 && [...query.keys()].every(key => ["problemId", "problemVersionId", "before", "beforeId"].includes(key) && query.getAll(key).length === 1)
+      && id(query.get("problemId")) && id(query.get("problemVersionId"))
+      && (!query.has("before") && !query.has("beforeId") || id(query.get("beforeId")) && /^\d{4}-\d{2}-\d{2}T[\d:.+-]+(?:Z)?$/.test(query.get("before") ?? ""));
+  }
   return endpoint === "/api/reasonai/chat"
+    || endpoint === "/api/dsa/board-companies"
+    || /^\/api\/dsa\/boards\/[0-9a-f-]{36}$/i.test(endpoint)
     || endpoint === "/api/dsa/executions"
     || endpoint === "/api/dsa/practice-submissions"
     || /^\/api\/dsa\/practice-submissions\?problemId=[0-9a-f-]{36}&problemVersionId=[0-9a-f-]{36}$/i.test(endpoint)

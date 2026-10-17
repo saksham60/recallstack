@@ -1,0 +1,545 @@
+{
+  "schemaVersion": 1,
+  "implementationBase": "812e700",
+  "originalBaseline": "11e6a7a",
+  "applicationCommit": "26fc1f12b22473d9163a1698742c1e10edb30817",
+  "scope": "web only; owner main work integrated",
+  "files": [
+    {
+      "change": "A",
+      "path": ".gitattributes"
+    },
+    {
+      "change": "M",
+      "path": ".github/workflows/backend-ci.yml"
+    },
+    {
+      "change": "M",
+      "path": ".github/workflows/web-ci.yml"
+    },
+    {
+      "change": "M",
+      "path": ".gitignore"
+    },
+    {
+      "change": "A",
+      "path": "artifacts/dsa-certification-manifest.failures.json"
+    },
+    {
+      "change": "A",
+      "path": "artifacts/dsa-certification-manifest.json"
+    },
+    {
+      "change": "A",
+      "path": "artifacts/dsa-v3-catalog-inventory.json"
+    },
+    {
+      "change": "A",
+      "path": "artifacts/dsa-v3-implementation-manifest.json"
+    },
+    {
+      "change": "A",
+      "path": "artifacts/dsa-v3-live-budget.json"
+    },
+    {
+      "change": "A",
+      "path": "artifacts/dsa-v3-live-component.json"
+    },
+    {
+      "change": "A",
+      "path": "artifacts/dsa-v3-owner-oracle-evidence.json"
+    },
+    {
+      "change": "A",
+      "path": "artifacts/dsa-v3-three-sum-local.json"
+    },
+    {
+      "change": "M",
+      "path": "backend/alembic/env.py"
+    },
+    {
+      "change": "M",
+      "path": "backend/src/recallstack/modules/dsa/application/services.py"
+    },
+    {
+      "change": "M",
+      "path": "backend/src/recallstack/modules/dsa/infrastructure/repositories.py"
+    },
+    {
+      "change": "M",
+      "path": "backend/src/recallstack/modules/dsa/presentation/routes.py"
+    },
+    {
+      "change": "M",
+      "path": "backend/src/recallstack/modules/dsa/presentation/schemas.py"
+    },
+    {
+      "change": "M",
+      "path": "backend/tests/dsa/conftest.py"
+    },
+    {
+      "change": "M",
+      "path": "backend/tests/dsa/test_api.py"
+    },
+    {
+      "change": "M",
+      "path": "backend/tests/dsa/test_execution_storage.py"
+    },
+    {
+      "change": "M",
+      "path": "backend/tests/dsa/test_integration.py"
+    },
+    {
+      "change": "A",
+      "path": "backend/tests/dsa/test_python_harness.py"
+    },
+    {
+      "change": "A",
+      "path": "backend/tests/dsa/test_report_storage.py"
+    },
+    {
+      "change": "A",
+      "path": "backend/tests/dsa/test_v3_contract_storage.py"
+    },
+    {
+      "change": "A",
+      "path": "backend/tests/dsa/test_v3_storage.py"
+    },
+    {
+      "change": "A",
+      "path": "docs/dsa-v3/api-contracts.md"
+    },
+    {
+      "change": "A",
+      "path": "docs/dsa-v3/architecture.md"
+    },
+    {
+      "change": "A",
+      "path": "docs/dsa-v3/certification-blockers.json"
+    },
+    {
+      "change": "A",
+      "path": "docs/dsa-v3/certification.md"
+    },
+    {
+      "change": "A",
+      "path": "docs/dsa-v3/checkpoint-log.md"
+    },
+    {
+      "change": "A",
+      "path": "docs/dsa-v3/inventory.md"
+    },
+    {
+      "change": "A",
+      "path": "docs/dsa-v3/legacy-cleanup-manifest.md"
+    },
+    {
+      "change": "A",
+      "path": "docs/dsa-v3/python-execution.md"
+    },
+    {
+      "change": "A",
+      "path": "docs/dsa-v3/release-report.md"
+    },
+    {
+      "change": "A",
+      "path": "docs/dsa-v3/supabase-handoff.md"
+    },
+    {
+      "change": "A",
+      "path": "docs/dsa-v3/verification.md"
+    },
+    {
+      "change": "M",
+      "path": "web/.env.example"
+    },
+    {
+      "change": "M",
+      "path": "web/e2e/bookmarks.spec.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/e2e/dsa-certification-unit.spec.ts"
+    },
+    {
+      "change": "M",
+      "path": "web/e2e/dsa-execution-browser.spec.ts"
+    },
+    {
+      "change": "M",
+      "path": "web/e2e/dsa-execution-integration.spec.ts"
+    },
+    {
+      "change": "M",
+      "path": "web/e2e/dsa-live-readonly.spec.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/e2e/dsa-navigation.spec.ts"
+    },
+    {
+      "change": "M",
+      "path": "web/e2e/dsa-pagination.spec.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/e2e/dsa-python-contract-unit.spec.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/e2e/dsa-python-real.spec.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/e2e/dsa-report-browser.spec.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/e2e/dsa-report-unit.spec.ts"
+    },
+    {
+      "change": "M",
+      "path": "web/e2e/dsa-studio.spec.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/e2e/dsa-v3-live-component.spec.ts"
+    },
+    {
+      "change": "M",
+      "path": "web/e2e/dsa-workspace.spec.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/e2e/helpers/dsa-report.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/e2e/helpers/dsa-v3.ts"
+    },
+    {
+      "change": "M",
+      "path": "web/e2e/notes.spec.ts"
+    },
+    {
+      "change": "M",
+      "path": "web/e2e/practice-links.spec.ts"
+    },
+    {
+      "change": "M",
+      "path": "web/package-lock.json"
+    },
+    {
+      "change": "M",
+      "path": "web/package.json"
+    },
+    {
+      "change": "M",
+      "path": "web/playwright.config.ts"
+    },
+    {
+      "change": "M",
+      "path": "web/playwright.execution.config.ts"
+    },
+    {
+      "change": "M",
+      "path": "web/public/dsa/python-worker.mjs"
+    },
+    {
+      "change": "A",
+      "path": "web/public/dsa/runner-harness.mjs"
+    },
+    {
+      "change": "A",
+      "path": "web/scripts/certify-catalog.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/scripts/dsa-certification/browser.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/scripts/dsa-certification/core.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/scripts/dsa-certification/evidence.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/scripts/dsa-certification/import-audit.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/scripts/dsa-certification/owner-evidence.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/scripts/e2e-dsa-catalog.mjs"
+    },
+    {
+      "change": "A",
+      "path": "web/scripts/prepare-python-harness.mjs"
+    },
+    {
+      "change": "A",
+      "path": "web/scripts/verify-three-sum.ts"
+    },
+    {
+      "change": "D",
+      "path": "web/src/app/(app)/dsa/[categoryId]/page.tsx"
+    },
+    {
+      "change": "A",
+      "path": "web/src/app/(app)/dsa/[topicSlug]/page.tsx"
+    },
+    {
+      "change": "A",
+      "path": "web/src/app/(app)/dsa/error.tsx"
+    },
+    {
+      "change": "M",
+      "path": "web/src/app/(app)/dsa/library/page.tsx"
+    },
+    {
+      "change": "A",
+      "path": "web/src/app/(app)/dsa/not-found.tsx"
+    },
+    {
+      "change": "M",
+      "path": "web/src/app/(app)/dsa/page.tsx"
+    },
+    {
+      "change": "M",
+      "path": "web/src/app/(app)/dsa/problem/[slug]/page.tsx"
+    },
+    {
+      "change": "A",
+      "path": "web/src/app/api/dsa/board-companies/route.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/src/app/api/dsa/boards/[categoryId]/route.ts"
+    },
+    {
+      "change": "M",
+      "path": "web/src/app/api/dsa/execution-capabilities/route.ts"
+    },
+    {
+      "change": "M",
+      "path": "web/src/app/api/dsa/execution-recovery/route.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/src/app/api/dsa/submissions/[submissionId]/report/route.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/src/app/api/dsa/submissions/route.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/src/app/api/queues/dsa-code-intelligence/route.ts"
+    },
+    {
+      "change": "M",
+      "path": "web/src/app/api/queues/dsa-executions/route.ts"
+    },
+    {
+      "change": "M",
+      "path": "web/src/components/layout/AppShell.tsx"
+    },
+    {
+      "change": "M",
+      "path": "web/src/features/bookmarks/use-bookmarks.ts"
+    },
+    {
+      "change": "M",
+      "path": "web/src/features/dsa/components/DSAProblemScreen.tsx"
+    },
+    {
+      "change": "A",
+      "path": "web/src/features/dsa/execution/CodeIntelligence.tsx"
+    },
+    {
+      "change": "M",
+      "path": "web/src/features/dsa/execution/ExecutionPanel.tsx"
+    },
+    {
+      "change": "M",
+      "path": "web/src/features/dsa/execution/contract.ts"
+    },
+    {
+      "change": "M",
+      "path": "web/src/features/dsa/execution/use-execution.ts"
+    },
+    {
+      "change": "M",
+      "path": "web/src/features/dsa/execution/use-local-python-run.ts"
+    },
+    {
+      "change": "M",
+      "path": "web/src/features/dsa/execution/use-practice-submissions.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/src/features/dsa/navigation/TopicBoard.tsx"
+    },
+    {
+      "change": "A",
+      "path": "web/src/features/dsa/navigation/TopicHome.tsx"
+    },
+    {
+      "change": "A",
+      "path": "web/src/features/dsa/navigation/api.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/src/features/dsa/navigation/contracts.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/src/features/dsa/navigation/navigation.css"
+    },
+    {
+      "change": "A",
+      "path": "web/src/features/dsa/navigation/resume.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/src/features/dsa/navigation/urls.ts"
+    },
+    {
+      "change": "M",
+      "path": "web/src/features/dsa/workspace/LearnerPanel.tsx"
+    },
+    {
+      "change": "A",
+      "path": "web/src/features/dsa/workspace/LearningResources.tsx"
+    },
+    {
+      "change": "M",
+      "path": "web/src/features/dsa/workspace/Workspace.tsx"
+    },
+    {
+      "change": "M",
+      "path": "web/src/features/dsa/workspace/WorkspaceClient.tsx"
+    },
+    {
+      "change": "M",
+      "path": "web/src/features/dsa/workspace/drafts.ts"
+    },
+    {
+      "change": "M",
+      "path": "web/src/features/dsa/workspace/workspace.css"
+    },
+    {
+      "change": "M",
+      "path": "web/src/lib/api/types.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/src/lib/dsa-execution/catalog-server.ts"
+    },
+    {
+      "change": "M",
+      "path": "web/src/lib/dsa-execution/judge.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/src/lib/dsa-execution/public-comparator.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/src/lib/dsa-execution/python-contract.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/src/lib/dsa-execution/python/harness.generated.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/src/lib/dsa-execution/python/runner_harness.py"
+    },
+    {
+      "change": "M",
+      "path": "web/src/lib/dsa-execution/repository.ts"
+    },
+    {
+      "change": "M",
+      "path": "web/src/lib/dsa-execution/runner.ts"
+    },
+    {
+      "change": "M",
+      "path": "web/src/lib/dsa-execution/types.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/src/lib/dsa-reports/contracts.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/src/lib/dsa-reports/provider.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/src/lib/dsa-reports/queue.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/src/lib/dsa-reports/repository.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/src/lib/dsa-reports/worker.ts"
+    },
+    {
+      "change": "M",
+      "path": "web/src/lib/reasonai/authenticated-request.ts"
+    },
+    {
+      "change": "A",
+      "path": "web/supabase/migrations/20261016144501_dsa_v3_explorer_projection.sql"
+    },
+    {
+      "change": "A",
+      "path": "web/supabase/migrations/20261016144502_dsa_v3_report_orchestration.sql"
+    },
+    {
+      "change": "A",
+      "path": "web/supabase/migrations/20261016144503_dsa_v3_versioned_contracts_certification.sql"
+    },
+    {
+      "change": "M",
+      "path": "web/vercel.json"
+    }
+  ],
+  "retainedInfrastructureFiles": [
+    "web/src/lib/dsa-execution/contree.ts",
+    "web/src/lib/dsa-execution/worker.ts",
+    "web/src/lib/reasonai/server/provider.ts",
+    "web/src/features/dsa/workspace/LearnerPanel.tsx"
+  ],
+  "retainedData": [
+    "canonical problem/version IDs",
+    "notes/bookmarks/self-assessed mastery",
+    "historical practice receipts",
+    "versioned drafts",
+    "installed explorer board IDs/settings/lanes/cards",
+    "public report IDs and learner skill signals",
+    "owner certification checks and original source data"
+  ],
+  "retiredBehavior": [
+    "duplicate DSA workspace",
+    "flat root DSA explorer",
+    "provisional note-saving Submit action in judged workspace",
+    "independent browser/server Python invocation implementations"
+  ],
+  "privateArtifactsExcluded": [
+    "ignored Supabase exports",
+    "environment files and secrets",
+    "hidden fixture inputs/expectations",
+    "imported reference source"
+  ],
+  "productionReleaseComplete": false
+}

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "kind": "real-nebius-component-proof",
+  "componentId": "20c221de-5879-4e6e-8a42-342e757ddb3d",
+  "operationId": "01a144ed-017b-73f2-b33b-2b648c0ae1b6",
+  "problemId": "6bf047e9-6735-4892-b063-f59e4c8ce29f",
+  "problemVersionId": "62b831b6-4c58-438e-9442-a78be83e3469",
+  "suiteId": "c34f14dd-3de2-4199-bf8f-67d0db67f9fb",
+  "harnessSha256": "3e96d81f62c21bc4c51aa38c25a2b6d1ed7d7eb48aa1bf600f7e4c3b2286362a",
+  "codeSha256": "d8d4d99f80d9fd808533dd4ae1d06edd13107d18498015d9547ce582410f182a",
+  "componentVerdict": "accepted",
+  "actualCaseCount": 36,
+  "executionTimeMs": 2156,
+  "memoryKiB": 18180,
+  "elapsedMs": 6030,
+  "passed": true,
+  "completedAt": "2026-10-16T13:34:37.521Z",
+  "persistedSubmission": false,
+  "productionMutations": 0,
+  "releaseE2EProven": false,
+  "fixtureContentSha256": "a4054602245b531ff05a1ce1aa6e9e3b1227244d63957bf4432ed3774ea50f3f"
+}

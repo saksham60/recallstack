@@ -56,8 +56,9 @@ export function draftKey(
   problem: string,
   version: string,
   language: string,
+  contractRevision?: string,
 ) {
-  return `reasonai:dsa:draft:1:${user}:${problem}:${version}:${language}`;
+  return `reasonai:dsa:draft:1:${user}:${problem}:${version}:${language}${contractRevision ? `:contract:${contractRevision}` : ""}`;
 }
 export function readDraft(key: string, starterCode = ""): Draft {
   try {
