@@ -115,9 +115,7 @@ export function ExecutionPanel({
                   {localRun.results.length}{" "}
                   {localRun.source === "verified"
                     ? "certified public tests"
-                    : localRun.source === "custom"
-                      ? "custom inputs"
-                      : "statement examples"}{" "}
+                    : "statement examples"}{" "}
                   passed in this Run.
                 </>
               )}
