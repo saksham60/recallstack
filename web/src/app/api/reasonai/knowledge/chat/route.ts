@@ -1,6 +1,6 @@
 import { after } from "next/server";
 import createClient from "openapi-fetch";
-import { flushLangSmith, isLangSmithEnabled, traceTurnStream } from "@/lib/reasonai/server/langsmith";
+import { flushLangSmith, isLangSmithEnabled, reasonAITraceEnvironment, traceTurnStream } from "@/lib/reasonai/server/langsmith";
 import type { paths } from "@/lib/api/types";
 import { publicConfig } from "@/lib/config/public";
 import { getReasonAIConfiguration } from "@/lib/config/server";
@@ -37,10 +37,19 @@ export async function POST(request: Request) {
     if (!response.ok) return reply(response.status === 404 ? "This story is no longer available." : "Couldn’t load the story. Please try again.", [401, 403, 404, 429].includes(response.status) ? response.status : 503);
     const story = storySchema.parse(data);
     const signal = AbortSignal.any([request.signal, AbortSignal.timeout(65000)]);
-    return createReasonAINDJSONResponse(traceTurnStream("reasonai.knowledge", { query: input.message }, {
+    return createReasonAINDJSONResponse(traceTurnStream("reasonai.knowledge", {
+      query: input.message,
+      story: {
+        id: story.id,
+        title: story.title,
+        topics: story.topics,
+      },
+    }, {
       user_id: auth.user.id,
       story_id: story.id,
       surface: "knowledge",
+      environment: reasonAITraceEnvironment(),
+      story_topics: story.topics,
     }, streamStoryAnswer(input, story, signal)), {}, signal);
   } catch { return reply("Couldn’t load the story. Please try again.", 503); }
 }
