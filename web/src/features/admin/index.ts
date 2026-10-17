@@ -1,5 +1,6 @@
 export { AdminGate } from "./components/AdminShell";
 export { OverviewScreen } from "./screens/OverviewScreen";
+export { GrowthScreen } from "./screens/GrowthScreen";
 export { UsersScreen } from "./screens/UsersScreen";
 export { UserDetailScreen } from "./screens/UserDetailScreen";
 export { ProblemsScreen } from "./screens/ProblemsScreen";

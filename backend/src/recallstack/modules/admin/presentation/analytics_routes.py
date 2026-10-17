@@ -11,6 +11,7 @@ from recallstack.modules.admin.presentation.analytics_schemas import (
     AnalyticsUserListResponse,
     AuditLogItem,
     AuditLogListResponse,
+    GrowthResponse,
     OverviewResponse,
     ProblemAnalyticsItem,
     ProblemAnalyticsListResponse,
@@ -72,6 +73,28 @@ async def overview(
         audit=_audit(request, current_user.profile_id, "admin.overview.viewed", "platform")
     )
     return OverviewResponse.model_validate(result)
+
+
+@router.get(
+    "/growth",
+    response_model=GrowthResponse,
+    operation_id="adminPlatformGrowth",
+    summary="Get cross-surface platform growth",
+    description=(
+        "Authenticated admin-only signup and recorded engagement aggregates; "
+        "referral attribution is not yet captured."
+    ),
+)
+async def platform_growth(
+    request: Request,
+    current_user: AdminUserDependency,
+    service: AnalyticsDependency,
+    days: Annotated[Literal[7, 30, 90], Query()] = 30,
+) -> GrowthResponse:
+    result = await service.growth(
+        days, audit=_audit(request, current_user.profile_id, "admin.growth.viewed", "platform")
+    )
+    return GrowthResponse.model_validate(result)
 
 
 @router.get(
