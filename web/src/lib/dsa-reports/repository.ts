@@ -1,5 +1,4 @@
 import "server-only";
-import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { publicConfig } from "@/lib/config/public";
 import { getReasonAIConfiguration } from "@/lib/config/server";
@@ -8,16 +7,6 @@ import { REPORT_RUBRIC, type ReportRepository } from "./contracts";
 export const codeIntelligenceEnabled = () =>
   process.env.DSA_CODE_INTELLIGENCE_ENABLED === "1" &&
   !!getReasonAIConfiguration().apiKey;
-export function reportSubmissionScope(
-  raw = process.env.DSA_CODE_INTELLIGENCE_SUBMISSION_IDS,
-) {
-  if (!raw?.trim()) return undefined;
-  return z
-    .array(z.uuid())
-    .min(1)
-    .max(10)
-    .parse(raw.split(",").map((id) => id.trim()));
-}
 export function createReportRepository() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!key)
@@ -47,7 +36,7 @@ export function createReportRepository() {
     return data as T;
   }
   const claim: ReportRepository["claim"] = (id, token) =>
-    command("claim", { id, token, submissionIds: reportSubmissionScope() });
+    command("claim", { id, token });
   const finish: ReportRepository["finish"] = (claim, outcome) =>
     command("finish", { id: claim.id, token: claim.token, ...outcome });
   return {
@@ -57,7 +46,6 @@ export function createReportRepository() {
       command<Array<{ id: string; generation: number }>>("dispatch", {
         model: getReasonAIConfiguration().model,
         rubric: REPORT_RUBRIC,
-        submissionIds: reportSubmissionScope(),
         maxAttempts:
           process.env.DSA_CODE_INTELLIGENCE_MAX_ATTEMPTS === "1" ? 1 : 2,
       }),
