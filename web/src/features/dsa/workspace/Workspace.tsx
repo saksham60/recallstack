@@ -445,7 +445,9 @@ function EditorWorkspace({
   );
   const canRun =
     !preview && problem.availability === "available" && language === "python";
-  const certifiedSubmit = execution.availability.data?.submit === true;
+  const certifiedSubmit =
+    execution.availability.data?.submit === true &&
+    !execution.availability.isError;
   const receipt = localPython.run?.receipt;
   const matchedRun =
     localPython.run?.state === "passed" &&
@@ -475,9 +477,11 @@ function EditorWorkspace({
     ? "Switch to learner view to submit a published specification."
     : language !== "python"
       ? "Only Python submissions are currently supported."
-      : !certifiedSubmit
-        ? "Trusted submission is awaiting independent suite and contract certification."
-        : "Pass all certified public tests with unchanged code to unlock Submit.";
+      : execution.availability.isError
+        ? "Submission availability could not be checked. Check availability again."
+        : !certifiedSubmit
+          ? "This problem's hidden tests are awaiting review. Passing statement examples does not enable Submit yet."
+          : "Pass all certified public tests with unchanged code to unlock Submit.";
   async function execute(mode: "run" | "submit") {
     setTestTab("results");
     setMobile("tests");
@@ -899,12 +903,21 @@ function EditorWorkspace({
                     "Hidden-suite availability is being checked.")}
               </p>
             </div>
-            <div className="studio-scroll" hidden={testTab !== "results"}>
+            <div
+              className="studio-scroll"
+              role="region"
+              aria-label="Test results"
+              tabIndex={0}
+              hidden={testTab !== "results"}
+            >
               <ExecutionPanel
                 execution={execution}
                 localRun={localPython.run}
                 onCancelLocal={localPython.cancel}
                 practiceSubmission={practice.latest}
+                submitBlockReason={canSubmitTrusted ? undefined : submitReason}
+                onCheckSubmission={() => void execution.availability.refetch()}
+                checkingSubmission={execution.availability.isFetching}
               />
               <SubmissionIntelligence
                 userId={userId}
@@ -1030,32 +1043,51 @@ function EditorWorkspace({
             ? "Submit uses trusted hidden grading."
             : ` ${submitReason}`}
         </p>
-        <div className="studio-actions">
-          <button
-            type="button"
-            disabled={!canRun || blocked}
-            onClick={() => execute("run")}
-            aria-describedby="studio-execution-reason"
-            title={canRun ? "Run locally (Ctrl/Cmd+Enter)" : runReason}
-          >
-            <Play size={14} />
-            Run
-          </button>
-          <button
-            type="button"
-            disabled={!canSubmit || blocked}
-            onClick={() => execute("submit")}
-            className="studio-primary"
-            aria-describedby="studio-execution-reason"
-            title={
-              canSubmitTrusted
-                ? "Submit to certified hidden tests (Ctrl/Cmd+Shift+Enter)"
-                : submitReason
-            }
-          >
-            <Send size={14} />
-            Submit
-          </button>
+        <div className="studio-submission-actions">
+          <div className="studio-actions">
+            <button
+              type="button"
+              disabled={!canRun || blocked}
+              onClick={() => execute("run")}
+              aria-describedby="studio-execution-reason"
+              title={canRun ? "Run locally (Ctrl/Cmd+Enter)" : runReason}
+            >
+              <Play size={14} />
+              Run
+            </button>
+            <button
+              type="button"
+              disabled={!canSubmit || blocked}
+              onClick={() => execute("submit")}
+              className="studio-primary"
+              aria-describedby={
+                canSubmitTrusted
+                  ? "studio-execution-reason"
+                  : "studio-execution-reason studio-submit-status"
+              }
+              title={
+                canSubmitTrusted
+                  ? "Submit to certified hidden tests (Ctrl/Cmd+Shift+Enter)"
+                  : submitReason
+              }
+            >
+              <Send size={14} />
+              Submit
+            </button>
+          </div>
+          {!canSubmitTrusted && (
+            <span id="studio-submit-status" className="studio-submit-state">
+              {preview
+                ? "Submit unavailable in reviewer preview"
+                : language !== "python"
+                  ? "Submit supports Python only"
+                  : execution.availability.isError
+                    ? "Submit availability unavailable"
+                    : !certifiedSubmit
+                      ? "Submit unavailable · hidden tests under review"
+                      : "Pass certified public tests to unlock Submit"}
+            </span>
+          )}
         </div>
       </footer>
       {notice && (

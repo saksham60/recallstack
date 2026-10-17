@@ -471,6 +471,10 @@
 .studio-result-copy {
   padding: 16px;
 }
+.studio-results > .studio-scroll:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
 .studio-code-footer {
   padding: 7px 12px;
   font-size: 10px;
@@ -524,6 +528,33 @@
 }
 .studio-bottom .studio-actions {
   flex-shrink: 0;
+}
+.studio-submission-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+  flex-shrink: 0;
+  max-width: min(360px, 55%);
+}
+.studio-submit-state {
+  color: var(--warning);
+  font-size: 11px;
+  text-align: right;
+}
+.studio-local-summary {
+  color: var(--success);
+  margin-block: 8px;
+}
+.studio-practice-history {
+  margin-block: 8px 16px;
+}
+.studio-practice-history summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+.studio-practice-history[open] section {
+  padding-block: 8px;
 }
 .studio-grid.layout-classic,
 .studio-grid.layout-visual {

@@ -27,7 +27,7 @@ function job(
     updatedAt: new Date().toISOString(),
   };
 }
-async function setup(page: Page, available = { run: true, submit: true }) {
+async function setup(page: Page, available = { run: true, submit: true }, caseCount = 1) {
   await page.route("**/dsa/python-worker.mjs", (route) =>
     route.fulfill({
       contentType: "text/javascript",
@@ -103,7 +103,7 @@ async function setup(page: Page, available = { run: true, submit: true }) {
           suiteId: "60000000-0000-4000-8000-000000000001",
           revision: "a".repeat(64), contractRevision: "b".repeat(64), harnessSha256: HARNESS_SHA256,
           contract: {entrypoint: "solve", inputMode: "kwargs", checker: "exact_json"},
-          cases: [{id: "30000000-0000-4000-8000-000000000001", input: {nums:[1,2]}, expected:3}],
+          cases: Array.from({length:caseCount},(_,index)=>({id: `30000000-0000-4000-8000-${String(index+1).padStart(12,"0")}`, input: {nums:[1,2]}, expected:3})),
         }} : {}),
         languages: ["python"],
         ...(!available.submit
@@ -276,7 +276,8 @@ test("refresh recovers the durable job and never creates a duplicate execution",
   expect(posts).toBe(1);
 });
 test("uncertified examples never unlock Submit; historical practice receipts remain readable", async ({authenticatedPage: page}) => {
-  await setup(page, {run:false, submit:false});
+  const availability={run:false,submit:false};
+  await setup(page, availability);
   let writes = 0;
   await page.route("**/api/dsa/practice-submissions**", r => {
     if (r.request().method() === "POST") writes++;
@@ -286,13 +287,43 @@ test("uncertified examples never unlock Submit; historical practice receipts rem
   await expect(page.getByRole("button", {name:"Submit", exact:true})).toBeDisabled();
   await page.getByRole("button", {name:"Run",exact:true}).click();
   await expect(page.getByRole("heading", {name:"Local Run · All displayed cases passed"})).toBeVisible();
+  await expect(page.getByText("1/1 statement examples passed in this Run.",{exact:true})).toBeVisible();
+  await expect(page.getByRole("region",{name:"Test results"}).getByText("This problem's hidden tests are awaiting review. Passing statement examples does not enable Submit yet.",{exact:true})).toBeVisible();
+  await expect(page.getByRole("heading", {name:"Historical practice attempt"})).toBeHidden();
+  await page.getByText("Earlier saved practice attempt",{exact:true}).click();
   await expect(page.getByRole("button", {name:"Submit", exact:true})).toBeDisabled();
   await expect(page.getByRole("heading", {name:"Historical practice attempt"})).toBeVisible();
   expect(writes).toBe(0);
   await page.reload();
   await page.getByRole("button", {name:"Results",exact:true}).click();
+  await page.getByText("Earlier saved practice attempt",{exact:true}).click();
   await expect(page.getByRole("heading", {name:"Historical practice attempt"})).toBeVisible();
   await expect(page.getByRole("button", {name:"Submit",exact:true})).toBeDisabled();
+  await page.getByRole("button",{name:"Run",exact:true}).click();
+  await expect(page.getByText("1/1 statement examples passed in this Run.",{exact:true})).toBeVisible();
+  availability.run=true; availability.submit=true;
+  await page.getByRole("button",{name:"Check submission availability",exact:true}).click();
+  await expect(page.locator("#studio-submit-status")).toHaveText("Pass certified public tests to unlock Submit");
+  await expect(page.getByRole("button",{name:"Submit",exact:true})).toBeDisabled();
+  await page.getByRole("button",{name:"Run",exact:true}).click();
+  await expect(page.getByRole("button",{name:"Submit",exact:true})).toBeEnabled();
+});
+
+test("wheel over a local testcase scrolls the results pane and keyboard reaches the end", async ({authenticatedPage:page}) => {
+  await page.setViewportSize({width:1280,height:720});
+  await setup(page,{run:true,submit:true},12);
+  await page.goto(url);
+  await page.getByRole("button",{name:"Run",exact:true}).click();
+  await expect(page.getByRole("heading",{name:"Local Run · All displayed cases passed"})).toBeVisible();
+  const scroll=page.locator(".studio-results > .studio-scroll:not([hidden])");
+  const bounds=await scroll.boundingBox();
+  expect(bounds).not.toBeNull();
+  await page.mouse.move(bounds!.x+bounds!.width/2,bounds!.y+Math.min(120,bounds!.height-20));
+  await page.mouse.wheel(0,650);
+  await expect.poll(()=>scroll.evaluate(node=>node.scrollTop)).toBeGreaterThan(0);
+  await scroll.focus();
+  await page.keyboard.press("End");
+  await expect.poll(()=>scroll.evaluate(node=>node.scrollHeight-node.clientHeight-node.scrollTop)).toBeLessThanOrEqual(1);
 });
 
 test("execution API rejects anonymous and cross-origin requests even with an E2E login cookie", async ({
