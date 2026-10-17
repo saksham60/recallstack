@@ -1,5 +1,7 @@
 # ReasonAI
 
+> **Nebius × NVIDIA evidence:** [evaluation methodology and verification plan](docs/hackathon-evidence/README.md). Live results are not claimed unless explicitly measured.
+
 **Build Better Judgment.** An AI-native engineering workspace where developers **discover technical ideas, reason about architectures, build together, and master algorithms**—powered by **NVIDIA Nemotron on Nebius Token Factory**.
 
 **[Try ReasonAI](https://www.reasonai.tech/login)** · **[Watch the 3-minute demo](https://www.youtube.com/watch?v=FoV2KkK72Xs)** · **[Devpost submission](https://devpost.com/software/reasonai)** · **[Technical architecture](docs/ARCHITECTURE.md)**
