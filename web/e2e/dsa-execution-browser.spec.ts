@@ -107,7 +107,7 @@ async function setup(page: Page, available = { run: true, submit: true }, caseCo
         }} : {}),
         languages: ["python"],
         ...(!available.submit
-          ? { submitReason: "Hidden suite is not certified." }
+          ? { submitReason: "No executable test suite is available." }
           : {}),
       },
     }),
@@ -144,7 +144,7 @@ test("Run executes Python locally and makes no execution POST", async ({
   await expect(page.getByRole("button", { name: "Submit", exact: true })).toBeEnabled();
 });
 
-test("Submit requires matching local Run and displays only trusted aggregates", async ({
+test("Submit works without local Run and displays only judge aggregates", async ({
   authenticatedPage: page,
 }) => {
   await setup(page);
@@ -170,8 +170,7 @@ test("Submit requires matching local Run and displays only trusted aggregates", 
     }),
   );
   await page.goto(url);
-  await expect(page.getByRole("button", { name: "Submit", exact: true })).toBeDisabled();
-  await page.getByRole("button", { name: "Run", exact: true }).click();
+  // No browser Run, certificate unlock, or public test pass is necessary.
   await expect(page.getByRole("button", { name: "Submit", exact: true })).toBeEnabled();
   await page.getByRole("button", { name: "Submit", exact: true }).click();
   await expect(page.getByText("accepted", { exact: true })).toBeVisible();
@@ -183,7 +182,7 @@ test("Submit requires matching local Run and displays only trusted aggregates", 
         run: true,
         submit: false,
         languages: ["python"],
-        submitReason: "Hidden suite is not certified.",
+        submitReason: "No executable test suite is available.",
       },
     }),
   );
@@ -275,7 +274,7 @@ test("refresh recovers the durable job and never creates a duplicate execution",
   ).toBeVisible();
   expect(posts).toBe(1);
 });
-test("uncertified examples never unlock Submit; historical practice receipts remain readable", async ({authenticatedPage: page}) => {
+test("without an executable suite, Submit stays unavailable; practice receipts remain readable", async ({authenticatedPage: page}) => {
   const availability={run:false,submit:false};
   await setup(page, availability);
   let writes = 0;
@@ -288,7 +287,7 @@ test("uncertified examples never unlock Submit; historical practice receipts rem
   await page.getByRole("button", {name:"Run",exact:true}).click();
   await expect(page.getByRole("heading", {name:"Local Run · All displayed cases passed"})).toBeVisible();
   await expect(page.getByText("1/1 statement examples passed in this Run.",{exact:true})).toBeVisible();
-  await expect(page.getByRole("region",{name:"Test results"}).getByText("This problem's hidden tests are awaiting review. Passing statement examples does not enable Submit yet.",{exact:true})).toBeVisible();
+  await expect(page.getByRole("region",{name:"Test results"}).getByText("This problem does not currently have an executable test suite.",{exact:true})).toBeVisible();
   await expect(page.getByRole("heading", {name:"Historical practice attempt"})).toBeHidden();
   await page.getByText("Earlier saved practice attempt",{exact:true}).click();
   await expect(page.getByRole("button", {name:"Submit", exact:true})).toBeDisabled();
@@ -303,8 +302,7 @@ test("uncertified examples never unlock Submit; historical practice receipts rem
   await expect(page.getByText("1/1 statement examples passed in this Run.",{exact:true})).toBeVisible();
   availability.run=true; availability.submit=true;
   await page.getByRole("button",{name:"Check submission availability",exact:true}).click();
-  await expect(page.locator("#studio-submit-status")).toHaveText("Pass verified public tests to unlock Submit");
-  await expect(page.getByRole("button",{name:"Submit",exact:true})).toBeDisabled();
+  await expect(page.getByRole("button",{name:"Submit",exact:true})).toBeEnabled();
   await page.getByRole("button",{name:"Run",exact:true}).click();
   await expect(page.getByRole("button",{name:"Submit",exact:true})).toBeEnabled();
 });
