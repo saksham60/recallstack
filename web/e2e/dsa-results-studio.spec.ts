@@ -41,8 +41,8 @@ async function fixture(page: Page) {
     retries = 0,
     reportGets = 0,
     delayOld = false;
-  let cancellations=0;
-  let latestReportGets=0;
+  let cancellations = 0;
+  let latestReportGets = 0;
   const tutorRequests: Array<Record<string, unknown>> = [];
   await page.route("**/api/dsa/execution-capabilities?**", (r) =>
     r.fulfill({ json: { run: true, submit: true, languages: ["python"] } }),
@@ -53,8 +53,11 @@ async function fixture(page: Page) {
     await r.fulfill({ status: 202, json: job });
   });
   await page.route(`**/api/dsa/executions/${latestId}`, (r) => {
-    if(r.request().method()==="DELETE"){cancellations++;return r.fulfill({status:202,json:job});}
-    return r.fulfill({json:job});
+    if (r.request().method() === "DELETE") {
+      cancellations++;
+      return r.fulfill({ status: 202, json: job });
+    }
+    return r.fulfill({ json: job });
   });
   await page.route(`**/api/dsa/executions/${oldId}`, async (r) => {
     if (delayOld) await new Promise((resolve) => setTimeout(resolve, 900));
@@ -74,7 +77,7 @@ async function fixture(page: Page) {
       return r.fulfill({ status: 202, json: { status: "queued" } });
     }
     reportGets++;
-    if(!selected)latestReportGets++;
+    if (!selected) latestReportGets++;
     await r.fulfill({
       json: {
         submissionId: selected ? oldId : latestId,
@@ -129,20 +132,32 @@ async function fixture(page: Page) {
     get reportGets() {
       return reportGets;
     },
-    get cancellations(){return cancellations;},
-    get latestReportGets(){return latestReportGets;},
-    confirmCancellation(){job={...job,status:"cancelled"};},
+    get cancellations() {
+      return cancellations;
+    },
+    get latestReportGets() {
+      return latestReportGets;
+    },
+    confirmCancellation() {
+      job = { ...job, status: "cancelled" };
+    },
     tutorRequests,
     setStatus(status: string) {
       reportStatus = status;
     },
     complete(
       verdict: "provisional_pass" | "wrong_answer" = "provisional_pass",
+      metrics: Partial<NonNullable<ExecutionView["result"]>> = {},
     ) {
       job = {
         ...job,
         status: "completed",
-        result: { verdict, gradingLevel: "provisional", executionTimeMs: 9 },
+        result: {
+          verdict,
+          gradingLevel: "provisional",
+          executionTimeMs: 9,
+          ...metrics,
+        },
       };
     },
     delayHistory() {
@@ -151,13 +166,27 @@ async function fixture(page: Page) {
   };
 }
 test.describe.configure({ timeout: 120000 });
-test("cancelling direct Submit has one control and waits for a saved terminal status",async({authenticatedPage:page})=>{
- const h=await fixture(page);await page.getByRole("button",{name:"Submit",exact:true}).click();
- await expect(page.getByRole("button",{name:"Cancel execution",exact:true})).toHaveCount(1);
- await page.getByRole("button",{name:"Cancel execution",exact:true}).click();
- await expect(page.getByRole("button",{name:"Cancellation requested",exact:true})).toBeDisabled();
- h.confirmCancellation();await expect(page.getByRole("heading",{name:"Submission cancelled",exact:true})).toBeVisible({timeout:20000});
- expect(h.posts).toBe(1);expect(h.cancellations).toBe(1);expect(h.latestReportGets).toBe(0);
+test("cancelling direct Submit has one control and waits for a saved terminal status", async ({
+  authenticatedPage: page,
+}) => {
+  const h = await fixture(page);
+  await page.getByRole("button", { name: "Submit", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Cancel execution", exact: true }),
+  ).toHaveCount(1);
+  await page
+    .getByRole("button", { name: "Cancel execution", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Cancellation requested", exact: true }),
+  ).toBeDisabled();
+  h.confirmCancellation();
+  await expect(
+    page.getByRole("heading", { name: "Submission cancelled", exact: true }),
+  ).toBeVisible({ timeout: 20000 });
+  expect(h.posts).toBe(1);
+  expect(h.cancellations).toBe(1);
+  expect(h.latestReportGets).toBe(0);
 });
 test("direct Submit opens right Results and preserves judge evidence through queued, generating, saved and terminal polling", async ({
   authenticatedPage: page,
@@ -173,12 +202,13 @@ test("direct Submit opens right Results and preserves judge evidence through que
   await expect(
     page.getByRole("heading", { name: "Queued for sandbox" }),
   ).toBeVisible();
-  h.complete();
+  h.complete("provisional_pass", { totalTests: 3 });
   await expect(
     page
       .locator("#reasonai-panel-results")
       .getByRole("heading", { name: "Passed current tests" }),
   ).toBeVisible({ timeout: 20000 });
+  await expect(page.locator(".studio-judge-metrics")).not.toContainText("0/3");
   await expect(
     page.getByRole("heading", { name: "Code Intelligence queued" }),
   ).toBeVisible();

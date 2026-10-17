@@ -474,11 +474,12 @@ export function SubmissionResults({
               {result.memoryKiB !== undefined && (
                 <span>Memory: {result.memoryKiB} KiB</span>
               )}
-              {result.totalTests !== undefined && (
-                <span>
-                  {result.passedTests ?? 0}/{result.totalTests} tests passed
-                </span>
-              )}
+              {result.totalTests !== undefined &&
+                result.passedTests !== undefined && (
+                  <span>
+                    {result.passedTests}/{result.totalTests} tests passed
+                  </span>
+                )}
             </div>
           </>
         )}
