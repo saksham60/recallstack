@@ -155,4 +155,7 @@ test("report and history endpoints enforce real auth and reject cross-origin acc
       ).status(),
     ).toBe(403);
   }
+  const reportPath = `/api/dsa/submissions/${submissionId}/report`;
+  expect((await request.post(reportPath, { headers: { Cookie: "e2e-bypass-auth=1" } })).status()).toBe(401);
+  expect((await request.post(reportPath, { headers: { Origin: "https://evil.example" } })).status()).toBe(403);
 });
