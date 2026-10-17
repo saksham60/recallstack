@@ -168,8 +168,7 @@ function Report({
       <h3>Code Intelligence</h3>
       <span className="studio-eyebrow">Estimated by AI</span>
       <p className="studio-muted">
-        Analysis cannot change the official judge result or mark a problem
-        mastered.
+        AI feedback is separate from the saved sandbox test result.
       </p>
       {query.data && (
         <details>
