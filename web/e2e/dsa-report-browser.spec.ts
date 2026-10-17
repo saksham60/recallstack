@@ -58,7 +58,7 @@ test("official failed verdict stays visible while analysis loads, persists on re
   await expect(
     page.getByText("Verified by Judge", { exact: true }),
   ).toBeVisible();
-  await expect(page.getByText(/queued or generating/)).toBeVisible();
+  await expect(page.getByRole("heading", {name:"Generating Code Intelligence"})).toBeVisible();
   ready = true;
   await expect(
     page.getByText(exampleAnalysis.summary, { exact: true }),
@@ -78,9 +78,9 @@ test("official failed verdict stays visible while analysis loads, persists on re
   await expect(
     page.getByText(exampleAnalysis.summary, { exact: true }),
   ).toBeVisible();
-  await expect(
-    page.getByRole("region", { name: "Saved submissions" }).getByRole("link"),
-  ).toHaveAttribute("href", `${canonical}&submission=${submissionId}`);
+  await page.getByRole("tab",{name:"History",exact:true}).click();
+  await expect(page.getByRole("region", { name: "Saved submissions" }).getByRole("link")).toHaveAttribute("href", `${canonical}&submission=${submissionId}`);
+  await page.getByRole("tab",{name:"Results",exact:true}).click();
   await page
     .getByRole("region", { name: "Code Intelligence" })
     .scrollIntoViewIfNeeded();
@@ -131,7 +131,7 @@ test("a failed AI review can retry without repeating sandbox submission", async 
   await expect(page.getByText(/Report generation exhausted its configured attempts/)).toHaveCount(0);
   await page.getByRole("button", { name: "Retry AI Review" }).click();
   await expect.poll(() => postCount).toBe(1);
-  await expect(page.getByText(/queued or generating/)).toBeVisible();
+  await expect(page.getByRole("heading", {name:"Code Intelligence queued"})).toBeVisible();
   status = "completed";
   await expect(page.getByText(exampleAnalysis.summary, { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "wrong answer", exact: true })).toBeVisible();

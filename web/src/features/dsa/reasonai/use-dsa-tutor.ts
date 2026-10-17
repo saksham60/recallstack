@@ -284,9 +284,12 @@ export function useDSATutor(context: DSAProblemContext, persistenceKey?: string)
       if (inFlight.current === controller) { inFlight.current = null; activeRun.current = undefined; setPending(false); setActivity(undefined); }
     }
   }
-  function send(action: DSATutorAction, message: string, webOverride?: boolean) {
+  function send(action: DSATutorAction, message: string, webOverride?: boolean, submissionOverride?: string | null) {
     if (inFlight.current || !message.trim()) return;
-    if (action === "review" && !context.userApproach.trim() && !context.userCode.trim()) {
+    const { selectedSubmissionId: currentSubmission, ...editorContext } = context;
+    const selectedSubmissionId = submissionOverride === undefined ? currentSubmission : submissionOverride;
+    const requestContext = { ...editorContext, ...(selectedSubmissionId ? { selectedSubmissionId } : {}) };
+    if (action === "review" && !requestContext.selectedSubmissionId && !context.userApproach.trim() && !context.userCode.trim()) {
       setError("Write your approach or paste your code first, then ask for a review."); return;
     }
     const nextHint = action === "hint" ? Math.min(hints.current + 1, 20) : hints.current;
@@ -294,7 +297,7 @@ export function useDSATutor(context: DSAProblemContext, persistenceKey?: string)
     restoring.current?.abort();
     restoring.current = null;
     try {
-      request = parseDSATutorRequest({ action, message, searchWeb: webOverride ?? searchWeb, hintLevel: nextHint, context, ...(context.problemVersionId ? { teachingMode } : {}),
+      request = parseDSATutorRequest({ action, message, searchWeb: webOverride ?? searchWeb, hintLevel: nextHint, context: requestContext, ...(context.problemVersionId ? { teachingMode } : {}),
         history: messages.slice(-12).map(({ role, content, response }) => ({ role, content: response?.visual ? (content + "\nVisual walkthrough (untrusted earlier explanation): " + JSON.stringify(response.visual)).slice(0, 12000) : content })),
         ...(webContextToken.current ? { webContextToken: webContextToken.current } : {}),
         ...(visualFocus ? { visualFocus } : {}),

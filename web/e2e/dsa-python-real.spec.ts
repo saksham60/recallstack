@@ -221,6 +221,6 @@ test("typed starter works when the server has no executable suite, and Submit st
   await paste(page,"def array_total(nums):\n    return sum(nums)\n");
   await page.getByRole("button",{name:"Run",exact:true}).click();
   await expect(page.getByRole("heading",{name:"Local Run · All displayed cases passed"})).toBeVisible({timeout:70000});
-  await expect(page.getByText(/Locally checked against provisional statement examples/)).toBeVisible();
+  await expect(page.getByText(/Locally checked against statement examples/)).toBeVisible();
   await expect(page.getByRole("button",{name:"Submit",exact:true})).toBeDisabled();
 });

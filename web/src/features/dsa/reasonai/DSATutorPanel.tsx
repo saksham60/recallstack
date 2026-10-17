@@ -12,9 +12,10 @@ import type { DSAProblemContext, DSATutorAction } from "./contract";
 import type { DSATutor } from "./use-dsa-tutor";
 import "./tutor.css";
 
-export function DSATutorPanel({ tutor, onClose, slug, problem, focused, onFocusChange }: {
+export function DSATutorPanel({ tutor, onClose, slug, problem, focused, onFocusChange, embedded=false }: {
   tutor: DSATutor; onClose: () => void; slug: string; problem: DSAProblemContext;
   focused: boolean; onFocusChange: (focused: boolean) => void;
+  embedded?: boolean;
 }) {
   const conversation = useRef<HTMLDivElement>(null);
   const latest = useRef<HTMLElement>(null);
@@ -58,7 +59,7 @@ export function DSATutorPanel({ tutor, onClose, slug, problem, focused, onFocusC
   const button = "rounded-lg p-2 text-muted transition-colors hover:bg-surface-elevated hover:text-foreground disabled:opacity-30";
   return <section aria-label="ReasonAI AI Tutor" className={`flex h-full min-h-0 flex-col overflow-hidden border border-border/50 bg-background ${focused ? "rounded-none border-0" : "rounded-2xl"}`}>
     <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 px-4 py-3 sm:px-5">
-      <div className="flex items-center gap-3"><span className="rounded-xl bg-accent/10 p-2 text-accent"><Sparkles size={20} /></span><div><h2 className="text-base font-semibold tracking-tight">ReasonAI</h2><p className="text-xs text-muted">AI Tutor{focused ? " · Focus view" : ""}</p></div></div>
+      {!embedded&&<div className="flex items-center gap-3"><span className="rounded-xl bg-accent/10 p-2 text-accent"><Sparkles size={20} /></span><div><h2 className="text-base font-semibold tracking-tight">ReasonAI</h2><p className="text-xs text-muted">AI Tutor{focused ? " · Focus view" : ""}</p></div></div>}
       <div className="flex items-center gap-1">
         <button type="button" aria-label="Larger text" aria-pressed={largeText} title="Larger text" onClick={() => setLargeText(!largeText)} className={`${button} ${largeText ? "!text-accent" : ""}`}><Type size={16} /></button>
         <button type="button" aria-label="Clear chat" title="Clear chat" onClick={tutor.clear} disabled={!tutor.messages.length && !tutor.error} className={button}><Trash2 size={15} /></button>

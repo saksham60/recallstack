@@ -1,5 +1,6 @@
 import type { VisualLesson } from "./visual-contract";
 import { safeExternalUrl } from "@/lib/http/safe-external-url";
+import type { CodeAnalysis } from "@/lib/dsa-reports/contracts";
 export { safeExternalUrl } from "@/lib/http/safe-external-url";
 
 export const DSA_ACTIONS = ["chat", "hint", "explain", "start", "trace", "visualize", "review", "complexity", "research", "solution"] as const;
@@ -23,6 +24,15 @@ export interface DSAProblemContext {
   language?: "python" | "typescript" | "cpp";
   preview?: boolean;
   publicExecutionId?: string;
+  selectedSubmissionId?: string;
+  /** Owned source, verdict and bounded saved analysis hydrated by the server. */
+  selectedSubmission?: {
+    submissionId: string;
+    codeSha256: string;
+    judge: { verdict: string; gradingLevel?: string; executionTimeMs?: number; memoryKiB?: number };
+    analysis: CodeAnalysis | null;
+    analysisTruncated: boolean;
+  };
   /** Hydrated only by the server, never accepted from a caller. */
   specification?: { description: string; constraints: string; functionContract: string; examples: string; truncated: boolean };
   publicExecution?: { submissionId: string; status: string; result: string; resultTruncated: boolean; codeMayHaveChanged: true };
@@ -65,7 +75,7 @@ function only(value: Record<string, unknown>, fields: string[]) {
 export function parseDSATutorRequest(value: unknown): DSATutorRequest {
   const input = record(value), context = record(input.context);
   only(input, ["action", "message", "searchWeb", "hintLevel", "context", "history", "webContextToken", "visualFocus", "conversationId", "idempotencyKey", "teachingMode"]);
-  only(context, ["contentId", "slug", "title", "difficulty", "category", "sourceProvider", "sourceUrl", "summary", "companies", "remarks", "userApproach", "userNotes", "userCode", "problemVersionId", "language", "preview", "publicExecutionId"]);
+  only(context, ["contentId", "slug", "title", "difficulty", "category", "sourceProvider", "sourceUrl", "summary", "companies", "remarks", "userApproach", "userNotes", "userCode", "problemVersionId", "language", "preview", "publicExecutionId", "selectedSubmissionId"]);
   if (!DSA_ACTIONS.includes(input.action as DSATutorAction)) throw new DSAValidationError("Unknown tutor action.");
   if (typeof input.searchWeb !== "boolean" || !Number.isInteger(input.hintLevel) || Number(input.hintLevel) < 0 || Number(input.hintLevel) > 20) throw new DSAValidationError("Invalid tutor options.");
   if (!Array.isArray(input.history) || input.history.length > 12) throw new DSAValidationError("Conversation is too long.");
@@ -89,6 +99,10 @@ export function parseDSATutorRequest(value: unknown): DSATutorRequest {
   if (context.publicExecutionId !== undefined) {
     if (!parsed.problemVersionId) throw new DSAValidationError("Execution context requires a problem version.");
     parsed.publicExecutionId = uuid(context.publicExecutionId, "public execution ID");
+  }
+  if (context.selectedSubmissionId !== undefined) {
+    if (!parsed.problemVersionId) throw new DSAValidationError("Submission context requires a problem version.");
+    parsed.selectedSubmissionId = uuid(context.selectedSubmissionId, "selected submission ID");
   }
   if (input.teachingMode !== undefined && input.teachingMode !== "socratic" && input.teachingMode !== "direct") throw new DSAValidationError("Invalid teaching mode.");
   for (const key of ["difficulty", "category", "sourceProvider", "summary", "remarks"] as const) {

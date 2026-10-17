@@ -8,6 +8,7 @@ import { executionRequestSchema } from "../src/features/dsa/execution/contract";
 import { parseDSATutorRequest } from "../src/features/dsa/reasonai/contract";
 import { hydrateTutorContext } from "../src/lib/dsa-execution/tutor-context";
 import { turnInstruction } from "../src/features/dsa/reasonai/provider";
+import { exampleAnalysis } from "./helpers/dsa-report";
 import type { components } from "../src/lib/api/types";
 import {
   ExecutionError,
@@ -297,57 +298,225 @@ test("oversized combined VM input fails before the non-idempotent launch marker"
   expect(h.finishes[0][3]).toContain("input exceeds");
 });
 
-const tutorInput = () => parseDSATutorRequest({
-  action: "hint", message: "Give me a hint", searchWeb: false, hintLevel: 1, history: [], teachingMode: "direct",
-  context: { contentId: problemId, problemVersionId, title: "Untrusted title", slug: "test", language: "python", userCode: "def solve(nums): return 0", userApproach: "", userNotes: "" },
-});
+const tutorInput = () =>
+  parseDSATutorRequest({
+    action: "hint",
+    message: "Give me a hint",
+    searchWeb: false,
+    hintLevel: 1,
+    history: [],
+    teachingMode: "direct",
+    context: {
+      contentId: problemId,
+      problemVersionId,
+      title: "Untrusted title",
+      slug: "test",
+      language: "python",
+      userCode: "def solve(nums): return 0",
+      userApproach: "",
+      userNotes: "",
+    },
+  });
 const tutorProblem = {
-  id: problemId, problem_version_id: problemVersionId, title: "Array total", slug: "array-total", difficulty: "easy", availability: "available",
-  description: "Return the sum of the integers.", constraints: ["Input is unchanged"], function_contract: { function: "solve" }, examples: [{ input: [1, 2], output: 3 }],
-  categories: [], topics: [], supported_contract_languages: ["python"],
+  id: problemId,
+  problem_version_id: problemVersionId,
+  title: "Array total",
+  slug: "array-total",
+  difficulty: "easy",
+  availability: "available",
+  description: "Return the sum of the integers.",
+  constraints: ["Input is unchanged"],
+  function_contract: { function: "solve" },
+  examples: [{ input: [1, 2], output: 3 }],
+  categories: [],
+  topics: [],
+  supported_contract_languages: ["python"],
 } as components["schemas"]["ProblemDetail"];
 
 test("tutor resolves authorized exact specification and ignores caller metadata", async () => {
   const input = tutorInput();
-  const hydrated = await hydrateTutorContext(input, "owner", { problem: async (id, version, preview) => {
-    expect([id, version, preview]).toEqual([problemId, problemVersionId, false]);
-    return tutorProblem;
-  }, execution: async () => undefined });
+  const hydrated = await hydrateTutorContext(input, "owner", {
+    problem: async (id, version, preview) => {
+      expect([id, version, preview]).toEqual([
+        problemId,
+        problemVersionId,
+        false,
+      ]);
+      return tutorProblem;
+    },
+    execution: async () => undefined,
+  });
   expect(hydrated.context.title).toBe("Array total");
-  expect(hydrated.context.specification?.description).toBe(tutorProblem.description);
+  expect(hydrated.context.specification?.description).toBe(
+    tutorProblem.description,
+  );
   expect(hydrated.context.specification?.functionContract).toContain("solve");
   expect(hydrated.context.userCode).toBe(input.context.userCode);
   expect(turnInstruction(hydrated)).toContain("DIRECT MODE");
-  expect(turnInstruction({ ...hydrated, teachingMode: "socratic" })).toContain("SOCRATIC MODE");
-  for (const context of [{ ...input.context, specification: {} }, { ...input.context, publicExecution: {} }]) {
-    expect(() => parseDSATutorRequest({ ...input, context })).toThrow("Unsupported request field");
+  expect(turnInstruction({ ...hydrated, teachingMode: "socratic" })).toContain(
+    "SOCRATIC MODE",
+  );
+  for (const context of [
+    { ...input.context, specification: {} },
+    { ...input.context, publicExecution: {} },
+  ]) {
+    expect(() => parseDSATutorRequest({ ...input, context })).toThrow(
+      "Unsupported request field",
+    );
   }
 });
 
 test("tutor requires owned public Run from the same version and strips extra stored fields", async () => {
   const input = tutorInput();
   input.context.publicExecutionId = id();
-  const job = { submissionId: input.context.publicExecutionId, problemId, problemVersionId, language: "python" as const, mode: "run" as const, status: "completed" as const,
-    result: { verdict: "wrong_answer" as const, publicCases: [{ id: id(), input: [1, 2], expectedOutput: 3, actualOutput: 0, verdict: "wrong_answer" as const }], secret: "never send" }, createdAt: "", updatedAt: "" };
-  const loaders = { problem: async () => tutorProblem, execution: async (owner: string, submission: string) => {
-    expect(owner).toBe("owner"); expect(submission).toBe(job.submissionId); return job;
-  } };
+  const job = {
+    submissionId: input.context.publicExecutionId,
+    problemId,
+    problemVersionId,
+    language: "python" as const,
+    mode: "run" as const,
+    status: "completed" as const,
+    result: {
+      verdict: "wrong_answer" as const,
+      publicCases: [
+        {
+          id: id(),
+          input: [1, 2],
+          expectedOutput: 3,
+          actualOutput: 0,
+          verdict: "wrong_answer" as const,
+        },
+      ],
+      secret: "never send",
+    },
+    createdAt: "",
+    updatedAt: "",
+  };
+  const loaders = {
+    problem: async () => tutorProblem,
+    execution: async (owner: string, submission: string) => {
+      expect(owner).toBe("owner");
+      expect(submission).toBe(job.submissionId);
+      return job;
+    },
+  };
   const hydrated = await hydrateTutorContext(input, "owner", loaders);
-  expect(hydrated.context.publicExecution?.result).toContain('"actualOutput":0');
+  expect(hydrated.context.publicExecution?.result).toContain(
+    '"actualOutput":0',
+  );
   expect(hydrated.context.publicExecution?.result).not.toContain("never send");
   expect(hydrated.context.publicExecution?.codeMayHaveChanged).toBe(true);
-  for (const value of [undefined, { ...job, mode: "submit" as const }, { ...job, problemVersionId: id() }]) {
-    await expect(hydrateTutorContext(input, "owner", { ...loaders, execution: async () => value })).rejects.toThrow("Public execution not found");
+  for (const value of [
+    undefined,
+    { ...job, mode: "submit" as const },
+    { ...job, problemVersionId: id() },
+  ]) {
+    await expect(
+      hydrateTutorContext(input, "owner", {
+        ...loaders,
+        execution: async () => value,
+      }),
+    ).rejects.toThrow("Public execution not found");
   }
 });
 
 test("tutor keeps preview authorization upstream, rejects stale versions and labels truncation", async () => {
-  const input = tutorInput(); input.context.preview = true;
-  await expect(hydrateTutorContext(input, "owner", { problem: async (_id, _version, preview) => {
-    expect(preview).toBe(true); throw new Error("Reviewer required");
-  }, execution: async () => undefined })).rejects.toThrow("Reviewer required");
-  await expect(hydrateTutorContext(input, "owner", { problem: async () => ({ ...tutorProblem, problem_version_id: id() }), execution: async () => undefined })).rejects.toThrow("no longer available");
-  const result = await hydrateTutorContext(input, "owner", { problem: async () => ({ ...tutorProblem, description: "x".repeat(13000) }), execution: async () => undefined });
+  const input = tutorInput();
+  input.context.preview = true;
+  await expect(
+    hydrateTutorContext(input, "owner", {
+      problem: async (_id, _version, preview) => {
+        expect(preview).toBe(true);
+        throw new Error("Reviewer required");
+      },
+      execution: async () => undefined,
+    }),
+  ).rejects.toThrow("Reviewer required");
+  await expect(
+    hydrateTutorContext(input, "owner", {
+      problem: async () => ({ ...tutorProblem, problem_version_id: id() }),
+      execution: async () => undefined,
+    }),
+  ).rejects.toThrow("no longer available");
+  const result = await hydrateTutorContext(input, "owner", {
+    problem: async () => ({ ...tutorProblem, description: "x".repeat(13000) }),
+    execution: async () => undefined,
+  });
   expect(result.context.specification?.description).toHaveLength(12000);
   expect(result.context.specification?.truncated).toBe(true);
+});
+
+test("saved-report Tutor context is owned, version-bound, bounded and replaces only provider context", async () => {
+  const input = tutorInput(),
+    selectedId = id();
+  input.context.selectedSubmissionId = selectedId;
+  input.context.userCode = "CURRENT_DRAFT_SENTINEL";
+  const savedCode = "def solve(nums): return sum(nums)";
+  const loaders = {
+    problem: async () => tutorProblem,
+    execution: async (owner: string, submission: string) => {
+      expect([owner, submission]).toEqual(["owner", selectedId]);
+      return {
+        submissionId: selectedId,
+        problemId,
+        problemVersionId,
+        mode: "submit" as const,
+        language: "python" as const,
+        status: "completed" as const,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        result: { verdict: "wrong_answer" as const, plan: "PRIVATE_SENTINEL" },
+      };
+    },
+    report: async () => ({
+      submissionId: selectedId,
+      sourceCode: savedCode,
+      codeSha256: "a".repeat(64),
+      report: {
+        id: id(),
+        status: "completed",
+        model: "fixture/model",
+        rubric: "dsa-code-intelligence:1",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        attempts: 1,
+        analysis: exampleAnalysis,
+      },
+    }),
+  };
+  const hydrated = await hydrateTutorContext(input, "owner", loaders);
+  expect(hydrated.context.userCode).toBe(savedCode);
+  expect(input.context.userCode).toBe("CURRENT_DRAFT_SENTINEL");
+  expect(hydrated.context.selectedSubmission?.judge.verdict).toBe(
+    "wrong_answer",
+  );
+  expect(JSON.stringify(hydrated.context)).not.toContain("PRIVATE_SENTINEL");
+  expect(
+    JSON.stringify(hydrated.context.selectedSubmission).length,
+  ).toBeLessThan(16000);
+  expect(turnInstruction(hydrated)).toContain("original saved source");
+  await expect(
+    hydrateTutorContext(input, "other", {
+      ...loaders,
+      execution: async () => undefined,
+    }),
+  ).rejects.toThrow("not found");
+  await expect(
+    hydrateTutorContext(input, "owner", {
+      ...loaders,
+      execution: async () => ({
+        ...(await loaders.execution("owner", selectedId)),
+        problemVersionId: id(),
+      }),
+    }),
+  ).rejects.toThrow("not found");
+  expect(() =>
+    parseDSATutorRequest({
+      ...input,
+      context: {
+        ...input.context,
+        selectedSubmission: { judge: { verdict: "accepted" } },
+      },
+    }),
+  ).toThrow("Unsupported request field");
 });

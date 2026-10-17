@@ -137,7 +137,7 @@ test("Run executes Python locally and makes no execution POST", async ({
   await page.goto(url);
   await page.getByRole("button", { name: "Run", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Local Run · All displayed cases passed" })).toBeVisible();
-  await expect(page.getByText("Locally checked against verified public fixtures. This is not hidden-test acceptance.")).toBeVisible();
+  await expect(page.getByText("Locally checked against public test cases. Submit independently runs the sandbox suite.")).toBeVisible();
   await page.getByLabel("Workspace layout").selectOption("classic");
   await expect(page.getByText("Local case 1 · Passed")).toBeVisible();
   expect(requests).toHaveLength(0);

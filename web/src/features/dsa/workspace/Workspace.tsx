@@ -20,6 +20,10 @@ import {
   Send,
   Sparkles,
   SquareCode,
+  BarChart3,
+  History,
+  MessageSquare,
+  Maximize2,
 } from "lucide-react";
 import { useAuth } from "@/features/auth";
 import { useProfile } from "@/features/profile";
@@ -52,7 +56,12 @@ import {
   type ApprovedContract,
 } from "@/lib/dsa-execution/python-contract";
 import { ExecutionPanel } from "../execution/ExecutionPanel";
-import { SubmissionIntelligence } from "../execution/CodeIntelligence";
+import {
+  SubmissionHistory,
+  SubmissionResults,
+  useSubmissionHistory,
+} from "../execution/CodeIntelligence";
+import { useSelectedSubmission } from "../execution/use-selected-submission";
 import {
   useLocalPythonRun,
   type LocalTestCase,
@@ -203,7 +212,7 @@ export default function Workspace({
         </div>
       ) : problem.data && user ? (
         <ProblemWorkspace
-          key={`${user.id}:${preview}:${problem.data.id}:${problem.data.problem_version_id}:${submissionId ?? "latest"}`}
+          key={`${user.id}:${preview}:${problem.data.id}:${problem.data.problem_version_id}`}
           problem={problem.data}
           preview={preview}
           userId={user.id}
@@ -260,7 +269,6 @@ function ProblemWorkspace(props: {
     props.userId,
     props.problem.id,
     props.problem.problem_version_id,
-    props.submissionId,
   );
   const parsed = publicRunBundleSchema.safeParse(
     execution.availability.data?.publicRun,
@@ -316,6 +324,7 @@ function EditorWorkspace({
   execution,
   bundle,
   approved,
+  submissionId,
 }: {
   problem: Problem;
   preview: boolean;
@@ -323,8 +332,36 @@ function EditorWorkspace({
   execution: ExecutionState;
   bundle?: PublicRunBundle;
   approved?: ApprovedContract;
+  submissionId?: string;
 }) {
   const scope = useDSAScope(preview);
+  const router = useRouter();
+  const [rightTab, setRightTab] = useState(submissionId ? "results" : "tutor");
+  const [discussionId, setDiscussionId] = useState<string>();
+  const history = useSubmissionHistory({
+    userId,
+    problemId: problem.id,
+    versionId: problem.problem_version_id,
+    job: execution.job,
+  });
+  const savedLatest = history.data?.pages[0]?.items[0];
+  const latestJob =
+    savedLatest &&
+    (!execution.job ||
+      Date.parse(savedLatest.createdAt) > Date.parse(execution.job.createdAt))
+      ? savedLatest
+      : execution.job;
+  const selected = useSelectedSubmission(
+    userId,
+    problem.id,
+    problem.problem_version_id,
+    submissionId,
+    latestJob,
+  );
+  const selectedJob =
+    submissionId && submissionId !== latestJob?.submissionId
+      ? selected.data
+      : latestJob;
   const localPython = useLocalPythonRun();
   const { invalidate: invalidateLocalRun } = localPython;
   const practice = usePracticeSubmissions(
@@ -335,8 +372,10 @@ function EditorWorkspace({
   const [panel, setPanel] = useState(layout === "visual" ? "canvas" : "spec"),
     [mobile, setMobile] = useState("spec"),
     [testTab, setTestTab] = useState("examples");
-  const [leftWidth, setLeftWidth] = useState(layout === "visual" ? 58 : 34),
-    [tutorWidth, setTutorWidth] = useState(27),
+  const [leftWidth, setLeftWidth] = useState(
+      layout === "visual" ? 58 : layout === "judgment" ? 28 : 34,
+    ),
+    [tutorWidth, setTutorWidth] = useState(30),
     [editorHeight, setEditorHeight] = useState(64);
   const [language, setLanguage] = useState("python");
   const [focused, setFocused] = useState(false);
@@ -376,6 +415,7 @@ function EditorWorkspace({
     problemVersionId: problem.problem_version_id,
     language: language as "python" | "typescript" | "cpp",
     preview,
+    ...(discussionId ? { selectedSubmissionId: discussionId } : {}),
     ...(execution.job?.mode === "run" && execution.job.result
       ? { publicExecutionId: execution.job.submissionId }
       : {}),
@@ -460,6 +500,11 @@ function EditorWorkspace({
     execution.active ||
     execution.needsRetry ||
     localPython.run?.state === "running";
+  function openReasonAI(tab: string) {
+    setRightTab(tab);
+    setMobile("tutor");
+    if (layout !== "judgment") setPanel("tutor");
+  }
   const runReason = preview
     ? "Switch to learner view to run published examples."
     : language !== "python"
@@ -523,6 +568,9 @@ function EditorWorkspace({
       setNotice(submitReason);
       return;
     }
+    openReasonAI("results");
+    if (submissionId)
+      router.replace(problemHref(problem, { preview }), { scroll: false });
     void execution.start(currentDraft.current.code, "submit");
   }
   function changeLayout(next: Layout) {
@@ -828,7 +876,8 @@ function EditorWorkspace({
               hidden={testTab !== "custom"}
             >
               <p className="studio-muted">
-                Custom inputs are exploratory and are not used for sandbox grading.
+                Custom inputs are exploratory and are not used for sandbox
+                grading.
               </p>
               <label>
                 Custom input JSON
@@ -913,26 +962,21 @@ function EditorWorkspace({
                 onCheckSubmission={() => void execution.availability.refetch()}
                 checkingSubmission={execution.availability.isFetching}
               />
-              <SubmissionIntelligence
-                userId={userId}
-                problemId={problem.id}
-                versionId={problem.problem_version_id}
-                slug={problem.slug}
-                job={execution.job}
-                onFollowup={(summary) => {
-                  tutor.send(
-                    "review",
-                    `Explain the AI estimates for submission ${execution.job?.submissionId}. The saved analysis summary was: ${summary}. My current editor draft may differ from that submission.`,
-                  );
-                  setPanel("tutor");
-                  setMobile("tutor");
-                }}
-              />
+              <button
+                type="button"
+                className="studio-results-link"
+                onClick={() => openReasonAI("results")}
+              >
+                Detailed verdict and AI review in ReasonAI → Results
+              </button>
             </div>
           </div>
           <div className="studio-code-footer">
             <span>
               {draft.code.length.toLocaleString()} / 24,000 characters
+            </span>
+            <span className="studio-editor-encoding">
+              {language === "python" ? "Python 3" : language} · UTF-8
             </span>
             <button
               type="button"
@@ -940,9 +984,11 @@ function EditorWorkspace({
                 tutor.send(
                   "complexity",
                   "Review the time and space complexity of my current approach or code.",
+                  undefined,
+                  null,
                 );
-                setPanel("tutor");
-                setMobile("tutor");
+                setDiscussionId(undefined);
+                openReasonAI("tutor");
               }}
             >
               Analyze complexity <Sparkles size={12} />
@@ -962,19 +1008,145 @@ function EditorWorkspace({
           className={`studio-tutor ${focused ? "tutor-focused" : ""}`}
           aria-label="AI learning assistant"
         >
-          <DSATutorPanel
-            tutor={tutor}
-            problem={context}
-            slug={problem.slug}
-            focused={focused}
-            onFocusChange={setFocused}
-            onClose={() => {
-              setFocused(false);
-              setPanel("spec");
-              setMobile("spec");
-              if (layout === "judgment") changeLayout("classic");
-            }}
-          />
+          <header className="studio-reasonai-header">
+            <span className="studio-logo">
+              <Sparkles size={19} />
+            </span>
+            <div>
+              <h2>ReasonAI</h2>
+              <p>Your coding companion</p>
+            </div>
+            <button
+              type="button"
+              aria-label={
+                focused ? "Collapse ReasonAI panel" : "Expand ReasonAI panel"
+              }
+              onClick={() => setFocused(!focused)}
+            >
+              <Maximize2 size={16} />
+            </button>
+          </header>
+          <div
+            className="studio-reasonai-tabs"
+            role="tablist"
+            aria-label="ReasonAI panel sections"
+          >
+            {[
+              ["tutor", "Tutor", MessageSquare],
+              ["results", "Results", BarChart3],
+              ["history", "History", History],
+            ].map(([id, label, Icon]) => (
+              <button
+                key={String(id)}
+                type="button"
+                role="tab"
+                id={`reasonai-tab-${id}`}
+                aria-selected={rightTab === id}
+                aria-controls={`reasonai-panel-${id}`}
+                onClick={() => setRightTab(String(id))}
+              >
+                {typeof Icon !== "string" && <Icon size={15} />} {String(label)}
+              </button>
+            ))}
+          </div>
+          <div
+            className="studio-reasonai-tutor"
+            id="reasonai-panel-tutor"
+            role="tabpanel"
+            aria-labelledby="reasonai-tab-tutor"
+            hidden={rightTab !== "tutor"}
+          >
+            {discussionId && (
+              <div className="studio-discussion-context">
+                Discussing saved submission {discussionId.slice(0, 8)}. Your
+                editor is separate.{" "}
+                <button
+                  type="button"
+                  onClick={() => setDiscussionId(undefined)}
+                >
+                  Use current editor context
+                </button>
+              </div>
+            )}
+            <DSATutorPanel
+              embedded
+              tutor={tutor}
+              problem={context}
+              slug={problem.slug}
+              focused={focused}
+              onFocusChange={setFocused}
+              onClose={() => {
+                setFocused(false);
+                setPanel("spec");
+                setMobile("spec");
+                if (layout === "judgment") changeLayout("classic");
+              }}
+            />
+          </div>
+          <div
+            className="studio-reasonai-view"
+            id="reasonai-panel-results"
+            role="tabpanel"
+            aria-labelledby="reasonai-tab-results"
+            hidden={rightTab !== "results"}
+          >
+            <div className="studio-review-context">
+              <strong>{problem.title}</strong>
+              <span>Python 3</span>
+            </div>
+            {submissionId && (
+              <Link
+                href={problemHref(problem, { preview })}
+                onClick={() => setRightTab("results")}
+              >
+                View latest submission
+              </Link>
+            )}
+            <SubmissionResults
+              job={execution.creating ? undefined : selectedJob}
+              userId={userId}
+              creating={execution.creating}
+              loading={Boolean(
+                submissionId &&
+                submissionId !== latestJob?.submissionId &&
+                selected.isPending,
+              )}
+              error={submissionId ? selected.error?.message : execution.error}
+              onDiscuss={(id) => {
+                setDiscussionId(id);
+                openReasonAI("tutor");
+                tutor.send(
+                  "review",
+                  "Discuss the saved Code Intelligence review for this selected submission. Explain the most useful next step using its original source and judge verdict, independently of my current draft.",
+                  undefined,
+                  id,
+                );
+              }}
+              discussDisabled={tutor.pending}
+              onCancel={
+                selectedJob?.submissionId === execution.job?.submissionId
+                  ? () => void execution.cancel()
+                  : undefined
+              }
+              cancelDisabled={execution.cancelling || execution.cancelRequested}
+              cancelRequested={execution.cancelRequested}
+            />
+          </div>
+          <div
+            className="studio-reasonai-view"
+            id="reasonai-panel-history"
+            role="tabpanel"
+            aria-labelledby="reasonai-tab-history"
+            hidden={rightTab !== "history"}
+          >
+            <SubmissionHistory
+              history={history}
+              versionId={problem.problem_version_id}
+              slug={problem.slug}
+              selectedId={selectedJob?.submissionId}
+              onSelect={() => openReasonAI("results")}
+            />
+          </div>
         </aside>
       </div>
       {previousDraft?.code && (
@@ -1022,9 +1194,11 @@ function EditorWorkspace({
             tutor.send(
               "review",
               "Review my approach and code. Help me find the next useful step without revealing a complete solution.",
+              undefined,
+              null,
             );
-            setPanel("tutor");
-            setMobile("tutor");
+            setDiscussionId(undefined);
+            openReasonAI("tutor");
           }}
         >
           Review <Sparkles size={14} />
@@ -1059,7 +1233,11 @@ function EditorWorkspace({
                   ? "studio-execution-reason"
                   : "studio-execution-reason studio-submit-status"
               }
-              title={submitAvailable ? "Submit to sandbox (Ctrl/Cmd+Shift+Enter)" : submitReason}
+              title={
+                submitAvailable
+                  ? "Submit to sandbox (Ctrl/Cmd+Shift+Enter)"
+                  : submitReason
+              }
             >
               <Send size={14} />
               Submit

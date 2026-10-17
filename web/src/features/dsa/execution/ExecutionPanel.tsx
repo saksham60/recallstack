@@ -34,7 +34,7 @@ export function ExecutionPanel({
                 ? "Local Python execution"
                 : "No submission yet"}
         </h3>
-        {execution.active && (
+        {execution.active && job?.mode !== "submit" && (
           <button
             type="button"
             disabled={execution.cancelling || execution.cancelRequested}
@@ -240,7 +240,8 @@ export function ExecutionPanel({
           {job.error}
         </p>
       )}
-      {job?.result && (
+      {job?.mode === "submit" && job.result && <p className="studio-muted">Sandbox result: {verdictLabel(job.result.verdict)}. Detailed review is in ReasonAI Results.</p>}
+      {job?.mode !== "submit" && job?.result && (
         <>
           <span className="studio-eyebrow">
             {job.gradingLevel === "provisional"
@@ -302,12 +303,6 @@ export function ExecutionPanel({
                 )}
               </article>
             ))}
-          {job.mode === "submit" && (
-            <p className="studio-muted">
-              Hidden inputs, outputs, logs and expected answers are kept
-              private.
-            </p>
-          )}
         </>
       )}
     </div>

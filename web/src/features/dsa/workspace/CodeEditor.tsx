@@ -36,17 +36,23 @@ function CodeEditor({
       path={path}
       language={language}
       value={value}
-      theme="vs-dark"
+      theme="reasonai-studio"
       loading={<p className="studio-empty">Loading code editor…</p>}
       options={{
         automaticLayout: true,
         ariaLabel: "Solution code",
         minimap: { enabled: false },
         fontSize: 13,
+        lineHeight: 23,
+        fontFamily: "'Cascadia Code', Consolas, 'SFMono-Regular', monospace",
         lineNumbers: "on",
         scrollBeyondLastLine: false,
         wordWrap: "on",
-        padding: { top: 20 },
+        padding: { top: 16, bottom: 24 },
+        lineNumbersMinChars: 3,
+        glyphMargin: false,
+        renderLineHighlight: "gutter",
+        scrollbar: { verticalScrollbarSize: 9, horizontalScrollbarSize: 9 },
         tabSize: 4,
         autoIndent: "full",
         matchBrackets: "always",
@@ -55,6 +61,26 @@ function CodeEditor({
       onChange={(code) => {
         if ((code?.length ?? 0) <= 24000) latest.current.onChange(code ?? "");
       }}
+      beforeMount={(monaco) =>
+        monaco.editor.defineTheme("reasonai-studio", {
+          base: "vs-dark",
+          inherit: true,
+          rules: [
+            { token: "keyword", foreground: "AB8CFF" },
+            { token: "string", foreground: "DFC078" },
+            { token: "number", foreground: "A9CCFC" },
+            { token: "comment", foreground: "71849C" },
+          ],
+          colors: {
+            "editor.background": "#0E1118",
+            "editor.foreground": "#D0D7E6",
+            "editorLineNumber.foreground": "#68718B",
+            "editorLineNumber.activeForeground": "#C1AFEB",
+            "editor.selectionBackground": "#61459466",
+            "editorCursor.foreground": "#F6F2FF",
+          },
+        })
+      }
       onMount={(instance, monaco) => {
         instance.getModel()?.setEOL(monaco.editor.EndOfLineSequence.LF);
         if (view) {
