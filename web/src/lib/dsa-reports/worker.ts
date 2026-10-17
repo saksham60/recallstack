@@ -54,8 +54,7 @@ export async function processReport(
         "Code Intelligence could not be generated. The judge result is saved.",
       retry:
         error instanceof ReportProviderError &&
-        error.retryable &&
-        claim.attempt < 2,
+        error.retryable,
     };
   }
   // Storage failure retries delivery; the durable claim prevents concurrent calls.
