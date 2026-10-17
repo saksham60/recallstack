@@ -89,6 +89,54 @@ test("official failed verdict stays visible while analysis loads, persists on re
     fullPage: true,
   });
 });
+test("a failed AI review can retry without repeating sandbox submission", async ({ authenticatedPage: page }) => {
+  await installV3API(page);
+  const now = new Date().toISOString();
+  let status: "failed" | "queued" | "completed" = "failed";
+  let postCount = 0;
+  const job = {
+    submissionId, problemId: ID, problemVersionId: VERSION,
+    mode: "submit", language: "python", status: "completed",
+    createdAt: now, updatedAt: now,
+    result: { verdict: "wrong_answer", passedTests: 2, totalTests: 3 },
+  };
+  await page.route(`**/api/dsa/executions/${submissionId}`, r => r.fulfill({ json: job }));
+  await page.route("**/api/dsa/submissions?**", r =>
+    r.fulfill({ json: { items: [job], next: null } }),
+  );
+  await page.route(`**/api/dsa/submissions/${submissionId}/report`, async route => {
+    if (route.request().method() === "POST") {
+      postCount++;
+      status = "queued";
+      await route.fulfill({ status: 202, json: { status: "queued" } });
+      return;
+    }
+    await route.fulfill({
+      json: {
+        submissionId, enabled: true, sourceCode: "def solve(nums): return []",
+        codeSha256: "a".repeat(64),
+        report: {
+          id: reportId, status, model: "fixture/model",
+          rubric: "dsa-code-intelligence:1", createdAt: now, updatedAt: now,
+          attempts: status === "failed" ? 1 : 2,
+          ...(status === "failed" ? { error: "Report generation exhausted its configured attempts." } : {}),
+          ...(status === "completed" ? { analysis: exampleAnalysis } : {}),
+        },
+      },
+    });
+  });
+  await page.goto(`${canonical}&submission=${submissionId}`);
+  await page.getByRole("button", { name: "Results", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Retry AI Review" })).toBeVisible();
+  await expect(page.getByText(/Report generation exhausted its configured attempts/)).toHaveCount(0);
+  await page.getByRole("button", { name: "Retry AI Review" }).click();
+  await expect.poll(() => postCount).toBe(1);
+  await expect(page.getByText(/queued or generating/)).toBeVisible();
+  status = "completed";
+  await expect(page.getByText(exampleAnalysis.summary, { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "wrong answer", exact: true })).toBeVisible();
+});
+
 test("report and history endpoints enforce real auth and reject cross-origin access", async ({
   request,
 }) => {
