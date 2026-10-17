@@ -143,13 +143,7 @@ environments and local ignored configuration for the limited live verification.
 Dispatch freezes this limit on the durable report; retries cannot exceed it.
 Environment edits take effect on a subsequent deployment, not an existing one.
 Keep generation disabled until schema/application compatibility is verified.
-`DSA_CODE_INTELLIGENCE_SUBMISSION_IDS` is also configured to the all-zero UUID in
-all three Vercel environments and local ignored configuration. It scopes both
-dispatch and worker claims, so it currently admits no report. Replace it with the
-two exact pilot submission UUIDs before enabling the constrained live test. A
-blank value permits the whole backlog; do not remove the scope within the current
-five-call budget. Invalid nonempty scope fails closed. Historical pending events
-remain intact and do not consume the pilot budget.
+Submission-ID allowlisting was removed after the initial pilot. Report creation now applies to all eligible judged submissions when generation is enabled, with per-user quotas and bounded concurrency preserved. Historical pending events remain intact.
 
 ## 3. Typed contracts and exact certification ledger
 
