@@ -46,8 +46,6 @@ export function createReportRepository() {
       command<Array<{ id: string; generation: number }>>("dispatch", {
         model: getReasonAIConfiguration().model,
         rubric: REPORT_RUBRIC,
-        maxAttempts:
-          process.env.DSA_CODE_INTELLIGENCE_MAX_ATTEMPTS === "1" ? 1 : 2,
       }),
     get: (userId: string, submissionId: string) =>
       command<unknown>("get", { userId, submissionId }),
