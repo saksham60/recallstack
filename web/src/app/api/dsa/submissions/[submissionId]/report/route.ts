@@ -13,6 +13,36 @@ import { reportResponseSchema } from "@/lib/dsa-reports/contracts";
 import { dispatchReports } from "@/lib/dsa-reports/queue";
 export const runtime = "nodejs";
 export const maxDuration = 30;
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ submissionId: string }> },
+) {
+  try {
+    const identity = await executionIdentity(request);
+    if (identity instanceof Response) return identity;
+    const { submissionId } = await params;
+    if (!z.uuid().safeParse(submissionId).success)
+      return reply({ error: "Submission not found." }, 404);
+    if (!codeIntelligenceEnabled())
+      return reply({ error: "Code Intelligence is currently unavailable." }, 503);
+    const status = await createReportRepository().retry(identity.user.id, submissionId);
+    if (status === "not_found")
+      return reply({ error: "Submission report not found." }, 404);
+    if (status === "queued")
+      after(async () => {
+        try {
+          // Explicit owned retries may predate the automatic activation boundary.
+          await dispatchReports(submissionId);
+        } catch {
+          /* Recovery cron and subsequent status checks can redispatch. */
+        }
+      });
+    return reply({ status }, status === "queued" ? 202 : 200);
+  } catch (error) {
+    return executionHttpError(error);
+  }
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ submissionId: string }> },
