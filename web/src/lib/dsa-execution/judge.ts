@@ -19,7 +19,7 @@ export function validatePlan(raw: unknown): EvaluationPlan {
   if (!parsed.success)
     throw new ExecutionError(
       "CONTRACT_UNAVAILABLE",
-      "This version does not have a supported certified execution contract.",
+      "This version does not have a supported execution contract.",
       409,
     );
   const plan = parsed.data;
