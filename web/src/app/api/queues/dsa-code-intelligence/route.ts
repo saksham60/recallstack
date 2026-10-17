@@ -19,12 +19,8 @@ export const POST = handleCallback(
     );
   },
   {
-    retry: (error, metadata) =>
-      metadata.deliveryCount >= 8
-        ? { acknowledge: true }
-        : {
-            afterSeconds:
-              error instanceof RetryReport ? error.afterSeconds : 60,
-          },
+    retry: (error) => ({
+      afterSeconds: error instanceof RetryReport ? error.afterSeconds : 60,
+    }),
   },
 );
