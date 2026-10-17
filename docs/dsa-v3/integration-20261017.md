@@ -76,6 +76,12 @@ can be created for all published problems. Provisional and official evidence
 deduplicate separately. Provider packets contain only owned source, public
 statement and permitted aggregate evidence.
 
+Report requests use Nebius's documented [schema-constrained JSON mode](https://docs.tokenfactory.nebius.com/ai-models-inference/json).
+For the configured Nemotron 3 models, thinking is disabled using NVIDIA's
+[documented request setting](https://docs.nvidia.com/dynamo/dev/recipes/nemotron-3-super)
+so the bounded completion budget is available for the final report. Runtime
+validation remains required even with constrained decoding.
+
 ## Verification status
 
 Disposable PostgreSQL checks cover migration compatibility, owner isolation,

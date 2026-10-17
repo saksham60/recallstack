@@ -15,8 +15,10 @@ import { generateCodeReport } from "../src/lib/dsa-reports/provider";
 import { reportActivationBoundary } from "../src/lib/dsa-reports/repository";
 test("report rollout boundary rejects malformed timestamps", () => {
   expect(reportActivationBoundary(" ")).toBeUndefined();
-  expect(reportActivationBoundary("2026-10-17T06:00:00.000Z")).toBe("2026-10-17T06:00:00.000Z");
-  expect(()=>reportActivationBoundary("not-a-date")).toThrow();
+  expect(reportActivationBoundary("2026-10-17T06:00:00.000Z")).toBe(
+    "2026-10-17T06:00:00.000Z",
+  );
+  expect(() => reportActivationBoundary("not-a-date")).toThrow();
 });
 const id = () => crypto.randomUUID();
 function fixture() {
@@ -120,7 +122,10 @@ test("provider transport bounds tokens, validates JSON, and records actual token
       model: "test/model",
       max_tokens: 2400,
       stream: false,
-      response_format: { type: "json_object" },
+      response_format: {
+        type: "json_schema",
+        json_schema: { strict: true, schema: { type: "object" } },
+      },
     });
     expect(result.usage).toMatchObject({
       inputTokens: 100,
@@ -128,6 +133,9 @@ test("provider transport bounds tokens, validates JSON, and records actual token
       totalTokens: 300,
       costUsd: null,
     });
+    h.claim.model = "nvidia/nemotron-3-super-120b-a12b";
+    await generateCodeReport(h.claim);
+    expect(body.chat_template_kwargs).toEqual({ enable_thinking: false });
     globalThis.fetch = async () =>
       Response.json({
         choices: [{ message: { content: '{"verdict":"accepted"}' } }],

@@ -114,7 +114,11 @@ def test_durable_deduplication_owner_projection_and_verdict_immutability(report_
     token = uuid4()
     claim = report_command(data, "claim", id=due[0]["id"], token=token)
     packet = claim["packet"]
-    assert packet["judge"] == {"verdict": "accepted", "gradingLevel": "official", "executionTimeMs": 7}
+    assert packet["judge"] == {
+        "verdict": "accepted",
+        "gradingLevel": "official",
+        "executionTimeMs": 7,
+    }
     assert not {"plan", "cases", "expected", "oracle", "stdout", "stderr"} & packet.keys()
     assert "SECRET" not in json.dumps(packet)
     assert report_command(data, "claim", id=due[0]["id"], token=uuid4()) is None
