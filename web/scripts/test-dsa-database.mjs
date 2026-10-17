@@ -50,7 +50,7 @@ try {
     "20261017061057_dsa_report_activation_boundary.sql",
     "20261017083528_dsa_remove_report_attempt_ceiling.sql",
     "20261017134338_dsa_code_intelligence_failed_report_recovery.sql",
-    "20261017153351_dsa_report_delivery_recovery.sql",
+    "20261017155808_dsa_report_delivery_recovery.sql",
   ])
     await migration(file);
   await db.exec(

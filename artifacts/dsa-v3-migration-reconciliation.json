@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "project": "jlqawpdsyptfxspyqnsu",
   "verification": "Production migration SQL and local SQL match after CRLF and boundary whitespace normalization; no migration was reapplied.",
-  "migrationCount": 62,
+  "migrationCount": 65,
   "migrations": [
     {
       "version": "20260919151628",
@@ -313,6 +313,21 @@
       "version": "20261017083528",
       "name": "dsa_remove_report_attempt_ceiling",
       "sha": "384577bc2c19aeaa3da4f916d8ad58ff87c6d2a7a79c4dc4f22b0acbaa11c99b"
+    },
+    {
+      "version": "20261017134338",
+      "name": "dsa_code_intelligence_failed_report_recovery",
+      "sha": "1ab9fce40fa09da3162409a23a665750c68de76748217744dcff68589e6eafda"
+    },
+    {
+      "version": "20261017135700",
+      "name": "dsa_user_first_sandbox_judging",
+      "sha": "3249f0bacd36520852f2dc3d9946d0ea31e11c42ca4306352f3537fdd5a5c75c"
+    },
+    {
+      "version": "20261017155808",
+      "name": "dsa_report_delivery_recovery",
+      "sha": "06b6d82d53a1e0cdb49f37a329a9043aa16f834f51de962a11d74ee491ed03d3"
     }
   ]
 }
