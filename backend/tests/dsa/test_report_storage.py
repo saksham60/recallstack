@@ -34,9 +34,7 @@ def report_schema(execution_schema):
         legacy = migration.with_name("20261016074500_dsa_code_intelligence_reconcile_and_claim.sql")
         connection.connection.driver_connection.execute(legacy.read_text(encoding="utf-8"))
         connection.connection.driver_connection.execute(migration.read_text(encoding="utf-8"))
-        no_ceiling = migration.with_name(
-            "20261017083528_dsa_remove_report_attempt_ceiling.sql"
-        )
+        no_ceiling = migration.with_name("20261017083528_dsa_remove_report_attempt_ceiling.sql")
         connection.connection.driver_connection.execute(no_ceiling.read_text(encoding="utf-8"))
     return execution_schema
 

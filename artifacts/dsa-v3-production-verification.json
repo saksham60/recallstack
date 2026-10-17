@@ -1,0 +1,144 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-10-17T13:13:06.506Z",
+  "origin": "https://www.reasonai.tech",
+  "testedRuntimeCommit": "8c5bb5b567d66131d2e6101f5b19986b8ba1afbb",
+  "deployment": {
+    "id": "dpl_GmiQSArLbJZGvyRNVWG7u9h4qaSd",
+    "status": "READY",
+    "target": "production",
+    "productionAliasVerified": true
+  },
+  "authentication": "Dedicated user signed in through Supabase password authentication; normal verified session cookies and bearer API calls; backend profile provisioned normally.",
+  "catalog": {
+    "checkedAt": "2026-10-17T13:07:12.705Z",
+    "published": 375,
+    "run": 375,
+    "submit": 375,
+    "official": 10,
+    "provisional": 365
+  },
+  "discovery": {
+    "checkedAt": "2026-10-17T13:12:13.035Z",
+    "published": 375,
+    "uniqueProblems": 375,
+    "pages": 19,
+    "allPublishedProblemsDiscoverable": true
+  },
+  "journeys": [
+    {
+      "kind": "negative",
+      "slug": "ultimate-dsa-016-3sum",
+      "problemId": "6bf047e9-6735-4892-b063-f59e4c8ce29f",
+      "problemVersionId": "62b831b6-4c58-438e-9442-a78be83e3469",
+      "submissionId": "d0bedcbd-3d5b-404d-bf8a-013a5a2b3f72",
+      "operationId": "01a149fa-1135-714c-a068-1987c04c997a",
+      "codeSha256": "4c8be6991e4074d961289261a9acbc2bceea33841dce11a3265b2e38c2f5e5d2",
+      "localRun": {
+        "passed": true,
+        "publicCases": 9,
+        "sandboxPosts": 0,
+        "realPyodide": true,
+        "cdnMirror": false
+      },
+      "result": {
+        "status": "completed",
+        "verdict": "wrong_answer",
+        "gradingLevel": "provisional"
+      },
+      "persistence": {
+        "realAuthenticatedSubmit": true,
+        "persistedAfterRefresh": true,
+        "reportRendered": true,
+        "resultsScrollWorks": true,
+        "reportId": "aedc5513-b8d6-4b03-897c-b6b677f66e06",
+        "reportStatus": "completed",
+        "reportAttempts": 1,
+        "checkedAt": "2026-10-17T13:11:05.706Z"
+      },
+      "reportModel": "nvidia/nemotron-3-super-120b-a12b",
+      "canonicalPublicProjectionMatches": true
+    },
+    {
+      "kind": "largeInteger",
+      "slug": "ultimate-dsa-353-catalan-number",
+      "problemId": "b769bd36-9a38-476c-8d6d-932f2f643637",
+      "problemVersionId": "7b9247ae-28cf-474e-b8f8-c76454adb861",
+      "submissionId": "1e863488-4479-4203-aa38-855c8c23b74f",
+      "operationId": "01a149fc-92a6-7652-b662-0efa03546c53",
+      "codeSha256": "1544431dbc0069295c12b2acabac9828fd9d2974d835e3f2913399752dca6b9e",
+      "localRun": {
+        "passed": true,
+        "publicCases": 8,
+        "sandboxPosts": 0,
+        "realPyodide": true,
+        "cdnMirror": false
+      },
+      "result": {
+        "status": "completed",
+        "verdict": "provisional_pass",
+        "gradingLevel": "provisional"
+      },
+      "persistence": {
+        "realAuthenticatedSubmit": true,
+        "persistedAfterRefresh": true,
+        "reportRendered": true,
+        "resultsScrollWorks": true,
+        "reportId": "d1888dff-a54b-4a7c-993f-d11785937bd3",
+        "reportStatus": "completed",
+        "reportAttempts": 1,
+        "checkedAt": "2026-10-17T13:11:11.760Z"
+      },
+      "reportModel": "nvidia/nemotron-3-super-120b-a12b",
+      "canonicalPublicProjectionMatches": true
+    }
+  ],
+  "security": {
+    "checkedAt": "2026-10-17T13:10:18.942Z",
+    "checks": [
+      {
+        "name": "anonymous execution denial",
+        "status": 401
+      },
+      {
+        "name": "anonymous report denial",
+        "status": 401
+      },
+      {
+        "name": "foreign execution ownership denial",
+        "status": 404
+      },
+      {
+        "name": "foreign report ownership denial",
+        "status": 404
+      }
+    ]
+  },
+  "database": {
+    "remoteMigrations": 62,
+    "activeGitMigrations": 62,
+    "missing": 0,
+    "sqlHashMismatches": 0,
+    "provisionalContracts": 375,
+    "legacyCertificates": 10,
+    "v3CertificationRuns": 0,
+    "privateExecutionReportTables": 11,
+    "allPrivateTablesRlsEnabled": true,
+    "anonymousAndLearnerRawSelectDenied": true
+  },
+  "budget": {
+    "maximumCombinedCalls": 5,
+    "previouslyUsed": 1,
+    "newSandboxOperations": 2,
+    "newAiGenerations": 2,
+    "aiRetries": 0,
+    "totalUsed": 5
+  },
+  "independentFixtureChecksReplayed": 0,
+  "githubCiReleaseGate": false,
+  "githubCiNote": "User explicitly instructed to ignore GitHub CI. Local build, targeted lint/type checks, disposable database tests, browser regression checks and real production journeys supplied verification.",
+  "remaining": {
+    "officialCertificationReview": "365 problems remain provisional and accessible. Certification was neither fabricated nor granted.",
+    "securityBaseline": "Pre-existing public-schema/Auth advisor findings remain outside this DSA integration; no global security-clean claim."
+  }
+}

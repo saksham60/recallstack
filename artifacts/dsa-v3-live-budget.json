@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "maxCombinedCallsIncludingRetries": 5,
-  "callsUsed": 1,
+  "callsUsed": 5,
   "entries": [
     {
       "id": "20c221de-5879-4e6e-8a42-342e757ddb3d",
@@ -9,6 +9,30 @@
       "status": "passed",
       "reservedAt": "2026-10-16T13:34:31.478Z",
       "operationId": "01a144ed-017b-73f2-b33b-2b648c0ae1b6"
+    },
+    {
+      "id": "363be431-04ce-46bf-bb4a-0d3871cfa2fc",
+      "kind": "Authenticated negative sandbox submit and AI report",
+      "status": "passed",
+      "reservedAt": "2026-10-17T13:06:48.789Z",
+      "calls": 2,
+      "operationId": "01a149fa-1135-714c-a068-1987c04c997a",
+      "submissionId": "d0bedcbd-3d5b-404d-bf8a-013a5a2b3f72",
+      "reportId": "aedc5513-b8d6-4b03-897c-b6b677f66e06",
+      "providerAttempts": 1,
+      "verifiedAt": "2026-10-17T13:11:05.706Z"
+    },
+    {
+      "id": "1a5aa50d-0ab9-4ce5-965d-f41efd5bb2c9",
+      "kind": "Authenticated largeInteger sandbox submit and AI report",
+      "status": "passed",
+      "reservedAt": "2026-10-17T13:09:33.946Z",
+      "calls": 2,
+      "operationId": "01a149fc-92a6-7652-b662-0efa03546c53",
+      "submissionId": "1e863488-4479-4203-aa38-855c8c23b74f",
+      "reportId": "d1888dff-a54b-4a7c-993f-d11785937bd3",
+      "providerAttempts": 1,
+      "verifiedAt": "2026-10-17T13:11:11.760Z"
     }
   ]
 }

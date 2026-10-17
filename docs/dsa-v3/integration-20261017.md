@@ -92,12 +92,65 @@ assertion was corrected and the actual large-integer Pyodide case passed on
 rerun. The initial execution suite passed 31 tests with six explicitly gated
 live/integration skips; the reconciled report/contract suite passed 13 tests.
 
-Real authenticated production submissions, saved AI reports, final main CI and
-deployment evidence are recorded after release verification below. Availability
-checks alone are not claims that 375 solutions have executed successfully.
+Real authenticated production submissions, saved AI reports and deployment
+evidence are recorded below. Availability checks alone are not claims that 375
+solutions have executed successfully. GitHub CI was excluded as a release gate
+at the user's explicit instruction; local checks and production verification
+were still required.
 
 The pre-existing Supabase advisor baseline includes 39 public tables without RLS,
 unrelated mutable-search-path/definer warnings and Auth configuration findings.
 This integration does not claim a globally clean security audit or change those
 unrelated application contracts. The new private execution/report objects retain
 RLS and deny anonymous/authenticated raw access.
+
+## Production verification completed
+
+PRs #20 and #36 were merged after checking their unchanged heads; superseded #8
+was closed after #36. PR #37 was already merged and reviewed. PR #40 merged the
+completed integration as `8c5bb5b567d66131d2e6101f5b19986b8ba1afbb`.
+Vercel deployment `dpl_GmiQSArLbJZGvyRNVWG7u9h4qaSd` reached `READY` for that
+exact commit and was assigned `www.reasonai.tech` and `reasonai.tech`.
+
+A dedicated verification user signed in through normal Supabase password
+authentication. Its verified session cookies exercised the actual production
+workspace, and bearer-authenticated reads checked all 375 execution-capability
+endpoints: **375 Run, 375 Submit**, comprising 10 official and 365 provisional
+paths. The ordinary learner catalog also returned all 375 unique problems over
+19 pages. Existing independent fixture verification was not replayed.
+
+Two browser-to-provider-to-database journeys completed using real Pyodide assets
+from the production CDN, without interpreter or execution API mocks:
+
+| Journey | Public Run | Real submission | Saved Code Intelligence |
+| --- | --- | --- | --- |
+| 3Sum, deliberately overfitted to public examples | 9/9 passed; zero sandbox requests | `d0bedcbd-3d5b-404d-bf8a-013a5a2b3f72`, `wrong_answer`, provisional | `aedc5513-b8d6-4b03-897c-b6b677f66e06`, completed on attempt 1 |
+| Catalan Number, independent exact binomial implementation | 8/8 passed, including an unsafe-in-JavaScript integer; zero sandbox requests | `1e863488-4479-4203-aa38-855c8c23b74f`, `provisional_pass` | `d1888dff-a54b-4a7c-993f-d11785937bd3`, completed on attempt 1 |
+
+Both submissions invoked real isolated sandbox operations. Both reports used
+`nvidia/nemotron-3-super-120b-a12b`; validated documents and actual token usage
+were saved, and canonical public report projections matched the private stored
+documents. Source SHA-256 values matched the submitted source. History, results
+and report text remained available after navigation/reload. The saved report
+rendered in the actual workspace, and the results region's scroll position moved
+in both journeys. No official Accepted verdict or certification was granted.
+
+Anonymous execution/report reads returned 401. Authenticated reads for another
+user's execution/report returned 404. All 11 private execution/report tables have
+RLS enabled and deny raw SELECT to both anonymous and authenticated roles.
+There are still exactly 10 legacy certificates and zero V3 certification runs.
+The production migration ledger still contains exactly the 62 reconciled Git
+migrations, with no missing migration or unapplied proposal.
+
+The local production build, TypeScript check, targeted ESLint, Python Ruff
+check/format, disposable database regression and report provider checks passed.
+The verification budget used exactly four new calls (two sandbox operations and
+two report generations), bringing the existing combined ledger to its five-call
+limit; neither report needed a provider retry. Further paid verification needs
+additional budget authorization.
+
+Machine-readable release evidence is in
+[`artifacts/dsa-v3-production-verification.json`](../../artifacts/dsa-v3-production-verification.json).
+Authentication credentials, private fixtures and reference implementations are
+excluded from that artifact. Remaining official content review applies to the
+365 provisional problems and does not prevent learner access.
