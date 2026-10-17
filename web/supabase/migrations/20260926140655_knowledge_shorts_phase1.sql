@@ -141,4 +141,3 @@ revoke all on table public.user_knowledge_topics from anon, authenticated;
 revoke all on table public.user_knowledge_sources from anon, authenticated;
 revoke all on table public.user_story_events from anon, authenticated;
 revoke all on table public.user_story_state from anon, authenticated;
-

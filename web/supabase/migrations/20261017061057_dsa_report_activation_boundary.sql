@@ -159,4 +159,3 @@ begin
   end if;
   return jsonb_build_object('code','UNKNOWN_ACTION');
 end $$;
-

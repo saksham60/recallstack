@@ -122,4 +122,3 @@ comment on column public.reasonai_messages.parts is
   'Validated ReasonAI runtime parts only; never raw provider SSE or raw tool arguments.';
 comment on table public.reasonai_runs is
   'Requests may identify stale running rows from started_at/updated_at; PR4 intentionally adds no background cleanup.';
-

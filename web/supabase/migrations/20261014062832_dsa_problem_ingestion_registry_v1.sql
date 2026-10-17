@@ -75,4 +75,3 @@ alter table public.dsa_test_suites enable row level security;
 alter table public.dsa_test_cases enable row level security;
 alter table public.dsa_language_runtimes enable row level security;
 revoke all on public.dsa_problem_definitions,public.dsa_problem_versions,public.dsa_problem_ingestion_jobs,public.dsa_test_suites,public.dsa_test_cases,public.dsa_language_runtimes from anon,authenticated;
-
