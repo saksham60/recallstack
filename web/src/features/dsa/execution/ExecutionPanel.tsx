@@ -4,26 +4,34 @@ import type { LocalRun } from "./use-local-python-run";
 import type { PracticeSubmission } from "./use-practice-submissions";
 import { JsonBlock } from "../workspace/Specification";
 export function ExecutionPanel({
-  execution, localRun, onCancelLocal, practiceSubmission,
+  execution,
+  localRun,
+  onCancelLocal,
+  practiceSubmission,
+  submitBlockReason,
+  onCheckSubmission,
+  checkingSubmission,
 }: {
   execution: ExecutionState;
   localRun?: LocalRun | null;
   onCancelLocal?: () => void;
   practiceSubmission?: PracticeSubmission | null;
+  submitBlockReason?: string;
+  onCheckSubmission?: () => void;
+  checkingSubmission?: boolean;
 }) {
   const { job } = execution;
   return (
-    <div
-      className="studio-result-copy studio-scroll"
-      aria-label="Execution results"
-    >
+    <div className="studio-result-copy" aria-label="Execution results">
       <div role="status" className="studio-execution-status">
         <h3>
           {execution.creating
             ? "Sending execution request…"
             : job
               ? `Execution ${job.status.replaceAll("_", " ")}`
-              : "No execution yet"}
+              : localRun
+                ? "Local Python execution"
+                : "No submission yet"}
         </h3>
         {execution.active && (
           <button
@@ -38,54 +46,150 @@ export function ExecutionPanel({
         )}
       </div>
       {practiceSubmission && (
-        <section aria-label="Practice submission receipt">
-          <div role="status" className="studio-execution-status">
-            <h3>Historical practice attempt</h3>
-          </div>
-          <p>
-            {practiceSubmission.checkStatus === "not_evaluated"
-              ? "Example checks could not be completed."
-              : `${practiceSubmission.clientPassedCount}/${practiceSubmission.clientCheckedCount} statement examples passed locally.`}
-          </p>
-          <p className="studio-muted">
-            Submission {practiceSubmission.id.slice(0, 8)} · Saved to your account.
-            These browser example checks are provisional, not a hidden-test
-            Accepted verdict or certified progress.
-          </p>
-        </section>
+        <details className="studio-practice-history">
+          <summary>Earlier saved practice attempt</summary>
+          <section aria-label="Practice submission receipt">
+            <p className="studio-muted">
+              This saved attempt is separate from your current Run.
+            </p>
+            <div role="status" className="studio-execution-status">
+              <h3>Historical practice attempt</h3>
+            </div>
+            <p>
+              {practiceSubmission.checkStatus === "not_evaluated"
+                ? "Example checks could not be completed."
+                : `${practiceSubmission.clientPassedCount}/${practiceSubmission.clientCheckedCount} statement examples passed locally.`}
+            </p>
+            <p className="studio-muted">
+              Submission {practiceSubmission.id.slice(0, 8)} · Saved to your
+              account. These browser example checks are provisional, not a
+              hidden-test Accepted verdict or certified progress.
+            </p>
+          </section>
+        </details>
       )}
       {localRun && (
         <section aria-label="Local Python results">
           <div className="studio-execution-status">
             <h3>
-              {localRun.source === "custom" ? "Custom input" : "Local Run"} · {localRun.state === "running" ? localRun.phase === "initializing" ? "Initializing Python…" : `Running case ${localRun.currentCase ?? 1} of ${localRun.totalCases ?? 1}` : localRun.state === "cancelled" ? "Cancelled" : localRun.state === "passed" ? localRun.source === "custom" ? "Executed" : "All displayed cases passed" : localRun.results.find((row) => row.error)?.error?.match(/(?:SyntaxError|IndentationError|TypeError|NameError|RuntimeError|IndexError|RecursionError|SerializationError|OutputLimitError):[^\n]*/)?.[0] ?? (localRun.message ? "Execution failed" : "Some cases failed")}
+              {localRun.source === "custom" ? "Custom input" : "Local Run"} ·{" "}
+              {localRun.state === "running"
+                ? localRun.phase === "initializing"
+                  ? "Initializing Python…"
+                  : `Running case ${localRun.currentCase ?? 1} of ${localRun.totalCases ?? 1}`
+                : localRun.state === "cancelled"
+                  ? "Cancelled"
+                  : localRun.state === "passed"
+                    ? localRun.source === "custom"
+                      ? "Executed"
+                      : "All displayed cases passed"
+                    : (localRun.results
+                        .find((row) => row.error)
+                        ?.error?.match(
+                          /(?:SyntaxError|IndentationError|TypeError|NameError|RuntimeError|IndexError|RecursionError|SerializationError|OutputLimitError):[^\n]*/,
+                        )?.[0] ??
+                      (localRun.message
+                        ? "Execution failed"
+                        : "Some cases failed"))}
             </h3>
             {localRun.state === "running" && onCancelLocal && (
-              <button type="button" onClick={onCancelLocal}>Cancel local Run</button>
+              <button type="button" onClick={onCancelLocal}>
+                Cancel local Run
+              </button>
             )}
           </div>
           <p className="studio-muted">
             {localRun.source === "verified"
               ? "Locally checked against verified public fixtures. This is not hidden-test acceptance."
-              : localRun.source === "custom" ? "Exploratory custom input. No grading claim and no Submit eligibility." : "Locally checked against provisional statement examples. This is not a certified grading result."}
+              : localRun.source === "custom"
+                ? "Exploratory custom input. No grading claim and no Submit eligibility."
+                : "Locally checked against provisional statement examples. This is not a certified grading result."}
           </p>
-          {localRun.message && <p role="alert" className="studio-notice">{localRun.message}</p>}
-          {localRun.initializationMs !== undefined && <p className="studio-muted">Interpreter initialization: {localRun.initializationMs} ms · Python execution: {localRun.totalExecutionMs ?? 0} ms{localRun.durationMs !== undefined ? ` · Total elapsed: ${localRun.durationMs} ms` : ""}</p>}
-          {localRun.state !== "running" && localRun.results.map((item, index) => (
-            <article className="studio-example" key={item.id}>
-              <h4>Local case {index + 1} · {item.passed ? "Passed" : "Failed"}</h4>
-              <span className="studio-eyebrow">INPUT</span>
-              <JsonBlock value={item.input} />
-              {localRun.source !== "custom" && <><span className="studio-eyebrow">EXPECTED</span><JsonBlock value={item.expected} /></>}
-              {"actual" in item && <>
-                <span className="studio-eyebrow">ACTUAL</span>
-                <JsonBlock value={item.actual} />
-              </>}
-              {item.error && <pre className="studio-notice">{item.error}</pre>}
-              {item.stdout && <><span className="studio-eyebrow">STDOUT</span><pre className="studio-json">{item.stdout}</pre></>}
-              {item.durationMs !== undefined && <p className="studio-muted">Local execution: {item.durationMs} ms</p>}
-            </article>
-          ))}
+          {localRun.state === "passed" && (
+            <p className="studio-local-summary">
+              {localRun.source === "custom" ? (
+                `${localRun.results.length} custom inputs executed in this Run.`
+              ) : (
+                <>
+                  {localRun.results.filter((row) => row.passed).length}/
+                  {localRun.results.length}{" "}
+                  {localRun.source === "verified"
+                    ? "certified public tests"
+                    : localRun.source === "custom"
+                      ? "custom inputs"
+                      : "statement examples"}{" "}
+                  passed in this Run.
+                </>
+              )}
+            </p>
+          )}
+          {localRun.state === "passed" && submitBlockReason && (
+            <div className="studio-notice" role="status">
+              <strong>Submit is unavailable</strong>
+              <p>{submitBlockReason}</p>
+              {onCheckSubmission && (
+                <button
+                  type="button"
+                  disabled={checkingSubmission}
+                  onClick={onCheckSubmission}
+                >
+                  {checkingSubmission
+                    ? "Checking availability…"
+                    : "Check submission availability"}
+                </button>
+              )}
+            </div>
+          )}
+          {localRun.message && (
+            <p role="alert" className="studio-notice">
+              {localRun.message}
+            </p>
+          )}
+          {localRun.initializationMs !== undefined && (
+            <p className="studio-muted">
+              Interpreter initialization: {localRun.initializationMs} ms ·
+              Python execution: {localRun.totalExecutionMs ?? 0} ms
+              {localRun.durationMs !== undefined
+                ? ` · Total elapsed: ${localRun.durationMs} ms`
+                : ""}
+            </p>
+          )}
+          {localRun.state !== "running" &&
+            localRun.results.map((item, index) => (
+              <article className="studio-example" key={item.id}>
+                <h4>
+                  Local case {index + 1} · {item.passed ? "Passed" : "Failed"}
+                </h4>
+                <span className="studio-eyebrow">INPUT</span>
+                <JsonBlock value={item.input} />
+                {localRun.source !== "custom" && (
+                  <>
+                    <span className="studio-eyebrow">EXPECTED</span>
+                    <JsonBlock value={item.expected} />
+                  </>
+                )}
+                {"actual" in item && (
+                  <>
+                    <span className="studio-eyebrow">ACTUAL</span>
+                    <JsonBlock value={item.actual} />
+                  </>
+                )}
+                {item.error && (
+                  <pre className="studio-notice">{item.error}</pre>
+                )}
+                {item.stdout && (
+                  <>
+                    <span className="studio-eyebrow">STDOUT</span>
+                    <pre className="studio-json">{item.stdout}</pre>
+                  </>
+                )}
+                {item.durationMs !== undefined && (
+                  <p className="studio-muted">
+                    Local execution: {item.durationMs} ms
+                  </p>
+                )}
+              </article>
+            ))}
         </section>
       )}
       {job && (
