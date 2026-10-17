@@ -63,7 +63,7 @@ export const reportViewSchema = z
     rubric: z.string().max(100),
     createdAt: z.string(),
     updatedAt: z.string(),
-    attempts: z.number().int().min(0).max(2),
+    attempts: z.number().int().min(0),
     analysis: analysisSchema.optional(),
     error: z.string().max(500).optional(),
   })
@@ -165,7 +165,7 @@ export const claimSchema = z
     token: z.uuid(),
     model: z.string().min(1).max(200),
     rubric: z.literal(REPORT_RUBRIC),
-    attempt: z.number().int().min(1).max(2),
+    attempt: z.number().int().min(1),
     packet: packetSchema,
   })
   .strict();
