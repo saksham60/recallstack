@@ -25,6 +25,11 @@ export const executionStatuses = [
   "cancelled",
 ] as const;
 export type ExecutionStatus = (typeof executionStatuses)[number];
+/** Learner-facing label; provenance remains recorded on the saved judge result. */
+export function verdictLabel(value: string): string {
+  return value === "provisional_pass" ? "Passed current tests" : value.replaceAll("_", " ");
+}
+
 export type Verdict =
   | "accepted"
   | "provisional_pass"
