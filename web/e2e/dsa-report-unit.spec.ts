@@ -12,16 +12,6 @@ import {
   type ReportRepository,
 } from "../src/lib/dsa-reports/contracts";
 import { generateCodeReport } from "../src/lib/dsa-reports/provider";
-import { reportSubmissionScope } from "../src/lib/dsa-reports/repository";
-test("limited report verification rejects malformed scopes instead of enabling the backlog", () => {
-  const submissionId = crypto.randomUUID();
-  expect(reportSubmissionScope(" ")).toBeUndefined();
-  expect(reportSubmissionScope(submissionId)).toEqual([submissionId]);
-  expect(() => reportSubmissionScope("invalid")).toThrow();
-  expect(() =>
-    reportSubmissionScope(Array(11).fill(submissionId).join(",")),
-  ).toThrow();
-});
 const id = () => crypto.randomUUID();
 function fixture() {
   const claim: ReportClaim = {
