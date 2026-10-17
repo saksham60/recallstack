@@ -141,7 +141,7 @@ for (const [name, source, error] of [
   await setup(page); await paste(page, source);
   await page.getByRole("button", {name:"Run",exact:true}).click();
   await expect(page.getByRole("region", {name:"Code and tests"})).toContainText(error, {timeout:70000});
-  await expect(page.getByRole("button", {name:"Submit",exact:true})).toBeDisabled();
+  await expect(page.getByRole("button", {name:"Submit",exact:true})).toBeEnabled();
 });
 
 const adapted = (change: Partial<NonNullable<PythonContract["adapter"]>>): PythonContract => ({ ...sumContract, adapter:{...sumContract.adapter!, ...change} });
@@ -168,12 +168,12 @@ test("real local cancellation and navigation terminate active work", async ({aut
   await expect(page.getByRole("heading",{name:/Running case 1 of 1/})).toBeVisible({timeout:70000});
   await page.getByRole("button",{name:"Cancel local Run"}).click();
   await expect(page.getByRole("heading",{name:"Local Run · Cancelled"})).toBeVisible();
-  await expect(page.getByRole("button",{name:"Submit",exact:true})).toBeDisabled();
+  await expect(page.getByRole("button",{name:"Submit",exact:true})).toBeEnabled();
   await page.getByRole("button",{name:"Run",exact:true}).click();
   await page.getByRole("link",{name:"DSA",exact:true}).last().click();
   await expect(page).toHaveURL(/\/dsa$/);
   await page.goto(canonical);
-  await expect(page.getByRole("button",{name:"Submit",exact:true})).toBeDisabled();
+  await expect(page.getByRole("button",{name:"Submit",exact:true})).toBeEnabled();
 });
 
 test("runtime download failure is diagnosed without disabling independent Submit", async ({authenticatedPage:page}) => {
@@ -181,7 +181,7 @@ test("runtime download failure is diagnosed without disabling independent Submit
   await page.context().route("https://cdn.jsdelivr.net/pyodide/**",r=>r.abort("failed"));
   await page.getByRole("button",{name:"Run",exact:true}).click();
   await expect(page.getByRole("alert").filter({hasText:/Python initialization or worker failure/})).toBeVisible({timeout:70000});
-  await expect(page.getByRole("button",{name:"Submit",exact:true})).toBeDisabled();
+  await expect(page.getByRole("button",{name:"Submit",exact:true})).toBeEnabled();
 });
 
 test("real repeated warm Run, refresh and custom input do not gate Submit",async({authenticatedPage:page})=>{
@@ -193,12 +193,12 @@ test("real repeated warm Run, refresh and custom input do not gate Submit",async
     await expect(page.getByText(/Interpreter initialization:/)).toBeVisible();
   }
   await page.reload();
-  await expect(page.getByRole("button",{name:"Submit",exact:true})).toBeDisabled();
+  await expect(page.getByRole("button",{name:"Submit",exact:true})).toBeEnabled();
   await page.getByRole("button",{name:"Custom testcase",exact:true}).click();
   await page.getByLabel("Custom input JSON").fill('{"nums":[10,20]}');
   await page.getByRole("button",{name:"Run custom input",exact:true}).click();
   await expect(page.getByRole("heading",{name:"Custom input · Executed"})).toBeVisible({timeout:70000});
-  await expect(page.getByRole("button",{name:"Submit",exact:true})).toBeDisabled();
+  await expect(page.getByRole("button",{name:"Submit",exact:true})).toBeEnabled();
 });
 
 test("Python worker CSP blocks first-party authenticated fetch",async({authenticatedPage:page})=>{
