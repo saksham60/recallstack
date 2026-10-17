@@ -15,7 +15,7 @@ import type { PublicRunBundle } from "./python-contract";
 const errors: Record<string, [number, string]> = {
   NOT_ELIGIBLE: [
     409,
-    "This version does not have an eligible certified test suite.",
+    "This version does not currently have an executable test suite.",
   ],
   ACCOUNT_LIMIT: [
     429,
