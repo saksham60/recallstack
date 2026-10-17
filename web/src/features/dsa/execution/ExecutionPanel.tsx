@@ -63,8 +63,8 @@ export function ExecutionPanel({
             </p>
             <p className="studio-muted">
               Submission {practiceSubmission.id.slice(0, 8)} · Saved to your
-              account. These browser example checks are provisional, not a
-              hidden-test Accepted verdict or certified progress.
+              account. These earlier browser example checks are not a sandbox
+              judge result or evidence of a new submission.
             </p>
           </section>
         </details>
@@ -101,10 +101,10 @@ export function ExecutionPanel({
           </div>
           <p className="studio-muted">
             {localRun.source === "verified"
-              ? "Locally checked against verified public fixtures. This is not hidden-test acceptance."
+              ? "Locally checked against public test cases. Submit independently runs the sandbox suite."
               : localRun.source === "custom"
-                ? "Exploratory custom input. No grading claim and no Submit eligibility."
-                : "Locally checked against provisional statement examples. This is not a certified grading result."}
+                ? "Exploratory custom input. It does not change whether you can Submit."
+                : "Locally checked against statement examples. Submit independently runs the sandbox suite."}
           </p>
           {localRun.state === "passed" && (
             <p className="studio-local-summary">
