@@ -451,6 +451,7 @@ test("saved-report Tutor context is owned, version-bound, bounded and replaces o
     selectedId = id();
   input.context.selectedSubmissionId = selectedId;
   input.context.userCode = "CURRENT_DRAFT_SENTINEL";
+  input.context.language = "typescript";
   const savedCode = "def solve(nums): return sum(nums)";
   const loaders = {
     problem: async () => tutorProblem,
@@ -486,6 +487,7 @@ test("saved-report Tutor context is owned, version-bound, bounded and replaces o
   };
   const hydrated = await hydrateTutorContext(input, "owner", loaders);
   expect(hydrated.context.userCode).toBe(savedCode);
+  expect(hydrated.context.language).toBe("python");
   expect(input.context.userCode).toBe("CURRENT_DRAFT_SENTINEL");
   expect(hydrated.context.selectedSubmission?.judge.verdict).toBe(
     "wrong_answer",

@@ -29,6 +29,7 @@ export interface DSAProblemContext {
   selectedSubmission?: {
     submissionId: string;
     codeSha256: string;
+    language: "python";
     judge: { verdict: string; gradingLevel?: string; executionTimeMs?: number; memoryKiB?: number };
     analysis: CodeAnalysis | null;
     analysisTruncated: boolean;

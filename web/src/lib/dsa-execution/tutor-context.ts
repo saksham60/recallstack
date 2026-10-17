@@ -108,6 +108,7 @@ export async function hydrateTutorContext(
       job.mode !== "submit" ||
       job.problemId !== problem.id ||
       job.problemVersionId !== problem.problem_version_id ||
+      !["completed", "timed_out"].includes(job.status) ||
       !job.result
     )
       throw new TutorContextError(
@@ -141,6 +142,7 @@ export async function hydrateTutorContext(
     selectedSubmission = {
       submissionId: job.submissionId,
       codeSha256: saved.data.codeSha256,
+      language: job.language,
       judge: {
         verdict: job.result.verdict,
         gradingLevel: job.result.gradingLevel,
@@ -167,6 +169,7 @@ export async function hydrateTutorContext(
         ? {
             selectedSubmission,
             userCode: submittedCode!,
+            language: selectedSubmission.language,
             userApproach: "",
             userNotes: "",
             publicExecution: undefined,
