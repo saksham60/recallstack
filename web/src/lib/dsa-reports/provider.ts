@@ -35,6 +35,7 @@ export async function generateCodeReport(claim: ReportClaim) {
             role: "system",
             content:
               instructions +
+              "\nWhen judge.gradingLevel is provisional, call the grading evidence provisional. A provisional_pass is not official Accepted, certification, or mastery. Passing the supplied fixtures cannot prove correctness for all inputs." +
               "\nJSON schema: " +
               JSON.stringify(z.toJSONSchema(analysisSchema)),
           },

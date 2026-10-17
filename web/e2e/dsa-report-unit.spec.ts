@@ -12,6 +12,12 @@ import {
   type ReportRepository,
 } from "../src/lib/dsa-reports/contracts";
 import { generateCodeReport } from "../src/lib/dsa-reports/provider";
+import { reportActivationBoundary } from "../src/lib/dsa-reports/repository";
+test("report rollout boundary rejects malformed timestamps", () => {
+  expect(reportActivationBoundary(" ")).toBeUndefined();
+  expect(reportActivationBoundary("2026-10-17T06:00:00.000Z")).toBe("2026-10-17T06:00:00.000Z");
+  expect(()=>reportActivationBoundary("not-a-date")).toThrow();
+});
 const id = () => crypto.randomUUID();
 function fixture() {
   const claim: ReportClaim = {

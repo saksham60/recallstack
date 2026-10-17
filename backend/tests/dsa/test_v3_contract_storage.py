@@ -18,7 +18,7 @@ pytestmark = pytest.mark.integration
 def contract_schema(execution_schema, board_schema):
     root = Path(__file__).resolve().parents[3]
     migration = (
-        root / "web/supabase/migrations/20261016144503_dsa_v3_versioned_contracts_certification.sql"
+        root / "web/supabase/migrations/20261017060241_dsa_v3_versioned_contracts_certification.sql"
     )
     with execution_schema.begin() as connection:
         connection.connection.driver_connection.execute(migration.read_text(encoding="utf-8"))

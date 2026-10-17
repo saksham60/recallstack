@@ -71,8 +71,8 @@ export const reportViewSchema = z
 export const reportResponseSchema = z
   .object({
     submissionId: z.uuid(),
-    sourceCode:z.string().max(24000),
-    codeSha256:z.string().regex(/^[a-f0-9]{64}$/),
+    sourceCode: z.string().max(24000),
+    codeSha256: z.string().regex(/^[a-f0-9]{64}$/),
     enabled: z.boolean(),
     report: reportViewSchema.nullable(),
   })
@@ -94,11 +94,13 @@ export const submissionViewSchema = z.object({
   ]),
   createdAt: z.string(),
   updatedAt: z.string(),
+  gradingLevel: z.enum(["official", "provisional"]).optional(),
   error: z.string().max(500).optional(),
   result: z
     .object({
       verdict: z.enum([
         "accepted",
+        "provisional_pass",
         "wrong_answer",
         "syntax_error",
         "runtime_error",
@@ -110,6 +112,7 @@ export const submissionViewSchema = z.object({
       wallTimeMs: z.number().nonnegative().optional(),
       executionTimeMs: z.number().nonnegative().optional(),
       memoryKiB: z.number().nonnegative().optional(),
+      gradingLevel: z.enum(["official", "provisional"]).optional(),
     })
     .optional(),
 });
@@ -127,6 +130,7 @@ export const packetSchema = z
       .object({
         verdict: z.enum([
           "accepted",
+          "provisional_pass",
           "wrong_answer",
           "syntax_error",
           "runtime_error",
@@ -137,6 +141,7 @@ export const packetSchema = z
         totalTests: z.number().int().nonnegative().optional(),
         executionTimeMs: z.number().nonnegative().optional(),
         memoryKiB: z.number().nonnegative().optional(),
+        gradingLevel: z.enum(["official", "provisional"]).optional(),
       })
       .strict(),
     statement: z

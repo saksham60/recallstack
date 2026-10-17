@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { displayJson } from "@/lib/dsa-execution/integer-wire";
 import { DSATutorMarkdown } from "../reasonai/DSATutorMarkdown";
 import { usePublicTests, type Problem, type useDSAScope } from "./api";
 import { RequestError } from "./Explorer";
@@ -6,7 +7,7 @@ import { RequestError } from "./Explorer";
 export function JsonBlock({ value }: { value: unknown }) {
   return (
     <pre className="studio-json">
-      {typeof value === "string" ? value : JSON.stringify(value, null, 2)}
+      {typeof value === "string" ? value : displayJson(value)}
     </pre>
   );
 }

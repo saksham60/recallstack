@@ -23,7 +23,28 @@ export function validatePlan(raw: unknown): EvaluationPlan {
       409,
     );
   const plan = parsed.data;
+  if (plan.gradingLevel === "provisional") {
+    if (
+      !plan.provisionalContractId ||
+      plan.certificateId ||
+      plan.harnessSha256 !== HARNESS_SHA256 ||
+      !plan.contractRevision ||
+      !plan.fixturesRevision
+    )
+      throw new ExecutionError(
+        "CONTRACT_UNAVAILABLE",
+        "Provisional execution requires validated, versioned evidence.",
+        409,
+      );
+  } else if (!plan.certificateId) {
+    throw new ExecutionError(
+      "CONTRACT_UNAVAILABLE",
+      "Official execution requires a certificate.",
+      409,
+    );
+  }
   if (
+    plan.gradingLevel !== "provisional" &&
     plan.contract.adapter &&
     (plan.harnessSha256 !== HARNESS_SHA256 ||
       !plan.certificationRunId ||
@@ -104,7 +125,11 @@ export function judge(
   ).length;
   const verdict =
     results.find((row) => row.verdict !== "passed_public_tests")?.verdict ??
-    (mode === "submit" ? "accepted" : "passed_public_tests");
+    (mode === "submit"
+      ? plan.gradingLevel === "provisional"
+        ? "provisional_pass"
+        : "accepted"
+      : "passed_public_tests");
   const executionTimeMs = rows.reduce(
     (sum, row) => sum + (row.executionTimeMs ?? 0),
     0,
@@ -112,6 +137,7 @@ export function judge(
   const memoryKiB = operation.memoryKiB;
   return {
     verdict,
+    ...(plan.gradingLevel ? { gradingLevel: plan.gradingLevel } : {}),
     wallTimeMs,
     executionTimeMs,
     memoryKiB,

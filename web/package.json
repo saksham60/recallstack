@@ -20,6 +20,7 @@
     "predev": "node scripts/prepare-monaco.mjs && node scripts/prepare-python-harness.mjs",
     "prebuild": "node scripts/prepare-monaco.mjs && node scripts/prepare-python-harness.mjs",
     "test:executions": "node scripts/prepare-python-harness.mjs --check && playwright test --config=playwright.execution.config.ts",
+    "test:dsa-db": "node scripts/test-dsa-database.mjs",
     "dsa:harness": "node scripts/prepare-python-harness.mjs",
     "dsa:harness:check": "node scripts/prepare-python-harness.mjs --check",
     "dsa:certify": "node scripts/prepare-python-harness.mjs --check && tsx scripts/certify-catalog.ts"
@@ -53,6 +54,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.10",
     "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
     "@tanstack/react-query-devtools": "^5.101.2",

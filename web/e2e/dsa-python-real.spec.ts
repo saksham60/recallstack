@@ -56,6 +56,19 @@ test("actual Python executes typed signatures, unlocks exact-code Submit and mak
   await expect(page.getByRole("button", { name: "Submit", exact: true })).toBeDisabled();
 });
 
+test("provisional local Run preserves unsafe integers through actual WASM and unlocks Submit",async({authenticatedPage:page})=>{
+  const contract:PythonContract={entrypoint:"solve",inputMode:"single",checker:"exact_json",integerEncoding:"tagged-v1"};
+  const {bundle,posts}=await setup(page,contract,[{input:{n:{$reasonaiInteger:"9007199254740993"}},expected:{$reasonaiInteger:"9007199254740995"}}]);
+  await page.route("**/api/dsa/execution-capabilities?**",r=>r.fulfill({json:{run:true,submit:true,gradingLevel:"provisional",languages:["python"],publicRun:{...bundle,gradingLevel:"provisional"}}}));
+  await page.reload();
+  await paste(page,"def solve(payload):\n    return payload['n'] + 2\n");
+  await page.getByRole("button",{name:"Run",exact:true}).click();
+  await expect(page.getByRole("heading",{name:"Local Run · All displayed cases passed"})).toBeVisible({timeout:70000});
+  await expect(page.getByRole("button",{name:"Submit",exact:true})).toBeEnabled();
+  await expect(page.locator("#studio-execution-reason")).toContainText("Provisional submission · independently verified fixtures. Passing does not award official Accepted or mastery.");
+  expect(posts).toEqual([]);
+});
+
 test("actual Python reports syntax errors with solution line numbers", async ({ authenticatedPage: page }) => {
   await setup(page);
   await paste(page, "def array_total(nums):\n    return (\n");

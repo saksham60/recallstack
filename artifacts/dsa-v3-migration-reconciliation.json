@@ -1,0 +1,318 @@
+{
+  "schemaVersion": 1,
+  "project": "jlqawpdsyptfxspyqnsu",
+  "verification": "Production migration SQL and local SQL match after CRLF and boundary whitespace normalization; no migration was reapplied.",
+  "migrationCount": 62,
+  "migrations": [
+    {
+      "version": "20260919151628",
+      "name": "reasonai_persistence",
+      "sha": "686fc5e08066dd90a4633a2a02e2d15a52cc377a9b22112863498ab80511db48"
+    },
+    {
+      "version": "20260920120310",
+      "name": "reasonai_learner_memory",
+      "sha": "a0c6d98261bd8444f827e5b34f0a175fb894bb8db4f71ab58bd194392b16c9ba"
+    },
+    {
+      "version": "20260920120349",
+      "name": "reasonai_runtime_hardening",
+      "sha": "1d0f8bf73e1ad3ba752fa7758a77d3924902db263e687b6fa54fa366576f1b4f"
+    },
+    {
+      "version": "20260920120413",
+      "name": "reasonai_conversation_state",
+      "sha": "dc0bae5294b9f2f1c8574e76a480d1ed4635b9987efd386fae231c634e8a74d0"
+    },
+    {
+      "version": "20260920122507",
+      "name": "reasonai_finalize_run_conflict_fix",
+      "sha": "231ebddcb8e346be02b92981519bddbfc7271ff7a36406c7d343c7a101464bbd"
+    },
+    {
+      "version": "20260920130843",
+      "name": "reasonai_finalize_run_message_conflict_fix",
+      "sha": "76bf9f9a95cc5ac14713c879f987288fdb6c7203d09d926ee2d293ef7f993e08"
+    },
+    {
+      "version": "20260924145402",
+      "name": "reasonai_surface_aware_conversation_state",
+      "sha": "9d53f4ae887b4b30ce62a90c07eb379d71ea945ef8d969f7baa4d363bdc532ba"
+    },
+    {
+      "version": "20260926140655",
+      "name": "knowledge_shorts_phase1",
+      "sha": "bd88e586bfae8a448d6acc923af06a41c89bdc616c6b980881c0544f15e08fe6"
+    },
+    {
+      "version": "20260926140749",
+      "name": "knowledge_shorts_fk_indexes",
+      "sha": "e48e9e342a7942ad750348cdbe72eea9c08a438e8b23f142cc8e2026ac6b972e"
+    },
+    {
+      "version": "20260926151258",
+      "name": "seed_knowledge_sources_web_hacker_news",
+      "sha": "dd51fcd66662a29b40e247cf846a03353e5fcb1e06bad1308befd2c792ec8826"
+    },
+    {
+      "version": "20260929085444",
+      "name": "knowledge_refresh_runs",
+      "sha": "c712313bbb5a2c98508603dbf37bb6af9363a4af740acb7d2193c817aa1c7fde"
+    },
+    {
+      "version": "20260929151956",
+      "name": "knowledge_interest_prompt",
+      "sha": "d8a3b4962aaafadcb36e8a5d9988b71604b71aeaffeb657d5b990af3668e9d0d"
+    },
+    {
+      "version": "20261010110129",
+      "name": "reasonai_orchestration_v3_proposal_state",
+      "sha": "7c93dd4628ae69d67affc2f781cab1dbadaeeef2a4ba32509b4bb41a6881597a"
+    },
+    {
+      "version": "20261014062832",
+      "name": "dsa_problem_ingestion_registry_v1",
+      "sha": "e15cca80f36eb5d9b1906c66fcd6b5d11ca2c79943018332f647bb533844c691"
+    },
+    {
+      "version": "20261015172042",
+      "name": "dsa_execution_jobs",
+      "sha": "ad765e4402f8af4edd6df999d62ed28f738be669b0fca4d245950b2d53af2d1b"
+    },
+    {
+      "version": "20261016073209",
+      "name": "dsa_explorer_company_metadata_and_boards",
+      "sha": "62fac014dea51529e0cd97229c0125e7e8a21943cd4a62572356fc0a596e0817"
+    },
+    {
+      "version": "20261016073423",
+      "name": "dsa_certification_ledger_and_code_intelligence",
+      "sha": "4e6e15fa29ea2db0d4baf913c46754e8410ad01d047498ba9a4629a059e7685e"
+    },
+    {
+      "version": "20261016073721",
+      "name": "dsa_explorer_hardening_and_sequence_tags",
+      "sha": "e5d75c3da0b3a878ae90156823fa72f255825ae87c0a95db1f1e97218c2212f1"
+    },
+    {
+      "version": "20261016073847",
+      "name": "dsa_explorer_grants_and_membership_trigger_fix",
+      "sha": "a34bd9210cde5f41e69d20183a21b338b8d0627643af3638ae40c06ca51520f5"
+    },
+    {
+      "version": "20261016074043",
+      "name": "dsa_three_sum_deduplicated_draft_suite",
+      "sha": "a06fbbb99b9617cbd53248f121b63712c8b930cce94a13962e79a911d5774df0"
+    },
+    {
+      "version": "20261016074137",
+      "name": "dsa_three_sum_pilot_draft_dedup_final",
+      "sha": "afd7d871d2328c5174e2e0f8df9ac406ab250c64719fdbe898e47c192399c6d2"
+    },
+    {
+      "version": "20261016074239",
+      "name": "dsa_three_sum_pilot_verification_ledger",
+      "sha": "b609147aa4df0bee772afa08d8736a29c35df3899c2535497f73b0e7dd72fe12"
+    },
+    {
+      "version": "20261016074500",
+      "name": "dsa_code_intelligence_reconcile_and_claim",
+      "sha": "5e186111598de4d5fe0d30b427487dc8d4afdbf564466faa236f6c0f0d9d1fa5"
+    },
+    {
+      "version": "20261016075127",
+      "name": "dsa_safe_bulk_duplicate_repair_375",
+      "sha": "3d1bafe410113e8937bef91c6f3441d82c13713a111e431e7c4d40ff1533bf32"
+    },
+    {
+      "version": "20261016080708",
+      "name": "dsa_every_problem_practice_submissions",
+      "sha": "d257460d9d3d52aa954cf33e533670dd734bd3a24f2a0fb4a3c5f47d3c10c5d7"
+    },
+    {
+      "version": "20261016081159",
+      "name": "dsa_practice_submission_publication_rls_fix",
+      "sha": "9756e3d61ebd4aa031cc3bdcaae7752f076978915dd0683b54f79a03a55c96f3"
+    },
+    {
+      "version": "20261016110623",
+      "name": "dsa_company_editorial_suffix_aliases",
+      "sha": "c7d37e9978037dbbbb0c4ae4cbf1062bf6c93eef6ca133a672d8a6cb0c464157"
+    },
+    {
+      "version": "20261016120735",
+      "name": "dsa_catalog_structural_audit_evidence_v2",
+      "sha": "5116040aeb8e066c957d119d9223ae712614c2cc6cf2b2c2c06858bff130ec5c"
+    },
+    {
+      "version": "20261016120839",
+      "name": "dsa_nqueens_finite_domain_suite_v3",
+      "sha": "9cd9b11bff1c2597dac3741bfe05f46d8148753ba807d1a27b50116a596d59db"
+    },
+    {
+      "version": "20261016121302",
+      "name": "dsa_five_sql_independent_oracles_v1",
+      "sha": "416bf34f56201ad024403223cc7476662c3b27a69d581e195855d0d6b880b13a"
+    },
+    {
+      "version": "20261016124502",
+      "name": "dsa_fifteen_more_independent_sql_oracles",
+      "sha": "0f365588985dd0d643b8bbb16f4ff15f52c72c0bb3f25639a844ec895add7f78"
+    },
+    {
+      "version": "20261016124823",
+      "name": "dsa_eight_sql_oracles_explicit_collation",
+      "sha": "6d03a2d383858eea40a41cc80ed7ddbb8522060ab9728af7934f9a0755f42c34"
+    },
+    {
+      "version": "20261016130133",
+      "name": "dsa_23_independent_js_oracle_fixture_evidence",
+      "sha": "22b389fd54ddc42f6fd46ab8a6169dd488f69768bd5f192e586b11e915d0da72"
+    },
+    {
+      "version": "20261016130707",
+      "name": "dsa_24_independent_js_oracle_fixture_evidence",
+      "sha": "7ba9d3cf16b4044a3691d6b132b3e5ea3c3469ac8bd744e287ec68bc6fea582f"
+    },
+    {
+      "version": "20261016132111",
+      "name": "dsa_29_js_oracle_batch6_evidence",
+      "sha": "f1e81cc10728ff0a0dbecf1cab61f8db904d6060888a1f62a45798548b00673d"
+    },
+    {
+      "version": "20261016132358",
+      "name": "dsa_18_js_oracle_batch7_evidence",
+      "sha": "bc8cbd3830de1e90f05c7ae926a8349687328323a893db382bc6bbe630f5a210"
+    },
+    {
+      "version": "20261016134049",
+      "name": "dsa_25_js_oracle_batch9_evidence",
+      "sha": "282c254e1a6efc64aaf04921064a7d8cf57eea6f27a2080ccf4859a575535eb2"
+    },
+    {
+      "version": "20261016135718",
+      "name": "dsa_37_independent_dynamic_programming_oracle_evidence",
+      "sha": "a1b1eafd5cd75b417f215fa296fbeae851274f1127532dd345bbfd388c24183a"
+    },
+    {
+      "version": "20261016140159",
+      "name": "dsa_35_independent_graph_trie_oracle_evidence",
+      "sha": "68c392c614ca9d1d253be0c2a692785a1f0d86f7b70309e1fe0b4652b1c974d9"
+    },
+    {
+      "version": "20261016140626",
+      "name": "dsa_20_independent_specialized_oracle_evidence",
+      "sha": "0108f9d871410c1e26debf3d5f78d03e033c94ac969f1b593b61cec3d19bc4eb"
+    },
+    {
+      "version": "20261016141515",
+      "name": "dsa_18_independent_tree_oracle_evidence",
+      "sha": "fd41c16b012099daf0314d4cd5437e4ef94beae0868de7772c926eb24f52976b"
+    },
+    {
+      "version": "20261016141845",
+      "name": "dsa_22_independent_bst_tree_oracle_evidence",
+      "sha": "7f5b287a694ad506d74677eff171c78dc74468386fd9e67e3a88ba85827e532e"
+    },
+    {
+      "version": "20261016142147",
+      "name": "dsa_5_heap_indexed_tree_oracle_evidence",
+      "sha": "26c88be8948ca354efd5e1457f60d2a33819cafa3cec2f5df8b88555bba10a80"
+    },
+    {
+      "version": "20261016142525",
+      "name": "dsa_24_independent_combinatorial_oracle_evidence",
+      "sha": "1d928ab51addb78908dd381b1c90b6013ffed2d517efbcc9f80f570bd0f11d18"
+    },
+    {
+      "version": "20261016142831",
+      "name": "dsa_10_exact_integer_fixture_audit_evidence",
+      "sha": "3ba1bb3469251f030cf8f4557600480901f228b1e2b5b759b96a4bbd3e7204e3"
+    },
+    {
+      "version": "20261016142953",
+      "name": "dsa_2_exact_graph_oracle_evidence",
+      "sha": "ca6487788308bf8bfaa203ffa3ba6010388f2e71aa8d4b7df08f3019ccbd0385"
+    },
+    {
+      "version": "20261016143340",
+      "name": "dsa_29_array_backtracking_design_oracle_evidence",
+      "sha": "09923bed6edf02e9864c664087951b00d61ea746396b4a31fe3343f0e0d0941b"
+    },
+    {
+      "version": "20261016143713",
+      "name": "dsa_18_independent_design_greedy_oracle_evidence",
+      "sha": "5208cdb6bfc17b401152a3d7193d80247436780b777dd968b617739826883210"
+    },
+    {
+      "version": "20261016144037",
+      "name": "dsa_6_exhaustive_backtracking_oracle_evidence",
+      "sha": "efd9640561a99a879392c6f34590a7a06a71984a4900fc6a1dc04cc459b91b34"
+    },
+    {
+      "version": "20261016144306",
+      "name": "dsa_private_exact_numeric_fixture_oracle",
+      "sha": "9e2ddb1a84c61d18efdf8af35380e88ed5fdeaad060ecdaf4110c9035670d818"
+    },
+    {
+      "version": "20261016150557",
+      "name": "dsa_8_exact_integer_integrity_reaudit_verified",
+      "sha": "af6ae86bd88dd7edb1afefef3b475a90f112c21aa799c53629261e8c5bf47e0e"
+    },
+    {
+      "version": "20261016150842",
+      "name": "dsa_8_lossless_numeric_review_suites",
+      "sha": "937767d1eff05e4e65e5eaa04108ba5618cbf3eac420511373f987a5e011c635"
+    },
+    {
+      "version": "20261016151119",
+      "name": "dsa_388_lossless_even_division_correction",
+      "sha": "da1931674f4fd9e1135f009d79b2676c49370243808c0046794506ac45225392"
+    },
+    {
+      "version": "20261016151236",
+      "name": "dsa_8_exact_integer_repaired_oracle_evidence",
+      "sha": "8e82847510f6f61c30e0c4ac5567d3a1e89e168677950aa7527955ffd40cc12b"
+    },
+    {
+      "version": "20261016151428",
+      "name": "dsa_18_latest_suite_integrity_passes",
+      "sha": "a9a886e1468d7304644da7f213acb23c107ee4f816e9199db79d3b82f79a0559"
+    },
+    {
+      "version": "20261017060223",
+      "name": "dsa_v3_explorer_projection",
+      "sha": "30c60bf282f4c4d611bd2fa0da00b6b727b35cc14c9af22312d1a92641d72052"
+    },
+    {
+      "version": "20261017060229",
+      "name": "dsa_v3_report_orchestration",
+      "sha": "23a857ec5b454907ca503fb6f289f78f645d7c6b155c9ebc2b217dc851910613"
+    },
+    {
+      "version": "20261017060241",
+      "name": "dsa_v3_versioned_contracts_certification",
+      "sha": "5d17c044d781492bded802812625273311a72e5d7de06aff807e3f012b56701d"
+    },
+    {
+      "version": "20261017060319",
+      "name": "dsa_provisional_submissions",
+      "sha": "fd00185609da3866497f4435ea6a32fdbfe49b74960b56de458f7366f9e58278"
+    },
+    {
+      "version": "20261017060427",
+      "name": "dsa_provisional_catalog_contracts",
+      "sha": "97ea54685a49ee0551aafc5629326920b6af11b706c21d2ee52ee4db95a6082a"
+    },
+    {
+      "version": "20261017061057",
+      "name": "dsa_report_activation_boundary",
+      "sha": "0e8301b82aa48833332f8a4d5948592194ae341d0552403d525e1cd43f322b34"
+    },
+    {
+      "version": "20261017083528",
+      "name": "dsa_remove_report_attempt_ceiling",
+      "sha": "384577bc2c19aeaa3da4f916d8ad58ff87c6d2a7a79c4dc4f22b0acbaa11c99b"
+    }
+  ]
+}

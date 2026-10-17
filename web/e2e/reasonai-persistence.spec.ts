@@ -28,7 +28,7 @@ const request: DSATutorRequest = {
 };
 
 test("migration creates transcript tables, RLS ownership policies and database concurrency constraints", () => {
-  const sql = readFileSync("supabase/migrations/20260919_reasonai_persistence.sql", "utf8");
+  const sql = readFileSync("supabase/legacy-proposals/20260919_reasonai_persistence.sql", "utf8");
   for (const table of ["reasonai_conversations", "reasonai_messages", "reasonai_runs"]) {
     expect(sql).toContain(`create table if not exists public.${table}`);
     expect(sql).toContain(`alter table public.${table} enable row level security`);
@@ -41,7 +41,7 @@ test("migration creates transcript tables, RLS ownership policies and database c
 });
 
 test("hardening migration adds finite leases, atomic RPCs, explicit RLS roles and minimal grants", () => {
-  const sql = readFileSync("supabase/migrations/20260921_reasonai_runtime_hardening.sql", "utf8");
+  const sql = readFileSync("supabase/legacy-proposals/20260921_reasonai_runtime_hardening.sql", "utf8");
   expect(sql).toContain("heartbeat_at timestamptz");
   expect(sql).toContain("interval '120 seconds'");
   expect(sql).toContain("for update");

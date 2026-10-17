@@ -114,7 +114,7 @@ export function ExecutionPanel({
                   {localRun.results.filter((row) => row.passed).length}/
                   {localRun.results.length}{" "}
                   {localRun.source === "verified"
-                    ? "certified public tests"
+                    ? "verified public tests"
                     : "statement examples"}{" "}
                   passed in this Run.
                 </>
@@ -241,7 +241,17 @@ export function ExecutionPanel({
       )}
       {job?.result && (
         <>
-          <span className="studio-eyebrow">Verified by Judge</span>
+          <span className="studio-eyebrow">
+            {job.gradingLevel === "provisional"
+              ? "Provisional judge result"
+              : "Verified by Judge"}
+          </span>
+          {job.gradingLevel === "provisional" && (
+            <p className="studio-notice">
+              Independently verified fixtures; suite review is pending. This
+              result does not award official Accepted or mastery.
+            </p>
+          )}
           <h3 className="studio-verdict">
             {job.result.verdict.replaceAll("_", " ")}
           </h3>

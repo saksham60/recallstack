@@ -318,7 +318,7 @@ def board_schema(dsa_engine):
     assert dsa_engine.url.database.startswith("dsa_api_test_")
     migration = (
         Path(__file__).resolve().parents[3]
-        / "web/supabase/migrations/20261016144501_dsa_v3_explorer_projection.sql"
+        / "web/supabase/migrations/20261017060223_dsa_v3_explorer_projection.sql"
     )
     with dsa_engine.begin() as connection:
         connection.exec_driver_sql("""

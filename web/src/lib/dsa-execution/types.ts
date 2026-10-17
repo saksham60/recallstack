@@ -13,7 +13,9 @@ export const OPERATION_TIMEOUT_SECONDS = 25;
 export const judgeContractSchema = pythonContractSchema;
 export const planSchema = z
   .object({
-    certificateId: z.uuid(),
+    certificateId: z.uuid().optional(),
+    gradingLevel: z.enum(["official", "provisional"]).optional(),
+    provisionalContractId: z.uuid().optional(),
     suiteId: z.uuid(),
     problemId: z.uuid(),
     problemVersionId: z.uuid(),

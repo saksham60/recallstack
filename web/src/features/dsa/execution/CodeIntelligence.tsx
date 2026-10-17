@@ -292,6 +292,10 @@ export function SubmissionIntelligence({
                 >
                   {row.result?.verdict.replaceAll("_", " ") ??
                     row.status.replaceAll("_", " ")}{" "}
+                  {row.gradingLevel === "provisional" &&
+                  row.result?.verdict !== "provisional_pass"
+                    ? " · provisional"
+                    : ""}
                   · {new Date(row.createdAt).toLocaleString()}
                 </Link>
               </li>

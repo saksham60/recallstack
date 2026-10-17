@@ -54,7 +54,7 @@ export async function POST(request: Request) {
     if (!available[parsed.data.mode])
       return reply(
         {
-          error: "This version does not have an eligible certified test suite.",
+          error: "This version does not have a validated execution contract and eligible fixtures.",
           code: "NOT_ELIGIBLE",
         },
         409,
