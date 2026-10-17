@@ -303,7 +303,7 @@ test("uncertified examples never unlock Submit; historical practice receipts rem
   await expect(page.getByText("1/1 statement examples passed in this Run.",{exact:true})).toBeVisible();
   availability.run=true; availability.submit=true;
   await page.getByRole("button",{name:"Check submission availability",exact:true}).click();
-  await expect(page.locator("#studio-submit-status")).toHaveText("Pass certified public tests to unlock Submit");
+  await expect(page.locator("#studio-submit-status")).toHaveText("Pass verified public tests to unlock Submit");
   await expect(page.getByRole("button",{name:"Submit",exact:true})).toBeDisabled();
   await page.getByRole("button",{name:"Run",exact:true}).click();
   await expect(page.getByRole("button",{name:"Submit",exact:true})).toBeEnabled();

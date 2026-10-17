@@ -1,18 +1,20 @@
 # DSA V3 Supabase owner handoff
 
-Project: `jlqawpdsyptfxspyqnsu`. The separate Supabase owner reviews and applies
-production changes. Codex has performed read-only production inspection and
-disposable local PostgreSQL migration tests only. No production migration,
-fixture approval, publication change or certificate insertion has been applied by
-this web workstream. The separate owner's installed foundation and evidence
-migrations are retained; see supabase-production-status-20261016.md.
+Project: `jlqawpdsyptfxspyqnsu`. On 2026-10-17 the user authorized this workstream
+to reconcile production and enable provisional grading. The three extensions and
+provisional path are now applied after live-schema inspection and disposable
+PostgreSQL checks. No fixture approval, publication change or certificate insertion
+was performed. Official certification remains a separate review process.
+See `integration-20261017.md` for current migration versions and release evidence;
+the detailed original certification handoff below remains applicable to official
+certification, rather than a prerequisite for provisional learner access.
 
 Use this repository and the existing Supabase data. Additional user documents are
 not a prerequisite for implementation. Keep all private schemas below unexposed
 in Supabase API settings. Never expose reference solutions, oracle metadata,
 hidden cases, worker tokens, outboxes or service credentials to learners.
 
-## Authoritative starting point
+## Original handoff baseline (superseded counts are retained as history)
 
 - 375 current published problem versions; 375 imported private references.
 - Latest suites: 10 published with existing legacy certificates; 365 need review.
@@ -45,21 +47,21 @@ hidden cases, worker tokens, outboxes or service credentials to learners.
   One suite pointer changed between read-only snapshots; the inventory records its
   earlier pointer. Recheck current pointers before applying any data work.
 
-## Apply order: schema proposals, then reviewed data
+## Installed extensions (do not reapply)
 
 | Order | Proposed migration | Purpose |
 |---|---|---|
-| 1 | `20261016144501_dsa_v3_explorer_projection.sql` | Owner layouts and a safe projection of existing company tables |
-| 2 | `20261016144502_dsa_v3_report_orchestration.sql` | Private report outbox, deduplication, claims, attempts and owned projections |
-| 3 | `20261016144503_dsa_v3_versioned_contracts_certification.sql` | Approved typed registry, exact certification ledger and eligibility checks |
+| 1 | `20261017060223_dsa_v3_explorer_projection.sql` | Originally proposed as 20261016144501; owner layouts and safe company projection |
+| 2 | `20261017060229_dsa_v3_report_orchestration.sql` | Originally 20261016144502; report outbox, claims, telemetry and owned projections |
+| 3 | `20261017060241_dsa_v3_versioned_contracts_certification.sql` | Originally 20261016144503; official typed registry and certification ledger |
 
 All files are under `web/supabase/migrations/`, generated using the existing CLI
-convention. Compare installed history first; apply in staging and run advisors and
-the checks below before production. These are schema proposals, not certification
-data seeds. No blanket approval SQL is supplied.
+convention and renamed to their actual Supabase application timestamps. Compare
+installed history before any future change. These contain no certification data
+seeds or blanket approvals.
 
 These replace the unshipped proposals timestamped 084605, 100348 and 133229.
-**Use only the current 144501/144502/144503 files.** No competing company table or
+**Use the actual installed versions above.** No competing company table or
 personal-board storage table is created. If an earlier proposal was applied by
 another workstream, reconcile it through an explicit owner-reviewed follow-up;
 do not blindly apply this sequence or rerun an installed migration identifier.
@@ -198,7 +200,7 @@ unordered_json/unordered, numeric or numeric_json/numeric_tolerance, and the
 approved unordered_triplets/two_sum_indices/topological_order predicates/custom.
 Arbitrary checker code is never executed. Counts/log visibility policy is retained.
 
-## Canonical 3Sum: exact work remaining
+## Canonical 3Sum: exact work remaining for official certification
 
 - Problem `6bf047e9-6735-4892-b063-f59e4c8ce29f`;
   version `62b831b6-4c58-438e-9442-a78be83e3469`;
@@ -243,4 +245,6 @@ Before release verify: anon/foreign access denial; no raw private-column grants;
 CAS conflicts; registry draft/revoked denial; certificate/fixture/hash revocation;
 queue duplicate and outage recovery; report fencing/quota/backoff; private fixture
 absence from HTTP responses, logs and public artifacts; and no mastery changes.
-After staging acceptance, only the separate owner applies production DB changes.
+The user's subsequent integration instruction authorized the production
+applications recorded in `integration-20261017.md`. Official certification still
+requires the evidence and independent review described here.

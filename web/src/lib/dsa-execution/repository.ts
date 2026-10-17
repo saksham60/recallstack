@@ -114,6 +114,7 @@ export class SupabaseExecutionRepository implements ExecutionRepository {
           contractRevision,
           harnessSha256: HARNESS_SHA256,
           contract: plan.contract,
+          ...(plan.gradingLevel ? { gradingLevel: plan.gradingLevel } : {}),
           cases,
         };
       }
@@ -121,6 +122,12 @@ export class SupabaseExecutionRepository implements ExecutionRepository {
     return {
       run: !!publicRun,
       submit: usable(plans.submit),
+      ...(usable(plans.submit)
+        ? {
+            gradingLevel:
+              validatePlan(plans.submit).gradingLevel ?? ("official" as const),
+          }
+        : {}),
       ...(publicRun ? { publicRun } : {}),
     };
   }

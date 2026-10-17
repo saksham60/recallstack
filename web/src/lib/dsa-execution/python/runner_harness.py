@@ -16,6 +16,31 @@ HARNESS_VERSION = 1
 MAX_NODES = 10000
 
 
+def _integer_wire(value, decode=False, depth=0):
+    if depth > 32:
+        raise ValueError("Integer transport exceeds nesting limit")
+    if decode and isinstance(value, dict) and "$reasonaiInteger" in value:
+        text = value["$reasonaiInteger"]
+        if set(value) != {"$reasonaiInteger"} or not isinstance(text, str) or len(text) > 1000:
+            raise ValueError("Invalid lossless integer")
+        integer = int(text)
+        if str(integer) != text or abs(integer) <= 9007199254740991:
+            raise ValueError("Non-canonical lossless integer")
+        return integer
+    if not decode and type(value) is int and abs(value) > 9007199254740991:
+        text = str(value)
+        if len(text) > 1000:
+            raise OutputLimitError("Integer exceeds transport limit")
+        return {"$reasonaiInteger": text}
+    if isinstance(value, (list, tuple)):
+        return [_integer_wire(v, decode, depth + 1) for v in value]
+    if isinstance(value, dict):
+        if not decode and "$reasonaiInteger" in value:
+            raise ValueError("Reserved integer transport key in solution output")
+        return {k: _integer_wire(v, decode, depth + 1) for k, v in value.items()}
+    return value
+
+
 class OutputLimitError(Exception):
     pass
 
@@ -277,7 +302,11 @@ def run_case(source, contract, fixture):
     capture = BoundedOutput()
     try:
         with contextlib.redirect_stdout(capture), contextlib.redirect_stderr(capture):
+            if contract.get("integerEncoding") == "tagged-v1":
+                fixture = _integer_wire(fixture, decode=True)
             actual = _invoke(source, contract, fixture)
+            if contract.get("integerEncoding") == "tagged-v1":
+                actual = _integer_wire(actual)
             encoded = json.dumps(actual, allow_nan=False, separators=(",", ":"))
             if len(encoded.encode("utf-8")) > 16384:
                 raise OutputLimitError("Serialized output exceeded the 16384-byte limit")

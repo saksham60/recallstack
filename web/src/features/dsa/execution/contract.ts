@@ -27,6 +27,7 @@ export const executionStatuses = [
 export type ExecutionStatus = (typeof executionStatuses)[number];
 export type Verdict =
   | "accepted"
+  | "provisional_pass"
   | "passed_public_tests"
   | "wrong_answer"
   | "runtime_error"
@@ -46,6 +47,7 @@ export interface PublicCaseResult {
 }
 export interface ExecutionResult {
   verdict: Verdict;
+  gradingLevel?: "official" | "provisional";
   passedTests?: number;
   totalTests?: number;
   publicCases?: PublicCaseResult[];
@@ -60,12 +62,14 @@ export interface ExecutionView {
   language: "python";
   mode: "run" | "submit";
   status: ExecutionStatus;
+  gradingLevel?: "official" | "provisional";
   result?: ExecutionResult;
   error?: string;
   createdAt: string;
   updatedAt: string;
 }
 export interface ExecutionAvailability {
+  gradingLevel?: "official" | "provisional";
   approvedContract?: ApprovedContract;
   publicRun?: PublicRunBundle;
   run: boolean;

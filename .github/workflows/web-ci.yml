@@ -100,6 +100,9 @@ jobs:
           DSA_TEST_PYTHON: python3
         run: npm run test:executions
 
+      - name: DSA migration and persistence compatibility
+        run: npm run test:dsa-db
+
       - name: DSA browser regression
         run: npx playwright test e2e/dsa-studio.spec.ts e2e/dsa-execution-browser.spec.ts e2e/dsa-workspace.spec.ts e2e/dsa-pagination.spec.ts e2e/dsa-navigation.spec.ts e2e/dsa-report-browser.spec.ts --reporter=line
 

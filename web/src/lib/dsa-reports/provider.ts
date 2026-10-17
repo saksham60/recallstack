@@ -35,6 +35,8 @@ export async function generateCodeReport(claim: ReportClaim) {
             role: "system",
             content:
               instructions +
+              "\nWhen judge.gradingLevel is provisional, call the grading evidence provisional. A provisional_pass is not official Accepted, certification, or mastery. Passing the supplied fixtures cannot prove correctness for all inputs." +
+              "\nKeep the whole document under 1500 tokens. Use at most three short items per list; empty lists are valid when there is no evidence." +
               "\nJSON schema: " +
               JSON.stringify(z.toJSONSchema(analysisSchema)),
           },
@@ -43,7 +45,20 @@ export async function generateCodeReport(claim: ReportClaim) {
         temperature: 0.1,
         max_tokens: 2400,
         stream: false,
-        response_format: { type: "json_object" },
+        // Nebius schema-constrained decoding keeps the stored report contract exact.
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "reasonai_dsa_code_intelligence",
+            strict: true,
+            schema: z.toJSONSchema(analysisSchema),
+          },
+        },
+        // Nemotron reasoning consumes the same bounded completion budget. This
+        // evidence-summary task needs the final structured document, not a thinking stream.
+        ...(/^nvidia\/nemotron-3-(super|ultra)/i.test(claim.model)
+          ? { chat_template_kwargs: { enable_thinking: false } }
+          : {}),
       },
       AbortSignal.timeout(30000),
     );

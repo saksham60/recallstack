@@ -160,7 +160,7 @@ test("state reads are owner scoped and deletion cascades state", async () => {
 });
 
 test("state migration hardens grants, ownership and atomic finalization", async () => {
-  const sql = await readFile(join(process.cwd(), "supabase/migrations/20260922_reasonai_conversation_state.sql"), "utf8");
+  const sql = await readFile(join(process.cwd(), "supabase/legacy-proposals/20260922_reasonai_conversation_state.sql"), "utf8");
   expect(sql).toContain("alter table public.reasonai_conversation_state enable row level security");
   expect(sql).toMatch(/grant select on table public\.reasonai_conversation_state to authenticated/i);
   expect(sql).toMatch(/revoke all on table public\.reasonai_conversation_state from public, anon, authenticated/i);

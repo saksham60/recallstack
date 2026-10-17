@@ -448,7 +448,7 @@ test("learner-memory repository isolates users", async () => {
 });
 
 test("learner-memory migration enables own-user RLS without changing unrelated tables", async () => {
-  const sql = await readFile(join(process.cwd(), "supabase/migrations/20260920_reasonai_learner_memory.sql"), "utf8");
+  const sql = await readFile(join(process.cwd(), "supabase/legacy-proposals/20260920_reasonai_learner_memory.sql"), "utf8");
   expect(sql).toContain("alter table public.reasonai_learner_memories enable row level security");
   expect(sql.match(/auth\.uid\(\) = user_id/gu)?.length).toBe(5);
   expect(sql).not.toMatch(/alter table public\.(?!reasonai_learner_memories)/u);

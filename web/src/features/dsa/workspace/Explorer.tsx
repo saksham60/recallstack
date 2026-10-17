@@ -101,8 +101,8 @@ export function Explorer({
         )}
         {!scope.preview && (
           <p className="studio-notice">
-            Early access: problem statements and execution are still under review.
-            Run and Submit availability may vary by problem.
+            Early access: published problems support Python Run and Submit.
+            Results are provisional unless the hidden suite is officially certified.
           </p>
         )}
         {statistics.data && (

@@ -16,7 +16,7 @@ pytestmark = pytest.mark.integration
 @pytest.fixture(scope="session")
 def report_schema(execution_schema):
     migration = Path(__file__).resolve().parents[3] / (
-        "web/supabase/migrations/20261016144502_dsa_v3_report_orchestration.sql"
+        "web/supabase/migrations/20261017060229_dsa_v3_report_orchestration.sql"
     )
     with execution_schema.begin() as connection:
         installed = migration.with_name(
@@ -35,7 +35,7 @@ def report_schema(execution_schema):
         connection.connection.driver_connection.execute(legacy.read_text(encoding="utf-8"))
         connection.connection.driver_connection.execute(migration.read_text(encoding="utf-8"))
         no_ceiling = migration.with_name(
-            "20261017150000_dsa_remove_report_attempt_ceiling.sql"
+            "20261017083528_dsa_remove_report_attempt_ceiling.sql"
         )
         connection.connection.driver_connection.execute(no_ceiling.read_text(encoding="utf-8"))
     return execution_schema
@@ -114,7 +114,11 @@ def test_durable_deduplication_owner_projection_and_verdict_immutability(report_
     token = uuid4()
     claim = report_command(data, "claim", id=due[0]["id"], token=token)
     packet = claim["packet"]
-    assert packet["judge"] == {"verdict": "accepted", "executionTimeMs": 7}
+    assert packet["judge"] == {
+        "verdict": "accepted",
+        "gradingLevel": "official",
+        "executionTimeMs": 7,
+    }
     assert not {"plan", "cases", "expected", "oracle", "stdout", "stderr"} & packet.keys()
     assert "SECRET" not in json.dumps(packet)
     assert report_command(data, "claim", id=due[0]["id"], token=uuid4()) is None

@@ -448,6 +448,8 @@ function EditorWorkspace({
   const certifiedSubmit =
     execution.availability.data?.submit === true &&
     !execution.availability.isError;
+  const provisionalSubmit =
+    execution.availability.data?.gradingLevel === "provisional";
   const receipt = localPython.run?.receipt;
   const matchedRun =
     localPython.run?.state === "passed" &&
@@ -481,7 +483,7 @@ function EditorWorkspace({
         ? "Submission availability could not be checked. Check availability again."
         : !certifiedSubmit
           ? "This problem's hidden tests are awaiting review. Passing statement examples does not enable Submit yet."
-          : "Pass all certified public tests with unchanged code to unlock Submit.";
+          : "Pass all verified public tests with unchanged code to unlock Submit.";
   async function execute(mode: "run" | "submit") {
     setTestTab("results");
     setMobile("tests");
@@ -898,7 +900,9 @@ function EditorWorkspace({
               <h3>Hidden-suite status</h3>
               <p className="studio-muted">
                 {execution.availability.data?.submit
-                  ? "A certified hidden suite is available for this version. Hidden case details remain private."
+                  ? provisionalSubmit
+                    ? "Provisional hidden grading is available using independently verified fixtures. Results are not official Accepted verdicts. Hidden case details remain private."
+                    : "A certified hidden suite is available for this version. Hidden case details remain private."
                   : (execution.availability.data?.submitReason ??
                     "Hidden-suite availability is being checked.")}
               </p>
@@ -1040,7 +1044,9 @@ function EditorWorkspace({
         <p id="studio-execution-reason">
           {canRun ? "Run is local, with no sandbox API request. " : runReason}
           {canSubmitTrusted
-            ? "Submit uses trusted hidden grading."
+            ? provisionalSubmit
+              ? "Provisional submission · independently verified fixtures. Passing does not award official Accepted or mastery."
+              : "Submit uses trusted hidden grading."
             : ` ${submitReason}`}
         </p>
         <div className="studio-submission-actions">
@@ -1067,7 +1073,9 @@ function EditorWorkspace({
               }
               title={
                 canSubmitTrusted
-                  ? "Submit to certified hidden tests (Ctrl/Cmd+Shift+Enter)"
+                  ? provisionalSubmit
+                    ? "Submit for provisional hidden grading (Ctrl/Cmd+Shift+Enter)"
+                    : "Submit to certified hidden tests (Ctrl/Cmd+Shift+Enter)"
                   : submitReason
               }
             >
@@ -1085,7 +1093,7 @@ function EditorWorkspace({
                     ? "Submit availability unavailable"
                     : !certifiedSubmit
                       ? "Submit unavailable · hidden tests under review"
-                      : "Pass certified public tests to unlock Submit"}
+                      : "Pass verified public tests to unlock Submit"}
             </span>
           )}
         </div>

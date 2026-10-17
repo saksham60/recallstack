@@ -138,6 +138,7 @@ export const pythonContractSchema = z
   .object({
     entrypoint: identifier,
     inputMode: z.enum(["kwargs", "args", "single"]),
+    integerEncoding: z.literal("tagged-v1").optional(),
     checker: z.enum([
       "exact_json",
       "unordered_json",
@@ -146,6 +147,10 @@ export const pythonContractSchema = z
       "unordered_triplets",
       "two_sum_indices",
       "topological_order",
+      "knight_tour",
+      "arithmetic_expression",
+      "zigzag_multiset",
+      "nonadjacent_characters",
     ]),
     absoluteTolerance: z.number().finite().min(0).max(1).optional(),
     relativeTolerance: z.number().finite().min(0).max(1).optional(),
@@ -192,6 +197,7 @@ export const publicRunBundleSchema = z
     contractRevision: z.string().regex(/^[a-f0-9]{64}$/),
     harnessSha256: z.string().regex(/^[a-f0-9]{64}$/),
     contract: pythonContractSchema,
+    gradingLevel: z.enum(["official", "provisional"]).optional(),
     cases: z
       .array(
         z
