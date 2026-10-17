@@ -61,7 +61,7 @@ test("report worker persists validated estimates and acknowledges duplicate comp
   ).toBe(false);
   expect(h.claim.packet.judge.verdict).toBe("wrong_answer");
 });
-test("bounded transient retry, permanent failures and lost storage fences remain independent of judging", async () => {
+test("unlimited transient retry, permanent failures and lost storage fences remain independent of judging", async () => {
   const h = fixture();
   await expect(
     processReport(h.claim.id, h.repository, async () => {
@@ -69,11 +69,13 @@ test("bounded transient retry, permanent failures and lost storage fences remain
     }),
   ).rejects.toBeInstanceOf(RetryReport);
   expect(h.outcomes[0]).toMatchObject({ retry: true });
-  h.claim.attempt = 2;
-  await processReport(h.claim.id, h.repository, async () => {
-    throw new ReportProviderError(true);
-  });
-  expect(h.outcomes[1]).toMatchObject({ retry: false });
+  h.claim.attempt = 42;
+  await expect(
+    processReport(h.claim.id, h.repository, async () => {
+      throw new ReportProviderError(true);
+    }),
+  ).rejects.toBeInstanceOf(RetryReport);
+  expect(h.outcomes[1]).toMatchObject({ retry: true });
   await processReport(h.claim.id, h.repository, async () => {
     throw new Error("PRIVATE provider credential text");
   });
