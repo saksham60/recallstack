@@ -191,6 +191,7 @@ export interface ReportRepository {
       usage?: ReportUsage;
       error?: string;
       retry?: boolean;
+      retryAfterSeconds?: number;
     },
   ): Promise<boolean>;
 }

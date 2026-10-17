@@ -21,6 +21,8 @@ export class ReportProviderError extends Error {
 export type ReportGenerator = (
   claim: ReportClaim,
 ) => Promise<{ document: CodeAnalysis; usage: ReportUsage }>;
+export const reportRetryDelay = (attempt: number) =>
+  Math.min(300, 30 * 2 ** Math.min(Math.max(attempt - 1, 0), 4));
 /** No judge repository or verdict mutation capability is passed to this worker. */
 export async function processReport(
   id: string,
@@ -52,12 +54,12 @@ export async function processReport(
     outcome = {
       error:
         "Code Intelligence could not be generated. The judge result is saved.",
-      retry:
-        error instanceof ReportProviderError &&
-        error.retryable,
+      retry: error instanceof ReportProviderError && error.retryable,
+      retryAfterSeconds: reportRetryDelay(claim.attempt),
     };
   }
   // Storage failure retries delivery; the durable claim prevents concurrent calls.
   if (!(await repository.finish(claim, outcome))) throw new RetryReport(90);
-  if ("retry" in outcome && outcome.retry) throw new RetryReport(30);
+  if ("retry" in outcome && outcome.retry)
+    throw new RetryReport(outcome.retryAfterSeconds);
 }

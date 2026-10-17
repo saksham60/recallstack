@@ -49,6 +49,8 @@ try {
     "20261017060319_dsa_provisional_submissions.sql",
     "20261017061057_dsa_report_activation_boundary.sql",
     "20261017083528_dsa_remove_report_attempt_ceiling.sql",
+    "20261017134338_dsa_code_intelligence_failed_report_recovery.sql",
+    "20261017153351_dsa_report_delivery_recovery.sql",
   ])
     await migration(file);
   await db.exec(
@@ -178,15 +180,20 @@ try {
   assert.equal(finished.result.gradingLevel, "provisional");
   assert.ok(!JSON.stringify(finished).includes("PRIVATE_SENTINEL"));
   assert.ok(!finished.result.totalTests);
-  const premature = await report("dispatch", {model:"test-model",rubric:"dsa-code-intelligence:1",maxAttempts:1,createdAfter:"2099-01-01T00:00:00.000Z"});
-  assert.equal(premature.length,0);
+  const premature = await report("dispatch", {
+    model: "test-model",
+    rubric: "dsa-code-intelligence:1",
+    maxAttempts: 1,
+    createdAfter: "2099-01-01T00:00:00.000Z",
+  });
+  assert.equal(premature.length, 0);
   const dispatch = await report("dispatch", {
     model: "test-model",
     rubric: "dsa-code-intelligence:1",
     maxAttempts: 1,
   });
   assert.equal(dispatch.length, 1);
-  const claim = await report("claim", {
+  let claim = await report("claim", {
     id: dispatch[0].id,
     token: randomUUID(),
   });
@@ -196,6 +203,65 @@ try {
   assert.ok(
     !claim.packet.plan && !claim.packet.cases && !claim.packet.judge.totalTests,
   );
+  assert.equal(
+    await report("claim", { id: claim.id, token: randomUUID() }),
+    null,
+  );
+  const staleToken = claim.token;
+  await sql(
+    "update dsa_reports_private.reports set attempts=42,worker_until=now()-interval '1 second',next_dispatch_at=now()-interval '1 second' where id=$1",
+    [claim.id],
+  );
+  await sql(
+    "update dsa_execution_private.jobs set created_at='2020-01-01' where id=$1",
+    [created.submissionId],
+  );
+  // Recovery must ignore the discovery cutoff for already admitted work.
+  const recovered = await report("dispatch", {
+    model: "test-model",
+    rubric: "dsa-code-intelligence:1",
+    createdAfter: "2099-01-01T00:00:00Z",
+  });
+  assert.equal(recovered[0].id, claim.id);
+  claim = await report("claim", {
+    id: claim.id,
+    token: randomUUID(),
+    createdAfter: "2099-01-01T00:00:00Z",
+  });
+  assert.equal(claim.attempt, 43);
+  assert.equal(
+    await report("finish", {
+      id: claim.id,
+      token: staleToken,
+      document: { summary: "stale worker" },
+    }),
+    false,
+  );
+  assert.equal(
+    await report("finish", {
+      id: claim.id,
+      token: claim.token,
+      retry: true,
+      retryAfterSeconds: 240,
+      error: "mock provider outage",
+    }),
+    true,
+  );
+  const delayed = await sql(
+    "select status,extract(epoch from available_at-updated_at)::int as seconds from dsa_reports_private.reports where id=$1",
+    [claim.id],
+  );
+  assert.equal(delayed[0].status, "queued");
+  assert.equal(delayed[0].seconds, 240);
+  assert.equal(
+    await report("claim", { id: claim.id, token: randomUUID() }),
+    null,
+  );
+  await sql(
+    "update dsa_reports_private.reports set available_at=now()-interval '1 second' where id=$1",
+    [claim.id],
+  );
+  claim = await report("claim", { id: claim.id, token: randomUUID() });
   assert.equal(
     await report("finish", {
       id: claim.id,
@@ -217,6 +283,32 @@ try {
   });
   assert.equal(saved.report.status, "completed");
   assert.equal(saved.sourceCode, request.code);
+  assert.equal(
+    await scalar("select public.dsa_retry_code_intelligence($1,$2)", [
+      foreign,
+      created.submissionId,
+    ]),
+    "not_found",
+  );
+  assert.equal(
+    await scalar("select public.dsa_retry_code_intelligence($1,$2)", [
+      owner,
+      created.submissionId,
+    ]),
+    "completed",
+  );
+  assert.equal(
+    await report("claim", { id: claim.id, token: randomUUID() }),
+    "done",
+  );
+  assert.equal(
+    await report("finish", {
+      id: claim.id,
+      token: claim.token,
+      document: { summary: "duplicate" },
+    }),
+    false,
+  );
   assert.equal(
     (await report("history", { ...args, userId: owner })).items[0].result
       .verdict,
@@ -255,8 +347,132 @@ try {
     1,
   );
   await db.exec("reset role;");
+  // Every trustworthy judge outcome is admitted; infrastructure-only failures
+  // are excluded. Existing daily ten-report and global two-worker limits remain.
+  await db.exec("set role service_role;");
+  const judged = [];
+  for (const [index, verdict] of [
+    "wrong_answer",
+    "syntax_error",
+    "runtime_error",
+    "time_limit_exceeded",
+    "output_limit_exceeded",
+    "accepted",
+    "wrong_answer",
+    "wrong_answer",
+    "wrong_answer",
+    "wrong_answer",
+  ].entries()) {
+    // Restore the local fixture only inside this disposable database.
+    if (index === 0)
+      await sql(
+        "update public.dsa_test_cases set expected_json='9007199254740995' where suite_id=$1 and visibility='hidden'",
+        [suite],
+      );
+    const nextRequest = {
+      ...request,
+      idempotencyKey: randomUUID(),
+      code: request.code + " # test " + index,
+    };
+    const next = await command("create", {
+      userId: owner,
+      request: nextRequest,
+      hash: String(index).repeat(64),
+    });
+    assert(next.submissionId);
+    const nextToken = randomUUID();
+    await command("claim", { id: next.submissionId, token: nextToken });
+    await command("finish", {
+      id: next.submissionId,
+      token: nextToken,
+      status: "completed",
+      result: { verdict },
+    });
+    judged.push(next.submissionId);
+  }
+  await report("dispatch", {
+    model: "test-model",
+    rubric: "dsa-code-intelligence:1",
+  });
+  const statuses = await sql(
+    "select status,count(*)::int as count from dsa_reports_private.reports group by status",
+  );
+  assert.equal(statuses.find((x) => x.status === "rate_limited").count, 1);
+  assert.equal(statuses.find((x) => x.status === "queued").count, 9);
+  const pendingReports = await sql(
+    "select id from dsa_reports_private.reports where status='queued' order by id",
+  );
+  const firstWorker = await report("claim", {
+    id: pendingReports[0].id,
+    token: randomUUID(),
+  });
+  const secondWorker = await report("claim", {
+    id: pendingReports[1].id,
+    token: randomUUID(),
+  });
+  assert(firstWorker && secondWorker);
+  assert.equal(
+    await report("claim", { id: pendingReports[2].id, token: randomUUID() }),
+    null,
+  );
+  await report("finish", {
+    id: firstWorker.id,
+    token: firstWorker.token,
+    error: "Permanent mocked provider failure",
+  });
+  const failedSubmission = await scalar(
+    "select source_submission_id from dsa_reports_private.reports where id=$1",
+    [firstWorker.id],
+  );
+  for (let repeat = 0; repeat < 2; repeat++)
+    assert.equal(
+      await scalar("select public.dsa_retry_code_intelligence($1,$2)", [
+        owner,
+        failedSubmission,
+      ]),
+      "queued",
+    );
+  const thirdWorker = await report("claim", {
+    id: pendingReports[2].id,
+    token: randomUUID(),
+  });
+  assert(thirdWorker);
+  const infrastructure = await command("create", {
+    userId: owner,
+    request: {
+      ...request,
+      idempotencyKey: randomUUID(),
+      code: request.code + " # infra",
+    },
+    hash: "f".repeat(64),
+  });
+  const infraToken = randomUUID();
+  await command("claim", {
+    id: infrastructure.submissionId,
+    token: infraToken,
+  });
+  await command("finish", {
+    id: infrastructure.submissionId,
+    token: infraToken,
+    status: "failed",
+    error: "Mocked sandbox transport failure",
+  });
+  await report("dispatch", {
+    model: "test-model",
+    rubric: "dsa-code-intelligence:1",
+  });
+  assert.equal(
+    (
+      await report("get", {
+        userId: owner,
+        submissionId: infrastructure.submissionId,
+      })
+    ).report,
+    null,
+  );
+  await db.exec("reset role;");
   console.log(
-    "PASS: migration compatibility, provisional admission, exact integer SQL transport, no certificate creation, owner isolation, idempotency, result redaction, report persistence/deduplication, and stale-fixture rejection.",
+    "PASS: migration compatibility, provisional admission, exact integers, owner isolation, redaction, old queued recovery after attempt 42, stale-worker fencing, backoff, idempotent manual retry, immutable completion, all judge outcomes, infrastructure exclusion, daily quota 10 and global concurrency 2.",
   );
 } finally {
   await db.close();

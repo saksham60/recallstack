@@ -24,8 +24,14 @@ export async function POST(
     if (!z.uuid().safeParse(submissionId).success)
       return reply({ error: "Submission not found." }, 404);
     if (!codeIntelligenceEnabled())
-      return reply({ error: "Code Intelligence is currently unavailable." }, 503);
-    const status = await createReportRepository().retry(identity.user.id, submissionId);
+      return reply(
+        { error: "Code Intelligence is currently unavailable." },
+        503,
+      );
+    const status = await createReportRepository().retry(
+      identity.user.id,
+      submissionId,
+    );
     if (status === "not_found")
       return reply({ error: "Submission report not found." }, 404);
     if (status === "queued")
@@ -64,10 +70,14 @@ export async function GET(
     });
     if (result.submissionId !== submissionId)
       throw new Error("Report projection mismatch");
-    if (result.enabled && (!result.report || result.report.status === "queued"))
+    if (
+      result.enabled &&
+      (!result.report ||
+        ["queued", "generating"].includes(result.report.status))
+    )
       after(async () => {
         try {
-          await dispatchReports();
+          await dispatchReports(submissionId);
         } catch {
           /* Durable outbox remains pending. */
         }

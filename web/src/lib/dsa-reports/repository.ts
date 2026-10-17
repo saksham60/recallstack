@@ -8,7 +8,9 @@ import { REPORT_RUBRIC, type ReportRepository } from "./contracts";
 export const codeIntelligenceEnabled = () =>
   process.env.DSA_CODE_INTELLIGENCE_ENABLED === "1" &&
   !!getReasonAIConfiguration().apiKey;
-export function reportActivationBoundary(raw = process.env.DSA_CODE_INTELLIGENCE_CREATED_AFTER) {
+export function reportActivationBoundary(
+  raw = process.env.DSA_CODE_INTELLIGENCE_CREATED_AFTER,
+) {
   if (!raw?.trim()) return undefined;
   return z.iso.datetime().parse(raw.trim());
 }
@@ -41,7 +43,7 @@ export function createReportRepository() {
     return data as T;
   }
   const claim: ReportRepository["claim"] = (id, token) =>
-    command("claim", { id, token, createdAfter: reportActivationBoundary() });
+    command("claim", { id, token });
   const finish: ReportRepository["finish"] = (claim, outcome) =>
     command("finish", { id: claim.id, token: claim.token, ...outcome });
   return {
@@ -56,16 +58,24 @@ export function createReportRepository() {
           : { createdAfter: reportActivationBoundary() }),
       }),
     retry: async (userId: string, submissionId: string) => {
-      const { data, error } = await client.rpc("dsa_retry_code_intelligence", {
-        p_user_id: userId,
-        p_submission_id: submissionId,
-      }).abortSignal(AbortSignal.timeout(8000));
+      const { data, error } = await client
+        .rpc("dsa_retry_code_intelligence", {
+          p_user_id: userId,
+          p_submission_id: submissionId,
+        })
+        .abortSignal(AbortSignal.timeout(8000));
       if (error || typeof data !== "string")
         throw new ExecutionError(
           "REPORT_STORAGE_UNAVAILABLE",
           "Code Intelligence recovery is temporarily unavailable.",
         );
-      return data as "queued" | "generating" | "completed" | "failed" | "rate_limited" | "not_found";
+      return data as
+        | "queued"
+        | "generating"
+        | "completed"
+        | "failed"
+        | "rate_limited"
+        | "not_found";
     },
     get: (userId: string, submissionId: string) =>
       command<unknown>("get", { userId, submissionId }),

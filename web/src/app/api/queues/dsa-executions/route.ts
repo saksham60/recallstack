@@ -7,6 +7,7 @@ import {
 import { createSandboxAdapter } from "@/lib/dsa-execution/contree";
 import { processExecution, RetryExecution } from "@/lib/dsa-execution/worker";
 import { dispatchReports } from "@/lib/dsa-reports/queue";
+import { ReportDispatchError } from "@/lib/dsa-reports/delivery";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 export const POST = handleCallback(
@@ -22,23 +23,32 @@ export const POST = handleCallback(
       createExecutionRepository(),
       createSandboxAdapter(),
     );
-    try { await dispatchReports(); } catch { /* Judge is durable; report outbox recovers independently. */ }
+    // A terminal execution is idempotent on redelivery: the sandbox is not run
+    // again. Keep delivery retryable if report publication/storage is unavailable.
+    await dispatchReports();
   },
   {
     retry: (error, metadata) =>
-      metadata.deliveryCount >= 12
-        ? { acknowledge: true }
-        : {
-            afterSeconds:
-              error instanceof RetryExecution
-                ? error.afterSeconds === 5
-                  ? 5
-                  : Math.min(
-                      300,
-                      error.afterSeconds *
-                        2 ** Math.min(metadata.deliveryCount - 1, 5),
-                    )
-                : Math.min(300, 2 ** metadata.deliveryCount * 5),
-          },
+      error instanceof ReportDispatchError
+        ? {
+            afterSeconds: Math.min(
+              300,
+              60 * 2 ** Math.min(metadata.deliveryCount - 1, 3),
+            ),
+          }
+        : metadata.deliveryCount >= 12
+          ? { acknowledge: true }
+          : {
+              afterSeconds:
+                error instanceof RetryExecution
+                  ? error.afterSeconds === 5
+                    ? 5
+                    : Math.min(
+                        300,
+                        error.afterSeconds *
+                          2 ** Math.min(metadata.deliveryCount - 1, 5),
+                      )
+                  : Math.min(300, 2 ** metadata.deliveryCount * 5),
+            },
   },
 );

@@ -4,6 +4,7 @@ import {
   processReport,
   ReportProviderError,
   RetryReport,
+  reportRetryDelay,
 } from "../src/lib/dsa-reports/worker";
 import {
   analysisSchema,
@@ -13,6 +14,38 @@ import {
 } from "../src/lib/dsa-reports/contracts";
 import { generateCodeReport } from "../src/lib/dsa-reports/provider";
 import { reportActivationBoundary } from "../src/lib/dsa-reports/repository";
+import {
+  deliverReports,
+  ReportDispatchError,
+} from "../src/lib/dsa-reports/delivery";
+test("report delivery failures stay retryable and use durable generation keys", async () => {
+  const due = [
+    { id: id(), generation: 8 },
+    { id: id(), generation: 3 },
+  ];
+  const sent: unknown[] = [];
+  await expect(
+    deliverReports(
+      async () => due,
+      async (id, generation) => {
+        sent.push([id, generation]);
+        if (generation === 3) throw new Error("mock queue outage");
+      },
+    ),
+  ).rejects.toBeInstanceOf(ReportDispatchError);
+  expect(sent).toEqual(due.map((r) => [r.id, r.generation]));
+  await expect(
+    deliverReports(
+      async () => [],
+      async () => {
+        throw new Error("must not send");
+      },
+    ),
+  ).resolves.toEqual({ dispatched: 0, pending: 0 });
+  expect([1, 2, 3, 4, 5, 42].map(reportRetryDelay)).toEqual([
+    30, 60, 120, 240, 300, 300,
+  ]);
+});
 test("report rollout boundary rejects malformed timestamps", () => {
   expect(reportActivationBoundary(" ")).toBeUndefined();
   expect(reportActivationBoundary("2026-10-17T06:00:00.000Z")).toBe(
