@@ -1,0 +1,29 @@
+{
+  "scope": "Results Studio and automatic Code Intelligence reliability",
+  "sourceCommit": "2bc82a143f442a005042ef19301fff3da39f782a",
+  "baseMainCommit": "f70abcaa05e34542911d5e7d1fc2d112275ed5c7",
+  "paidProductionVerificationCalls": 0,
+  "independent375FixtureChecksRepeated": false,
+  "checks": {
+    "browser": { "passed": 63, "failed": 0, "log": "web/.next/cache/dsa-studio-browser-release.log", "providers": "controlled local fixtures; actual local Pyodide for Python browser checks" },
+    "focusedUnit": { "passed": 21, "failed": 0, "log": "web/.next/cache/dsa-studio-unit-final.log" },
+    "initialWiderUnit": { "passed": 33, "skipped": 6, "log": "web/.next/cache/dsa-studio-unit.log", "skipReason": "explicitly gated live or integration checks" },
+    "typescript": { "status": "passed", "log": "web/.next/cache/dsa-studio-release-typecheck.log" },
+    "productionBuild": { "status": "passed", "exitCode": 0, "log": "web/.next/cache/dsa-studio-release-build.log", "command": "npm run build under Node 22", "includes": ["Monaco assets", "Python harness integrity", "Next.js production compilation", "TypeScript", "page generation"] },
+    "eslint": { "status": "passed", "logs": ["web/.next/cache/dsa-studio-lint-final.log", "web/.next/cache/dsa-studio-context-lint.log", "web/.next/cache/dsa-studio-final-fixes-lint.log"] },
+    "disposableDatabase": { "status": "passed", "log": "web/.next/cache/dsa-studio-db-final.log", "covers": ["migration compatibility", "official and provisional separation", "exact integers", "owner isolation", "hidden-data redaction", "old queued recovery after attempt 42", "atomic claims", "expired leases", "stale-worker fencing", "persisted backoff", "idempotent retry", "immutable completion", "all judge outcomes", "infrastructure exclusion", "daily quota 10", "global concurrency 2"] }
+  },
+  "database": {
+    "project": "jlqawpdsyptfxspyqnsu",
+    "appliedMigration": "20261017155808",
+    "matchingLocalAndProductionMigrations": 65,
+    "unapplied": 0,
+    "missingFromGit": 0,
+    "normalizedSqlHashMismatches": 0,
+    "completedReportDocumentsUnchanged": true,
+    "ledger": "artifacts/dsa-v3-migration-reconciliation.json"
+  },
+  "manualProductionAcceptance": "pending user checklist in docs/dsa-v3/results-studio-handoff.md",
+  "codeFreezeApproved": false,
+  "deployment": "Final main SHA and verified Vercel READY metadata are reported with the release response."
+}

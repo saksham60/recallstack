@@ -9,6 +9,16 @@ See `integration-20261017.md` for current migration versions and release evidenc
 the detailed original certification handoff below remains applicable to official
 certification, rather than a prerequisite for provisional learner access.
 
+Latest web reliability delta (2026-10-17): production and Git now contain 65
+matching migrations. `20261017155808_dsa_report_delivery_recovery.sql` is applied;
+its date cutoff governs new-work discovery, while existing admitted reports can
+recover without that cutoff. Daily report quota and global concurrency are
+unchanged. See [Results Studio handoff](results-studio-handoff.md) for the verified
+root cause, function-only change and manual acceptance checklist. Do not replay
+installed migrations. Current learner-first admission from migration
+`20261017135700` continues to allow direct Submit independently of local Run and
+certification review.
+
 Use this repository and the existing Supabase data. Additional user documents are
 not a prerequisite for implementation. Keep all private schemas below unexposed
 in Supabase API settings. Never expose reference solutions, oracle metadata,
