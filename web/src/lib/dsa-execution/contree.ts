@@ -82,7 +82,7 @@ export function createSandboxAdapter(): SandboxAdapter {
             maxLayerBytes: 134217728,
           }),
           timeout: OPERATION_TIMEOUT_SECONDS,
-          truncateOutputAt: 65536,
+          truncateOutputAt: 131072,
         },
       );
       if (!operation.uuid)
@@ -130,7 +130,7 @@ export function createSandboxAdapter(): SandboxAdapter {
         return { terminal: true, malformed: true };
       try {
         const raw = result.stdout?.asText() ?? "";
-        if (Buffer.byteLength(raw) > 65536)
+        if (Buffer.byteLength(raw) > 131072)
           return { terminal: true, malformed: true };
         const output = outputSchema.parse(JSON.parse(raw));
         return {
