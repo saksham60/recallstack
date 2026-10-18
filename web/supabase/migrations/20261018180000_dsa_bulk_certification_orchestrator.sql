@@ -142,6 +142,7 @@ begin
      'suiteId',v_item.suite_id,'problemId',v_problem,'leaseToken',v_token,
      'phase',case when v_item.phase='queued' then 'launching' else v_item.phase end,
      'operationId',v_item.operation_id,'launchedAt',coalesce(v_item.launched_at,now()),
+     'attempts',v_item.attempts+1,
      'source',v_source,'contract',v_contract,'cases',v_cases,
      'categories',coalesce(v_categories,'{}'::jsonb),'caseCount',v_count,
      'statement',(select v.specification->>'problem_statement'
