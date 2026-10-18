@@ -52,7 +52,7 @@ print('\n__REASONAI_RESULT__' + json.dumps(outcome['actual'], allow_nan=False, e
 
 deadline = time.monotonic() + 22
 results = []
-budget = 48000
+budget = 96000
 for case in payload['cases']:
     row = {'id': case['id'], 'status': 'runtime_error'}
     started = time.perf_counter()
