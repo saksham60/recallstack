@@ -5,6 +5,7 @@ export default defineConfig({
   testDir: "./e2e",
   tsconfig: "./e2e/tsconfig.state.json",
   testMatch: [
+    "**/dsa-progress-unit.spec.ts",
     "**/dsa-v3-live-component.spec.ts",
     "**/dsa-certification-unit.spec.ts",
     "**/dsa-report-unit.spec.ts",

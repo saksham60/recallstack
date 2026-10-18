@@ -5,21 +5,13 @@ import { getBrowserClient } from "@/lib/supabase/client";
 import { createAuthenticatedReasonAIFetch } from "@/lib/reasonai/authenticated-request";
 import { boardSchema, type BoardLayout, type PersonalBoard } from "./contracts";
 import type { useDSAScope, ProblemItem } from "../workspace/api";
+import { useLearnerProgress } from "../progress/use-learner-progress";
+import { topicProgress } from "../progress/contract";
 
 type Scope = ReturnType<typeof useDSAScope>;
 export function useTopicProgress(scope: Scope) {
-  return useQuery({
-    queryKey: [...scope.key, "topic-progress"],
-    enabled: !!scope.userId && !scope.preview,
-    queryFn: async ({ signal }) => {
-      const { data, error } = await apiClient.GET(
-        "/api/v1/dsa/me/topic-progress",
-        { signal },
-      );
-      if (error) throw error;
-      return data!.items;
-    },
-  });
+  const query = useLearnerProgress(scope);
+  return { ...query, data: query.data ? topicProgress(query.data) : undefined };
 }
 export function useBoardProblems(scope: Scope, category: string) {
   return useQuery({

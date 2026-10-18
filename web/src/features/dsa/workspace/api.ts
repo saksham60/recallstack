@@ -10,6 +10,7 @@ import { useAuth } from "@/features/auth";
 import { apiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import type { components, operations } from "@/lib/api/types";
+import { useLearnerProgress } from "../progress/use-learner-progress";
 
 export type Problem = components["schemas"]["ProblemDetail"];
 export type ProblemItem = components["schemas"]["ProblemItem"];
@@ -162,27 +163,13 @@ export function useProgress(scope: Scope, id: string) {
   });
 }
 export function useCatalogProgress(scope: Scope) {
-  return useQuery({
-    queryKey: [...scope.key, "catalog-progress"],
-    enabled: !!scope.userId,
-    retry,
-    queryFn: async ({ signal }) => {
-      const statuses: Record<string, Status> = {};
-      // Progress is a small learning-state projection, independent of catalog cursors.
-      // Never download every specification to compute explorer progress.
-      for (let page = 1; page <= 1000; page++) {
-        const { data, error } = await apiClient.GET("/api/v1/dsa/me/progress", {
-          signal,
-          params: { query: { page, page_size: 50 } },
-        });
-        if (error) throw error;
-        for (const item of data!.items)
-          statuses[item.content_item_id] = item.status;
-        if (page >= data!.pagination.total_pages) return statuses;
-      }
-      throw new Error("Learning progress exceeds the supported page limit.");
-    },
-  });
+  const query = useLearnerProgress(scope);
+  return {
+    ...query,
+    data: query.data
+      ? Object.fromEntries(query.data.map((item) => [item.problemId, item]))
+      : undefined,
+  };
 }
 export function useNotes(scope: Scope, id: string) {
   return useInfiniteQuery({

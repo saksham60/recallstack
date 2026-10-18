@@ -24,7 +24,9 @@ try {
  create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
  grant usage on schema auth to authenticated,service_role;
  create table public.profiles(id uuid primary key references auth.users(id));
- create table public.categories(id uuid primary key);
+ create table public.categories(id uuid primary key,domain_id uuid,is_active boolean default true);
+ create table public.content_version_categories(content_version_id uuid,content_item_id uuid,domain_id uuid,category_id uuid);
+ create table public.user_progress(user_id uuid,content_item_id uuid,status text,confidence integer default 0,row_version bigint default 1,primary key(user_id,content_item_id));
  create table public.domains(id uuid primary key,slug text,is_active boolean);
  create table public.content_items(id uuid primary key,domain_id uuid,type text,archived_at timestamptz,current_published_version_id uuid);
  create table public.content_versions(id uuid primary key,content_item_id uuid,status text,published_at timestamptz);
@@ -51,6 +53,7 @@ try {
     "20261017083528_dsa_remove_report_attempt_ceiling.sql",
     "20261017134338_dsa_code_intelligence_failed_report_recovery.sql",
     "20261017155808_dsa_report_delivery_recovery.sql",
+    "20261018063615_dsa_learner_execution_progress.sql",
   ])
     await migration(file);
   await db.exec(
@@ -325,6 +328,140 @@ try {
     saved.report.id,
   );
   await db.exec("reset role;");
+  // Read-only completion projection: existing records are sufficient, with no
+  // fabricated mastery/backfill, provider request or change to judging.
+  await db.exec("begin; set role service_role;");
+  const category = randomUUID();
+  await sql("insert into public.categories(id,domain_id) values($1,$2)", [
+    category,
+    domain,
+  ]);
+  await sql(
+    "insert into public.content_version_categories values($1,$2,$3,$4)",
+    [base, problem, domain, category],
+  );
+  const projection = async (user = foreign) =>
+    await scalar("select public.dsa_learner_execution_progress($1::uuid)", [
+      user,
+    ]);
+  const progress = async (user = foreign) =>
+    (await projection(user)).find((row) => row.problemId === problem);
+  let sequence = 0;
+  async function record(
+    status,
+    verdict,
+    grading = "official",
+    mode = "submit",
+  ) {
+    const frozen =
+      grading === "official"
+        ? { certificateId: randomUUID() }
+        : { gradingLevel: "provisional" };
+    await sql(
+      `insert into dsa_execution_private.jobs(user_id,idempotency_key,request_hash,request,plan,status,result,created_at)
+      values($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7::jsonb,$8::timestamptz)`,
+      [
+        foreign,
+        randomUUID(),
+        "a".repeat(64),
+        JSON.stringify({ ...request, mode }),
+        JSON.stringify(frozen),
+        status,
+        verdict ? JSON.stringify({ verdict }) : null,
+        new Date(Date.UTC(2027, 0, 1, 0, 0, ++sequence)).toISOString(),
+      ],
+    );
+  }
+  assert.equal((await progress()).executionStatus, null);
+  await record("completed", "accepted", "official", "run");
+  assert.equal(
+    (await progress()).executionStatus,
+    null,
+    "Run never completes a problem",
+  );
+  for (const [status, verdict, expected] of [
+    ["failed", null, "execution_failed"],
+    ["cancelled", null, "cancelled"],
+    ["queued", null, "queued"],
+    ["running", null, "running"],
+    ["timed_out", "time_limit_exceeded", "attempted"],
+  ]) {
+    await record(status, verdict);
+    assert.equal((await progress()).executionStatus, expected);
+  }
+  await record("completed", "provisional_pass", "provisional");
+  assert.equal((await progress()).executionStatus, "passed_current_tests");
+  await record("completed", "wrong_answer");
+  assert.equal(
+    (await progress()).executionStatus,
+    "passed_current_tests",
+    "a later failure retains a pass",
+  );
+  await record("completed", "accepted");
+  await record("completed", "wrong_answer");
+  assert.equal((await progress()).executionStatus, "solved");
+  assert.notEqual(
+    (await progress(owner)).executionStatus,
+    "solved",
+    "owners cannot inherit each other's submissions",
+  );
+  await sql(
+    "insert into public.user_progress(user_id,content_item_id,status,confidence,row_version) values($1,$2,'learning',37,7)",
+    [foreign, problem],
+  );
+  const manualBefore = await sql(
+    "select * from public.user_progress where user_id=$1",
+    [foreign],
+  );
+  assert.equal((await progress()).learningStatus, "learning");
+  assert.deepEqual((await progress()).categoryIds, [category]);
+  assert.deepEqual(
+    await sql("select * from public.user_progress where user_id=$1", [foreign]),
+    manualBefore,
+  );
+  const nextVersion = randomUUID();
+  await sql(
+    `insert into public.dsa_problem_versions(id,definition_id,version_number,specification,provenance,status)
+    select $1,definition_id,99,specification,provenance,status from public.dsa_problem_versions where id=$2`,
+    [nextVersion, version],
+  );
+  await sql(
+    "update public.dsa_problem_definitions set current_version_id=$1 where id=$2",
+    [nextVersion, definition],
+  );
+  assert.equal(
+    (await progress()).executionStatus,
+    null,
+    "an older-version pass does not solve the current version",
+  );
+  assert.equal((await progress()).previousVersionPassed, true);
+  await sql("update public.content_items set archived_at=now() where id=$1", [
+    problem,
+  ]);
+  assert.equal(
+    (await projection()).length,
+    0,
+    "archived content is not exposed",
+  );
+  assert.deepEqual(await projection(null), []);
+  await db.exec("reset role;");
+  for (const role of ["anon", "authenticated"])
+    assert.equal(
+      await scalar(
+        `select has_function_privilege('${role}','public.dsa_learner_execution_progress(uuid)','execute')`,
+      ),
+      false,
+    );
+  assert.equal(
+    await scalar(
+      "select prosecdef from pg_proc where oid='public.dsa_learner_execution_progress(uuid)'::regprocedure",
+    ),
+    false,
+  );
+  await db.exec("rollback;");
+  console.log(
+    "PASS: execution-backed completion, provisional separation, best-pass retention, current-version isolation, owner isolation, manual-state preservation, archive filtering and service-only RPC.",
+  );
   await sql(
     "update public.dsa_test_cases set expected_json='42' where suite_id=$1 and visibility='hidden'",
     [suite],

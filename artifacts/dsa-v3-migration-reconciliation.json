@@ -2,117 +2,118 @@
   "schemaVersion": 1,
   "project": "jlqawpdsyptfxspyqnsu",
   "verification": "Production migration SQL and local SQL match after CRLF and boundary whitespace normalization; no migration was reapplied.",
-  "migrationCount": 65,
+  "hashNormalization": "SHA-256 of UTF-8 SQL after replacing CRLF with LF and trimming leading/trailing whitespace",
+  "migrationCount": 66,
   "migrations": [
     {
       "version": "20260919151628",
       "name": "reasonai_persistence",
-      "sha": "686fc5e08066dd90a4633a2a02e2d15a52cc377a9b22112863498ab80511db48"
+      "sha": "c61b012ab251cd65329d12a9e82b309f196d59da25a25a1f9f098e1a2f015caf"
     },
     {
       "version": "20260920120310",
       "name": "reasonai_learner_memory",
-      "sha": "a0c6d98261bd8444f827e5b34f0a175fb894bb8db4f71ab58bd194392b16c9ba"
+      "sha": "133363099e84f0e33f7334fcac59c4502dc6d3e110338a7cadfa5f7928f151e1"
     },
     {
       "version": "20260920120349",
       "name": "reasonai_runtime_hardening",
-      "sha": "1d0f8bf73e1ad3ba752fa7758a77d3924902db263e687b6fa54fa366576f1b4f"
+      "sha": "f9bac378497bb529170dda0b7fa0495fbed52f1a2fd515a71122252946d59b8b"
     },
     {
       "version": "20260920120413",
       "name": "reasonai_conversation_state",
-      "sha": "dc0bae5294b9f2f1c8574e76a480d1ed4635b9987efd386fae231c634e8a74d0"
+      "sha": "ddc14731028680cc3ce7fd21bac09afb9e593e23a1b8e417c1aff462975bf651"
     },
     {
       "version": "20260920122507",
       "name": "reasonai_finalize_run_conflict_fix",
-      "sha": "231ebddcb8e346be02b92981519bddbfc7271ff7a36406c7d343c7a101464bbd"
+      "sha": "e30a4f421f8839647c1a03eb6633bc2bc7083ebe9ee3ac661b01858febbcb202"
     },
     {
       "version": "20260920130843",
       "name": "reasonai_finalize_run_message_conflict_fix",
-      "sha": "76bf9f9a95cc5ac14713c879f987288fdb6c7203d09d926ee2d293ef7f993e08"
+      "sha": "1e94f7dea260da7549a58760894381d6a4c0817a7e2f42a6393f3f8fa75c43d0"
     },
     {
       "version": "20260924145402",
       "name": "reasonai_surface_aware_conversation_state",
-      "sha": "9d53f4ae887b4b30ce62a90c07eb379d71ea945ef8d969f7baa4d363bdc532ba"
+      "sha": "a0eeb13466aeea5261d767621118d4d76c6c9af50759aadc61d40c1fd511ed0b"
     },
     {
       "version": "20260926140655",
       "name": "knowledge_shorts_phase1",
-      "sha": "bd88e586bfae8a448d6acc923af06a41c89bdc616c6b980881c0544f15e08fe6"
+      "sha": "fbbc9be72b7312cf88616502d13ffd67c7227fb7e4b86c93ac5030970d33df48"
     },
     {
       "version": "20260926140749",
       "name": "knowledge_shorts_fk_indexes",
-      "sha": "e48e9e342a7942ad750348cdbe72eea9c08a438e8b23f142cc8e2026ac6b972e"
+      "sha": "314e1da92182c0b51ec4a4d5644b4983a6ed8bcf8cd9ef239dae0d915f493ad5"
     },
     {
       "version": "20260926151258",
       "name": "seed_knowledge_sources_web_hacker_news",
-      "sha": "dd51fcd66662a29b40e247cf846a03353e5fcb1e06bad1308befd2c792ec8826"
+      "sha": "118850154c4843e25246d93667d24ebf8ec76087aac4332d82563ac4e80126d6"
     },
     {
       "version": "20260929085444",
       "name": "knowledge_refresh_runs",
-      "sha": "c712313bbb5a2c98508603dbf37bb6af9363a4af740acb7d2193c817aa1c7fde"
+      "sha": "dd09aed9123149141a99cad9650c8c102cc6532b372df07dbfee9e78824d6aa4"
     },
     {
       "version": "20260929151956",
       "name": "knowledge_interest_prompt",
-      "sha": "d8a3b4962aaafadcb36e8a5d9988b71604b71aeaffeb657d5b990af3668e9d0d"
+      "sha": "bb39336085042a83302fdf40240502ebbf4e0bf0434abeec932692bdb5644b50"
     },
     {
       "version": "20261010110129",
       "name": "reasonai_orchestration_v3_proposal_state",
-      "sha": "7c93dd4628ae69d67affc2f781cab1dbadaeeef2a4ba32509b4bb41a6881597a"
+      "sha": "936e01856b6cd5e8ea48cd4bafcff67d14266590628b11fdb5e58faa9f6125f0"
     },
     {
       "version": "20261014062832",
       "name": "dsa_problem_ingestion_registry_v1",
-      "sha": "e15cca80f36eb5d9b1906c66fcd6b5d11ca2c79943018332f647bb533844c691"
+      "sha": "1c8331f216a9183be042d1c84130dd3ed11c4cefcf031afd9fb46962c35e5f31"
     },
     {
       "version": "20261015172042",
       "name": "dsa_execution_jobs",
-      "sha": "ad765e4402f8af4edd6df999d62ed28f738be669b0fca4d245950b2d53af2d1b"
+      "sha": "29bda67a3cdcd53d158bb38bdab5c9bef8e985cc7eeedd27a28940492e3f670b"
     },
     {
       "version": "20261016073209",
       "name": "dsa_explorer_company_metadata_and_boards",
-      "sha": "62fac014dea51529e0cd97229c0125e7e8a21943cd4a62572356fc0a596e0817"
+      "sha": "4682a7ee2f3c0355382e223d59dc61949977e05a3b980dcd50048ea368536170"
     },
     {
       "version": "20261016073423",
       "name": "dsa_certification_ledger_and_code_intelligence",
-      "sha": "4e6e15fa29ea2db0d4baf913c46754e8410ad01d047498ba9a4629a059e7685e"
+      "sha": "451bab0046cc6b517915118c6c6d87cf5003ac0d56863396b1d5cf61610bf7a7"
     },
     {
       "version": "20261016073721",
       "name": "dsa_explorer_hardening_and_sequence_tags",
-      "sha": "e5d75c3da0b3a878ae90156823fa72f255825ae87c0a95db1f1e97218c2212f1"
+      "sha": "21243d9cebc30d09b9c8cae313d476844691ac6883adcbc6a8b1dd8372b9fc35"
     },
     {
       "version": "20261016073847",
       "name": "dsa_explorer_grants_and_membership_trigger_fix",
-      "sha": "a34bd9210cde5f41e69d20183a21b338b8d0627643af3638ae40c06ca51520f5"
+      "sha": "b82725ba70855c0e02da02aed77e28a3530bd7227e2dbdf819ae993bdd9e5f5a"
     },
     {
       "version": "20261016074043",
       "name": "dsa_three_sum_deduplicated_draft_suite",
-      "sha": "a06fbbb99b9617cbd53248f121b63712c8b930cce94a13962e79a911d5774df0"
+      "sha": "2876f6f9ea94a691ea18aa42ad921124de1dd217eef61b215fc96180f522fa61"
     },
     {
       "version": "20261016074137",
       "name": "dsa_three_sum_pilot_draft_dedup_final",
-      "sha": "afd7d871d2328c5174e2e0f8df9ac406ab250c64719fdbe898e47c192399c6d2"
+      "sha": "0bbe2636e96801fd4bdf939f09185e94f415ed88890c7429c3fee1b813900023"
     },
     {
       "version": "20261016074239",
       "name": "dsa_three_sum_pilot_verification_ledger",
-      "sha": "b609147aa4df0bee772afa08d8736a29c35df3899c2535497f73b0e7dd72fe12"
+      "sha": "74c9a77307df1e4ab4f1efbe27d9417f08dbebb0a791061f0c79ec124c4309a5"
     },
     {
       "version": "20261016074500",
@@ -122,192 +123,192 @@
     {
       "version": "20261016075127",
       "name": "dsa_safe_bulk_duplicate_repair_375",
-      "sha": "3d1bafe410113e8937bef91c6f3441d82c13713a111e431e7c4d40ff1533bf32"
+      "sha": "a634b7a1bfb2fae633124c0d111cd75204b117130e2ba97c1f9b787bd6e1f2ea"
     },
     {
       "version": "20261016080708",
       "name": "dsa_every_problem_practice_submissions",
-      "sha": "d257460d9d3d52aa954cf33e533670dd734bd3a24f2a0fb4a3c5f47d3c10c5d7"
+      "sha": "10cd04e905c6ea78016dc2fad3d4b99c24c7c1a6d81bd23ca12281eee8489ec6"
     },
     {
       "version": "20261016081159",
       "name": "dsa_practice_submission_publication_rls_fix",
-      "sha": "9756e3d61ebd4aa031cc3bdcaae7752f076978915dd0683b54f79a03a55c96f3"
+      "sha": "fdf11c6bf36119fa9fd00805c4ec6350974c9bcd0508979115d8bfaa7b3dd2be"
     },
     {
       "version": "20261016110623",
       "name": "dsa_company_editorial_suffix_aliases",
-      "sha": "c7d37e9978037dbbbb0c4ae4cbf1062bf6c93eef6ca133a672d8a6cb0c464157"
+      "sha": "1ec8bcd96d65dac19518558e75044c147e8d0424dc6e8a61237f62c991843407"
     },
     {
       "version": "20261016120735",
       "name": "dsa_catalog_structural_audit_evidence_v2",
-      "sha": "5116040aeb8e066c957d119d9223ae712614c2cc6cf2b2c2c06858bff130ec5c"
+      "sha": "229742366dd6091b3bf1d2f7fc388e2c268f02526d35ef64f4d93895373bbbcc"
     },
     {
       "version": "20261016120839",
       "name": "dsa_nqueens_finite_domain_suite_v3",
-      "sha": "9cd9b11bff1c2597dac3741bfe05f46d8148753ba807d1a27b50116a596d59db"
+      "sha": "4f288c5b47f30543533ff14a280b1f9bc2dc7ae561b32e74908f359d0b62476d"
     },
     {
       "version": "20261016121302",
       "name": "dsa_five_sql_independent_oracles_v1",
-      "sha": "416bf34f56201ad024403223cc7476662c3b27a69d581e195855d0d6b880b13a"
+      "sha": "f10033ffed49b10b21e899d75118e4bb9fa04498c6e30573273d1f00c8084a1b"
     },
     {
       "version": "20261016124502",
       "name": "dsa_fifteen_more_independent_sql_oracles",
-      "sha": "0f365588985dd0d643b8bbb16f4ff15f52c72c0bb3f25639a844ec895add7f78"
+      "sha": "d3eabf24b71ff652130f0dbb38de22ec4c6a27e35de51f5ebe93a977a5a9c1c5"
     },
     {
       "version": "20261016124823",
       "name": "dsa_eight_sql_oracles_explicit_collation",
-      "sha": "6d03a2d383858eea40a41cc80ed7ddbb8522060ab9728af7934f9a0755f42c34"
+      "sha": "d4d8ba6a539974b172c5861481dee662e4ece4702d8690a3360e42ed5bef2c64"
     },
     {
       "version": "20261016130133",
       "name": "dsa_23_independent_js_oracle_fixture_evidence",
-      "sha": "22b389fd54ddc42f6fd46ab8a6169dd488f69768bd5f192e586b11e915d0da72"
+      "sha": "4b657eefb1f36ccba0b17f1ee84de76fa281b835b839c3ec387b4fef7c2ee94a"
     },
     {
       "version": "20261016130707",
       "name": "dsa_24_independent_js_oracle_fixture_evidence",
-      "sha": "7ba9d3cf16b4044a3691d6b132b3e5ea3c3469ac8bd744e287ec68bc6fea582f"
+      "sha": "fdf1b6bd752a2b3ba3889145fbf0e9c7f0203c055f69519849dc16db2da80182"
     },
     {
       "version": "20261016132111",
       "name": "dsa_29_js_oracle_batch6_evidence",
-      "sha": "f1e81cc10728ff0a0dbecf1cab61f8db904d6060888a1f62a45798548b00673d"
+      "sha": "0ad370b93e356317a9965070fb15d4ce298ed8db17d3f9192a6556400aed7da7"
     },
     {
       "version": "20261016132358",
       "name": "dsa_18_js_oracle_batch7_evidence",
-      "sha": "bc8cbd3830de1e90f05c7ae926a8349687328323a893db382bc6bbe630f5a210"
+      "sha": "6bd4fa9e459cee1f8cf86aba077324b385369699714f40b1818003407d7480e0"
     },
     {
       "version": "20261016134049",
       "name": "dsa_25_js_oracle_batch9_evidence",
-      "sha": "282c254e1a6efc64aaf04921064a7d8cf57eea6f27a2080ccf4859a575535eb2"
+      "sha": "70d304e24e339f8f1c04507531b93770c7f2d53286c51012369ef8e16529857a"
     },
     {
       "version": "20261016135718",
       "name": "dsa_37_independent_dynamic_programming_oracle_evidence",
-      "sha": "a1b1eafd5cd75b417f215fa296fbeae851274f1127532dd345bbfd388c24183a"
+      "sha": "1fefb9963264195c52c8e228523ba3d3380b9ca768c61ce6e9bee872f119ed12"
     },
     {
       "version": "20261016140159",
       "name": "dsa_35_independent_graph_trie_oracle_evidence",
-      "sha": "68c392c614ca9d1d253be0c2a692785a1f0d86f7b70309e1fe0b4652b1c974d9"
+      "sha": "d39672825bd52a8eaedbabd72891e258c54b365602bf7274605fe84f407c3165"
     },
     {
       "version": "20261016140626",
       "name": "dsa_20_independent_specialized_oracle_evidence",
-      "sha": "0108f9d871410c1e26debf3d5f78d03e033c94ac969f1b593b61cec3d19bc4eb"
+      "sha": "71c57582bcc937ba05282d96ef77c3e84ded58b2479c071572bb02c33c8fd44d"
     },
     {
       "version": "20261016141515",
       "name": "dsa_18_independent_tree_oracle_evidence",
-      "sha": "fd41c16b012099daf0314d4cd5437e4ef94beae0868de7772c926eb24f52976b"
+      "sha": "e8d5bce85d3365d3ce23e8c100e22967753f2ee0c088eb98b77b9ad5f1398be3"
     },
     {
       "version": "20261016141845",
       "name": "dsa_22_independent_bst_tree_oracle_evidence",
-      "sha": "7f5b287a694ad506d74677eff171c78dc74468386fd9e67e3a88ba85827e532e"
+      "sha": "9ee9742ec40d6b2cd22ed07fbc5dea9028f77335afa1b5db4933a295f90bc056"
     },
     {
       "version": "20261016142147",
       "name": "dsa_5_heap_indexed_tree_oracle_evidence",
-      "sha": "26c88be8948ca354efd5e1457f60d2a33819cafa3cec2f5df8b88555bba10a80"
+      "sha": "0551dc5d53eb08a2efde05c9fe24b6f2c45c7a884315a6c67e80a3b11679c838"
     },
     {
       "version": "20261016142525",
       "name": "dsa_24_independent_combinatorial_oracle_evidence",
-      "sha": "1d928ab51addb78908dd381b1c90b6013ffed2d517efbcc9f80f570bd0f11d18"
+      "sha": "c6d730ddd73aa10bda30eb87d1f8a5e89d42addec37b1f2d3d952f3ee21197ae"
     },
     {
       "version": "20261016142831",
       "name": "dsa_10_exact_integer_fixture_audit_evidence",
-      "sha": "3ba1bb3469251f030cf8f4557600480901f228b1e2b5b759b96a4bbd3e7204e3"
+      "sha": "e80f08d5d7f0b4e020eed2892e1d34ba7b8b1db20615325bee872c476d47d162"
     },
     {
       "version": "20261016142953",
       "name": "dsa_2_exact_graph_oracle_evidence",
-      "sha": "ca6487788308bf8bfaa203ffa3ba6010388f2e71aa8d4b7df08f3019ccbd0385"
+      "sha": "0bf3fb47e9823c8b17b1b69127a1ec097cf8ec39d190d4e5823361226223f8b3"
     },
     {
       "version": "20261016143340",
       "name": "dsa_29_array_backtracking_design_oracle_evidence",
-      "sha": "09923bed6edf02e9864c664087951b00d61ea746396b4a31fe3343f0e0d0941b"
+      "sha": "309b45260ec573f5bbc4aefe89f4af09af931df8f16637db2f199da76c0a2c94"
     },
     {
       "version": "20261016143713",
       "name": "dsa_18_independent_design_greedy_oracle_evidence",
-      "sha": "5208cdb6bfc17b401152a3d7193d80247436780b777dd968b617739826883210"
+      "sha": "ff091cd10d31f829bfa3fe6c523ce1bf4528f6bda6541676e2ea5980cccac426"
     },
     {
       "version": "20261016144037",
       "name": "dsa_6_exhaustive_backtracking_oracle_evidence",
-      "sha": "efd9640561a99a879392c6f34590a7a06a71984a4900fc6a1dc04cc459b91b34"
+      "sha": "90febfeed47b62e462d14909758d6d9d9b08669bf73285a16b73bad93e96f4f3"
     },
     {
       "version": "20261016144306",
       "name": "dsa_private_exact_numeric_fixture_oracle",
-      "sha": "9e2ddb1a84c61d18efdf8af35380e88ed5fdeaad060ecdaf4110c9035670d818"
+      "sha": "e298d60ce3bf0ace1d435cab00a19aeb88ae6d58af44c63bf6d30201b6441348"
     },
     {
       "version": "20261016150557",
       "name": "dsa_8_exact_integer_integrity_reaudit_verified",
-      "sha": "af6ae86bd88dd7edb1afefef3b475a90f112c21aa799c53629261e8c5bf47e0e"
+      "sha": "0f9a70c1e6fde1fcb63644562a7d62258508f48185a87cfa4d32fa3a276d3157"
     },
     {
       "version": "20261016150842",
       "name": "dsa_8_lossless_numeric_review_suites",
-      "sha": "937767d1eff05e4e65e5eaa04108ba5618cbf3eac420511373f987a5e011c635"
+      "sha": "a89f15eb6495afd5a943f1d2293cf44749efed0cc7017fda01cca528eecc24ce"
     },
     {
       "version": "20261016151119",
       "name": "dsa_388_lossless_even_division_correction",
-      "sha": "da1931674f4fd9e1135f009d79b2676c49370243808c0046794506ac45225392"
+      "sha": "4e3c8f72c18c27bf83a1627c6bab67cfc76ee06f5e7367d186237129325e12fb"
     },
     {
       "version": "20261016151236",
       "name": "dsa_8_exact_integer_repaired_oracle_evidence",
-      "sha": "8e82847510f6f61c30e0c4ac5567d3a1e89e168677950aa7527955ffd40cc12b"
+      "sha": "ac8252b85d45fe92702f0f4224ab37767b4a330557a3aa7edefed75b244d645d"
     },
     {
       "version": "20261016151428",
       "name": "dsa_18_latest_suite_integrity_passes",
-      "sha": "a9a886e1468d7304644da7f213acb23c107ee4f816e9199db79d3b82f79a0559"
+      "sha": "9d280325f1f3b37f4265a6395ddbf3b2cce9483938e8a84f2169551c2dfd9683"
     },
     {
       "version": "20261017060223",
       "name": "dsa_v3_explorer_projection",
-      "sha": "30c60bf282f4c4d611bd2fa0da00b6b727b35cc14c9af22312d1a92641d72052"
+      "sha": "98b6cec8289035b38eaaede87c150244400aaf52683b9b698bd94c68a8c2d601"
     },
     {
       "version": "20261017060229",
       "name": "dsa_v3_report_orchestration",
-      "sha": "23a857ec5b454907ca503fb6f289f78f645d7c6b155c9ebc2b217dc851910613"
+      "sha": "439dcb7e18f5ab71fe84618e87cee5355b168073cc8c5b98c048828a9eb6a509"
     },
     {
       "version": "20261017060241",
       "name": "dsa_v3_versioned_contracts_certification",
-      "sha": "5d17c044d781492bded802812625273311a72e5d7de06aff807e3f012b56701d"
+      "sha": "1e5d5ed16a52038dd8c7808b1fdd178f9753cd15d11dcc3fedda8611e761310c"
     },
     {
       "version": "20261017060319",
       "name": "dsa_provisional_submissions",
-      "sha": "fd00185609da3866497f4435ea6a32fdbfe49b74960b56de458f7366f9e58278"
+      "sha": "d2b794e9e2f087ab0ff8b700f3fad83d891cdd985ba5e319233660b5771c14de"
     },
     {
       "version": "20261017060427",
       "name": "dsa_provisional_catalog_contracts",
-      "sha": "97ea54685a49ee0551aafc5629326920b6af11b706c21d2ee52ee4db95a6082a"
+      "sha": "9aa730fe6a47af833c856630ee2a16b4881b9a8affc6a4786aba563ae7314aad"
     },
     {
       "version": "20261017061057",
       "name": "dsa_report_activation_boundary",
-      "sha": "0e8301b82aa48833332f8a4d5948592194ae341d0552403d525e1cd43f322b34"
+      "sha": "198022af2e68fddfe34caf2164c30371e5147c97ff1e1115cf563f173cb6a551"
     },
     {
       "version": "20261017083528",
@@ -317,17 +318,22 @@
     {
       "version": "20261017134338",
       "name": "dsa_code_intelligence_failed_report_recovery",
-      "sha": "1ab9fce40fa09da3162409a23a665750c68de76748217744dcff68589e6eafda"
+      "sha": "c2f42577c00eed5f91ee3d1d8cee7b1935b9471df22643fb14fa6c5795ddd253"
     },
     {
       "version": "20261017135700",
       "name": "dsa_user_first_sandbox_judging",
-      "sha": "3249f0bacd36520852f2dc3d9946d0ea31e11c42ca4306352f3537fdd5a5c75c"
+      "sha": "bf80e0f3fe18efc79a4d80b172ea83863557e4100ee16585129b178fb9f1a042"
     },
     {
       "version": "20261017155808",
       "name": "dsa_report_delivery_recovery",
-      "sha": "06b6d82d53a1e0cdb49f37a329a9043aa16f834f51de962a11d74ee491ed03d3"
+      "sha": "c4094076bd97864c4a62115f6a06f6887878529ce32c515b2a4ebb3cea50865f"
+    },
+    {
+      "version": "20261018063615",
+      "name": "dsa_learner_execution_progress",
+      "sha": "cee230a4d7e7bb5b3b29f3fa813a007d274eed459eefe3438a5b7a56f441ed6b"
     }
   ]
 }

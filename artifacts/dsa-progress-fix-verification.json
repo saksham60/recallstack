@@ -1,0 +1,55 @@
+{
+  "scope": "Execution-backed DSA problem completion",
+  "baseCommit": "922d2526c32fecf3fe5164f62b7657374e0387a5",
+  "checks": {
+    "productionBuild": { "status": "passed", "exitCode": 0, "log": "web/.next/cache/dsa-progress-build.log" },
+    "browser": {
+      "passed": 66,
+      "failed": 0,
+      "log": "web/.next/cache/dsa-progress-browser-final.log",
+      "providerMode": "controlled authenticated API fixtures and local Pyodide"
+    },
+    "unit": {
+      "passed": 24,
+      "failed": 0,
+      "log": "web/.next/cache/dsa-progress-unit-final.log"
+    },
+    "disposableDatabase": {
+      "status": "passed",
+      "log": "web/.next/cache/dsa-progress-db-final.log"
+    },
+    "typescript": {
+      "status": "passed",
+      "log": "web/.next/cache/dsa-progress-tsc-final.log"
+    },
+    "eslint": {
+      "status": "passed",
+      "log": "web/.next/cache/dsa-progress-lint-final.log"
+    }
+  },
+  "database": {
+    "project": "jlqawpdsyptfxspyqnsu",
+    "migration": "20261018063615",
+    "matchingMigrations": 66,
+    "normalizedSqlHash": "cee230a4d7e7bb5b3b29f3fa813a007d274eed459eefe3438a5b7a56f441ed6b",
+    "publishedProblemProjectionCount": 375,
+    "reportedProblem": {
+      "problemId": "9766752c-8410-4a77-af63-b009c50e98f5",
+      "categoryIds": [
+        "5b0a3f6a-6a21-4811-9a5c-fcaabb23c0f3"
+      ],
+      "learningStatus": "new",
+      "executionStatus": "solved",
+      "problemVersionId": "0f721138-d2ca-4959-8798-0c6e0c540f89",
+      "previousVersionPassed": false
+    },
+    "rawRpcExecutableByAnon": false,
+    "rawRpcExecutableByAuthenticated": false,
+    "manualProgressFingerprintBeforeAndAfter": "017fba851061397c5858d3043da0bb4f",
+    "judgeResultsFingerprintBeforeAndAfter": "6a685b12947b39f818f8fee5e2ae67f9",
+    "securityFindingsUnchanged": true
+  },
+  "paidProductionVerificationCalls": 0,
+  "repeated375IndependentFixtureChecks": false,
+  "productionVerification": "Read-only database projection verified; no new live sandbox/model journey was run. Final production deployment SHA/READY metadata is reported in the release response."
+}

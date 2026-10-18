@@ -7,6 +7,78 @@ import {
   canonical,
 } from "./helpers/dsa-v3";
 
+test("board separates official, provisional, attempted and infrastructure outcomes in labels and filters", async ({
+  authenticatedPage: page,
+}) => {
+  const fixture = await installV3API(page, { count: 4 });
+  await page.route("**/api/dsa/learner-progress", (r) =>
+    r.fulfill({
+      json: {
+        items: fixture.problems.map((p, i) => ({
+          problemId: p.id,
+          problemVersionId: p.problem_version_id,
+          categoryIds: [CATEGORY],
+          learningStatus: "new",
+          executionStatus: [
+            "solved",
+            "passed_current_tests",
+            "attempted",
+            "execution_failed",
+          ][i],
+          previousVersionPassed: false,
+        })),
+      },
+    }),
+  );
+  await page.goto("/dsa/arrays");
+  for (const [i, label] of [
+    "Solved",
+    "Passed current tests",
+    "Attempted",
+    "Execution failed",
+  ].entries())
+    await expect(
+      page
+        .locator(".dsa-problem-card")
+        .filter({ hasText: fixture.problems[i].title }),
+    ).toContainText(label);
+  await page
+    .getByLabel("Completion filter")
+    .selectOption("passed_current_tests");
+  await expect(page.locator(".dsa-problem-card")).toHaveCount(1);
+  await expect(page.locator(".dsa-problem-card")).toContainText(
+    "Passed current tests",
+  );
+  await page.reload();
+  await expect(page.locator(".dsa-problem-card")).toHaveCount(1);
+  await page.getByLabel("Completion filter").selectOption("unsolved");
+  await expect(page.locator(".dsa-problem-card")).toHaveCount(2);
+  await expect(
+    page.locator(".dsa-problem-card").filter({ hasText: "Solved" }),
+  ).toHaveCount(0);
+});
+
+test("progress outages do not turn saved completion into Not started and the real endpoint rejects anonymous callers", async ({
+  authenticatedPage: page,
+}) => {
+  await installV3API(page);
+  await page.route("**/api/dsa/learner-progress", (r) =>
+    r.fulfill({ status: 503, json: { error: "Fixture storage outage" } }),
+  );
+  await page.goto("/dsa/arrays");
+  await expect(page.locator(".dsa-problem-card").first()).toContainText(
+    "Progress unavailable",
+  );
+  await expect(page.locator(".dsa-problem-card").first()).not.toContainText(
+    "Not started",
+  );
+  const response = await page.request.get(
+    `/api/dsa/learner-progress?userId=${ID}`,
+  );
+  expect(response.status()).toBe(401);
+  expect(response.headers()["cache-control"]).toContain("no-store");
+});
+
 test("topic-first home uses actual counts and never fetches full specifications", async ({
   authenticatedPage: page,
 }) => {
@@ -171,19 +243,32 @@ test("narrow browser and reduced-motion preserve navigation without overflow", a
   expect(errors).toEqual([]);
 });
 
-test("desktop reference screens render without page errors", async ({ authenticatedPage: page }, info) => {
+test("desktop reference screens render without page errors", async ({
+  authenticatedPage: page,
+}, info) => {
   await installV3API(page);
   await page.setViewportSize({ width: 1440, height: 1000 });
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/dsa");
   await expect(page.locator(".dsa-topic-card")).toHaveCount(2);
-  await page.screenshot({ path: info.outputPath("dsa-v3-home.png"), fullPage: true });
+  await page.screenshot({
+    path: info.outputPath("dsa-v3-home.png"),
+    fullPage: true,
+  });
   await page.goto("/dsa/arrays");
   await expect(page.locator(".dsa-problem-card")).toHaveCount(4);
-  await page.screenshot({ path: info.outputPath("dsa-v3-board.png"), fullPage: true });
+  await page.screenshot({
+    path: info.outputPath("dsa-v3-board.png"),
+    fullPage: true,
+  });
   await page.goto(canonical);
-  await expect(page.getByRole("textbox", { name: "Solution code", exact: true })).toBeVisible();
-  await page.screenshot({ path: info.outputPath("dsa-v3-workspace.png"), fullPage: true });
+  await expect(
+    page.getByRole("textbox", { name: "Solution code", exact: true }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: info.outputPath("dsa-v3-workspace.png"),
+    fullPage: true,
+  });
   expect(errors).toEqual([]);
 });

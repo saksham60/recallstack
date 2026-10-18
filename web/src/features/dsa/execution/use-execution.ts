@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getBrowserClient } from "@/lib/supabase/client";
 import { createAuthenticatedReasonAIFetch } from "@/lib/reasonai/authenticated-request";
 import {
@@ -62,8 +62,12 @@ export function useExecution(
   problemVersionId: string,
   submissionId?: string,
 ) {
+  const client = useQueryClient();
+  const refreshed = useRef<string | undefined>(undefined);
   const storageKey = `reasonai:dsa:execution:1:${userId}:${problemId}:${problemVersionId}`;
-  const [local, setLocal] = useState<LocalExecution>(() => submissionId ? { schema: 1, id: submissionId } : read(storageKey));
+  const [local, setLocal] = useState<LocalExecution>(() =>
+    submissionId ? { schema: 1, id: submissionId } : read(storageKey),
+  );
   const [created, setCreated] = useState<ExecutionView>();
   const [creating, setCreating] = useState(false),
     [cancelling, setCancelling] = useState(false);
@@ -113,8 +117,15 @@ export function useExecution(
           ),
         );
         failures.current = 0;
-        if (result.problemId !== problemId || result.problemVersionId !== problemVersionId || result.submissionId !== local.id) {
-          throw new RequestError("This submission does not belong to the selected problem and version.", 404);
+        if (
+          result.problemId !== problemId ||
+          result.problemVersionId !== problemVersionId ||
+          result.submissionId !== local.id
+        ) {
+          throw new RequestError(
+            "This submission does not belong to the selected problem and version.",
+            404,
+          );
         }
         return result;
       } catch (failure) {
@@ -124,7 +135,11 @@ export function useExecution(
     },
     retry: false,
     refetchInterval: (query) => {
-      if (query.state.error instanceof RequestError && query.state.error.status === 404) return false;
+      if (
+        query.state.error instanceof RequestError &&
+        query.state.error.status === 404
+      )
+        return false;
       if (query.state.data && terminal(query.state.data.status)) return false;
       if (polls.current >= 120 || failures.current >= 5) return false;
       return Math.min(10000, 1000 * 1.5 ** Math.min(polls.current, 6));
@@ -132,7 +147,20 @@ export function useExecution(
     refetchIntervalInBackground: false,
   });
   const job = execution.data ?? created;
-  const inaccessible = execution.error instanceof RequestError && execution.error.status === 404;
+  useEffect(() => {
+    if (
+      job?.mode !== "submit" ||
+      !terminal(job.status) ||
+      refreshed.current === job.submissionId
+    )
+      return;
+    refreshed.current = job.submissionId;
+    void client.invalidateQueries({
+      queryKey: ["dsa", userId, "learner-progress"],
+    });
+  }, [client, userId, job?.submissionId, job?.mode, job?.status]);
+  const inaccessible =
+    execution.error instanceof RequestError && execution.error.status === 404;
   const active = !!local.id && !inaccessible && (!job || !terminal(job.status));
   async function create(request: ExecutionRequest) {
     if (busy.current) return;

@@ -1,6 +1,12 @@
 import { test, expect } from "./fixtures/authenticated-test";
 import type { Page } from "@playwright/test";
-import { installV3API, ID, VERSION, canonical } from "./helpers/dsa-v3";
+import {
+  installV3API,
+  ID,
+  VERSION,
+  CATEGORY,
+  canonical,
+} from "./helpers/dsa-v3";
 import { exampleAnalysis } from "./helpers/dsa-report";
 import type { ExecutionView } from "../src/features/dsa/execution/contract";
 const latestId = "40000000-0000-4000-8000-000000000001",
@@ -146,7 +152,8 @@ async function fixture(page: Page) {
       reportStatus = status;
     },
     complete(
-      verdict: "provisional_pass" | "wrong_answer" = "provisional_pass",
+      verdict:
+        "accepted" | "provisional_pass" | "wrong_answer" = "provisional_pass",
       metrics: Partial<NonNullable<ExecutionView["result"]>> = {},
     ) {
       job = {
@@ -154,7 +161,9 @@ async function fixture(page: Page) {
         status: "completed",
         result: {
           verdict,
-          gradingLevel: "provisional",
+          ...(verdict === "accepted"
+            ? {}
+            : { gradingLevel: "provisional" as const }),
           executionTimeMs: 9,
           ...metrics,
         },
@@ -166,6 +175,69 @@ async function fixture(page: Page) {
   };
 }
 test.describe.configure({ timeout: 120000 });
+test("Accepted Submit refreshes cached board completion and survives navigation, filters and reload", async ({
+  authenticatedPage: page,
+}) => {
+  const h = await fixture(page);
+  let solved = false,
+    progressGets = 0;
+  await page.route("**/api/dsa/learner-progress", (route) => {
+    progressGets++;
+    return route.fulfill({
+      json: {
+        items: [
+          {
+            problemId: ID,
+            problemVersionId: VERSION,
+            categoryIds: [CATEGORY],
+            learningStatus: "new",
+            executionStatus: solved ? "solved" : null,
+            previousVersionPassed: false,
+          },
+        ],
+      },
+    });
+  });
+  await page.goto("/dsa/arrays");
+  const card = page
+    .locator(".dsa-problem-card")
+    .filter({ hasText: "Array total" });
+  await expect(card).toContainText("Not started");
+  await card.getByRole("link").click();
+  await expect(
+    page.getByRole("button", { name: "Submit", exact: true }),
+  ).toBeEnabled();
+  await page.getByRole("button", { name: "Submit", exact: true }).click();
+  solved = true;
+  h.complete("accepted");
+  await expect(page.getByText("accepted", { exact: true })).toBeVisible({
+    timeout: 20000,
+  });
+  await page.getByRole("button", { name: /Problems.*Ctrl K/ }).click();
+  await expect(
+    page
+      .getByRole("dialog")
+      .getByRole("button")
+      .filter({ hasText: "Array total" }),
+  ).toContainText("Solved");
+  await page.keyboard.press("Escape");
+  await page
+    .getByRole("navigation", { name: "Breadcrumb" })
+    .getByRole("link", { name: "Arrays" })
+    .click();
+  await expect(card).toContainText("Solved");
+  await page.getByLabel("Completion filter").selectOption("solved");
+  await expect(page.locator(".dsa-problem-card")).toHaveCount(1);
+  await page.reload();
+  await expect(card).toContainText("Solved");
+  await page.getByLabel("Completion filter").selectOption("unsolved");
+  await expect(card).toHaveCount(0);
+  await page.goto("/dsa");
+  const topic = page.locator(".dsa-topic-card").filter({ hasText: "Arrays" });
+  await expect(topic).toContainText("1 solved");
+  await expect(topic).toContainText("0 mastered");
+  expect(progressGets).toBeGreaterThan(1);
+});
 test("cancelling direct Submit has one control and waits for a saved terminal status", async ({
   authenticatedPage: page,
 }) => {

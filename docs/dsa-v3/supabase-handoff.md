@@ -1,5 +1,11 @@
 # DSA V3 Supabase owner handoff
 
+18 October 2026 progress fix: read-only migration
+`20261018063615_dsa_learner_execution_progress.sql` is applied. All 66 migration
+versions and normalized SQL hashes match production. Existing accepted submissions
+now feed a service-only completion projection without rewriting manual learning
+state. See [progress RCA and repair](progress-status-rca.md). Do not replay it.
+
 Project: `jlqawpdsyptfxspyqnsu`. On 2026-10-17 the user authorized this workstream
 to reconcile production and enable provisional grading. The three extensions and
 provisional path are now applied after live-schema inspection and disposable

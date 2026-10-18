@@ -33,6 +33,11 @@ import {
 import { problemHref } from "./urls";
 import { useToggleBookmark } from "@/features/bookmarks/use-bookmarks";
 import "./navigation.css";
+import {
+  completionStatus,
+  hasPassed,
+  progressLabel,
+} from "../progress/contract";
 
 export function TopicBoard({
   topic,
@@ -115,8 +120,13 @@ export function TopicBoard({
     (!onlyBookmarks || bookmarks.data?.includes(p.id)) &&
     (status === "all" ||
       (status === "unsolved"
-        ? !["confident", "mastered"].includes(progress.data?.[p.id] ?? "new")
-        : progress.data?.[p.id] === status));
+        ? !hasPassed(progress.data?.[p.id], p.problem_version_id)
+        : status === "mastered"
+          ? progress.data?.[p.id]?.learningStatus === "mastered"
+          : completionStatus(progress.data?.[p.id], p.problem_version_id) ===
+              status ||
+            (!completionStatus(progress.data?.[p.id], p.problem_version_id) &&
+              progress.data?.[p.id]?.learningStatus === status)));
   function save(next: BoardLayout, message: string) {
     if (!editable) return;
     personal.change.mutate(next, {
@@ -184,7 +194,7 @@ export function TopicBoard({
     );
   }
   function card(p: ProblemItem, lane: (typeof laneNames)[number] | null) {
-    const learning = progress.data?.[p.id] ?? "new";
+    const learning = progress.data?.[p.id]?.learningStatus ?? "new";
     const tags =
       companies.data?.filter(
         (c) => c.problemVersionId === p.problem_version_id,
@@ -242,7 +252,13 @@ export function TopicBoard({
             <small className="dsa-card-meta">Imported company metadata</small>
           )}
           <span className="dsa-card-status">
-            {learning === "new" ? "Not started" : learning}
+            {!scope.userId
+              ? "Sign in to track progress"
+              : progress.isPending
+                ? "Loading progress…"
+                : progress.error
+                  ? "Progress unavailable"
+                  : progressLabel(progress.data?.[p.id], p.problem_version_id)}
             {p.availability !== "available" ? " · Under review" : ""}
           </span>
         </Link>
@@ -377,8 +393,10 @@ export function TopicBoard({
           disabled={progress.isPending || !!progress.error}
           onChange={(e) => setStatus(e.target.value)}
         >
-          <option value="all">All learning statuses</option>
-          <option value="unsolved">Unsolved (self-assessed)</option>
+          <option value="all">All statuses</option>
+          <option value="unsolved">Not yet passed</option>
+          <option value="solved">Solved (official)</option>
+          <option value="passed_current_tests">Passed current tests</option>
           <option value="attempted">Attempted</option>
           <option value="mastered">Mastered</option>
         </select>

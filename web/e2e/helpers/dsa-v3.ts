@@ -71,6 +71,20 @@ export async function installV3API(
   let failSave = false;
   let bookmarked = options.bookmarked === false ? [] : [ID];
   await page.route("**/api/v1/me", (r) => r.fulfill({ json: createProfile() }));
+  await page.route("**/api/dsa/learner-progress", (r) =>
+    r.fulfill({
+      json: {
+        items: problems.map((p, i) => ({
+          problemId: p.id,
+          problemVersionId: p.problem_version_id,
+          categoryIds: [CATEGORY],
+          learningStatus: i === 0 ? "mastered" : "new",
+          executionStatus: i === 0 ? "solved" : null,
+          previousVersionPassed: false,
+        })),
+      },
+    }),
+  );
   await page.route("**/api/v1/me/bookmarks/*", (r) => {
     bookmarked = r.request().method() === "DELETE" ? [] : [ID];
     return r.fulfill({ json: { changed: true } });
@@ -91,6 +105,13 @@ export async function installV3API(
             problem_count: 0,
           },
         ],
+      };
+    else if (path.endsWith("/topics"))
+      json = {
+        items: baseProblem.topics.map((topic) => ({
+          ...topic,
+          problem_count: problems.length,
+        })),
       };
     else if (path.endsWith("/topic-progress"))
       json = {

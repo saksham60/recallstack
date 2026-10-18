@@ -31,7 +31,11 @@ export function TopicHome({ preview = false }: { preview?: boolean }) {
     stats = useStatistics(scope),
     profile = useProfile();
   const [search, setSearch] = useState("");
-  const resume = useQuery({ queryKey: [...scope.key, "resume"], enabled: !!scope.userId && !preview, queryFn: () => readResume(scope.userId!) });
+  const resume = useQuery({
+    queryKey: [...scope.key, "resume"],
+    enabled: !!scope.userId && !preview,
+    queryFn: () => readResume(scope.userId!),
+  });
   const topics = categories.data?.items ?? [];
   const visible = topics.filter((t) =>
     t.name.toLowerCase().includes(search.trim().toLowerCase()),
@@ -60,7 +64,9 @@ export function TopicHome({ preview = false }: { preview?: boolean }) {
                 : `${topics.length} topics`}
             </span>
             <span>
-              {stats.data ? `${stats.data.total_catalog_problems} problems` : "Explore by topic"}
+              {stats.data
+                ? `${stats.data.total_catalog_problems} problems`
+                : "Explore by topic"}
             </span>
             <span>Python practice</span>
           </div>
@@ -69,7 +75,14 @@ export function TopicHome({ preview = false }: { preview?: boolean }) {
           <Braces size={88} strokeWidth={1} />
         </div>
       </header>
-      {resume.data && <p className="dsa-banner"><Link href={problemHref(resume.data)}>Continue your last problem: {resume.data.title} <ArrowRight size={14} className="inline" /></Link></p>}
+      {resume.data && (
+        <p className="dsa-banner">
+          <Link href={problemHref(resume.data)}>
+            Continue your last problem: {resume.data.title}{" "}
+            <ArrowRight size={14} className="inline" />
+          </Link>
+        </p>
+      )}
       {canPreview && (
         <Link
           className="dsa-preview-toggle"
@@ -111,10 +124,23 @@ export function TopicHome({ preview = false }: { preview?: boolean }) {
       ) : (
         <div className="dsa-topics">
           {visible.map((topic, index) => {
-            const state = progress.data?.find((p) => p.id === topic.id) ?? (progress.data ? { attempted_count: 0, mastered_count: 0 } : undefined);
+            const state =
+              progress.data?.find((p) => p.id === topic.id) ??
+              (progress.data
+                ? {
+                    attempted_count: 0,
+                    mastered_count: 0,
+                    solved_count: 0,
+                    passed_count: 0,
+                  }
+                : undefined);
             const percent =
               state && topic.problem_count
-                ? Math.round((state.mastered_count / topic.problem_count) * 100)
+                ? Math.round(
+                    ((state.solved_count + state.passed_count) /
+                      topic.problem_count) *
+                      100,
+                  )
                 : 0;
             return (
               <Link
@@ -132,11 +158,13 @@ export function TopicHome({ preview = false }: { preview?: boolean }) {
                 </p>
                 <div className="dsa-topic-counts">
                   <span>{state?.attempted_count ?? "—"} attempted</span>
+                  <span>{state?.solved_count ?? "—"} solved</span>
+                  <span>{state?.passed_count ?? "—"} passed current tests</span>
                   <span>{state?.mastered_count ?? "—"} mastered</span>
                 </div>
                 <div className="dsa-topic-bottom">
                   <progress
-                    aria-label={`${topic.name} mastery`}
+                    aria-label={`${topic.name} completion`}
                     value={percent}
                     max={100}
                   />

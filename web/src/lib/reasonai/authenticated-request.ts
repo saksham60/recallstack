@@ -6,6 +6,7 @@ export type ReasonAIResourceEndpoint = ReasonAIEndpoint
   | `/api/dsa/submissions/${string}/report`
   | `/api/dsa/boards/${string}`
   | "/api/dsa/board-companies"
+  | "/api/dsa/learner-progress"
   | "/api/dsa/executions"
   | "/api/dsa/practice-submissions"
   | `/api/dsa/practice-submissions?problemId=${string}&problemVersionId=${string}`
@@ -27,6 +28,7 @@ function allowedEndpoint(endpoint: string): endpoint is ReasonAIResourceEndpoint
   }
   return endpoint === "/api/reasonai/chat"
     || endpoint === "/api/dsa/board-companies"
+    || endpoint === "/api/dsa/learner-progress"
     || /^\/api\/dsa\/boards\/[0-9a-f-]{36}$/i.test(endpoint)
     || endpoint === "/api/dsa/executions"
     || endpoint === "/api/dsa/practice-submissions"

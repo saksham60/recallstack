@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Search, X, ArrowUpRight, Layers3 } from "lucide-react";
 import { getApiErrorMessage } from "@/lib/api/errors";
+import { progressCounts, progressLabel } from "../progress/contract";
 import {
   useCatalog,
   useCatalogProgress,
@@ -68,6 +69,9 @@ export function Explorer({
     topics = useTaxonomy(scope, "topics");
   const statistics = useStatistics(scope);
   const progress = useCatalogProgress(scope);
+  const completion = progress.data
+    ? progressCounts(Object.values(progress.data))
+    : undefined;
   const items = catalog.data?.pages.flatMap((page) => page.items) ?? [];
   return (
     <dialog
@@ -112,12 +116,16 @@ export function Explorer({
               <span>Available problems</span>
             </div>
             <div>
-              <b>{statistics.data.attempted_problem_count}</b>
+              <b>{completion?.attempted_count ?? "—"}</b>
               <span>Practiced</span>
             </div>
             <div>
-              <b>{statistics.data.mastered_problem_count}</b>
-              <span>Mastered</span>
+              <b>{completion?.solved_count ?? "—"}</b>
+              <span>Solved</span>
+            </div>
+            <div>
+              <b>{completion?.passed_count ?? "—"}</b>
+              <span>Passed current tests</span>
             </div>
           </div>
         )}
@@ -260,7 +268,10 @@ export function Explorer({
                   {scope.userId && (
                     <small>
                       {progress.data
-                        ? (progress.data[problem.id] ?? "new")
+                        ? progressLabel(
+                            progress.data[problem.id],
+                            problem.problem_version_id,
+                          )
                         : progress.error
                           ? "Progress unavailable"
                           : "Loading progress…"}
