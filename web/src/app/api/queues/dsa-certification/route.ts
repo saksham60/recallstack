@@ -42,23 +42,6 @@ async function enqueueNext() {
   await send("dsa-certification",{tick:randomUUID()},
     {idempotencyKey:randomUUID(),retentionSeconds:3600});
 }
-export async function startBulkCertification() {
-  if(process.env.DSA_EXECUTIONS_ENABLED!=="1"||!process.env.NEBIUS_API_KEY||
-    !process.env.CONTREE_PROJECT||!process.env.CONTREE_PYTHON_IMAGE)
-    throw Error("CERTIFICATION_SANDBOX_NOT_CONFIGURED");
-  const run=await command("start") as {runId:string;pending:number};
-  if(run.pending>0) await Promise.all(Array.from({length:5},()=>enqueueNext()));
-  return run;
-}
-export async function statusBulkCertification() {
-  return command("status");
-}
-export async function resumeBulkCertification() {
-  const run=await command("status") as {status:string;queued:number;running:number}|null;
-  if(run?.status==="running" && run.queued+run.running>0)
-    await Promise.all(Array.from({length:5},()=>enqueueNext()));
-  return run;
-}
 
 const wait=(ms:number)=>new Promise<void>((resolve)=>setTimeout(resolve,ms));
 async function runClaim(claim:Claim) {
