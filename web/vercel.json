@@ -4,15 +4,39 @@
     "src/app/api/queues/dsa-code-intelligence/route.ts": {
       "maxDuration": 60,
       "experimentalTriggers": [
-        { "type": "queue/v2beta", "topic": "dsa-code-intelligence" }
+        {
+          "type": "queue/v2beta",
+          "topic": "dsa-code-intelligence"
+        }
       ]
     },
     "src/app/api/queues/dsa-executions/route.ts": {
       "maxDuration": 60,
       "experimentalTriggers": [
-        { "type": "queue/v2beta", "topic": "dsa-executions" }
+        {
+          "type": "queue/v2beta",
+          "topic": "dsa-executions"
+        }
+      ]
+    },
+    "src/app/api/queues/dsa-certification/route.ts": {
+      "maxDuration": 60,
+      "experimentalTriggers": [
+        {
+          "type": "queue/v2beta",
+          "topic": "dsa-certification"
+        }
       ]
     }
   },
-  "crons": [{ "path": "/api/dsa/execution-recovery", "schedule": "0 3 * * *" }]
+  "crons": [
+    {
+      "path": "/api/dsa/execution-recovery",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/dsa/certification",
+      "schedule": "15 3 * * *"
+    }
+  ]
 }
