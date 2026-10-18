@@ -224,7 +224,7 @@ begin
      -- Declaring Python compatibility *only after* hosted Python passes.
      update public.dsa_problem_versions v set specification=jsonb_set(
        v.specification,'{supported_languages}',coalesce(v.specification->'supported_languages','[]'::jsonb)||'["python"]'::jsonb,true)
-       where v.id=v_item.problem_version_id and not (v.specification->'supported_languages' @> '["python"]'::jsonb);
+       where v.id=v_item.problem_version_id and (v.specification->'supported_languages' @> '["python"]'::jsonb) IS NOT TRUE;
      insert into dsa_execution_private.certificates
        (problem_version_id,suite_id,contract,public_run_approved,
         hidden_submit_approved,expose_counts,certified_by,certified_at)
