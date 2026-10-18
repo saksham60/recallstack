@@ -51,4 +51,22 @@ export async function GET(request:Request){
 }
 /** Explicit operator action also starts/resumes the entire catalog, never an
  * arbitrary problem or submitted source; a single call initiates all jobs. */
-export const POST=GET;
+export async function POST(request:Request){
+  if(authorized(request)) return GET(request);
+  if(!configured())return Response.json({error:"Certification not configured"},{status:503});
+  const token=request.headers.get("x-certification-bootstrap")??"";
+  if(!/^[a-f0-9]{64}$/.test(token))
+    return Response.json({error:"Unauthorized"},{status:401});
+  const client=createClient(publicConfig.supabaseUrl,process.env.SUPABASE_SERVICE_ROLE_KEY!,{
+    auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},
+  });
+  const {data,error}=await client.rpc("dsa_bulk_certification_bootstrap",{p_token:token});
+  if(error||!data) return Response.json({error:"Unauthorized or already started"},{status:401});
+  try{
+    const dispatched=await seedMessages();
+    return Response.json({...data,dispatched},{status:202});
+  }catch{
+    // Database run exists and the next signed cron delivery will recover it.
+    return Response.json({run:data,dispatched:0,recovery:"scheduled"},{status:202});
+  }
+}
