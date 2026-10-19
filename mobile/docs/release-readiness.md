@@ -3,6 +3,8 @@
 Version: **1.0.0 (2)**. Android application ID / iOS bundle ID: `com.recallstack.app`.
 Branch: `feat/mobile-release-readiness`. Release verdict: **NOT READY** until the external gates below pass.
 
+The owner approved a **debug build handoff for device testing** on 2026-10-19. Production signing is explicitly deferred; no new signing credentials were generated.
+
 ## Implemented and contract-reviewed
 
 | Area | Implementation and authoritative contract |
@@ -69,3 +71,18 @@ Local verification on 2026-10-19: dependency resolution passed (`flutter pub get
 Evidence is recorded in `build/mobile-*.log` locally and in the Mobile CI run. Device/build artifact evidence is recorded separately after packaging. Do not infer release success from a stale APK or an unsigned iOS build.
 
 Mobile CI at https://github.com/saksham60/recallstack/actions/runs/39234397375 passed both Android validation/debug packaging and the macOS unsigned iOS release build for the initial candidate. That run used the PR merge commit; subsequent source changes require their own CI result. The unsigned iOS app is a build artifact, not an installable signed IPA.
+
+## Verified debug delivery
+
+- APK: `build/delivery/reasonai-1.0.0-build2-debug.apk`, **211,212,861 bytes**.
+- APK source commit: `d425e63810971eeeeb959d45d38f833fa51634ee`. Later commits bound CI transform memory and add delivery documentation; they do not change application behavior.
+- SHA-256: `0a24571ee78917bc642b9057237284419b56affed6feccc78ff64e2ec611c7f6`.
+- `apksigner verify --verbose --print-certs`: passed, APK Signature Scheme v2, **Android Debug** certificate. This is not production signing.
+- `aapt dump badging`: ReasonAI, `com.recallstack.app`, versionName 1.0.0, versionCode 2, minimum API 24, target API 36. ARM, ARM64 and x86_64 each contain Flutter and SQLite native libraries; no incomplete x86 ABI remains.
+- APK inspection: expected source SHA present, judge mode disabled, no environment/config assets, no test-fixture markers, no server-secret prefix matches. This supplements source/configuration review; a prefix scan alone is not a universal secret detector.
+- API 30 x86_64 emulator: **one integration workflow passed** with mocked authentication/network. It exercised login navigation, editor/draft persistence and restoration, Run, Submit, saved history, AI report rendering and Feed/Library/Revision/Profile navigation. It did not authenticate to production or perform actual judging/AI generation.
+- The **exact normal delivery APK** then installed with `adb install -r` (Success), launched `com.recallstack.app/.MainActivity` (Status: ok), displayed the branded Google sign-in screen, and resolved `com.recallstack.app://login-callback` to MainActivity. Screenshot and metadata are saved alongside the APK.
+- Latest application-code CI: https://github.com/saksham60/recallstack/actions/runs/39238116471 — Android validation/debug build and macOS unsigned iOS release build both **passed** at `7a575b657e4b6c90cd139b594b8cc4e75816cb49`.
+- Both `flutter build apk --release` and `flutter build appbundle --release` were actually attempted and exited 1 at the existing missing-`key.properties` guard. No production APK or AAB was produced.
+
+Use the [device smoke checklist](device-smoke-checklist.md) for the owner's live test. Keep the release verdict **NOT READY** until production signing and live release gates are satisfied.
