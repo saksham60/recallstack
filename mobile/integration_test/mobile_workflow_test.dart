@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'package:app/app/app.dart';
 import 'package:app/core/api/api_client.dart';
+import 'package:app/core/api/api_failure.dart';
 import 'package:app/core/auth/auth_repository.dart';
 import 'package:app/core/db/app_database.dart';
 import 'package:app/features/dsa/canonical_api.dart';
 import 'package:app/features/dsa/python_editor.dart';
+import 'package:app/shared/widgets/states.dart';
 import 'package:dio/dio.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
@@ -19,7 +21,13 @@ import '../test/support/canonical_fixture.dart';
 // this test never contacts production or launches a judge/AI operation.
 class DeviceAuth extends AuthRepository {
   DeviceAuth()
-    : super(SupabaseClient('https://fixture.test', 'public-fixture'));
+    : super(
+        SupabaseClient(
+          'https://fixture.test',
+          'public-fixture',
+          authOptions: const AuthClientOptions(autoRefreshToken: false),
+        ),
+      );
   final events = StreamController<AuthState>.broadcast();
   Session? session;
   @override
@@ -51,6 +59,7 @@ void main() {
       dotenv.loadFromString(envString: 'HACKATHON_JUDGE_MODE=false');
       final auth = DeviceAuth();
       final db = AppDatabase.forTesting(NativeDatabase.memory());
+      await db.writeRecord('device-preflight', 'sqlite-ready');
       final server = ContractServer(count: 375);
       final backend = Dio(BaseOptions(baseUrl: 'https://fixture.test/api/v1/'))
         ..httpClientAdapter = server;
@@ -58,6 +67,7 @@ void main() {
         ..httpClientAdapter = server;
       addTearDown(() async {
         await auth.events.close();
+        await auth.client.dispose();
         await db.close();
       });
       await tester.pumpWidget(
@@ -81,6 +91,21 @@ void main() {
       expect(find.text('Array total'), findsOneWidget);
       await tester.tap(find.text('Array total'));
       await tester.pumpAndSettle();
+      for (var i = 0; i < 100 && find.text('Editor').evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(
+        find.text('Editor'),
+        findsOneWidget,
+        reason: tester
+            .widgetList<ErrorState>(find.byType(ErrorState))
+            .map(
+              (w) => w.error is ApiFailure
+                  ? (w.error as ApiFailure).cause
+                  : w.error,
+            )
+            .join(' | '),
+      );
       await tester.tap(find.text('Editor'));
       await tester.pumpAndSettle();
       final editor = find.descendant(
@@ -112,9 +137,11 @@ void main() {
       expect(find.text('Fixture saved analysis'), findsOneWidget);
       await tester.tap(find.byTooltip('Close review'));
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Submissions & AI'));
       await tester.tap(find.text('Submissions & AI'));
       await tester.pumpAndSettle();
       expect(find.text('accepted'), findsOneWidget);
+      expect(find.text('2026-10-19T00:00:00Z'), findsOneWidget);
       expect(server.launches, 2);
       await tester.pageBack();
       await tester.pumpAndSettle();

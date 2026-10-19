@@ -44,12 +44,14 @@ flutter analyze
 flutter test
 dart run tool/prepare_build.dart build/production-defines.json
 flutter test integration_test/mobile_workflow_test.dart -d <device> --dart-define-from-file=build/verified-defines.json
-flutter build apk --debug --dart-define-from-file=build/verified-defines.json
+flutter build apk --debug --target-platform android-arm,android-arm64,android-x64 --dart-define-from-file=build/verified-defines.json
 flutter build apk --release --dart-define-from-file=build/verified-defines.json
 flutter build appbundle --release --dart-define-from-file=build/verified-defines.json
 ```
 
 The device integration test mocks **all authentication and network services**. It exercises device UI, SQLite drafts and navigation, without contacting production, consuming AI/sandbox budget, or proving real OAuth/judging. The normal debug APK uses the public production configuration and includes no test entry point. Do not distribute an integration-test APK as the app.
+
+Android device testing requires ARM, ARM64 or x86_64. The current SQLite native dependency does not ship 32-bit x86; an old x86-only emulator cannot validate persistence. Delivery/debug CI explicitly target the three supported ABIs. Production release uses Flutter's supported release ABIs.
 
 Install a verified APK with `adb install -r <apk>` or copy it to Android, allow installation from the chosen file app, and open it. If an older installation is signed with a different certificate, use a separate test device/profile or back up drafts before choosing to uninstall; never silently delete app data.
 
@@ -62,6 +64,8 @@ Install a verified APK with `adb install -r <apk>` or copy it to Android, allow 
 
 ## Verification evidence
 
-Local verification on 2026-10-19: dependency resolution passed (`flutter pub get --offline`, using installed locked packages), Drift generation passed (38 seconds), formatting passed, `flutter analyze --no-pub` reported **No issues found**, and `flutter test --no-pub` passed **53 tests with one live probe skipped**. Branding renderer passed one separate asset-generation test. Read-only production readiness returned HTTP 200; unauthenticated execution-capabilities returned HTTP 401 as required. These connectivity checks do not prove authenticated judging.
+Local verification on 2026-10-19: dependency resolution passed (`flutter pub get --offline`, using installed locked packages), Drift generation passed (38 seconds), formatting passed, `flutter analyze --no-pub` reported **No issues found**, and `flutter test --no-pub` passed **54 tests with one live probe skipped**. Branding renderer passed one separate asset-generation test. Read-only production readiness returned HTTP 200; unauthenticated execution-capabilities returned HTTP 401 as required. These connectivity checks do not prove authenticated judging.
 
 Evidence is recorded in `build/mobile-*.log` locally and in the Mobile CI run. Device/build artifact evidence is recorded separately after packaging. Do not infer release success from a stale APK or an unsigned iOS build.
+
+Mobile CI at https://github.com/saksham60/recallstack/actions/runs/39234397375 passed both Android validation/debug packaging and the macOS unsigned iOS release build for the initial candidate. That run used the PR merge commit; subsequent source changes require their own CI result. The unsigned iOS app is a build artifact, not an installable signed IPA.
