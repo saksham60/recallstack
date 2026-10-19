@@ -7,6 +7,8 @@ import '../features/identity/presentation/login_screen.dart';
 import '../features/feed/presentation/feed_screen.dart';
 import '../features/feed/presentation/story_detail_screen.dart';
 import '../features/dsa/dsa_screens.dart';
+import '../features/dsa/catalog_screen.dart';
+import '../features/dsa/canonical_workspace.dart';
 import '../features/revise/revise_screen.dart';
 import '../features/library/presentation/library_screen.dart';
 import '../features/profile/presentation/profile_screen.dart';
@@ -21,7 +23,14 @@ String? authRedirect(Session? session, Uri uri) {
     return '/login?from=${Uri.encodeComponent(target)}';
   }
   if (session != null && (path == '/login' || path == '/splash')) {
-    return '/feed';
+    final target = from == null ? null : Uri.tryParse(from);
+    return target != null &&
+            !target.hasScheme &&
+            !target.hasAuthority &&
+            target.path.startsWith('/') &&
+            !['/login', '/splash'].contains(target.path)
+        ? target.toString()
+        : '/feed';
   }
   return null;
 }
@@ -40,7 +49,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
       StatefulShellRoute.indexedStack(
-        builder: (_, _, shell) => AppShell(navigationShell: shell),
+        builder: (_, _, shell) =>
+            _AccountBoundary(child: AppShell(navigationShell: shell)),
         branches: [
           StatefulShellBranch(
             routes: [
@@ -51,7 +61,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/dsa',
-                builder: (_, _) => const DsaCategoriesScreen(),
+                builder: (_, _) => const DsaExplorerScreen(),
                 routes: [
                   GoRoute(
                     path: 'categories/:categoryId',
@@ -62,6 +72,13 @@ final routerProvider = Provider<GoRouter>((ref) {
                   ),
                   GoRoute(
                     path: 'problems/:slug',
+                    builder: (_, s) => CanonicalWorkspace(
+                      slug: s.pathParameters['slug']!,
+                      version: s.uri.queryParameters['version'],
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'study/:slug',
                     builder: (_, s) =>
                         DsaProblemScreen(slug: s.pathParameters['slug']!),
                   ),
@@ -92,15 +109,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: _root,
         path: '/story/:storyId',
-        builder: (_, s) =>
-            StoryDetailScreen(storyId: s.pathParameters['storyId']!),
+        builder: (_, s) => _AccountBoundary(
+          child: StoryDetailScreen(storyId: s.pathParameters['storyId']!),
+        ),
       ),
     ],
   );
   final subscription = auth.changes.listen(
     (_) => router.refresh(),
     onError: (Object error, StackTrace stackTrace) {
-      debugPrint('AUTH ERROR: $error\n$stackTrace');
+      // Do not log auth payloads, callback URLs, or session details.
       router.refresh();
     },
   );
@@ -110,3 +128,15 @@ final routerProvider = Provider<GoRouter>((ref) {
   });
   return router;
 });
+
+class _AccountBoundary extends ConsumerWidget {
+  const _AccountBoundary({required this.child});
+  final Widget child;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => KeyedSubtree(
+    key: ValueKey(
+      ref.watch(authStateProvider.select((state) => state.value?.user.id)),
+    ),
+    child: child,
+  );
+}

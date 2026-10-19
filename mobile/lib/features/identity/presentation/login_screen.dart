@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../app/env.dart';
 import '../../../core/api/api_failure.dart';
 import '../../../core/auth/auth_repository.dart';
+import '../../../core/telemetry/app_logger.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -19,14 +20,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     try {
       await action();
     } on AuthException catch (error) {
-      debugPrint('AUTH ERROR: ${error.message}');
+      AppLogger.error(error);
       if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(error.message)));
       }
-    } catch (error, stackTrace) {
-      debugPrint('AUTH ERROR: $error\n$stackTrace');
+    } catch (error) {
+      AppLogger.error(error);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -52,10 +53,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Spacer(),
-            Icon(
-              Icons.auto_awesome,
-              color: Theme.of(context).colorScheme.primary,
-              size: 56,
+            Image.asset(
+              'assets/brand/reasonai-1024.png',
+              height: 80,
+              semanticLabel: 'ReasonAI',
             ),
             const SizedBox(height: 20),
             Text(

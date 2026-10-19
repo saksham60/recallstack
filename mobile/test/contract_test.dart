@@ -71,8 +71,22 @@ void main() {
         session,
         Uri.parse('/login?from=%2Fdsa%2Fproblems%2Ftwo-sum'),
       ),
-      '/feed',
+      '/dsa/problems/two-sum',
     );
+    for (final from in [
+      'https://evil.example/path',
+      '//evil.example/path',
+      '/login',
+      '/splash',
+    ]) {
+      expect(
+        authRedirect(
+          session,
+          Uri.parse('/login?from=${Uri.encodeComponent(from)}'),
+        ),
+        '/feed',
+      );
+    }
     expect(authRedirect(session, Uri.parse('/login')), '/feed');
     final anonymousSession = Session(
       accessToken: 'anonymous-token',
