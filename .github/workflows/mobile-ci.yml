@@ -47,6 +47,10 @@ jobs:
       - run: dart format --output=none --set-exit-if-changed .
       - run: flutter analyze
       - run: flutter test
+      - name: Bound Android CI transform memory
+        run: |
+          mkdir -p "$HOME/.gradle"
+          printf '%s\n' 'org.gradle.jvmargs=-Xmx4G -XX:MaxMetaspaceSize=1G -XX:ReservedCodeCacheSize=256m' > "$HOME/.gradle/gradle.properties"
       - name: Prepare public production configuration
         env:
           MOBILE_API_BASE_URL: ${{ vars.MOBILE_API_BASE_URL }}
