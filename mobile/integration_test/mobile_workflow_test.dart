@@ -60,6 +60,10 @@ void main() {
   testWidgets(
     'device workflow: login, edit, recover draft, Run, Submit, history, AI and navigation',
     (tester) async {
+      // Profile builds reject the debug-only text-input client ID -1. Register
+      // the test IME so enterText targets a real connection in both modes.
+      tester.testTextInput.register();
+      addTearDown(tester.testTextInput.unregister);
       var converted = false;
       Future<void> preview(String name) async {
         if (!const bool.fromEnvironment('CAPTURE_MOBILE_PREVIEWS')) return;
@@ -151,6 +155,7 @@ void main() {
       );
       const source = 'def solve(nums):\n    return sum(nums)';
       await tester.enterText(editor, source);
+      expect(tester.widget<TextField>(editor).controller?.text, source);
       // SQLite completion is asynchronous on a loaded emulator; await the
       // persisted value rather than assuming a single frame delay flushed it.
       for (var i = 0; i < 40; i++) {
