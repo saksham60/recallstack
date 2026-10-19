@@ -151,7 +151,16 @@ void main() {
       );
       const source = 'def solve(nums):\n    return sum(nums)';
       await tester.enterText(editor, source);
-      await tester.pump(const Duration(seconds: 1));
+      // SQLite completion is asynchronous on a loaded emulator; await the
+      // persisted value rather than assuming a single frame delay flushed it.
+      for (var i = 0; i < 40; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+        if ((await db.getDraft(
+              'canonical:$problemId:$problemVersion:python',
+            ))?.code ==
+            source)
+          break;
+      }
       expect(
         (await db.getDraft(
           'canonical:$problemId:$problemVersion:python',
