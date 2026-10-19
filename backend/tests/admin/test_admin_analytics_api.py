@@ -27,6 +27,31 @@ NOW = datetime(2026, 7, 28, 12, tzinfo=UTC)
 
 
 class StubAnalyticsService:
+    async def growth(self, days: int, **kwargs: object) -> dict[str, object]:
+        del kwargs
+        return {
+            "period_days": days,
+            "generated_at": datetime.now(UTC),
+            "total_users": 12,
+            "new_users": 4,
+            "tracked_engaged_users": 3,
+            "newly_engaged_users": 2,
+            "activation_rate": 0.5,
+            "ai_runs": 5,
+            "ai_failed_runs": 1,
+            "knowledge_events": 7,
+            "dsa_submissions": 8,
+            "tracking_source_available": False,
+            "signup_source_unknown": 4,
+            "daily_signups": [
+                {"day": (datetime.now(UTC) - timedelta(days=i)).date(), "signups": 0}
+                for i in range(days)
+            ],
+            "feature_usage": [
+                {"feature": "dsa", "unique_users": 3},
+            ],
+        }
+
     async def overview(self, **kwargs: object) -> dict[str, object]:
         del kwargs
         return {
@@ -223,6 +248,7 @@ class RejectingCurrentUserProvider:
 
 ADMIN_ENDPOINTS = (
     "/api/v1/admin/overview",
+    "/api/v1/admin/growth",
     "/api/v1/admin/users",
     f"/api/v1/admin/users/{TARGET_USER_ID}",
     f"/api/v1/admin/users/{TARGET_USER_ID}/activity",
@@ -230,6 +256,42 @@ ADMIN_ENDPOINTS = (
     f"/api/v1/admin/problems/{TARGET_PROBLEM_ID}/analytics",
     "/api/v1/admin/audit-logs",
 )
+
+
+@pytest.mark.parametrize(
+    ("query_string", "expected_days"),
+    (
+        ("", 30),
+        ("?days=7", 7),
+        ("?days=30", 30),
+        ("?days=90", 90),
+    ),
+)
+async def test_growth_days_are_parsed_from_http_query(
+    query_string: str, expected_days: int
+) -> None:
+    profile_id = uuid4()
+    app = _app(CurrentUser(profile_id, profile_id, frozenset({"admin"})))
+    async with app.router.lifespan_context(app):
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.get(f"/api/v1/admin/growth{query_string}")
+    assert response.status_code == 200, response.text
+    assert response.json()["period_days"] == expected_days
+    assert len(response.json()["daily_signups"]) == expected_days
+
+
+@pytest.mark.parametrize("days", ("0", "14", "91", "abc", "30.5"))
+async def test_growth_rejects_unsupported_http_days(days: str) -> None:
+    profile_id = uuid4()
+    app = _app(CurrentUser(profile_id, profile_id, frozenset({"admin"})))
+    async with app.router.lifespan_context(app):
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.get("/api/v1/admin/growth", params={"days": days})
+    assert response.status_code == 422
 
 
 async def test_admin_overview_is_authorized_and_typed() -> None:
