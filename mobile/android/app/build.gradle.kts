@@ -22,6 +22,15 @@ android {
         jvmTarget = JavaVersion.VERSION_11.toString()
     }
 
+    packaging {
+        jniLibs {
+            // Transitive plugins ship x86 helpers even though Flutter release
+            // and our SQLite library support ARM, ARM64 and x86_64 only.
+            // Exclude them so Android cannot select an incomplete x86 ABI.
+            excludes += "**/x86/*.so"
+        }
+    }
+
     defaultConfig {
         applicationId = "com.recallstack.app"
         // You can update the following values to match your application needs.
