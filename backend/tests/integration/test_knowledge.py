@@ -240,6 +240,63 @@ async def test_actual_schema_feed_filters_ranking_cursor_and_query_count(contrac
     assert not (await feed.query(other, topic=scope)).items
 
 
+async def test_saved_stories_persist_owner_state_without_feed_preference_filters(contract):
+    connection, factory, user, other, source_id, scope, ids = contract
+
+    def uow():
+        return SqlAlchemyKnowledgeUnitOfWork(factory)
+
+    feed = FeedService(uow, CursorCodec("rollback-contract-cursor-32-characters"))
+    events = EventService(uow)
+    now = datetime.now(UTC)
+    # Include the visible eight-day-old story and a hidden-but-saved story.
+    await events.record(
+        user, tuple(StoryEvent(uuid4(), sid, EventType.SAVE, now) for sid in (*ids[:5], ids[7]))
+    )
+    # Even legacy saved state cannot resurrect expired/inactive stories.
+    await connection.execute(
+        insert(State).values(
+            [
+                {
+                    "profile_id": user,
+                    "story_id": sid,
+                    "saved": True,
+                    "hidden": False,
+                    "updated_at": now,
+                }
+                for sid in ids[5:7]
+            ]
+        )
+    )
+    await PreferenceService(uow).patch(
+        user,
+        PreferencePatch(
+            minimum_importance=Decimal("1"),
+            topics=(TopicPreference(scope, blocked=True),),
+            sources=(SourcePreference(scope, False),),
+        ),
+    )
+    assert not (await feed.query(user)).items
+    seen, cursor = [], None
+    while True:
+        page = await feed.saved(user, limit=2, cursor=cursor)
+        seen.extend(item.id for item in page.items)
+        assert all(item.viewer_state.saved for item in page.items)
+        if not page.has_more:
+            break
+        cursor = page.next_cursor
+    assert len(seen) == len(set(seen)) == 6 and set(seen) == {*ids[:5], ids[7]}
+    assert not (await feed.saved(other)).items
+    await events.record(
+        user, (StoryEvent(uuid4(), ids[4], EventType.UNSAVE, now + timedelta(seconds=1)),)
+    )
+    assert ids[4] not in {item.id for item in (await feed.saved(user)).items}
+    await connection.execute(
+        Source.__table__.update().where(Source.id == source_id).values(enabled=False)
+    )
+    assert not (await feed.saved(user)).items
+
+
 async def test_interest_prompt_ranks_matching_story_for_its_owner(contract):
     connection, factory, user, other, _, scope, ids = contract
 

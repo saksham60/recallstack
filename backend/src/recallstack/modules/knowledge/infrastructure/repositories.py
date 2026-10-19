@@ -175,6 +175,43 @@ class SqlAlchemyKnowledgeRepository:
             for story, source_model, state, value in rows
         )
 
+    async def saved_stories(
+        self,
+        *,
+        profile_id: UUID,
+        anchor: datetime,
+        now: datetime,
+        after: FeedPosition | None,
+        limit: int,
+    ) -> tuple[KnowledgeStory, ...]:
+        statement = (
+            select(Story, Source, State)
+            .join(Source, Story.source_id == Source.id)
+            .join(State, and_(State.story_id == Story.id, State.profile_id == profile_id))
+            .where(
+                State.saved.is_(True),
+                Story.status == "active",
+                Story.published_at >= now - STORY_VISIBILITY_WINDOW,
+                Story.published_at <= anchor,
+                Story.created_at <= anchor,
+                Source.enabled.is_(True),
+            )
+        )
+        if after is not None:
+            statement = statement.where(
+                tuple_(Story.published_at, Story.id)
+                < tuple_(literal(after.published_at), literal(after.story_id))
+            )
+        rows = (
+            await self._session.execute(
+                statement.order_by(Story.published_at.desc(), Story.id.desc()).limit(limit)
+            )
+        ).all()
+        topics = await self._topics(tuple(row[0].id for row in rows))
+        return tuple(
+            story_to_domain(story, source, topics[story.id], state) for story, source, state in rows
+        )
+
     async def story(
         self,
         story_id: UUID,

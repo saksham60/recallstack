@@ -14,7 +14,7 @@ from recallstack.modules.knowledge.application.feed import FeedService
 from recallstack.modules.knowledge.application.ports import RankedStory
 from recallstack.modules.knowledge.application.preferences import PreferenceService
 from recallstack.modules.knowledge.application.refresh import RefreshRun
-from recallstack.modules.knowledge.domain.entities import Preferences
+from recallstack.modules.knowledge.domain.entities import Preferences, ViewerState
 from recallstack.shared.auth import CurrentUser
 from recallstack.shared.config import Settings
 from tests.knowledge.fakes import SOURCE, story
@@ -65,6 +65,29 @@ class FakeRepository:
 
     async def story(self, story_id, now, profile_id=None):
         return next((row.story for row in self.rows if row.story.id == story_id), None)
+
+    async def saved_stories(self, *, profile_id, anchor, now, after, limit):
+        latest = {}
+        for (owner, _), event in self.events.items():
+            if owner == profile_id and event.type in {"SAVE", "UNSAVE"}:
+                old = latest.get(event.story_id)
+                if old is None or (event.occurred_at, event.event_id) > (
+                    old.occurred_at,
+                    old.event_id,
+                ):
+                    latest[event.story_id] = event
+        return tuple(
+            replace(row.story, viewer_state=ViewerState(saved=True))
+            for row in sorted(
+                self.rows, key=lambda r: (r.story.published_at, r.story.id), reverse=True
+            )
+            if row.story.id in latest
+            and latest[row.story.id].type == "SAVE"
+            and (
+                after is None
+                or (row.story.published_at, row.story.id) < (after.published_at, after.story_id)
+            )
+        )[:limit]
 
     async def record_events(self, profile_id, events, now):
         count = 0
@@ -122,6 +145,7 @@ async def api():
     "method,path,payload",
     [
         ("GET", "/feed", None),
+        ("GET", "/saved-stories", None),
         ("GET", f"/stories/{uuid4()}", None),
         ("GET", "/preferences", None),
         ("PATCH", "/preferences", {}),
@@ -214,6 +238,68 @@ async def test_feed_source_filter_is_forwarded_and_cursor_scoped(api):
             params={"limit": 2, "cursor": cursor},
         )
         assert changed.status_code == 422
+
+
+async def test_saved_stories_are_owned_paginated_and_follow_durable_save_state(api):
+    app, client, user, repo, _ = api
+    authenticate(app, user)
+    path = "/api/v1/knowledge/saved-stories"
+    assert (await client.get(path)).json()["items"] == []
+
+    async def save(story_id, kind="SAVE"):
+        response = await client.post(
+            "/api/v1/knowledge/events/batch",
+            json={
+                "events": [
+                    {
+                        "eventId": str(uuid4()),
+                        "storyId": str(story_id),
+                        "type": kind,
+                        "occurredAt": datetime.now(UTC).isoformat(),
+                    }
+                ]
+            },
+        )
+        assert response.status_code == 200, response.text
+
+    for row in repo.rows:
+        await save(row.story.id)
+    first = (await client.get(path, params={"limit": 2})).json()
+    cursor = first["nextCursor"]
+    seen = [item["id"] for item in first["items"]]
+    assert first["hasMore"] and all(item["viewerState"]["saved"] for item in first["items"])
+    while cursor:
+        page = (await client.get(path, params={"limit": 2, "cursor": cursor})).json()
+        seen.extend(item["id"] for item in page["items"])
+        cursor = page["nextCursor"]
+    assert len(seen) == len(set(seen)) == 5
+    assert seen == [str(row.story.id) for row in repo.rows]
+
+    feed_cursor = (await client.get("/api/v1/knowledge/feed", params={"limit": 2})).json()[
+        "nextCursor"
+    ]
+    assert (await client.get(path, params={"cursor": feed_cursor})).status_code == 409
+    assert (
+        await client.get("/api/v1/knowledge/feed", params={"cursor": first["nextCursor"]})
+    ).status_code == 409
+    authenticate(app, uuid4())
+    assert (await client.get(path)).json()["items"] == []
+    assert (await client.get(path, params={"cursor": first["nextCursor"]})).status_code == 422
+    authenticate(app, user)
+    await save(repo.rows[0].story.id, "UNSAVE")
+    remaining = (await client.get(path)).json()["items"]
+    assert len(remaining) == 4 and str(repo.rows[0].story.id) not in {
+        item["id"] for item in remaining
+    }
+
+
+@pytest.mark.parametrize(
+    "params", [{"limit": 0}, {"limit": 51}, {"cursor": "bad"}, {"cursor": "x" * 2049}]
+)
+async def test_saved_stories_reject_invalid_parameters(api, params):
+    app, client, user, _, _ = api
+    authenticate(app, user)
+    assert (await client.get("/api/v1/knowledge/saved-stories", params=params)).status_code == 422
 
 
 @pytest.mark.parametrize(

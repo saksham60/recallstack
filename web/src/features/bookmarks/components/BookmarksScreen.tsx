@@ -6,14 +6,36 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { getApiErrorMessage } from "@/lib/api/errors";
 import { BookmarkButton } from "./BookmarkButton";
 import { useBookmarks } from "../use-bookmarks";
+import { SavedStories } from "./SavedStories";
 
 export function BookmarksScreen() {
+  return (
+    <div className="space-y-10">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Bookmarks</h1>
+        <p className="mt-1 text-sm text-muted">Your saved stories and learning content.</p>
+      </div>
+      <section aria-labelledby="saved-stories-heading" className="space-y-4">
+        <div>
+          <h2 id="saved-stories-heading" className="text-lg font-semibold">Saved stories</h2>
+          <p className="mt-1 text-sm text-muted">From your Knowledge Feed, newest published first. Stories remain available while they are in the feed.</p>
+        </div>
+        <SavedStories />
+      </section>
+      <section aria-labelledby="saved-content-heading" className="space-y-4">
+        <h2 id="saved-content-heading" className="text-lg font-semibold">Learning content</h2>
+        <ContentBookmarks />
+      </section>
+    </div>
+  );
+}
+
+function ContentBookmarks() {
   const { data, isLoading, error } = useBookmarks(1, 50);
 
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold tracking-tight">Bookmarks</h1>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">{Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-24 rounded-xl border border-border bg-surface shadow-sm animate-pulse" />)}</div>
       </div>
     );
@@ -26,7 +48,6 @@ export function BookmarksScreen() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-bold tracking-tight">Bookmarks</h1><p className="text-muted text-sm mt-1">Quick access to saved content.</p></div>
         <span className="text-sm text-muted bg-surface-elevated px-3 py-1 rounded-full border border-border">{data.pagination.total_items} items</span>
       </div>
 

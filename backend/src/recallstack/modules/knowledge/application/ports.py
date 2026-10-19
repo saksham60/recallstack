@@ -56,6 +56,15 @@ class KnowledgeRepository(Protocol):
         now: datetime,
         profile_id: UUID | None = None,
     ) -> KnowledgeStory | None: ...
+    async def saved_stories(
+        self,
+        *,
+        profile_id: UUID,
+        anchor: datetime,
+        now: datetime,
+        after: FeedPosition | None,
+        limit: int,
+    ) -> tuple[KnowledgeStory, ...]: ...
     async def record_events(
         self,
         profile_id: UUID,

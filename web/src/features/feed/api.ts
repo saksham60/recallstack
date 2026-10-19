@@ -22,6 +22,12 @@ async function authenticated<T>(request: () => Promise<T>, signal?: AbortSignal)
 }
 
 export const feedApi = {
+  async saved(cursor: string | null, signal?: AbortSignal) {
+    const { data } = await authenticated(() => apiClient.GET("/api/v1/knowledge/saved-stories", {
+      params: { query: { limit: 20, ...(cursor ? { cursor } : {}) } }, signal,
+    }), signal);
+    return parseFeedPage(data);
+  },
   async list(topic: string, cursor: string | null, signal?: AbortSignal) {
     const { data } = await authenticated(() => apiClient.GET("/api/v1/knowledge/feed", {
       params: { query: { limit: 10, ...(topic ? { topic } : {}), ...(cursor ? { cursor } : {}) } }, signal,

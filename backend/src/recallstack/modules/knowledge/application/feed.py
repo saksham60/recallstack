@@ -2,6 +2,7 @@ import logging
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from decimal import Decimal
 from uuid import UUID
 
 from recallstack.modules.knowledge.application.cursor import (
@@ -109,6 +110,54 @@ class FeedService:
             },
         )
         return FeedPage(tuple(row.story for row in rows), next_cursor, has_more)
+
+    async def saved(
+        self,
+        profile_id: UUID,
+        *,
+        limit: int | None = None,
+        cursor: str | None = None,
+    ) -> FeedPage:
+        """Saved stories, newest publication first, independent of feed preferences."""
+        limit = self._default_limit if limit is None else limit
+        if not 1 <= limit <= self._max_limit:
+            raise invalid(f"limit must be between 1 and {self._max_limit}")
+        now = datetime.now(UTC)
+        # Separate signed scope prevents feed cursors being reused for bookmarks.
+        scope = "saved-stories:v1"
+        decoded = (
+            self._codec.decode(
+                cursor,
+                profile_id=profile_id,
+                topic=None,
+                source=None,
+                fingerprint=scope,
+                now=now,
+            )
+            if cursor
+            else None
+        )
+        anchor = decoded.anchor if decoded else now
+        async with self._uow() as uow:
+            rows = await uow.repository.saved_stories(
+                profile_id=profile_id,
+                anchor=anchor,
+                now=now,
+                after=decoded.position if decoded else None,
+                limit=limit + 1,
+            )
+        has_more, rows = len(rows) > limit, rows[:limit]
+        next_cursor = None
+        if has_more:
+            last = rows[-1]
+            next_cursor = self._codec.encode(
+                FeedCursor(anchor, FeedPosition(Decimal(0), last.published_at, last.id)),
+                profile_id=profile_id,
+                topic=None,
+                source=None,
+                fingerprint=scope,
+            )
+        return FeedPage(rows, next_cursor, has_more)
 
     async def story(
         self,

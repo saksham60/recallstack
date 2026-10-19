@@ -575,6 +575,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/growth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get cross-surface platform growth
+         * @description Authenticated admin-only signup and recorded engagement aggregates; referral attribution is not yet captured.
+         */
+        get: operations["adminPlatformGrowth"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/users": {
         parameters: {
             query?: never;
@@ -1222,6 +1242,23 @@ export interface paths {
         };
         /** Feed */
         get: operations["getKnowledgeFeed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/knowledge/saved-stories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Saved Stories */
+        get: operations["getSavedKnowledgeStories"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2357,6 +2394,64 @@ export interface components {
         GrantRoleRequest: {
             /** Role Id */
             role_id: number;
+        };
+        /** GrowthDailyPoint */
+        GrowthDailyPoint: {
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Signups */
+            signups: number;
+        };
+        /**
+         * GrowthDays
+         * @enum {integer}
+         */
+        GrowthDays: 7 | 30 | 90;
+        /** GrowthFeatureMetric */
+        GrowthFeatureMetric: {
+            /** Feature */
+            feature: string;
+            /** Unique Users */
+            unique_users: number;
+        };
+        /** GrowthResponse */
+        GrowthResponse: {
+            /** Period Days */
+            period_days: number;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Total Users */
+            total_users: number;
+            /** New Users */
+            new_users: number;
+            /** Tracked Engaged Users */
+            tracked_engaged_users: number;
+            /** Newly Engaged Users */
+            newly_engaged_users: number;
+            /** Activation Rate */
+            activation_rate: number;
+            /** Ai Runs */
+            ai_runs: number;
+            /** Ai Failed Runs */
+            ai_failed_runs: number;
+            /** Knowledge Events */
+            knowledge_events: number;
+            /** Dsa Submissions */
+            dsa_submissions: number;
+            /** Tracking Source Available */
+            tracking_source_available: boolean;
+            /** Signup Source Unknown */
+            signup_source_unknown: number;
+            /** Daily Signups */
+            daily_signups: components["schemas"]["GrowthDailyPoint"][];
+            /** Feature Usage */
+            feature_usage: components["schemas"]["GrowthFeatureMetric"][];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -5508,6 +5603,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OverviewResponse"];
+                };
+            };
+        };
+    };
+    adminPlatformGrowth: {
+        parameters: {
+            query?: {
+                days?: components["schemas"]["GrowthDays"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrowthResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -9879,6 +10005,38 @@ export interface operations {
                 cursor?: string | null;
                 topic?: string | null;
                 source?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getSavedKnowledgeStories: {
+        parameters: {
+            query?: {
+                limit?: number | null;
+                cursor?: string | null;
             };
             header?: never;
             path?: never;

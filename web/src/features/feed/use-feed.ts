@@ -6,9 +6,20 @@ import { feedApi, feedErrorMessage, retryFeedRequest } from "./api";
 import type { FeedEvent, FeedPage, FeedStory } from "./model";
 
 export const feedKeys = {
+  saved: (userId: string) => ["saved-stories", userId] as const,
   list: (userId: string, topic: string, start: string | null) => ["feed", userId, topic, start] as const,
   story: (userId: string, id: string) => ["feed-story", userId, id] as const,
 };
+
+export function useSavedStories(userId: string) {
+  return useInfiniteQuery({
+    queryKey: feedKeys.saved(userId),
+    queryFn: ({ pageParam, signal }) => feedApi.saved(pageParam, signal),
+    initialPageParam: null as string | null,
+    getNextPageParam: (page, _pages, lastCursor, cursors) => page.hasMore && page.nextCursor !== lastCursor && !cursors.includes(page.nextCursor) ? page.nextCursor : undefined,
+    enabled: Boolean(userId), retry: retryFeedRequest,
+  });
+}
 
 export function useFeed(userId: string, topic: string, start: string | null) {
   return useInfiniteQuery({
@@ -66,9 +77,17 @@ export function useFeedActions(userId: string) {
     const next = !story.viewerState.saved;
     try {
       await mutation.mutateAsync(event(id, next ? "SAVE" : "UNSAVE"));
+      // Cancel stale list responses before changing the acknowledged saved state.
+      await client.cancelQueries({ queryKey: feedKeys.saved(userId) });
       const update = (item: FeedStory) => item.id === id ? { ...item, viewerState: { ...item.viewerState, saved: next } } : item;
       client.setQueriesData<InfiniteData<FeedPage>>({ queryKey: ["feed", userId] }, (current) => current ? { ...current, pages: current.pages.map((page) => ({ ...page, items: page.items.map(update) })) } : current);
       client.setQueryData<FeedStory>(feedKeys.story(userId, id), (current) => current ? update(current) : current);
+      if (!next) {
+        client.setQueryData<InfiniteData<FeedPage>>(feedKeys.saved(userId), (current) => current ? {
+          ...current, pages: current.pages.map((page) => ({ ...page, items: page.items.filter((item) => item.id !== id) })),
+        } : current);
+      }
+      void client.invalidateQueries({ queryKey: feedKeys.saved(userId) });
       setNotice({ storyId: id, text: next ? "Story saved" : "Story removed from saved" });
     } catch (error) { setNotice({ storyId: id, text: feedErrorMessage(error), failed: true }); }
     finally { stateChange.current = false; }

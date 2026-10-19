@@ -21,6 +21,18 @@
 
 ## API and authentication
 
+### Saved stories in web Bookmarks
+
+`/bookmarks` includes a Saved stories section alongside existing learning bookmarks. It queries durable per-user saved state, including saves made in other clients, rather than filtering the currently buffered feed. Stories are ordered by publication date descending, with UUID as a stable tie-breaker, and loaded 20 at a time. Read story opens the existing `/feed?story=<uuid>` detail and ReasonAI experience.
+
+Save/Unsave continues through the acknowledged event API. Successful changes invalidate the account-scoped saved-list cache; Unsave removes the card only after acknowledgement, and failures keep it visible with a retryable notice. Saved stories and learning bookmarks load independently, so a failure in one does not hide the other.
+
+The authenticated `GET /api/v1/knowledge/saved-stories` endpoint accepts `limit` (1–50) and a signed `cursor`, and returns the existing feed envelope. Ownership comes exclusively from the verified profile. Cursors are scoped to that profile and this list, expire after one hour, and cannot be substituted for ranked-feed cursors. The query uses existing `user_story_state.saved` data, requires no migration, and does not apply personal feed filters or hidden state. Global source disable, inactive stories, and the existing visibility window still apply; saving does not extend retention. Event writes use the same visibility window so visible older stories remain saveable and removable.
+
+Deploy the backend endpoint with the web change. An older backend returns a recoverable Saved stories error without affecting learning bookmarks.
+
+Saved-stories verification (October 19, 2026): 88 Knowledge unit tests and all seven PostgreSQL integration tests passed; strict Knowledge mypy, scoped Ruff/format checks, web type checking and scoped ESLint passed. All 27 focused Feed/Bookmarks browser cases passed across the initial run and corrected-case rerun. Cold development-route timeouts were resolved by warming the local server; new assertions were scoped to the saved section and the detail heading level. Browser cases use authenticated API fixtures; PostgreSQL tests verify actual persisted event state in rolled-back transactions. These checks do not claim authenticated production verification.
+
 Feed requests use the existing generated `openapi-fetch` client and Supabase bearer credentials. An expired session gets at most one refresh/retry. Exhausted authentication shows the existing login path. Query caches are scoped to the signed-in user. Errors never display raw backend diagnostics.
 
 Endpoints:
@@ -28,6 +40,7 @@ Endpoints:
 | Endpoint | Use |
 | --- | --- |
 | `GET /api/v1/knowledge/feed?limit=10&cursor=…&topic=…` | Cursor pagination and topic filters |
+| `GET /api/v1/knowledge/saved-stories?limit=20&cursor=…` | Account-owned saved stories for Bookmarks |
 | `GET /api/v1/knowledge/stories/{storyId}` | Deep links and canonical chat context |
 | `POST /api/v1/knowledge/events/batch` | Durable Save/Unsave and interaction analytics |
 | `GET/PATCH /api/v1/knowledge/preferences` | Read and save interest categories |

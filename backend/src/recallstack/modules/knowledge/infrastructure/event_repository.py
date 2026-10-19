@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from recallstack.modules.knowledge.application.errors import invalid
-from recallstack.modules.knowledge.domain.entities import RETENTION, StoryEvent
+from recallstack.modules.knowledge.domain.entities import STORY_VISIBILITY_WINDOW, StoryEvent
 from recallstack.modules.knowledge.infrastructure.preference_repository import lock_profile
 from recallstack.modules.knowledge.infrastructure.sqlalchemy_models import (
     KnowledgeStoryModel as Story,
@@ -33,7 +33,7 @@ async def record_events(
             .where(
                 Story.id.in_(story_ids),
                 Story.status == "active",
-                Story.published_at >= now - RETENTION,
+                Story.published_at >= now - STORY_VISIBILITY_WINDOW,
                 Story.published_at <= now,
             )
             .order_by(Story.id)

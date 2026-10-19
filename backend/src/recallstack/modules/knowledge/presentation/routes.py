@@ -72,6 +72,19 @@ async def feed(
     return FeedResponse.model_validate(result)
 
 
+@router.get("/saved-stories", response_model=FeedResponse, operation_id="getSavedKnowledgeStories")
+async def saved_stories(
+    request: Request,
+    current_user: CurrentUserDependency,
+    limit: Annotated[int | None, Query(ge=1, le=50)] = None,
+    cursor: Annotated[str | None, Query(min_length=1, max_length=2048)] = None,
+) -> FeedResponse:
+    service = cast(FeedService, request.app.state.knowledge_feed_service)
+    return FeedResponse.model_validate(
+        await service.saved(current_user.profile_id, limit=limit, cursor=cursor)
+    )
+
+
 @router.get("/stories/{storyId}", response_model=StoryResponse, operation_id="getKnowledgeStory")
 async def story(
     story_id: Annotated[UUID, Path(alias="storyId")],
