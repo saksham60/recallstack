@@ -2,6 +2,8 @@
 
 Flutter client for ReasonAI's learning and knowledge experience. The mobile app is intentionally focused on the workflows that make sense on a phone: Knowledge Feed, Ask ReasonAI, DSA learning, revision, saved material, search, profile and preferences.
 
+The 1.0.0 (2) release candidate adds the canonical DSA explorer, mobile Python editor, server Run/Submit, saved submissions and Code Intelligence. See [release readiness](docs/release-readiness.md) for current contracts, verified checks, packaging, branding, and outstanding signing/live-verification gates. Implementation status does not imply production release approval.
+
 System Design canvas collaboration remains a web-only capability today. The mobile app does not embed the Konva canvas, the Go realtime room protocol, or System Design editing.
 
 This README documents the current mobile implementation and its boundaries. It distinguishes server-authoritative state, device-local state, streamed AI state, and capabilities that exist in the backend but are not yet wired into Flutter.
@@ -165,7 +167,7 @@ Routing is centrally protected:
 
 - unauthenticated navigation outside `/login` redirects to login,
 - the desired destination is preserved in `from`,
-- an authenticated user visiting `/login` or `/splash` is redirected to `/feed`,
+- after login, a validated internal `from` destination is restored; otherwise the user is redirected to `/feed`,
 - auth-state changes call `router.refresh()`.
 
 This avoids implementing login checks separately in every feature screen.
@@ -418,6 +420,10 @@ This local history is conversational context supplied by the client. For DSA, it
 ---
 
 ## 9. DSA mobile architecture
+
+The DSA tab now uses the canonical cursor-based `/api/v1/dsa/problems` catalog, with server search, difficulty/category filters, company tags, bookmarks and progress. Opening a problem resolves its exact published version. The four workspace tabs are **Description**, **Editor**, **Results**, and **Submissions & AI**. Python drafts are keyed by account/problem/version/language. Run and Submit use authenticated `/api/dsa/executions`; original requests and idempotency keys survive interrupted responses. History and reports are retrieved from the existing web APIs. Submit never renders case-level hidden evidence. See the release-readiness contract table for endpoint details and lifecycle safeguards.
+
+The following category/study-note flows remain available for legacy content at `/dsa/categories/:id` and `/dsa/study/:slug`; they are separate from canonical judging.
 
 DSA is the deepest mobile learning workflow.
 
@@ -1208,6 +1214,9 @@ Before merging substantial mobile changes, run the same format/analyze/test/buil
 | Tool status rendering | Implemented |
 | Source/citation rendering | Implemented |
 | DSA browse/read | Implemented |
+| Canonical DSA Run/Submit | Integrated with existing judging API; live release smoke test required |
+| Saved submission history and Code Intelligence | Integrated with existing persistence/report lifecycle |
+| Python keyboard accessory and syntax editor | Implemented |
 | DSA local approach/code drafts | Implemented |
 | DSA bookmarks/notes | Implemented |
 | DSA practice result submission | Implemented |

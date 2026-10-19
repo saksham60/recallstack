@@ -78,15 +78,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   @override
   Widget build(BuildContext context) => DefaultTabController(
-    length: 3,
+    length: 4,
     child: Scaffold(
       appBar: AppBar(
         title: const Text('Library'),
         bottom: const TabBar(
+          isScrollable: true,
           tabs: [
             Tab(text: 'Saved'),
             Tab(text: 'Bookmarks'),
             Tab(text: 'Search'),
+            Tab(text: 'Notes'),
           ],
         ),
       ),
@@ -260,6 +262,48 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               ),
             ],
           ),
+          ref
+              .watch(allNotesProvider)
+              .when(
+                loading: () => const ListSkeleton(itemHeight: 72),
+                error: (error, stack) => ErrorState(
+                  error: error,
+                  onRetry: () => ref.invalidate(allNotesProvider),
+                ),
+                data: (notes) => notes.isEmpty
+                    ? const EmptyState(
+                        icon: Icons.notes,
+                        title: 'No study notes',
+                        body: 'Your saved notes appear here.',
+                      )
+                    : RefreshIndicator(
+                        onRefresh: () async {
+                          ref.invalidate(allNotesProvider);
+                          await ref.read(allNotesProvider.future);
+                        },
+                        child: ListView.builder(
+                          itemCount: notes.length,
+                          itemBuilder: (context, index) {
+                            final note = notes[index];
+                            return ExpansionTile(
+                              title: Text(
+                                note['title'] as String? ??
+                                    note['kind'] as String? ??
+                                    'Study note',
+                              ),
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: SelectableText(
+                                    note['body'] as String? ?? '',
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+              ),
         ],
       ),
     ),

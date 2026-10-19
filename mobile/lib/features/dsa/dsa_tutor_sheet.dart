@@ -10,6 +10,8 @@ import '../../core/reasonai/reasonai_state.dart';
 import '../../core/reasonai/reasonai_stream.dart';
 import '../../core/reasonai/reasonai_widgets.dart';
 import '../../core/reasonai/visual_lesson.dart';
+import '../../core/reasonai/conversation_store.dart';
+import '../../core/db/app_database.dart';
 import 'dsa_api.dart';
 import 'dsa_context.dart';
 import 'dsa_models.dart';
@@ -19,6 +21,7 @@ Future<void> showDsaTutor(
   StudyNote note, {
   required String approach,
   required String code,
+  Map<String, dynamic>? canonicalContext,
 }) {
   final mobile = MediaQuery.sizeOf(context).width <= 768;
   return showModalBottomSheet<void>(
@@ -29,7 +32,12 @@ Future<void> showDsaTutor(
     enableDrag: true,
     barrierColor: Colors.black54,
     backgroundColor: mobile ? Colors.transparent : null,
-    builder: (_) => DsaTutorSheet(note: note, approach: approach, code: code),
+    builder: (_) => DsaTutorSheet(
+      note: note,
+      approach: approach,
+      code: code,
+      canonicalContext: canonicalContext,
+    ),
   );
 }
 
@@ -83,9 +91,11 @@ class DsaTutorSheet extends ConsumerStatefulWidget {
     required this.note,
     required this.approach,
     required this.code,
+    this.canonicalContext,
   });
   final StudyNote note;
   final String approach, code;
+  final Map<String, dynamic>? canonicalContext;
   @override
   ConsumerState<DsaTutorSheet> createState() => _DsaTutorSheetState();
 }
@@ -99,14 +109,72 @@ class _DsaTutorSheetState extends ConsumerState<DsaTutorSheet> {
   ChatState? beforeLast;
   CancelToken? token;
   late final Dio webDio;
+  ConversationStore? conversationStore;
+  bool restoring = false;
+  int restoreGeneration = 0;
+  CancelToken? restoreToken;
+  String get conversationKey =>
+      'dsa:${widget.note.id}:${widget.canonicalContext?['problemVersionId'] ?? 'legacy'}';
   @override
   void initState() {
     super.initState();
     webDio = ref.read(reasonAIDioProvider);
+    Future.microtask(restoreConversation);
+  }
+
+  Future<void> restoreConversation() async {
+    if (!mounted) return;
+    final current = ++restoreGeneration;
+    restoreToken?.cancel();
+    final active = restoreToken = CancelToken();
+    setState(() => restoring = true);
+    try {
+      conversationStore ??= ConversationStore(
+        ref.read(appDatabaseProvider),
+        webDio,
+      );
+      final id = conversationId ?? await conversationStore!.id(conversationKey);
+      if (!mounted || current != restoreGeneration || id == null) return;
+      conversationId = id;
+      final saved = await conversationStore!.load(
+        id,
+        widget.note.id,
+        token: active,
+      );
+      if (mounted && current == restoreGeneration) setState(() => chat = saved);
+    } on DioException catch (e) {
+      if (!mounted || current != restoreGeneration || active.isCancelled) {
+        return;
+      }
+      if (e.response?.statusCode == 404) {
+        await conversationStore?.forget(conversationKey);
+        conversationId = null;
+      } else if (mounted) {
+        setState(
+          () => notice =
+              'Saved conversation could not be restored. Retry when connected.',
+        );
+      }
+    } catch (_) {
+      /* A local-storage limitation does not prevent an authenticated new conversation. */
+    } finally {
+      if (mounted && current == restoreGeneration) {
+        setState(() => restoring = false);
+      }
+    }
+  }
+
+  void rememberConversation() {
+    final id = conversationId, store = conversationStore;
+    if (id != null && store != null) {
+      unawaited(store.remember(conversationKey, id).catchError((Object _) {}));
+    }
   }
 
   @override
   void dispose() {
+    restoreGeneration++;
+    restoreToken?.cancel();
     generation++;
     token?.cancel();
     if (chat.status == RunStatus.running) _cancelRemote();
@@ -134,7 +202,8 @@ class _DsaTutorSheetState extends ConsumerState<DsaTutorSheet> {
     Map<String, dynamic>? retryBody,
   }) async {
     final text = message.trim();
-    if (chat.status == RunStatus.running ||
+    if (restoring ||
+        chat.status == RunStatus.running ||
         text.isEmpty ||
         text.length > 4000) {
       return;
@@ -172,7 +241,9 @@ class _DsaTutorSheetState extends ConsumerState<DsaTutorSheet> {
     final active = token = CancelToken();
     activeRun = null;
     try {
-      final notes = await ref.read(dsaApiProvider).notes(widget.note.id);
+      final notes = widget.canonicalContext == null
+          ? await ref.read(dsaApiProvider).notes(widget.note.id)
+          : <Map<String, dynamic>>[];
       if (!mounted || current != generation) return;
       final body = retryBody == null
           ? buildTutorRequest(
@@ -180,12 +251,14 @@ class _DsaTutorSheetState extends ConsumerState<DsaTutorSheet> {
               message: text,
               searchWeb: searchWeb,
               hintLevel: nextHint,
-              context: buildDsaContext(
-                widget.note,
-                approach: widget.approach,
-                code: widget.code,
-                notes: notes,
-              ),
+              context:
+                  widget.canonicalContext ??
+                  buildDsaContext(
+                    widget.note,
+                    approach: widget.approach,
+                    code: widget.code,
+                    notes: notes,
+                  ),
               history: history,
               idempotencyKey: const Uuid().v4(),
               conversationId: conversationId,
@@ -207,6 +280,7 @@ class _DsaTutorSheetState extends ConsumerState<DsaTutorSheet> {
           conversationId =
               headers.value('X-ReasonAI-Conversation-Id') ?? conversationId;
           activeRun = headers.value('X-ReasonAI-Run-Id') ?? activeRun;
+          rememberConversation();
         },
       )) {
         if (!mounted || current != generation || active.isCancelled) return;
@@ -220,6 +294,8 @@ class _DsaTutorSheetState extends ConsumerState<DsaTutorSheet> {
               notice = 'Previous answer is being restored.';
               chat = chat.copy(status: RunStatus.completed);
             });
+            rememberConversation();
+            await restoreConversation();
           } else {
             final text = json['text'] as String? ?? '';
             final sources = (json['sources'] as List? ?? [])
@@ -313,8 +389,15 @@ class _DsaTutorSheetState extends ConsumerState<DsaTutorSheet> {
   }
 
   void clear() {
+    restoreGeneration++;
+    restoreToken?.cancel();
+    final store = conversationStore;
+    if (store != null) {
+      unawaited(store.forget(conversationKey).catchError((Object _) {}));
+    }
     if (chat.status == RunStatus.running) stop();
     setState(() {
+      restoring = false;
       chat = const ChatState();
       hintLevel = 0;
       conversationId = null;

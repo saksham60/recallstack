@@ -10,7 +10,7 @@ plugins {
 
 android {
     namespace = "com.recallstack.app"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = "27.0.12077973"
 
     compileOptions {
@@ -22,13 +22,21 @@ android {
         jvmTarget = JavaVersion.VERSION_11.toString()
     }
 
+    packaging {
+        jniLibs {
+            // Transitive plugins ship x86 helpers even though Flutter release
+            // and our SQLite library support ARM, ARM64 and x86_64 only.
+            // Exclude them so Android cannot select an incomplete x86 ABI.
+            excludes += "**/x86/*.so"
+        }
+    }
+
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.recallstack.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 24
-        targetSdk = 34
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }

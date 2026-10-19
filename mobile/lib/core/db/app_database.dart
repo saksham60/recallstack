@@ -28,12 +28,36 @@ class DsaDrafts extends Table {
   Set<Column> get primaryKey => {contentId};
 }
 
-@DriftDatabase(tables: [SavedStories, DsaDrafts])
+// Account-local recovery payloads and server conversation IDs, never judge truth.
+class ClientRecords extends Table {
+  TextColumn get recordKey => text()();
+  TextColumn get value => text()();
+  @override
+  Set<Column> get primaryKey => {recordKey};
+}
+
+@DriftDatabase(tables: [SavedStories, DsaDrafts, ClientRecords])
 class AppDatabase extends _$AppDatabase {
   AppDatabase(String userId) : super(_open(userId));
   AppDatabase.forTesting(super.connection);
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (m) => m.createAll(),
+    onUpgrade: (m, from, to) async {
+      if (from < 2) await m.createTable(clientRecords);
+    },
+  );
+  Future<String?> readRecord(String key) async => (await (select(
+    clientRecords,
+  )..where((t) => t.recordKey.equals(key))).getSingleOrNull())?.value;
+  Future<void> writeRecord(String key, String value) async =>
+      into(clientRecords).insertOnConflictUpdate(
+        ClientRecordsCompanion.insert(recordKey: key, value: value),
+      );
+  Future<void> deleteRecord(String key) async =>
+      (delete(clientRecords)..where((t) => t.recordKey.equals(key))).go();
   Stream<List<SavedStory>> watchSaved() => (select(
     savedStories,
   )..orderBy([(t) => OrderingTerm.desc(t.savedAt)])).watch();

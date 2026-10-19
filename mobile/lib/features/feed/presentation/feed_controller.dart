@@ -36,10 +36,18 @@ class FeedController extends Notifier<FeedState> {
   final _pendingEvents = <Map<String, dynamic>>[];
   @override
   FeedState build() {
-    _api = ref.read(feedApiProvider);
+    _api = ref.watch(feedApiProvider);
+    _generation++;
+    _token?.cancel();
+    _eventTimer?.cancel();
+    _pendingEvents.clear();
+    _viewed.clear();
+    _asked.clear();
+    _mutating.clear();
     ref.onDispose(() {
       _token?.cancel();
-      _flushEvents();
+      _eventTimer?.cancel();
+      _pendingEvents.clear();
     });
     Future.microtask(load);
     return const FeedState();
@@ -159,14 +167,30 @@ class FeedController extends Notifier<FeedState> {
 
   Future<void> _reconcile(List<Story> stories) async {
     final db = ref.read(appDatabaseProvider);
-    for (final story in stories.where((item) => !item.saved)) {
-      await db.removeSaved(story.id);
+    for (final story in stories) {
+      if (story.saved) {
+        await db.upsertSaved(
+          SavedStoriesCompanion.insert(
+            id: story.id,
+            title: story.title,
+            sourceName: story.sourceName,
+            imageUrl: Value(story.imageUrl),
+            publishedAt: story.publishedAt,
+            savedAt: DateTime.now(),
+          ),
+        );
+      } else {
+        await db.removeSaved(story.id);
+      }
     }
   }
 
   Future<bool> toggleSave(Story story) async {
     if (!_mutating.add(story.id)) return true;
     final target = !story.saved;
+    final generation = _generation;
+    final api = _api;
+    final database = ref.read(appDatabaseProvider);
     final before = state;
     state = FeedState(
       topic: before.topic,
@@ -182,10 +206,9 @@ class FeedController extends Notifier<FeedState> {
       pageFailure: before.pageFailure,
     );
     try {
-      await ref
-          .read(feedApiProvider)
-          .event(story.id, target ? 'SAVE' : 'UNSAVE');
-      final db = ref.read(appDatabaseProvider);
+      await api.event(story.id, target ? 'SAVE' : 'UNSAVE');
+      if (generation != _generation || !ref.mounted) return false;
+      final db = database;
       if (target) {
         await db.upsertSaved(
           SavedStoriesCompanion.insert(
@@ -202,6 +225,7 @@ class FeedController extends Notifier<FeedState> {
       }
       return true;
     } catch (_) {
+      if (generation != _generation || !ref.mounted) return false;
       final current = state;
       state = FeedState(
         topic: current.topic,
@@ -277,7 +301,8 @@ final storyProvider = FutureProvider.autoDispose.family<Story, String>((
   ref,
   id,
 ) async {
+  final db = ref.watch(appDatabaseProvider);
   final story = await ref.watch(feedApiProvider).story(id);
-  if (!story.saved) await ref.read(appDatabaseProvider).removeSaved(id);
+  if (!story.saved) await db.removeSaved(id);
   return story;
 });

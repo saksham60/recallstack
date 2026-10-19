@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/env.dart';
 import '../auth/auth_repository.dart';
+import '../api/api_client.dart';
 
 const feedReasonAIPath = '/api/reasonai/knowledge/chat';
 const dsaReasonAIPath = '/api/reasonai/dsa/chat';
@@ -85,11 +86,20 @@ Dio createReasonAIDio(String webBaseUrl, AuthRepository auth) {
     ),
   );
   dio.interceptors.add(ReasonAIAuthInterceptor(auth));
+  dio.interceptors.add(
+    AuthInterceptor(dio, auth, signOutOnUnauthorized: false),
+  );
+  dio.options.followRedirects = false;
   dio.interceptors.add(ReasonAICanonicalRedirectInterceptor(dio));
   return dio;
 }
 
-final reasonAIDioProvider = Provider<Dio>(
-  (ref) =>
-      createReasonAIDio(AppEnv.webBaseUrl, ref.watch(authRepositoryProvider)),
-);
+final reasonAIDioProvider = Provider<Dio>((ref) {
+  ref.watch(authStateProvider.select((state) => state.value?.user.id));
+  final dio = createReasonAIDio(
+    AppEnv.webBaseUrl,
+    ref.watch(authRepositoryProvider),
+  );
+  ref.onDispose(() => dio.close(force: true));
+  return dio;
+});

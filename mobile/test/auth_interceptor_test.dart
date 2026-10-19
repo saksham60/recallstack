@@ -8,14 +8,15 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class _Auth extends AuthRepository {
   _Auth() : super(SupabaseClient('https://example.supabase.co', 'anon'));
   String token = 'old';
+  String userId = 'u';
   int refreshes = 0, signOuts = 0;
   bool canRefresh = true;
   @override
   Session? get current => Session(
     accessToken: token,
     tokenType: 'bearer',
-    user: const User(
-      id: 'u',
+    user: User(
+      id: userId,
       appMetadata: {},
       userMetadata: null,
       aud: 'authenticated',
@@ -61,6 +62,19 @@ class _Adapter implements HttpClientAdapter {
 }
 
 void main() {
+  test('a late 401 cannot refresh or sign out a different account', () async {
+    final auth = _Auth();
+    final dio = createApiDio('https://example.com/api/v1', auth);
+    final adapter = _Adapter((_) {
+      auth.userId = 'another-user';
+      return 401;
+    });
+    dio.httpClientAdapter = adapter;
+    await expectLater(dio.get('me'), throwsA(isA<DioException>()));
+    expect(adapter.requests, hasLength(1));
+    expect(auth.refreshes, 0);
+    expect(auth.signOuts, 0);
+  });
   test('401 refreshes token and retries one request', () async {
     final auth = _Auth();
     final dio = createApiDio('https://example.com/api/v1', auth);

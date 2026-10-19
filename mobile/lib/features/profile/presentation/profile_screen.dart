@@ -7,6 +7,7 @@ import '../../../core/api/api_failure.dart';
 import '../../../core/api/safe_url.dart';
 import '../../../core/auth/auth_repository.dart';
 import '../../../shared/widgets/states.dart';
+import '../../../app/env.dart';
 import '../../feed/presentation/feed_preferences_sheet.dart';
 
 final profileProvider = FutureProvider.autoDispose<Map<String, dynamic>>((
@@ -21,7 +22,8 @@ final profileProvider = FutureProvider.autoDispose<Map<String, dynamic>>((
 });
 final versionProvider = FutureProvider<String>((ref) async {
   final info = await PackageInfo.fromPlatform();
-  return '${info.version} (${info.buildNumber})';
+  const sha = AppEnv.buildSha;
+  return '${info.version} (${info.buildNumber}) · ${sha.length >= 7 ? sha.substring(0, 7) : sha}';
 });
 
 class ProfileScreen extends ConsumerWidget {

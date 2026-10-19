@@ -1,4 +1,6 @@
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
 
 class AppEnv {
   const AppEnv._();
@@ -31,6 +33,10 @@ class AppEnv {
         'true';
   }
 
+  static const buildSha = String.fromEnvironment(
+    'BUILD_SHA',
+    defaultValue: 'development',
+  );
   static void validate() {
     for (final url in [apiBaseUrl, webBaseUrl, supabaseUrl]) {
       final parsed = Uri.tryParse(url);
@@ -51,5 +57,47 @@ class AppEnv {
       throw StateError('WEB_BASE_URL must be the web origin without a path.');
     }
     supabaseAnonKey;
+    if (kReleaseMode || kProfileMode) {
+      if (judgeMode) {
+        throw StateError('Judge mode is not allowed in production builds.');
+      }
+      for (final url in [apiBaseUrl, webBaseUrl, supabaseUrl]) {
+        final uri = Uri.parse(url);
+        if (uri.scheme != 'https' ||
+            uri.host == 'localhost' ||
+            uri.host == '10.0.2.2' ||
+            uri.host == '127.0.0.1' ||
+            uri.userInfo.isNotEmpty) {
+          throw StateError(
+            'Production endpoints require HTTPS public origins.',
+          );
+        }
+      }
+      final key = supabaseAnonKey;
+      if (!key.startsWith('sb_publishable_')) {
+        try {
+          final parts = key.split('.');
+          final payload =
+              jsonDecode(
+                    utf8.decode(
+                      base64Url.decode(base64Url.normalize(parts[1])),
+                    ),
+                  )
+                  as Map;
+          if (payload['role'] != 'anon') {
+            throw const FormatException('Not a public anon key.');
+          }
+        } catch (_) {
+          throw StateError(
+            'Production requires a public Supabase publishable/anon key.',
+          );
+        }
+      }
+      if (!RegExp(r'^[a-f0-9]{40}$').hasMatch(buildSha)) {
+        throw StateError(
+          'Production BUILD_SHA must identify the source commit.',
+        );
+      }
+    }
   }
 }

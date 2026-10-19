@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
+import 'dart:convert';
+import '../../core/db/app_database.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_failure.dart';
 import 'dsa_models.dart';
@@ -11,8 +13,10 @@ List<Map<String, dynamic>> items(Object? value) =>
     (asMap(value)['items'] as List).map((item) => asMap(item)).toList();
 
 class DsaApi {
-  const DsaApi(this.dio);
+  DsaApi(this.dio, {this.database});
   final Dio dio;
+  final AppDatabase? database;
+  final Map<String, Map<String, dynamic>> _reviews = {};
   Future<T> _call<T>(Future<T> Function() work) async {
     try {
       return await work();
@@ -26,7 +30,7 @@ class DsaApi {
     int pageSize,
   ) async {
     final result = <Map<String, dynamic>>[];
-    for (var page = 1; ; page++) {
+    for (var page = 1; page <= 1000; page++) {
       final body = asMap(
         (await dio.get(
           path,
@@ -40,6 +44,7 @@ class DsaApi {
       }
       if (page >= (pagination['total_pages'] as int)) return result;
     }
+    throw const FormatException('Pagination exceeded the supported limit.');
   }
 
   Future<List<Map<String, dynamic>>> categories() => _call(() async {
@@ -64,6 +69,8 @@ class DsaApi {
   });
   Future<List<Map<String, dynamic>>> bookmarks() =>
       _call(() => _allItems('me/bookmarks', 100));
+  Future<List<Map<String, dynamic>>> allNotes() =>
+      _call(() => _allItems('me/notes', 100));
   Future<List<Map<String, dynamic>>> notes(String id) => _call(
     () => _allItems('me/content/${Uri.encodeComponent(id)}/notes', 100),
   );
@@ -93,15 +100,23 @@ class DsaApi {
       _call(() => _allItems('me/reviews/due', 100));
   Future<void> submitReview(Map<String, dynamic> card, String rating) =>
       _call(() async {
+        final key = 'review:${card['card_id']}:${card['row_version']}:$rating';
+        final stored = await database?.readRecord(key);
+        final body = stored == null
+            ? (_reviews[key] ??= {
+                'review_event_id': const Uuid().v4(),
+                'rating': rating,
+                'reviewed_at': DateTime.now().toUtc().toIso8601String(),
+                'expected_row_version': card['row_version'],
+              })
+            : Map<String, dynamic>.from(jsonDecode(stored) as Map);
+        await database?.writeRecord(key, jsonEncode(body));
         await dio.post(
           'me/reviews/${Uri.encodeComponent(card['card_id'] as String)}/submit',
-          data: {
-            'review_event_id': const Uuid().v4(),
-            'rating': rating,
-            'reviewed_at': DateTime.now().toUtc().toIso8601String(),
-            'expected_row_version': card['row_version'],
-          },
+          data: body,
         );
+        _reviews.remove(key);
+        await database?.deleteRecord(key);
       });
   Future<List<Map<String, dynamic>>> search(String query, CancelToken token) =>
       _call(
@@ -116,7 +131,10 @@ class DsaApi {
 }
 
 final dsaApiProvider = Provider<DsaApi>(
-  (ref) => DsaApi(ref.watch(backendDioProvider)),
+  (ref) => DsaApi(
+    ref.watch(backendDioProvider),
+    database: ref.watch(appDatabaseProvider),
+  ),
 );
 final categoriesProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>(
@@ -141,3 +159,6 @@ final dueReviewsProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>(
       (ref) => ref.watch(dsaApiProvider).dueReviews(),
     );
+final allNotesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>(
+  (ref) => ref.watch(dsaApiProvider).allNotes(),
+);

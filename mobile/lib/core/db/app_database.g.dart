@@ -728,16 +728,236 @@ class DsaDraftsCompanion extends UpdateCompanion<DsaDraft> {
   }
 }
 
+class $ClientRecordsTable extends ClientRecords
+    with TableInfo<$ClientRecordsTable, ClientRecord> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ClientRecordsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _recordKeyMeta = const VerificationMeta(
+    'recordKey',
+  );
+  @override
+  late final GeneratedColumn<String> recordKey = GeneratedColumn<String>(
+    'record_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _valueMeta = const VerificationMeta('value');
+  @override
+  late final GeneratedColumn<String> value = GeneratedColumn<String>(
+    'value',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [recordKey, value];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'client_records';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ClientRecord> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('record_key')) {
+      context.handle(
+        _recordKeyMeta,
+        recordKey.isAcceptableOrUnknown(data['record_key']!, _recordKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_recordKeyMeta);
+    }
+    if (data.containsKey('value')) {
+      context.handle(
+        _valueMeta,
+        value.isAcceptableOrUnknown(data['value']!, _valueMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_valueMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {recordKey};
+  @override
+  ClientRecord map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ClientRecord(
+      recordKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}record_key'],
+      )!,
+      value: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}value'],
+      )!,
+    );
+  }
+
+  @override
+  $ClientRecordsTable createAlias(String alias) {
+    return $ClientRecordsTable(attachedDatabase, alias);
+  }
+}
+
+class ClientRecord extends DataClass implements Insertable<ClientRecord> {
+  final String recordKey;
+  final String value;
+  const ClientRecord({required this.recordKey, required this.value});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['record_key'] = Variable<String>(recordKey);
+    map['value'] = Variable<String>(value);
+    return map;
+  }
+
+  ClientRecordsCompanion toCompanion(bool nullToAbsent) {
+    return ClientRecordsCompanion(
+      recordKey: Value(recordKey),
+      value: Value(value),
+    );
+  }
+
+  factory ClientRecord.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ClientRecord(
+      recordKey: serializer.fromJson<String>(json['recordKey']),
+      value: serializer.fromJson<String>(json['value']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'recordKey': serializer.toJson<String>(recordKey),
+      'value': serializer.toJson<String>(value),
+    };
+  }
+
+  ClientRecord copyWith({String? recordKey, String? value}) => ClientRecord(
+    recordKey: recordKey ?? this.recordKey,
+    value: value ?? this.value,
+  );
+  ClientRecord copyWithCompanion(ClientRecordsCompanion data) {
+    return ClientRecord(
+      recordKey: data.recordKey.present ? data.recordKey.value : this.recordKey,
+      value: data.value.present ? data.value.value : this.value,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ClientRecord(')
+          ..write('recordKey: $recordKey, ')
+          ..write('value: $value')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(recordKey, value);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ClientRecord &&
+          other.recordKey == this.recordKey &&
+          other.value == this.value);
+}
+
+class ClientRecordsCompanion extends UpdateCompanion<ClientRecord> {
+  final Value<String> recordKey;
+  final Value<String> value;
+  final Value<int> rowid;
+  const ClientRecordsCompanion({
+    this.recordKey = const Value.absent(),
+    this.value = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ClientRecordsCompanion.insert({
+    required String recordKey,
+    required String value,
+    this.rowid = const Value.absent(),
+  }) : recordKey = Value(recordKey),
+       value = Value(value);
+  static Insertable<ClientRecord> custom({
+    Expression<String>? recordKey,
+    Expression<String>? value,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (recordKey != null) 'record_key': recordKey,
+      if (value != null) 'value': value,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ClientRecordsCompanion copyWith({
+    Value<String>? recordKey,
+    Value<String>? value,
+    Value<int>? rowid,
+  }) {
+    return ClientRecordsCompanion(
+      recordKey: recordKey ?? this.recordKey,
+      value: value ?? this.value,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (recordKey.present) {
+      map['record_key'] = Variable<String>(recordKey.value);
+    }
+    if (value.present) {
+      map['value'] = Variable<String>(value.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ClientRecordsCompanion(')
+          ..write('recordKey: $recordKey, ')
+          ..write('value: $value, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $SavedStoriesTable savedStories = $SavedStoriesTable(this);
   late final $DsaDraftsTable dsaDrafts = $DsaDraftsTable(this);
+  late final $ClientRecordsTable clientRecords = $ClientRecordsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
-  List<DatabaseSchemaEntity> get allSchemaEntities => [savedStories, dsaDrafts];
+  List<DatabaseSchemaEntity> get allSchemaEntities => [
+    savedStories,
+    dsaDrafts,
+    clientRecords,
+  ];
 }
 
 typedef $$SavedStoriesTableCreateCompanionBuilder =
@@ -1138,6 +1358,149 @@ typedef $$DsaDraftsTableProcessedTableManager =
       DsaDraft,
       PrefetchHooks Function()
     >;
+typedef $$ClientRecordsTableCreateCompanionBuilder =
+    ClientRecordsCompanion Function({
+      required String recordKey,
+      required String value,
+      Value<int> rowid,
+    });
+typedef $$ClientRecordsTableUpdateCompanionBuilder =
+    ClientRecordsCompanion Function({
+      Value<String> recordKey,
+      Value<String> value,
+      Value<int> rowid,
+    });
+
+class $$ClientRecordsTableFilterComposer
+    extends Composer<_$AppDatabase, $ClientRecordsTable> {
+  $$ClientRecordsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get recordKey => $composableBuilder(
+    column: $table.recordKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ClientRecordsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ClientRecordsTable> {
+  $$ClientRecordsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get recordKey => $composableBuilder(
+    column: $table.recordKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ClientRecordsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ClientRecordsTable> {
+  $$ClientRecordsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get recordKey =>
+      $composableBuilder(column: $table.recordKey, builder: (column) => column);
+
+  GeneratedColumn<String> get value =>
+      $composableBuilder(column: $table.value, builder: (column) => column);
+}
+
+class $$ClientRecordsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ClientRecordsTable,
+          ClientRecord,
+          $$ClientRecordsTableFilterComposer,
+          $$ClientRecordsTableOrderingComposer,
+          $$ClientRecordsTableAnnotationComposer,
+          $$ClientRecordsTableCreateCompanionBuilder,
+          $$ClientRecordsTableUpdateCompanionBuilder,
+          (
+            ClientRecord,
+            BaseReferences<_$AppDatabase, $ClientRecordsTable, ClientRecord>,
+          ),
+          ClientRecord,
+          PrefetchHooks Function()
+        > {
+  $$ClientRecordsTableTableManager(_$AppDatabase db, $ClientRecordsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ClientRecordsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ClientRecordsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ClientRecordsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> recordKey = const Value.absent(),
+                Value<String> value = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ClientRecordsCompanion(
+                recordKey: recordKey,
+                value: value,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String recordKey,
+                required String value,
+                Value<int> rowid = const Value.absent(),
+              }) => ClientRecordsCompanion.insert(
+                recordKey: recordKey,
+                value: value,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ClientRecordsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ClientRecordsTable,
+      ClientRecord,
+      $$ClientRecordsTableFilterComposer,
+      $$ClientRecordsTableOrderingComposer,
+      $$ClientRecordsTableAnnotationComposer,
+      $$ClientRecordsTableCreateCompanionBuilder,
+      $$ClientRecordsTableUpdateCompanionBuilder,
+      (
+        ClientRecord,
+        BaseReferences<_$AppDatabase, $ClientRecordsTable, ClientRecord>,
+      ),
+      ClientRecord,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -1146,4 +1509,6 @@ class $AppDatabaseManager {
       $$SavedStoriesTableTableManager(_db, _db.savedStories);
   $$DsaDraftsTableTableManager get dsaDrafts =>
       $$DsaDraftsTableTableManager(_db, _db.dsaDrafts);
+  $$ClientRecordsTableTableManager get clientRecords =>
+      $$ClientRecordsTableTableManager(_db, _db.clientRecords);
 }
