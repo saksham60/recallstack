@@ -36,7 +36,9 @@ def report_schema(execution_schema):
         connection.connection.driver_connection.execute(migration.read_text(encoding="utf-8"))
         no_ceiling = migration.with_name("20261017083528_dsa_remove_report_attempt_ceiling.sql")
         connection.connection.driver_connection.execute(no_ceiling.read_text(encoding="utf-8"))
-        recovery = migration.with_name("20261017134338_dsa_code_intelligence_failed_report_recovery.sql")
+        recovery = migration.with_name(
+            "20261017134338_dsa_code_intelligence_failed_report_recovery.sql"
+        )
         connection.connection.driver_connection.execute(recovery.read_text(encoding="utf-8"))
     return execution_schema
 
@@ -213,7 +215,9 @@ def test_failed_report_retry_is_owner_scoped_idempotent_and_keeps_judge_result(r
     report_id = dispatch(data)[0]["id"]
     token = uuid4()
     assert report_command(data, "claim", id=report_id, token=token)["attempt"] == 1
-    assert report_command(data, "finish", id=report_id, token=token, retry=False, error="provider failure")
+    assert report_command(
+        data, "finish", id=report_id, token=token, retry=False, error="provider failure"
+    )
 
     def retry(owner_id):
         with data["engine"].begin() as connection:
@@ -233,11 +237,17 @@ def test_failed_report_retry_is_owner_scoped_idempotent_and_keeps_judge_result(r
     assert dispatch(data)[0]["id"] == report_id
     next_token = uuid4()
     assert report_command(data, "claim", id=report_id, token=next_token)["attempt"] == 2
-    assert not report_command(data, "finish", id=report_id, token=token, document={"summary": "stale"})
-    assert report_command(data, "finish", id=report_id, token=next_token, document={"summary": "review restored"})
+    assert not report_command(
+        data, "finish", id=report_id, token=token, document={"summary": "stale"}
+    )
+    assert report_command(
+        data, "finish", id=report_id, token=next_token, document={"summary": "review restored"}
+    )
     assert retry(data["owner"]) == "completed"
-    assert report_command(data, "get", submissionId=submission_id, userId=data["owner"])["report"]["status"] == "completed"
-    assert command(data, "get", id=submission_id, userId=data["owner"])["result"]["verdict"] == "wrong_answer"
+    report = report_command(data, "get", submissionId=submission_id, userId=data["owner"])
+    assert report["report"]["status"] == "completed"
+    submission = command(data, "get", id=submission_id, userId=data["owner"])
+    assert submission["result"]["verdict"] == "wrong_answer"
 
 
 def test_daily_report_quota_global_concurrency_and_expired_worker_recovery(report_data):
