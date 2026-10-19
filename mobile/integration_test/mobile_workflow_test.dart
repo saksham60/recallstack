@@ -163,8 +163,9 @@ void main() {
         if ((await db.getDraft(
               'canonical:$problemId:$problemVersion:python',
             ))?.code ==
-            source)
+            source) {
           break;
+        }
       }
       expect(
         (await db.getDraft(

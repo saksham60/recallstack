@@ -1,14 +1,14 @@
 # ReasonAI Android test handoff
 
-Candidate: **1.0.0 (2)**, package `com.recallstack.app`. This is a **debug-signed test build**, not a Play Store release. Production signing remains a later gate, as requested by the owner.
+Candidate: **1.0.0 (3)**, package `com.recallstack.app`. This is a **debug-signed test build**, not a Play Store release. Production signing remains a later gate, as requested by the owner.
 
-Local APK: `mobile/build/delivery/reasonai-1.0.0-build2-debug.apk`.
-Its source commit and SHA-256 are recorded in `build/delivery/artifact-verification.json`. CI also uploads a debug APK for each successful Mobile CI run.
+Local APK: `mobile/build/delivery/reasonai-1.0.0-build3-debug.apk`.
+Its source commit and SHA-256 are recorded in `build/delivery/artifact-verification-build3.json`. CI also uploads a debug APK for each successful Mobile CI run.
 
 ## Install
 
 ```powershell
-adb install -r mobile/build/delivery/reasonai-1.0.0-build2-debug.apk
+adb install -r mobile/build/delivery/reasonai-1.0.0-build3-debug.apk
 adb shell am start -n com.recallstack.app/.MainActivity
 ```
 
@@ -23,9 +23,10 @@ Alternatively, copy the APK to the phone, open it from Files, and allow installa
 5. Use one Run and one Submit with your solution. Confirm actual queued/running/terminal statuses, truthful counts/metrics and a saved submission. A passing public Run alone must not become an official Accepted verdict. Hidden inputs and expected answers must remain invisible.
 6. Open Submissions & AI. Confirm saved source and Code Intelligence are retrieved. Generating a report should reuse the existing server workflow. Retry a failed AI report without creating another judge submission. Keep smoke testing small; do not launch a batch certification or repeat the 375 independent fixture checks.
 7. Change the editor after submitting, then reopen the saved submission: its source must remain unchanged. Discuss that selected submission with ReasonAI and verify the discussion restores when reopened.
-8. Check Feed refresh/pagination, story detail/source links, saving/unsaving, Library bookmarks/notes/search, Revision and Profile preferences. Saved-story Library is a device cache; the existing backend does not provide a global saved-story listing for complete cross-device discovery.
-9. Interrupt connectivity while viewing results. Reconnect and refresh saved status. Retrying an interrupted create must reuse the original code/key, not silently start another submission. Do not repeatedly tap Submit to recover an unknown response.
-10. Sign out and sign into another account. Confirm drafts, saved stories and private conversations are not shown across accounts. Confirm the original account still has its own data when signing back in.
+8. Check Feed refresh/pagination, story detail/source links, saving/unsaving, Library bookmarks/notes/search, Revision and Profile preferences. The mobile Saved tab continues to use the account-scoped device cache. The repository now has a server saved-story listing endpoint for web; its deployment and mobile integration are separate from this debug refinement.
+9. Verify company names appear below DSA problem progress. A temporary bookmark or company failure should not replace successful progress with "Not started". Check an earlier-version pass is labelled separately. On a small phone, open the AI review, read its complexity/evidence/learning sections, rotate the phone and open preferences with the keyboard; controls should remain reachable by scrolling. Library notes should render headings, lists and code as readable Markdown.
+10. Interrupt connectivity while viewing results. Reconnect and refresh saved status. Retrying an interrupted create must reuse the original code/key, not silently start another submission. Do not repeatedly tap Submit to recover an unknown response.
+11. Sign out and sign into another account. Confirm drafts, saved stories and private conversations are not shown across accounts. Confirm the original account still has its own data when signing back in.
 
 Report phone model/Android version, app version/source SHA, the failing screen/action and the server submission ID where relevant. Do not share tokens, OAuth callback query strings, passwords or private keys.
 

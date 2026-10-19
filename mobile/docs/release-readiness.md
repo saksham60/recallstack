@@ -1,7 +1,7 @@
 # ReasonAI Mobile release candidate
 
-Version: **1.0.0 (2)**. Android application ID / iOS bundle ID: `com.recallstack.app`.
-Branch: `feat/mobile-release-readiness`. Release verdict: **NOT READY** until the external gates below pass.
+Current refinement candidate: **1.0.0 (3)** on `feat/mobile-final-refinement`. Android application ID / iOS bundle ID: `com.recallstack.app`. The build-2 evidence below is historical; see the [current refinement handoff](refinement-debug-handoff.md) for build-3 results.
+Release verdict: **NOT READY** until the external gates below pass.
 
 The owner approved a **debug build handoff for device testing** on 2026-10-19. Production signing is explicitly deferred; no new signing credentials were generated.
 
@@ -62,7 +62,7 @@ Install a verified APK with `adb install -r <apk>` or copy it to Android, allow 
 1. **Android release signing:** `android/key.properties` and its referenced production keystore are absent. Existing Gradle guard rejects release APK/AAB tasks. The owner must provide the existing `storeFile`, `storePassword`, `keyAlias`, `keyPassword` through ignored local configuration or secure CI. No signing credentials have been generated or committed. A debug-signed APK is for testing and is not a production release.
 2. **Live authentication and backend smoke test:** Real Google OAuth callback, authenticated Run/Submit, server-persisted history/report, account switch and logout must be exercised with an authorized learner on the signed candidate. Mocked tests cannot satisfy this gate. No certification batch or 375-fixture revalidation is required.
 3. **iOS:** Windows has no Xcode. Mobile CI includes a macOS unsigned release compilation with public production configuration. Even a passing unsigned build does not prove Apple provisioning, signing, archive/export or physical-device OAuth. Apple team/certificates/profiles and device testing remain separate gates.
-4. **Saved-story API limitation:** The existing backend exposes feed pages, story detail and event APIs, not an authoritative global saved-story list. Mobile reconciles saved state for encountered stories and labels its saved list as device-local; historical saved stories from another device cannot be guaranteed discoverable without an existing server listing contract. No backend changes were authorized.
+4. **Saved-story discovery:** Mobile reconciles saved state for encountered stories and labels its saved list as device-local. The repository now includes `GET /knowledge/saved-stories` for the web feature, but production deployment and mobile adoption have not been verified in this refinement. Historical saved stories from another device are not claimed to be discoverable in the current mobile cache.
 
 ## Verification evidence
 
@@ -72,7 +72,7 @@ Evidence is recorded in `build/mobile-*.log` locally and in the Mobile CI run. D
 
 Mobile CI at https://github.com/saksham60/recallstack/actions/runs/39234397375 passed both Android validation/debug packaging and the macOS unsigned iOS release build for the initial candidate. That run used the PR merge commit; subsequent source changes require their own CI result. The unsigned iOS app is a build artifact, not an installable signed IPA.
 
-## Verified debug delivery
+## Previous verified debug delivery — build 2
 
 - APK: `build/delivery/reasonai-1.0.0-build2-debug.apk`, **211,212,861 bytes**.
 - APK source commit: `d425e63810971eeeeb959d45d38f833fa51634ee`. Later commits bound CI transform memory and add delivery documentation; they do not change application behavior.
