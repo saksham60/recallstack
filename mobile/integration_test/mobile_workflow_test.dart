@@ -1,15 +1,19 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:app/app/app.dart';
 import 'package:app/core/api/api_client.dart';
 import 'package:app/core/api/api_failure.dart';
 import 'package:app/core/auth/auth_repository.dart';
 import 'package:app/core/db/app_database.dart';
 import 'package:app/features/dsa/canonical_api.dart';
+import 'package:app/features/dsa/canonical_models.dart';
+import 'package:app/features/dsa/catalog_screen.dart';
 import 'package:app/features/dsa/python_editor.dart';
 import 'package:app/shared/widgets/states.dart';
 import 'package:dio/dio.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -52,10 +56,21 @@ class DeviceAuth extends AuthRepository {
 }
 
 void main() {
-  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   testWidgets(
     'device workflow: login, edit, recover draft, Run, Submit, history, AI and navigation',
     (tester) async {
+      var converted = false;
+      Future<void> preview(String name) async {
+        if (!const bool.fromEnvironment('CAPTURE_MOBILE_PREVIEWS')) return;
+        if (!converted && defaultTargetPlatform == TargetPlatform.android) {
+          await binding.convertFlutterSurfaceToImage();
+          converted = true;
+        }
+        await tester.pumpAndSettle();
+        await binding.takeScreenshot(name);
+      }
+
       dotenv.loadFromString(envString: 'HACKATHON_JUDGE_MODE=false');
       final auth = DeviceAuth();
       final db = AppDatabase.forTesting(NativeDatabase.memory());
@@ -89,6 +104,27 @@ void main() {
       await tester.tap(find.text('DSA').last);
       await tester.pumpAndSettle();
       expect(find.text('Array total'), findsOneWidget);
+      expect(find.text('Fixture Co'), findsWidgets);
+      if (kProfileMode) {
+        await binding.watchPerformance(() async {
+          final list = find
+              .descendant(
+                of: find.byType(DsaExplorerScreen),
+                matching: find.byType(ListView),
+              )
+              .last;
+          for (var i = 0; i < 4; i++) {
+            await tester.drag(list, const Offset(0, -260));
+            await tester.pumpAndSettle();
+          }
+          await tester.drag(list, const Offset(0, 2200));
+          await tester.pumpAndSettle();
+        }, reportKey: 'catalog_scroll');
+        debugPrint(
+          'REASONAI_PROFILE_CATALOG ${jsonEncode(binding.reportData?['catalog_scroll'])}',
+        );
+      }
+      await preview('dsa-catalog');
       await tester.tap(find.text('Array total'));
       await tester.pumpAndSettle();
       for (var i = 0; i < 100 && find.text('Editor').evaluate().isEmpty; i++) {
@@ -108,6 +144,7 @@ void main() {
       );
       await tester.tap(find.text('Editor'));
       await tester.pumpAndSettle();
+      expect(find.byType(NavigationBar), findsNothing);
       final editor = find.descendant(
         of: find.byType(PythonEditor),
         matching: find.byType(TextField),
@@ -123,6 +160,7 @@ void main() {
       );
       FocusManager.instance.primaryFocus?.unfocus();
       await tester.pumpAndSettle();
+      await preview('python-editor');
       await tester.tap(find.text('Run'));
       await tester.pumpAndSettle();
       await tester.pump(const Duration(seconds: 3));
@@ -135,13 +173,15 @@ void main() {
       await tester.tap(find.text('Open saved submission & AI review'));
       await tester.pumpAndSettle();
       expect(find.text('Fixture saved analysis'), findsOneWidget);
+      expect(find.text(submissionId), findsNothing);
+      await preview('code-intelligence');
       await tester.tap(find.byTooltip('Close review'));
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Submissions & AI'));
       await tester.tap(find.text('Submissions & AI'));
       await tester.pumpAndSettle();
-      expect(find.text('accepted'), findsOneWidget);
-      expect(find.text('2026-10-19T00:00:00Z'), findsOneWidget);
+      expect(find.text('Accepted'), findsOneWidget);
+      expect(find.text(submissionDate('2026-10-19T00:00:00Z')), findsOneWidget);
       expect(server.launches, 2);
       await tester.pageBack();
       await tester.pumpAndSettle();

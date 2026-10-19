@@ -89,7 +89,42 @@ const judgeVerdicts = {
 };
 String verdictLabel(String value) => value == 'provisional_pass'
     ? 'Passed current tests'
-    : value.replaceAll('_', ' ');
+    : const {
+            'accepted': 'Accepted',
+            'passed_public_tests': 'Public tests passed',
+            'wrong_answer': 'Wrong answer',
+            'runtime_error': 'Runtime error',
+            'syntax_error': 'Syntax error',
+            'time_limit_exceeded': 'Time limit exceeded',
+            'output_limit_exceeded': 'Output limit exceeded',
+            'queued': 'Queued',
+            'running': 'Judging',
+            'completed': 'Completed',
+            'failed': 'Execution failed',
+            'timed_out': 'Timed out',
+            'cancelled': 'Cancelled',
+          }[value] ??
+          'Result unavailable';
+
+String submissionDate(Object? value) {
+  final date = DateTime.tryParse(value?.toString() ?? '')?.toLocal();
+  if (date == null) return 'Saved submission';
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  return '${date.day} ${months[date.month - 1]} ${date.year} · ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+}
 
 class Execution {
   Execution.parse(Object? value) : data = object(value) {
@@ -123,6 +158,10 @@ class Execution {
   String? get error => data['error'] as String?;
   String get label => result == null
       ? verdictLabel(status)
+      : (result!['verdict'] == 'accepted' &&
+            (result!['gradingLevel'] == 'provisional' ||
+                data['gradingLevel'] == 'provisional'))
+      ? 'Passed current tests'
       : verdictLabel(string(result!, 'verdict'));
   void requireScope(Problem problem, {String? submissionId}) {
     if (problemId != problem.id ||

@@ -13,6 +13,8 @@ import 'feed_models.dart';
 Future<void> showStoryChat(BuildContext context, Story story) =>
     showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
+      useSafeArea: true,
       isScrollControlled: true,
       builder: (_) => StoryChatSheet(story: story),
     );
@@ -115,39 +117,44 @@ class _StoryChatSheetState extends ConsumerState<StoryChatSheet> {
 
   @override
   Widget build(BuildContext context) => AnimatedPadding(
-    duration: const Duration(milliseconds: 180),
+    duration: MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 180),
     padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
     child: SizedBox(
       height:
           (MediaQuery.sizeOf(context).height -
               MediaQuery.viewInsetsOf(context).bottom) *
           0.92,
-      child: Column(
-        children: [
-          ListTile(
-            title: Text('ReasonAI · ${widget.story.sourceName}'),
-            trailing: IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: () => Navigator.pop(context),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            ListTile(
+              title: Text('ReasonAI · ${widget.story.sourceName}'),
+              trailing: IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.pop(context),
+              ),
             ),
-          ),
-          Expanded(
-            child: ReasonAIThread(state: chat, onRetry: retry, onStop: stop),
-          ),
-          ReasonAIComposer(
-            onSend: send,
-            running: chat.status == RunStatus.running,
-            onStop: stop,
-            quickPrompts: const [
-              'Explain this',
-              'Why does this matter?',
-              'Give me a practical example',
-              'Interview angle',
-              'Show me more like this',
-              'Latest developments',
-            ],
-          ),
-        ],
+            Expanded(
+              child: ReasonAIThread(state: chat, onRetry: retry, onStop: stop),
+            ),
+            ReasonAIComposer(
+              onSend: send,
+              running: chat.status == RunStatus.running,
+              onStop: stop,
+              quickPrompts: const [
+                'Explain this',
+                'Why does this matter?',
+                'Give me a practical example',
+                'Interview angle',
+                'Show me more like this',
+                'Latest developments',
+              ],
+            ),
+          ],
+        ),
       ),
     ),
   );

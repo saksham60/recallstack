@@ -17,7 +17,7 @@ abstract final class AppColors {
   static const highlight = Color(0xFFA49EFF);
   static const text = Color(0xFFF5F6FA);
   static const secondaryText = Color(0xFFA6AAB7);
-  static const mutedText = Color(0xFF6D7280);
+  static const mutedText = Color(0xFF959BAA);
   static const reasonAISoft = Color(0x2E8E86FF);
 }
 
@@ -58,7 +58,7 @@ ThemeData buildTheme() {
           letterSpacing: -0.5,
         ),
         bodyLarge: base.textTheme.bodyLarge?.copyWith(height: 1.4),
-        bodyMedium: base.textTheme.bodyMedium?.copyWith(height: 1.4),
+        bodyMedium: base.textTheme.bodyMedium?.copyWith(height: 1.5),
         bodySmall: base.textTheme.bodySmall?.copyWith(
           color: AppColors.secondaryText,
         ),
@@ -96,6 +96,7 @@ ThemeData buildTheme() {
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppRadius.md),
+        side: const BorderSide(color: AppColors.border, width: 0.7),
       ),
     ),
     navigationBarTheme: NavigationBarThemeData(
@@ -127,7 +128,7 @@ ThemeData buildTheme() {
       style: FilledButton.styleFrom(
         backgroundColor: AppColors.reasonAI,
         foregroundColor: AppColors.background,
-        minimumSize: const Size(0, 44),
+        minimumSize: const Size(0, 48),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.sm),
         ),
@@ -137,7 +138,7 @@ ThemeData buildTheme() {
       style: OutlinedButton.styleFrom(
         foregroundColor: AppColors.secondaryText,
         side: const BorderSide(color: AppColors.border),
-        minimumSize: const Size(0, 44),
+        minimumSize: const Size(0, 48),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.sm),
         ),
@@ -146,7 +147,7 @@ ThemeData buildTheme() {
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: AppColors.secondaryText,
-        minimumSize: const Size(0, 40),
+        minimumSize: const Size(0, 48),
       ),
     ),
     chipTheme: ChipThemeData(
@@ -168,6 +169,28 @@ ThemeData buildTheme() {
     floatingActionButtonTheme: const FloatingActionButtonThemeData(
       backgroundColor: AppColors.reasonAI,
       foregroundColor: AppColors.background,
+    ),
+    bottomSheetTheme: const BottomSheetThemeData(
+      backgroundColor: AppColors.surface,
+      surfaceTintColor: Colors.transparent,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
+      ),
+    ),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: AppColors.elevated,
+      contentTextStyle: text.bodyMedium,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        side: const BorderSide(color: AppColors.border),
+      ),
+    ),
+    dividerTheme: const DividerThemeData(
+      color: AppColors.border,
+      thickness: 0.7,
+      space: 24,
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,

@@ -58,7 +58,7 @@ class ProfileScreen extends ConsumerWidget {
           return ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              const SizedBox(height: 28),
+              const SizedBox(height: 12),
               Center(
                 child: ClipOval(
                   child: SizedBox(
@@ -96,7 +96,9 @@ class ProfileScreen extends ConsumerWidget {
               ListTile(
                 leading: const Icon(Icons.info_outline),
                 title: const Text('App version'),
-                trailing: Text(ref.watch(versionProvider).value ?? '—'),
+                subtitle: Text(
+                  ref.watch(versionProvider).value ?? 'Loading version…',
+                ),
               ),
               ListTile(
                 leading: const Icon(Icons.logout),

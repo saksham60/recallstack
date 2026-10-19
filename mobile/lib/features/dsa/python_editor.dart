@@ -91,13 +91,26 @@ class PythonEditor extends StatefulWidget {
 class _PythonEditorState extends State<PythonEditor> {
   final undo = UndoHistoryController(), horizontal = ScrollController();
   final focus = FocusNode();
+  late String _text;
+  late List<String> _lines;
+  late int _longestLine;
+  void _measureText() {
+    _text = widget.controller.text;
+    _lines = _text.split('\n');
+    _longestLine = _lines.fold<int>(1, (m, line) => math.max(m, line.length));
+  }
+
   @override
   void initState() {
     super.initState();
+    _measureText();
     widget.controller.addListener(changed);
   }
 
   void changed() {
+    // Selection/composing updates are not edits and must not rebuild or autosave.
+    if (widget.controller.text == _text) return;
+    _measureText();
     widget.onChanged();
     if (mounted) setState(() {});
   }
@@ -150,10 +163,15 @@ class _PythonEditorState extends State<PythonEditor> {
       Expanded(
         child: LayoutBuilder(
           builder: (context, size) {
-            final lines = widget.controller.text.split('\n');
+            final lines = _lines;
+            final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
+            final gutter = math.max(
+              44.0,
+              (lines.length.toString().length + 2) * 8.5 * scale,
+            );
             final width = math.max(
-              size.maxWidth - 48,
-              lines.fold<int>(1, (m, l) => math.max(m, l.length)) * 8.5 + 32,
+              size.maxWidth - gutter,
+              _longestLine * 8.5 * scale + 32,
             );
             return SingleChildScrollView(
               child: Scrollbar(
@@ -165,7 +183,7 @@ class _PythonEditorState extends State<PythonEditor> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       SizedBox(
-                        width: 44,
+                        width: gutter,
                         child: Padding(
                           padding: const EdgeInsets.only(top: 16),
                           child: Text(

@@ -152,7 +152,7 @@ void main() {
       addTearDown(controller.dispose);
       await controller.start('def solve(nums): return sum(nums)', 'submit');
       await done.future.timeout(const Duration(seconds: 3));
-      expect(controller.job!.label, 'accepted');
+      expect(controller.job!.label, 'Accepted');
       expect(finished, 1);
       final requests = server.requests.length;
       await Future<void>.delayed(const Duration(milliseconds: 20));

@@ -2,12 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/api/api_failure.dart';
 import '../../core/db/app_database.dart';
 import '../../shared/widgets/states.dart';
+import '../../shared/widgets/reading_content.dart';
 import 'canonical_api.dart';
 import 'canonical_models.dart';
 import 'dsa_models.dart';
@@ -214,8 +214,11 @@ class _CanonicalWorkspaceState extends ConsumerState<CanonicalWorkspace>
   }
 
   Future<void> review(Execution job) async {
+    FocusScope.of(context).unfocus();
     await showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
+      useSafeArea: true,
       isScrollControlled: true,
       builder: (context) => SizedBox(
         height: MediaQuery.sizeOf(context).height * 0.92,
@@ -329,7 +332,7 @@ class _CanonicalWorkspaceState extends ConsumerState<CanonicalWorkspace>
                         p.difficulty ?? 'Unrated',
                         style: Theme.of(context).textTheme.labelLarge,
                       ),
-                      MarkdownBody(data: p.description, selectable: true),
+                      ReadingContent(data: p.description),
                       const SizedBox(height: 16),
                       const Text('Function contract'),
                       SelectableText(
@@ -449,7 +452,9 @@ class _CanonicalWorkspaceState extends ConsumerState<CanonicalWorkspace>
                           Card(
                             child: ListTile(
                               title: Text(job.label),
-                              subtitle: Text(job.data['createdAt'] as String),
+                              subtitle: Text(
+                                submissionDate(job.data['createdAt']),
+                              ),
                               trailing: const Icon(Icons.chevron_right),
                               onTap: () => review(job),
                             ),

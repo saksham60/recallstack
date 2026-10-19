@@ -7,6 +7,7 @@ import '../../../core/api/api_failure.dart';
 import '../../../core/db/app_database.dart';
 import '../../../shared/widgets/app_network_image.dart';
 import '../../../shared/widgets/states.dart';
+import '../../../shared/widgets/reading_content.dart';
 import '../../dsa/dsa_api.dart';
 import '../../feed/presentation/feed_api.dart';
 import '../../feed/presentation/feed_controller.dart';
@@ -220,8 +221,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 padding: const EdgeInsets.all(16),
                 child: TextField(
                   controller: query,
-                  autofocus: true,
                   onChanged: _search,
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (_) => FocusScope.of(context).unfocus(),
                   decoration: const InputDecoration(
                     prefixIcon: Icon(Icons.search),
                     hintText: 'Search DSA problems',
@@ -237,10 +239,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                         onRetry: () => _search(query.text),
                       )
                     : results.isEmpty
-                    ? const EmptyState(
+                    ? EmptyState(
                         icon: Icons.search,
-                        title: 'Find a problem',
-                        body: 'Type at least two characters to search DSA.',
+                        title: query.text.trim().length < 2
+                            ? 'Find a problem'
+                            : 'No matching problems',
+                        body: query.text.trim().length < 2
+                            ? 'Type at least two characters to search DSA.'
+                            : 'Try a different title or a shorter search.',
                       )
                     : ListView.builder(
                         itemCount: results.length,
@@ -291,11 +297,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                     note['kind'] as String? ??
                                     'Study note',
                               ),
+                              subtitle: Text(_relativeDate(note['updated_at'])),
+                              expandedCrossAxisAlignment:
+                                  CrossAxisAlignment.stretch,
                               children: [
                                 Padding(
                                   padding: const EdgeInsets.all(16),
-                                  child: SelectableText(
-                                    note['body'] as String? ?? '',
+                                  child: ReadingContent(
+                                    data: note['body'] as String? ?? '',
                                   ),
                                 ),
                               ],

@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/api/safe_url.dart';
+import '../../shared/widgets/reading_content.dart';
 
 class StudyNoteBlocks extends StatelessWidget {
   const StudyNoteBlocks({super.key, required this.blocks});
@@ -177,10 +176,7 @@ class _BlockState extends State<_Block> {
           ],
         );
       default:
-        content = MarkdownBody(
-          data: text,
-          onTapLink: (_, href, _) => openExternal(context, href),
-        );
+        content = ReadingContent(data: text);
     }
     final body = Column(
       crossAxisAlignment: CrossAxisAlignment.start,

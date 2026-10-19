@@ -14,9 +14,15 @@ class CatalogController extends ChangeNotifier {
   String search = '', company = '', completion = 'all';
   String? difficulty, category, cursor;
   bool busy = false, hasMore = false, metadataBusy = false, disposed = false;
-  Object? error, metadataError;
-  CancelToken? _token;
-  int _generation = 0;
+  Object? error, progressError, companyError, bookmarksError, categoriesError;
+  Object? get metadataError =>
+      progressError ?? companyError ?? bookmarksError ?? categoriesError;
+  final _companyIndex = <String, List<Json>>{};
+  final _bookmarkPending = <String>{};
+  CancelToken? _token, _metadataToken;
+  int _generation = 0, _metadataGeneration = 0, _bookmarkRevision = 0;
+  List<Json> companiesFor(Problem p) => _companyIndex[p.version] ?? const [];
+  bool bookmarkPending(Problem p) => _bookmarkPending.contains(p.id);
   void emit() {
     if (!disposed) notifyListeners();
   }
@@ -28,6 +34,8 @@ class CatalogController extends ChangeNotifier {
       _generation++;
       problems = [];
       companies = [];
+      _companyIndex.clear();
+      companyError = null;
       cursor = null;
     }
     final generation = _generation, previous = cursor;
@@ -54,16 +62,20 @@ class CatalogController extends ChangeNotifier {
       problems = [...problems, ...page.items];
       cursor = page.cursor;
       hasMore = page.hasMore;
+      emit(); // Show the catalog before optional company metadata arrives.
       // Company metadata is public and bounded to this page; no problem specs.
       if (page.items.isNotEmpty) {
         try {
           final tags = await api.companies(page.items, token: token);
           if (!disposed && generation == _generation) {
             companies = [...companies, ...tags];
+            for (final tag in tags) {
+              (_companyIndex[string(tag, 'problemVersionId')] ??= []).add(tag);
+            }
           }
         } catch (e) {
           if (!token.isCancelled && !disposed && generation == _generation) {
-            metadataError = e;
+            companyError = e;
           }
         }
       }
@@ -87,28 +99,52 @@ class CatalogController extends ChangeNotifier {
   }
 
   Future<void> loadMetadata() async {
+    if (disposed) return;
+    _metadataToken?.cancel();
+    final token = _metadataToken = CancelToken();
+    final current = ++_metadataGeneration;
+    final bookmarkRevision = _bookmarkRevision;
     metadataBusy = true;
-    metadataError = null;
+    progressError = bookmarksError = categoriesError = null;
     emit();
-    try {
-      final values = await Future.wait([
-        api.categories(),
-        api.progress(),
-        api.bookmarks(),
-      ]);
-      if (disposed) return;
-      categories = values[0] as List<Json>;
-      progress = {
-        for (final p in values[1] as List<Json>) string(p, 'problemId'): p,
-      };
-      bookmarks = values[2] as Set<String>;
-    } catch (e) {
-      if (!disposed) metadataError = e;
-    } finally {
-      if (!disposed) {
-        metadataBusy = false;
-        emit();
+    bool active() =>
+        !disposed && current == _metadataGeneration && !token.isCancelled;
+    // Optional failures must not erase successful progress or bookmark responses.
+    Future<void> read<T>(
+      Future<T> request,
+      void Function(T) apply,
+      void Function(Object) fail,
+    ) async {
+      try {
+        final value = await request;
+        if (active()) apply(value);
+      } catch (e) {
+        if (active()) fail(e);
       }
+      if (active()) emit();
+    }
+
+    await Future.wait([
+      read(
+        api.categories(token: token),
+        (value) => categories = value,
+        (e) => categoriesError = e,
+      ),
+      read(
+        api.progress(token: token),
+        (value) =>
+            progress = {for (final p in value) string(p, 'problemId'): p},
+        (e) => progressError = e,
+      ),
+      read(api.bookmarks(token: token), (value) {
+        if (bookmarkRevision == _bookmarkRevision && _bookmarkPending.isEmpty) {
+          bookmarks = value;
+        }
+      }, (e) => bookmarksError = e),
+    ]);
+    if (active()) {
+      metadataBusy = false;
+      emit();
     }
   }
 
@@ -118,7 +154,7 @@ class CatalogController extends ChangeNotifier {
         ? state['executionStatus']
         : null;
     return (company.isEmpty ||
-            companies.any(
+            companiesFor(p).any(
               (c) => c['problemVersionId'] == p.version && c['slug'] == company,
             )) &&
         (completion == 'all' ||
@@ -129,15 +165,22 @@ class CatalogController extends ChangeNotifier {
                 : status == completion));
   }).toList();
   Future<void> toggleBookmark(Problem p) async {
-    final target = !bookmarks.contains(p.id);
-    await api.bookmark(p.id, target);
-    if (disposed) return;
-    if (target) {
-      bookmarks.add(p.id);
-    } else {
-      bookmarks.remove(p.id);
-    }
+    if (!_bookmarkPending.add(p.id)) return;
+    _bookmarkRevision++;
     emit();
+    final target = !bookmarks.contains(p.id);
+    try {
+      await api.bookmark(p.id, target);
+      if (disposed) return;
+      if (target) {
+        bookmarks.add(p.id);
+      } else {
+        bookmarks.remove(p.id);
+      }
+    } finally {
+      _bookmarkPending.remove(p.id);
+      emit();
+    }
   }
 
   @override
@@ -145,6 +188,7 @@ class CatalogController extends ChangeNotifier {
     disposed = true;
     _generation++;
     _token?.cancel();
+    _metadataToken?.cancel();
     super.dispose();
   }
 }
@@ -174,5 +218,12 @@ String completionLabel(Json? value, String version) {
     'execution_failed': 'Execution failed',
   };
   final learning = value['learningStatus'] as String? ?? 'new';
-  return '${labels[status] ?? (learning == 'new' ? 'Not started' : learning)}${value['previousVersionPassed'] == true ? ' · Passed earlier version' : ''}';
+  final previous =
+      value['previousVersionPassed'] == true ||
+      (value['problemVersionId'] != version &&
+          {
+            'solved',
+            'passed_current_tests',
+          }.contains(value['executionStatus']));
+  return '${labels[status] ?? (learning.isEmpty || learning == 'new' ? 'Not started' : learning[0].toUpperCase() + learning.substring(1))}${previous ? ' · Passed earlier version' : ''}';
 }

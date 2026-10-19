@@ -104,7 +104,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Retry AI Review'), findsOneWidget);
-      expect(find.text('accepted'), findsOneWidget);
+      expect(find.text('Accepted'), findsOneWidget);
       await tester.tap(find.text('Retry AI Review'));
       await tester.pumpAndSettle();
       expect(find.text('Fixture saved analysis'), findsOneWidget);
@@ -133,11 +133,11 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('queued'), findsOneWidget);
+      expect(find.text('Code Intelligence queued'), findsOneWidget);
       server.reportStatus = 'generating';
       await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();
-      expect(find.text('generating'), findsOneWidget);
+      expect(find.text('Reviewing your solution…'), findsOneWidget);
       server.reportStatus = 'completed';
       await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();

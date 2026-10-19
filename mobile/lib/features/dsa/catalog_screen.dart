@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/api/api_failure.dart';
 import '../../shared/widgets/states.dart';
+import '../../shared/theme/app_theme.dart';
 import 'catalog_controller.dart';
+import 'dsa_api.dart' show bookmarksProvider;
 
 class DsaExplorerScreen extends ConsumerStatefulWidget {
   const DsaExplorerScreen({super.key});
@@ -165,7 +167,9 @@ class _DsaExplorerScreenState extends ConsumerState<DsaExplorerScreen> {
                             child: Text(pair.$2),
                           ),
                       ],
-                      onChanged: controller.metadataError != null
+                      onChanged:
+                          controller.progressError != null ||
+                              controller.bookmarksError != null
                           ? null
                           : (value) {
                               controller.completion = value ?? 'all';
@@ -183,7 +187,10 @@ class _DsaExplorerScreenState extends ConsumerState<DsaExplorerScreen> {
                   ),
                   actions: [
                     TextButton(
-                      onPressed: controller.loadMetadata,
+                      onPressed: () {
+                        controller.load();
+                        controller.loadMetadata();
+                      },
                       child: const Text('Retry'),
                     ),
                   ],
@@ -200,6 +207,27 @@ class _DsaExplorerScreenState extends ConsumerState<DsaExplorerScreen> {
                   ),
                 ),
               ),
+              if (controller.progress.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 2, 16, 10),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Wrap(
+                      spacing: 16,
+                      runSpacing: 4,
+                      children: [
+                        Text(
+                          '${controller.progress.values.where((p) => p['executionStatus'] == 'solved').length} solved',
+                          style: const TextStyle(color: AppColors.highlight),
+                        ),
+                        Text(
+                          '${controller.progress.values.where((p) => p['executionStatus'] == 'passed_current_tests').length} passed current tests',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               Expanded(
                 child: controller.error != null && controller.problems.isEmpty
                     ? ErrorState(
@@ -267,12 +295,42 @@ class _DsaExplorerScreenState extends ConsumerState<DsaExplorerScreen> {
                                 ),
                                 child: ListTile(
                                   title: Text(p.title),
-                                  subtitle: Text(
-                                    '${p.difficulty ?? 'Unrated'} · ${controller.metadataBusy
-                                        ? 'Loading progress…'
-                                        : controller.metadataError != null
-                                        ? 'Progress unavailable'
-                                        : completionLabel(controller.progress[p.id], p.version)}',
+                                  subtitle: Padding(
+                                    padding: const EdgeInsets.only(top: 6),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          '${p.difficulty ?? 'Unrated'} · ${controller.progressError != null
+                                              ? 'Progress unavailable'
+                                              : controller.metadataBusy && !controller.progress.containsKey(p.id)
+                                              ? 'Loading progress…'
+                                              : completionLabel(controller.progress[p.id], p.version)}',
+                                        ),
+                                        if (controller
+                                            .companiesFor(p)
+                                            .isNotEmpty)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              top: 6,
+                                            ),
+                                            child: Text(
+                                              controller
+                                                  .companiesFor(p)
+                                                  .map((c) => c['name'])
+                                                  .toSet()
+                                                  .join(' · '),
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                color: AppColors.highlight,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
                                   ),
                                   trailing: IconButton(
                                     tooltip: 'Bookmark ${p.title}',
@@ -281,23 +339,30 @@ class _DsaExplorerScreenState extends ConsumerState<DsaExplorerScreen> {
                                           ? Icons.bookmark
                                           : Icons.bookmark_border,
                                     ),
-                                    onPressed: () async {
-                                      try {
-                                        await controller.toggleBookmark(p);
-                                      } catch (e) {
-                                        if (context.mounted) {
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                ApiFailure.from(e).userMessage,
-                                              ),
-                                            ),
-                                          );
-                                        }
-                                      }
-                                    },
+                                    onPressed: controller.bookmarkPending(p)
+                                        ? null
+                                        : () async {
+                                            try {
+                                              await controller.toggleBookmark(
+                                                p,
+                                              );
+                                              ref.invalidate(bookmarksProvider);
+                                            } catch (e) {
+                                              if (context.mounted) {
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      ApiFailure.from(
+                                                        e,
+                                                      ).userMessage,
+                                                    ),
+                                                  ),
+                                                );
+                                              }
+                                            }
+                                          },
                                   ),
                                   onTap: () async {
                                     await context.push(

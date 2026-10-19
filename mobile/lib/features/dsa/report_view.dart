@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import '../../core/api/api_failure.dart';
 import 'canonical_api.dart';
 import 'canonical_models.dart';
+import 'intelligence_report.dart';
 
 class ExecutionCard extends StatelessWidget {
   const ExecutionCard({super.key, required this.job});
@@ -12,18 +13,54 @@ class ExecutionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final result = job.result;
+    final provisional =
+        result?['verdict'] == 'provisional_pass' ||
+        result?['gradingLevel'] == 'provisional' ||
+        job.data['gradingLevel'] == 'provisional';
+    final positive = {
+      'accepted',
+      'passed_public_tests',
+    }.contains(result?['verdict']);
+    final color = provisional
+        ? const Color(0xFFF0BA6A)
+        : positive
+        ? const Color(0xFF55DBAD)
+        : result == null
+        ? Theme.of(context).colorScheme.primary
+        : Theme.of(context).colorScheme.error;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(job.label, style: Theme.of(context).textTheme.titleLarge),
+            Row(
+              children: [
+                Icon(
+                  provisional
+                      ? Icons.science_outlined
+                      : positive
+                      ? Icons.check_circle_outline
+                      : result == null
+                      ? Icons.hourglass_top
+                      : Icons.error_outline,
+                  color: color,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    job.label,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.titleLarge?.copyWith(color: color),
+                  ),
+                ),
+              ],
+            ),
             Text(
               '${job.mode == 'run' ? 'Public Run' : 'Submit'} · ${job.status}',
             ),
-            if (result?['gradingLevel'] == 'provisional' ||
-                job.data['gradingLevel'] == 'provisional')
+            if (provisional)
               const Text(
                 'Current-suite result; this is not an officially Accepted verdict.',
               ),
@@ -178,7 +215,11 @@ class _SubmissionDetailsState extends State<SubmissionDetails>
       children: [
         ListTile(
           title: const Text('Submission & AI review'),
-          subtitle: Text(job.id),
+          subtitle: Text(
+            widget.problem.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
           trailing: IconButton(
             tooltip: 'Close review',
             onPressed: () => Navigator.pop(context),
@@ -207,7 +248,7 @@ class _SubmissionDetailsState extends State<SubmissionDetails>
                       ? 'Loading Code Intelligence…'
                       : !saved!.enabled
                       ? 'Code Intelligence is unavailable.'
-                      : saved!.status ?? 'Code Intelligence queued',
+                      : reportStatusLabel(saved!.status),
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 if (saved?.status == 'failed') ...[
@@ -222,37 +263,24 @@ class _SubmissionDetailsState extends State<SubmissionDetails>
                     'The existing daily AI report allowance has been reached.',
                   ),
                 if (saved?.analysis != null)
-                  for (final section in [
-                    'summary',
-                    'complexity',
-                    'correctness',
-                    'quality',
-                    'optimization',
-                    'learning',
-                  ])
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              section[0].toUpperCase() + section.substring(1),
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            ..._analysis(saved!.analysis![section]),
-                          ],
-                        ),
-                      ),
-                    ),
+                  CodeIntelligenceReport(analysis: saved!.analysis!),
                 if (saved != null)
                   ExpansionTile(
                     title: const Text('Submitted source · read only'),
                     children: [
                       TextButton.icon(
-                        onPressed: () => Clipboard.setData(
-                          ClipboardData(text: saved!.source),
-                        ),
+                        onPressed: () async {
+                          await Clipboard.setData(
+                            ClipboardData(text: saved!.source),
+                          );
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Submitted code copied'),
+                              ),
+                            );
+                          }
+                        },
                         icon: const Icon(Icons.copy),
                         label: const Text('Copy submitted code'),
                       ),
@@ -288,26 +316,14 @@ class _SubmissionDetailsState extends State<SubmissionDetails>
       ],
     ),
   );
-  List<Widget> _analysis(Object? value) {
-    if (value is String) return [SelectableText(value)];
-    if (value is List) {
-      return value
-          .whereType<String>()
-          .map((line) => SelectableText('• $line'))
-          .toList();
-    }
-    if (value is Map) {
-      return [
-        for (final entry in value.entries) ...[
-          Text(
-            entry.key.toString(),
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
-          ..._analysis(entry.value),
-          const SizedBox(height: 8),
-        ],
-      ];
-    }
-    return [];
-  }
 }
+
+String reportStatusLabel(String? status) =>
+    const {
+      'queued': 'Code Intelligence queued',
+      'generating': 'Reviewing your solution…',
+      'completed': 'Code Intelligence',
+      'failed': 'AI review unavailable',
+      'rate_limited': 'Daily review limit reached',
+    }[status] ??
+    'Waiting for Code Intelligence';
