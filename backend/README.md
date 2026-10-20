@@ -46,13 +46,11 @@ This separation prevents the FastAPI domain backend from becoming coupled to one
 
 ---
 
-## Submission code freeze — October 20, 2026
+## DSA V3 integration and service boundaries
 
-This backend remains a Python/FastAPI **product API and data domain**, not the primary web AI-agent host or the isolated execution worker. ReasonAI's Next.js runtime owns interactive LangGraph/Nemotron orchestration; Supabase holds authenticated data and persisted execution/report records; Go realtime is a separate service.
+This FastAPI backend owns product APIs and data, not the interactive web AI-agent runtime or isolated execution worker. Next.js owns interactive LangGraph/Nemotron orchestration; Supabase persists application, execution and report state, while a separate Go service provides realtime collaboration.
 
-The DSA V3 learner release exposes a **375-problem published catalog** with Run/Submit capability through the existing web and mobile clients and shared execution infrastructure. As verified on October 17, **10** problem versions had trusted certificates and **365** were admitted only to explicitly **provisional** grading. A passing provisional job is labeled `provisional_pass`, not official `Accepted`. Two authentic production Run → Submit → Code Intelligence examples are recorded; this does not establish 375 end-to-end judged solutions. See [production reconciliation and verified execution paths](../docs/dsa-v3/integration-20261017.md), [certification requirements](../docs/dsa-v3/certification.md) and [Results Studio handoff](../docs/dsa-v3/results-studio-handoff.md).
-
-**Freeze boundary:** documentation and critical acceptance/security fixes only; do not add duplicate execution APIs, change hidden fixtures or certify unreviewed problems to improve a submission claim. Historical sections below document this service's existing routes and contracts; the linked, dated DSA integration record is authoritative for V3 rollout status.
+The [October 17 production record](../docs/dsa-v3/integration-20261017.md) documents the **375-problem** published catalog and shared Run/Submit infrastructure. Ten problem versions had trusted certificates, while 365 were admitted through **provisional** grading; a passing provisional job is `provisional_pass`, not officially certified `Accepted`. Two authenticated production submissions and saved Nemotron Code Intelligence reports were verified, which does not imply 375 successful judged solutions. See also [certification](../docs/dsa-v3/certification.md) and the [Results Studio implementation](../docs/dsa-v3/results-studio-handoff.md).
 
 # 1. High-level architecture
 
