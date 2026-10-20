@@ -8,14 +8,11 @@
 
 > AI can generate answers in seconds. ReasonAI helps engineers develop the judgment to decide what to build, why it works, and what to change.
 
-## Submission code freeze — October 20, 2026
+## DSA execution and Android test build
 
-ReasonAI web and mobile feature development is frozen for the hackathon submission. Documentation, factual corrections, release-artifact verification and critical acceptance fixes are the remaining release activities; code freeze is a project policy, not proof that every production or mobile-release gate has passed.
+[October 17 production verification](docs/dsa-v3/integration-20261017.md) documented a published catalog of **375 problems** with Run and Submit paths: **10 officially certified** and **365 provisionally graded**. Real 3Sum and Catalan Number production submissions generated saved verdicts and NVIDIA Nemotron Code Intelligence reports. These two runs do not establish a 375-problem end-to-end benchmark, and a provisional pass is not official `Accepted`.
 
-- **Web:** [https://www.reasonai.tech](https://www.reasonai.tech) is the judge-access entry point. [DSA production verification](docs/dsa-v3/integration-20261017.md) documents 375 published problems with Run/Submit access: **10 officially certified, 365 provisionally graded**. The recorded 3Sum and Catalan Number submissions and persisted Nemotron Code Intelligence reports are production examples, **not** a 375-problem end-to-end pass benchmark.
-- **Mobile:** Flutter v1.0.0 (2) has a [verified debug-signed test APK](mobile/docs/release-readiness.md#verified-debug-delivery) and a [device smoke checklist](mobile/docs/device-smoke-checklist.md). A publicly accessible Drive APK URL and a production-signed Android release have **not** been verified; there is therefore no public APK download link here yet.
-- **Evidence:** Historical October 11 screenshots and failed runs remain archived in the [evidence hub](docs/evidence/INDEX.md). Newer [DSA production evidence](docs/dsa-v3/integration-20261017.md) supplements rather than retroactively changes those dated results.
-- **Demo:** The linked video is an earlier product recording. The final hackathon video is intentionally the last submission step.
+Flutter v1.0.0 (2) supports the Feed and DSA learning, editor, submission history and AI review. See the [Android debug APK verification and distribution requirements](mobile/docs/release-readiness.md#verified-debug-delivery); a public APK URL and production-signed Android build are not yet verified.
 
 ### ReasonAI in action — real production capture
 
