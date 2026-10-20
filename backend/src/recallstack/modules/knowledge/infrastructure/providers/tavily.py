@@ -77,4 +77,13 @@ class TavilyDiscovery:
             return tuple(candidates)
 
         batches = await bounded_map(self._topics, search, self._concurrency)
-        return tuple(candidate for batch in batches for candidate in batch)[:limit]
+        # Keep every topic represented when the total results exceed the cap.
+        # Concatenation could fill the quota with only the first few topics.
+        result: list[DiscoveryCandidate] = []
+        for index in range(max((len(batch) for batch in batches), default=0)):
+            for batch in batches:
+                if index < len(batch):
+                    result.append(batch[index])
+                    if len(result) == limit:
+                        return tuple(result)
+        return tuple(result)
