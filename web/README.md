@@ -8,12 +8,20 @@ The web application is intentionally more than a frontend. It owns the browser e
 
 ---
 
+## Submission code freeze — October 20, 2026
+
+This is the current web architecture reference. **No new features are planned before the hackathon submission; documentation and acceptance fixes only.** The live release must still be checked independently of unit/browser mocks.
+
+**DSA V3 is integrated:** the web catalog contains 375 published problems with a Python editor, local Pyodide **Run** on public tests, authenticated sandbox-backed **Submit**, Results Studio, saved history, Code Intelligence and contextual post-submission tutoring. Production evidence recorded 375/375 Run and Submit capability, **10 official certificates** and **365 provisional grading paths**; provisional success is `provisional_pass`, not an official Accepted/certified result. See [production integration](../docs/dsa-v3/integration-20261017.md), [Results Studio implementation and pending manual gate](../docs/dsa-v3/results-studio-handoff.md), and [separate certification requirements](../docs/dsa-v3/certification.md).
+
+The interactive Nemotron/Tavily agents live in the Next.js server boundary; the FastAPI backend remains the product-data boundary, and the Go service remains the single-instance, memory-only collaboration boundary. Never expose provider credentials or hidden judge fixtures to the client.
+
 ## 1. What the web application owns
 
 ReasonAI Web currently owns these product surfaces:
 
 - **Knowledge Feed** — personalized technical stories, detail view, interaction events, feed preferences, on-demand refresh and Ask ReasonAI.
-- **DSA Learning Workspace** — source-aware tutoring, progressive hints, review, complexity analysis, web research, visual walkthroughs, durable tutoring state and optional learner memory.
+- **DSA Learning Workspace** — 375-problem explorer and Monaco editor, public-test local Run, sandbox-backed Submit, Results Studio, saved verdict/history, Code Intelligence and source-aware tutoring (progressive hints, review, research, visual walkthroughs and durable learner context).
 - **System Design Workspace** — Konva architecture canvas, AI chat/review/fix/eagle modes, web research, semantic architecture analysis, reviewable canvas proposals and Live Share.
 - **Authentication and session UX** — Supabase browser/server integration, route protection and bounded refresh/retry behavior.
 - **Admin UI** — content/user administration and System Design administration.
