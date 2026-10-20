@@ -1,17 +1,15 @@
 # ReasonAI — Nebius × NVIDIA hackathon evidence pack
 
-**Track:** Best Apps & Agents · **Evidence status:** Initial audit only; new live and user-study benchmarks **not run** as of 2026-10-11.  
+**Track:** Best Apps & Agents · **Engineering evidence:** implementation records, dated production tests and documented limitations.  
 **Product:** https://www.reasonai.tech · **Submission context:** [HACKATHON_SUBMISSION.md](../../HACKATHON_SUBMISSION.md)
 
-This is the public verification appendix for ReasonAI, not a marketing scorecard. It distinguishes *source-documented implementation*, *historical test evidence*, *live production verification*, and *impact measured with people*. Absence of measured results is reported as **pending**, never silently converted into success.
+This appendix links implementation records and dated production verification for ReasonAI. Historical automated tests and live production journeys are identified separately; neither is presented as a controlled user-impact or performance benchmark.
 
 ## Dated evidence addendum — October 20, 2026
 
-This evidence pack began with an October 11 audit and its planned evaluation samples are **not represented as completed studies**. The repository contains [later October 17 live DSA production verification](../dsa-v3/integration-20261017.md): the published 375-problem catalog exposed Run and Submit for every problem, including **10 legacy officially certified** and **365 provisionally graded** versions. Real authenticated 3Sum and Catalan Number journeys produced saved judge verdicts and Nebius/Nemotron Code Intelligence documents. A provisional `provisional_pass` is explicitly **not** official `Accepted`; these two runs do not establish a 375-problem sandbox pass rate.
+The original engineering audit was recorded October 11. The repository contains [later October 17 live DSA production verification](../dsa-v3/integration-20261017.md): the published 375-problem catalog exposed Run and Submit for every problem, including **10 legacy officially certified** and **365 provisionally graded** versions. Real authenticated 3Sum and Catalan Number journeys produced saved judge verdicts and Nebius/Nemotron Code Intelligence documents. A provisional `provisional_pass` is explicitly **not** official `Accepted`; these two runs do not establish a 375-problem sandbox pass rate.
 
-Flutter v1.0.0 (2) has a [debug-signed APK handoff](../../mobile/docs/release-readiness.md#verified-debug-delivery), but not a verified public download URL or signed production release. The final judge video remains a separate last step. All prior recorded Knowledge/System Design limitations are preserved as historical observations until rerun with dated evidence.
-
-The pending evaluation table below is a **new-study worklist**, not a denial of the narrower independently recorded production smoke tests. Quantitative usability, model quality, learning impact, reliability and scalability claims require raw measured results.
+Flutter v1.0.0 (2) has a [debug-signed APK handoff](../../mobile/docs/release-readiness.md#verified-debug-delivery); a publicly accessible distribution URL and production-signed release remain unverified. Earlier Knowledge/System Design results and limitations retain their original observation dates.
 
 ## Nebius judging rubric (four equal 25% criteria)
 
@@ -24,7 +22,7 @@ The official [rules](https://nebiusglobalaihackathon.devpost.com/rules) use Stag
 | Potential Impact | Technical learners and engineers can discover, reason, design and practice | Predefined rubric, matched before/after or controlled-task comparison, participant denominators and counterexamples |
 | Quality of Idea | Connected technical judgment workflow rather than isolated chat tools | Specific user pain, alternatives, system boundaries and why Nebius-powered tools are essential |
 
-**Eligibility blocker to verify:** at least one real runtime request to Nebius Token Factory (or actual Nebius AI Cloud compute) with an NVIDIA open-source model, plus a working judge-accessible application. A mocked test or model identifier in source code does not prove this.
+**Recorded sponsor evidence:** [October 17 production DSA verification](../dsa-v3/integration-20261017.md) documents two actual sandbox submissions and two saved NVIDIA Nemotron Super Code Intelligence reports. The [October 11 evidence hub](../evidence/INDEX.md) separately records provider probes and a System Design model/tool run. See those dated records for exact scope and limitations.
 
 ## Evidence already in source (not a fresh production benchmark)
 
@@ -38,26 +36,13 @@ The official [rules](https://nebiusglobalaihackathon.devpost.com/rules) use Stag
 
 **Known historical caveat:** the Knowledge verification note also recorded a failed dependency vulnerability audit. Re-run and resolve security audits before treating that historical build as production-cleared.
 
-## New evidence collection — status
+## Verification references
 
-| ID | Evaluation | Planned size | Status | Source file |
-| --- | --- | ---: | --- | --- |
-| DSA | Tutoring outcome and explanation quality | 10 selected tasks | **Pending** | [TEST_CASES.md](TEST_CASES.md) |
-| SD | Architecture quality before/after AI review | 5 tasks | **Pending** | [METHODOLOGY.md](METHODOLOGY.md) |
-| FEED | Claim/source grounding and usefulness | 20 selected stories | **Pending** | [TEST_CASES.md](TEST_CASES.md) |
-| RT | Two-client sync and reconnect | 20 scenarios | **Pending** | [TEST_CASES.md](TEST_CASES.md) |
-| AGENT | Live Nemotron tool/response success | 30 prompts | **Pending** | [TEST_CASES.md](TEST_CASES.md) |
-| UX | Unassisted discoverability of key journeys | 5–8 consenting participants | **Pending** | [METHODOLOGY.md](METHODOLOGY.md) |
+- [Production DSA integration and persisted results](../dsa-v3/integration-20261017.md)
+- [Dated System Design, Feed, DSA and collaboration evidence](../evidence/INDEX.md)
+- [Reproducible local development and verification commands](../DEVELOPMENT.md)
+- [Mobile build, signature and device verification](../../mobile/docs/release-readiness.md)
 
-See [METHODOLOGY.md](METHODOLOGY.md) for measurement definitions, baselines and reviewer procedure; [TEST_CASES.md](TEST_CASES.md) for the fixed case plan; [results/README.md](results/README.md) and [results/results-template.csv](results/results-template.csv) for the raw-data schema. [DEVPOST_COPY.md](DEVPOST_COPY.md) contains submission-safe copy.
-
-## Reproduction / collection procedure
-
-1. Record a fixed git SHA and build/deploy revision. Record the date, environment and anonymized participant/test IDs.
-2. Run existing code checks (for web, scripts declared in [web/package.json](../../web/package.json): `npm run verify` from `web/`, with required local dependencies/config). Report exact test totals **from this run**, not historical reports.
-3. Execute the fixed cases on the actual judge-accessible deployment. Distinguish `automated_mock`, `automated_live`, and `human` for every result.
-4. Export redacted LangSmith/Nebius request evidence, review failures, and enter one row per attempted case in [results/results-template.csv](results/results-template.csv). Never publish credentials, user content or raw identifiers.
-5. Publish counts with denominators, score rubrics, deployment SHA, run date, and any exclusions or missing values. Keep all failures visible.
-6. Only then replace **Pending** labels and insert actual measured findings into [DEVPOST_COPY.md](DEVPOST_COPY.md), the Devpost page and the demo narration.
+Claims about learning outcomes, system-wide latency, production uptime, or scalability require independent measurements. Documentation and automated tests alone do not establish those outcomes.
 
 **We do not currently claim** higher student learning outcomes, a percent accuracy, production uptime, an average response speed, or benchmark superiority.
