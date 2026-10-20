@@ -1,14 +1,14 @@
 # ReasonAI Android test handoff
 
-Candidate: **1.0.0 (4)**, package `com.recallstack.app`. This is a **debug-signed test build**, not a Play Store release. Production signing remains a later gate, as requested by the owner.
+Candidate: **1.0.0 (5)**, package `com.recallstack.app`. This is a release-signed candidate for device testing. It has not been uploaded to Google Play or approved for public rollout. Its certificate differs from the earlier debug builds: use a separate device or preserve local work before replacing a debug installation.
 
-Local APK: `mobile/build/delivery/reasonai-1.0.0-build4-debug.apk`.
-Its source commit and SHA-256 are recorded in `build/delivery/artifact-verification-build4.json`. See the [DSA metadata correction](catalog-metadata-fix.md). CI also uploads a debug APK for each successful Mobile CI run.
+Local APK: `mobile/build/delivery/reasonai-1.0.0-build5-release.apk`.
+Its source commit and SHA-256 are recorded in `build/delivery/artifact-verification-release5.json`. See the [signed candidate handoff](release5-handoff.md). Existing CI debug artifacts remain a different signing identity.
 
 ## Install
 
 ```powershell
-adb install -r mobile/build/delivery/reasonai-1.0.0-build4-debug.apk
+adb install -r mobile/build/delivery/reasonai-1.0.0-build5-release.apk
 adb shell am start -n com.recallstack.app/.MainActivity
 ```
 

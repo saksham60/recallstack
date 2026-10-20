@@ -1,9 +1,9 @@
 # ReasonAI Mobile release candidate
 
-Current refinement candidate: **1.0.0 (4)** on `feat/mobile-final-refinement`. Android application ID / iOS bundle ID: `com.recallstack.app`. See the [DSA metadata correction](catalog-metadata-fix.md) for build-4 results. The build-2 evidence below and [build-3 refinement handoff](refinement-debug-handoff.md) remain historical records.
+Current signed Android candidate: **1.0.0 (5)** on `feat/mobile-final-refinement`. Android application ID / iOS bundle ID: `com.recallstack.app`. See the [signed candidate handoff](release5-handoff.md) and [signing recovery instructions](android-release-signing.md). The build-2 evidence below, [build-3 refinement handoff](refinement-debug-handoff.md) and [build-4 DSA metadata correction](catalog-metadata-fix.md) remain historical records.
 Release verdict: **NOT READY** until the external gates below pass.
 
-The owner approved a **debug build handoff for device testing** on 2026-10-19. Production signing is explicitly deferred; no new signing credentials were generated.
+The owner approved creation of the first Android release keystore on 2026-10-20. The private keystore and credentials are stored locally outside Git; only its public certificate is committed. Signed APK and AAB generation and signature verification have passed. This does not replace real-account testing or approve a public rollout.
 
 ## Implemented and contract-reviewed
 
@@ -59,7 +59,7 @@ Install a verified APK with `adb install -r <apk>` or copy it to Android, allow 
 
 ## Release gates and remaining external dependencies
 
-1. **Android release signing:** `android/key.properties` and its referenced production keystore are absent. Existing Gradle guard rejects release APK/AAB tasks. The owner must provide the existing `storeFile`, `storePassword`, `keyAlias`, `keyPassword` through ignored local configuration or secure CI. No signing credentials have been generated or committed. A debug-signed APK is for testing and is not a production release.
+1. **Android release signing:** completed locally with owner approval for candidate 5. APK and AAB signatures match the tracked public certificate; release is non-debuggable and cannot fall back to the debug key. The private PKCS12 keystore is outside Git, and `android/key.properties` remains ignored. The owner still needs an encrypted off-device backup; CI signing credentials and Play Console enrollment have not been configured. See [signing instructions](android-release-signing.md).
 2. **Live authentication and backend smoke test:** Real Google OAuth callback, authenticated Run/Submit, server-persisted history/report, account switch and logout must be exercised with an authorized learner on the signed candidate. Mocked tests cannot satisfy this gate. No certification batch or 375-fixture revalidation is required.
 3. **iOS:** Windows has no Xcode. Mobile CI includes a macOS unsigned release compilation with public production configuration. Even a passing unsigned build does not prove Apple provisioning, signing, archive/export or physical-device OAuth. Apple team/certificates/profiles and device testing remain separate gates.
 4. **Saved-story discovery:** Mobile reconciles saved state for encountered stories and labels its saved list as device-local. The repository now includes `GET /knowledge/saved-stories` for the web feature, but production deployment and mobile adoption have not been verified in this refinement. Historical saved stories from another device are not claimed to be discoverable in the current mobile cache.
