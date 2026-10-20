@@ -164,34 +164,32 @@ class _DsaExplorerScreenState extends ConsumerState<DsaExplorerScreen> {
                         ])
                           DropdownMenuItem(
                             value: pair.$1,
+                            enabled:
+                                pair.$1 == 'all' ||
+                                (pair.$1 == 'bookmarked'
+                                    ? controller.bookmarksError == null
+                                    : controller.progressError == null),
                             child: Text(pair.$2),
                           ),
                       ],
-                      onChanged:
-                          controller.progressError != null ||
-                              controller.bookmarksError != null
-                          ? null
-                          : (value) {
-                              controller.completion = value ?? 'all';
-                              controller.emit();
-                              controller.loadAll();
-                            },
+                      onChanged: (value) {
+                        controller.completion = value ?? 'all';
+                        controller.emit();
+                        controller.loadAll();
+                      },
                     ),
                   ],
                 ),
               ),
               if (controller.metadataError != null)
                 MaterialBanner(
-                  content: const Text(
-                    'Progress or company metadata is unavailable. Your saved work is unchanged.',
-                  ),
+                  content: Text(controller.metadataWarning),
                   actions: [
                     TextButton(
-                      onPressed: () {
-                        controller.load();
-                        controller.loadMetadata();
-                      },
-                      child: const Text('Retry'),
+                      onPressed: controller.retryBusy
+                          ? null
+                          : controller.retryMetadata,
+                      child: Text(controller.retryBusy ? 'Retrying…' : 'Retry'),
                     ),
                   ],
                 ),
@@ -304,7 +302,7 @@ class _DsaExplorerScreenState extends ConsumerState<DsaExplorerScreen> {
                                         Text(
                                           '${p.difficulty ?? 'Unrated'} · ${controller.progressError != null
                                               ? 'Progress unavailable'
-                                              : controller.metadataBusy && !controller.progress.containsKey(p.id)
+                                              : controller.progressBusy && !controller.progress.containsKey(p.id)
                                               ? 'Loading progress…'
                                               : completionLabel(controller.progress[p.id], p.version)}',
                                         ),

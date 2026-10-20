@@ -245,6 +245,9 @@ class ContractServer implements HttpClientAdapter {
       });
     }
     if (path.endsWith('/dsa/me/bookmarks') && o.method == 'GET') {
+      if ((o.queryParameters['page_size'] as int) > 50) {
+        return json({'detail': 'page_size must be at most 50'}, 422);
+      }
       return json({
         'items': bookmarks.map((id) => {'content_item_id': id}).toList(),
         'pagination': {'total_pages': 1},

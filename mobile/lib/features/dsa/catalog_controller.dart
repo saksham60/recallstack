@@ -17,9 +17,20 @@ class CatalogController extends ChangeNotifier {
   Object? error, progressError, companyError, bookmarksError, categoriesError;
   Object? get metadataError =>
       progressError ?? companyError ?? bookmarksError ?? categoriesError;
+  String get metadataWarning => [
+    if (progressError != null)
+      'Progress could not refresh. Displayed progress may be out of date.',
+    if (companyError != null)
+      'Some company tags could not load. Company matches may be incomplete.',
+    if (bookmarksError != null) 'Bookmarks could not refresh.',
+    if (categoriesError != null) 'Categories could not refresh.',
+  ].join('\n');
+  bool companyRetryBusy = false, progressBusy = false;
+  bool get retryBusy => metadataBusy || companyRetryBusy;
   final _companyIndex = <String, List<Json>>{};
+  final _failedCompanies = <String, Problem>{};
   final _bookmarkPending = <String>{};
-  CancelToken? _token, _metadataToken;
+  CancelToken? _token, _metadataToken, _companyRetryToken;
   int _generation = 0, _metadataGeneration = 0, _bookmarkRevision = 0;
   List<Json> companiesFor(Problem p) => _companyIndex[p.version] ?? const [];
   bool bookmarkPending(Problem p) => _bookmarkPending.contains(p.id);
@@ -31,10 +42,13 @@ class CatalogController extends ChangeNotifier {
     if (disposed || (more && (busy || !hasMore))) return;
     if (!more) {
       _token?.cancel();
+      _companyRetryToken?.cancel();
       _generation++;
       problems = [];
       companies = [];
       _companyIndex.clear();
+      _failedCompanies.clear();
+      companyRetryBusy = false;
       companyError = null;
       cursor = null;
     }
@@ -67,15 +81,15 @@ class CatalogController extends ChangeNotifier {
       if (page.items.isNotEmpty) {
         try {
           final tags = await api.companies(page.items, token: token);
-          if (!disposed && generation == _generation) {
-            companies = [...companies, ...tags];
-            for (final tag in tags) {
-              (_companyIndex[string(tag, 'problemVersionId')] ??= []).add(tag);
-            }
+          if (!disposed && generation == _generation && !token.isCancelled) {
+            _applyCompanies(page.items, tags);
           }
         } catch (e) {
           if (!token.isCancelled && !disposed && generation == _generation) {
             companyError = e;
+            for (final p in page.items) {
+              _failedCompanies[p.version] = p;
+            }
           }
         }
       }
@@ -91,6 +105,65 @@ class CatalogController extends ChangeNotifier {
     }
   }
 
+  void _applyCompanies(List<Problem> page, List<Json> tags) {
+    final versions = page.map((p) => p.version).toSet();
+    final index = <String, Map<String, Json>>{};
+    for (final tag in tags) {
+      final version = string(tag, 'problemVersionId');
+      if (versions.contains(version)) {
+        (index[version] ??= {})[string(tag, 'slug')] = tag;
+      }
+    }
+    for (final version in versions) {
+      _companyIndex[version] = index[version]?.values.toList() ?? [];
+      _failedCompanies.remove(version);
+    }
+    companies = _companyIndex.values.expand((tags) => tags).toList();
+    if (_failedCompanies.isEmpty) companyError = null;
+  }
+
+  Future<void> _retryCompanies() async {
+    if (disposed || companyRetryBusy || _failedCompanies.isEmpty) return;
+    final generation = _generation;
+    final token = _companyRetryToken = CancelToken();
+    final pending = _failedCompanies.values.toList();
+    companyRetryBusy = true;
+    emit();
+    bool active() =>
+        !disposed && generation == _generation && !token.isCancelled;
+    try {
+      // Retry only missing versions in the same bounded batches as the catalog.
+      for (var offset = 0; offset < pending.length; offset += 50) {
+        if (!active()) return;
+        final page = pending.skip(offset).take(50).toList();
+        try {
+          final tags = await api.companies(page, token: token);
+          if (!active()) return;
+          _applyCompanies(page, tags);
+        } catch (e) {
+          if (!active()) return;
+          companyError = e;
+        }
+      }
+    } finally {
+      if (active()) {
+        companyRetryBusy = false;
+        emit();
+      }
+    }
+  }
+
+  Future<void> retryMetadata() async {
+    if (disposed || retryBusy) return;
+    await Future.wait([
+      if (progressError != null ||
+          bookmarksError != null ||
+          categoriesError != null)
+        loadMetadata(onlyFailed: true),
+      _retryCompanies(),
+    ]);
+  }
+
   Future<void> loadAll() async {
     for (var i = 0; i < 100 && hasMore && !disposed && !busy; i++) {
       await load(more: true);
@@ -98,14 +171,17 @@ class CatalogController extends ChangeNotifier {
     }
   }
 
-  Future<void> loadMetadata() async {
+  Future<void> loadMetadata({bool onlyFailed = false}) async {
     if (disposed) return;
+    final readCategories = !onlyFailed || categoriesError != null;
+    final readProgress = !onlyFailed || progressError != null;
+    final readBookmarks = !onlyFailed || bookmarksError != null;
     _metadataToken?.cancel();
     final token = _metadataToken = CancelToken();
     final current = ++_metadataGeneration;
     final bookmarkRevision = _bookmarkRevision;
     metadataBusy = true;
-    progressError = bookmarksError = categoriesError = null;
+    progressBusy = readProgress;
     emit();
     bool active() =>
         !disposed && current == _metadataGeneration && !token.isCancelled;
@@ -125,25 +201,28 @@ class CatalogController extends ChangeNotifier {
     }
 
     await Future.wait([
-      read(
-        api.categories(token: token),
-        (value) => categories = value,
-        (e) => categoriesError = e,
-      ),
-      read(
-        api.progress(token: token),
-        (value) =>
-            progress = {for (final p in value) string(p, 'problemId'): p},
-        (e) => progressError = e,
-      ),
-      read(api.bookmarks(token: token), (value) {
-        if (bookmarkRevision == _bookmarkRevision && _bookmarkPending.isEmpty) {
-          bookmarks = value;
-        }
-      }, (e) => bookmarksError = e),
+      if (readCategories)
+        read(api.categories(token: token), (value) {
+          categories = value;
+          categoriesError = null;
+        }, (e) => categoriesError = e),
+      if (readProgress)
+        read(api.progress(token: token), (value) {
+          progress = {for (final p in value) string(p, 'problemId'): p};
+          progressError = null;
+        }, (e) => progressError = e),
+      if (readBookmarks)
+        read(api.bookmarks(token: token), (value) {
+          if (bookmarkRevision == _bookmarkRevision &&
+              _bookmarkPending.isEmpty) {
+            bookmarks = value;
+            bookmarksError = null;
+          }
+        }, (e) => bookmarksError = e),
     ]);
     if (active()) {
       metadataBusy = false;
+      progressBusy = false;
       emit();
     }
   }
@@ -189,6 +268,7 @@ class CatalogController extends ChangeNotifier {
     _generation++;
     _token?.cancel();
     _metadataToken?.cancel();
+    _companyRetryToken?.cancel();
     super.dispose();
   }
 }

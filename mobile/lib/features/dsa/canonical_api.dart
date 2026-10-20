@@ -132,7 +132,8 @@ class CanonicalDsaApi {
       final body = object(
         (await backend.get(
           'dsa/me/bookmarks',
-          queryParameters: {'page': page, 'page_size': 100},
+          // DSA endpoints cap page_size at 50 (generic learning APIs allow 100).
+          queryParameters: {'page': page, 'page_size': 50},
           cancelToken: token,
         )).data,
       );
