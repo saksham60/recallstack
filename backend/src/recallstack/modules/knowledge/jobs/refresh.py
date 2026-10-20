@@ -68,7 +68,8 @@ async def run(settings: Settings, *, limit: int, source: str, dry_run: bool) -> 
                 before = None if dry_run else await active_story_count(settings)
                 missing = (
                     max(settings.knowledge_min_active_stories - before, 0)
-                    if before is not None else limit
+                    if before is not None
+                    else limit
                 )
                 ingestion_limit = min(limit, missing)
                 if ingestion_limit:
