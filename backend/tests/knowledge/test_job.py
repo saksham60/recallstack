@@ -81,3 +81,78 @@ async def test_overlap_exits_without_building_job_services(monkeypatch):
     monkeypatch.setattr(refresh, "refresh_lock", lock)
     result = await refresh.run(settings(), limit=5, source="all", dry_run=True)
     assert result["status"] == "already_running"
+
+
+async def test_refresh_replenishes_only_missing_count(monkeypatch):
+    limits = []
+    totals = iter((10, 28))
+
+    @asynccontextmanager
+    async def lock(url):
+        yield True
+
+    class Cleanup:
+        async def run(self, now, *, dry_run):
+            assert dry_run is False
+            return CleanupResult()
+
+    class Ingestion:
+        async def run(self, *, limit, dry_run, run_id):
+            limits.append(limit)
+            return IngestionResult({"persisted": 18}, ())
+
+    @asynccontextmanager
+    async def services(config, source):
+        yield Cleanup(), Ingestion()
+
+    async def count(config):
+        return next(totals)
+
+    monkeypatch.setattr(refresh, "refresh_lock", lock)
+    monkeypatch.setattr(refresh, "job_services", services)
+    monkeypatch.setattr(refresh, "active_story_count", count)
+    configured = settings(
+        r2_access_key_id="test",
+        r2_secret_access_key="test",
+        r2_account_id="test",
+        r2_bucket="shorts",
+    )
+    result = await refresh.run(configured, limit=60, source="all", dry_run=False)
+    assert limits == [30]
+    assert result["activeStoriesBefore"] == 10
+    assert result["activeStoriesAfter"] == 28
+    assert result["targetReached"] is False
+
+
+async def test_refresh_skips_ingestion_after_reaching_target(monkeypatch):
+    @asynccontextmanager
+    async def lock(url):
+        yield True
+
+    class Cleanup:
+        async def run(self, now, *, dry_run):
+            return CleanupResult()
+
+    class Ingestion:
+        async def run(self, *, limit, dry_run, run_id):
+            raise AssertionError("Paid ingestion must be skipped")
+
+    @asynccontextmanager
+    async def services(config, source):
+        yield Cleanup(), Ingestion()
+
+    async def count(config):
+        return 44
+
+    monkeypatch.setattr(refresh, "refresh_lock", lock)
+    monkeypatch.setattr(refresh, "job_services", services)
+    monkeypatch.setattr(refresh, "active_story_count", count)
+    configured = settings(
+        r2_access_key_id="test",
+        r2_secret_access_key="test",
+        r2_account_id="test",
+        r2_bucket="shorts",
+    )
+    result = await refresh.run(configured, limit=60, source="all", dry_run=False)
+    assert result["targetReached"] is True
+    assert result["counts"] == {"already_at_target": 1}

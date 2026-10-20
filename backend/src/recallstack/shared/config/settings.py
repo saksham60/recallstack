@@ -50,7 +50,8 @@ class Settings(BaseSettings):
     otel_enabled: bool = False
     knowledge_enabled: bool = False
     knowledge_cursor_secret: SecretStr | None = None
-    knowledge_batch_size: int = Field(default=20, ge=1, le=100)
+    knowledge_batch_size: int = Field(default=60, ge=1, le=100)
+    knowledge_min_active_stories: int = Field(default=40, ge=1, le=1000)
     knowledge_feed_default_limit: int = Field(default=20, ge=1, le=50)
     knowledge_feed_max_limit: int = Field(default=50, ge=1, le=50)
     knowledge_refresh_job_project: str = ""
@@ -67,7 +68,10 @@ class Settings(BaseSettings):
     knowledge_provider_timeout: float = Field(default=45, ge=1, le=120)
     knowledge_provider_retries: int = Field(default=2, ge=0, le=3)
     knowledge_image_max_bytes: int = Field(default=8_388_608, ge=1024, le=16_777_216)
-    knowledge_discovery_topics: str = "software architecture,distributed systems,AI engineering"
+    knowledge_discovery_topics: str = (
+        "AI engineering,developer tools,cloud security,database infrastructure,"
+        "software architecture,distributed systems,programming languages,AI research"
+    )
     tavily_api_key: SecretStr | None = None
     nebius_api_key: SecretStr | None = None
     knowledge_model: str = "nvidia/nemotron-3-super-120b-a12b"
