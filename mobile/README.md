@@ -4,6 +4,15 @@ Flutter client for ReasonAI's learning and knowledge experience. The mobile app 
 
 The 1.0.0 (2) release candidate adds the canonical DSA explorer, mobile Python editor, server Run/Submit, saved submissions and Code Intelligence. See [release readiness](docs/release-readiness.md) for current contracts, verified checks, packaging, branding, and outstanding signing/live-verification gates. Implementation status does not imply production release approval.
 
+## Submission code freeze and Android build availability — October 20, 2026
+
+The Flutter v1.0.0 (2) client is feature-complete for the hackathon scope: Knowledge Feed, authenticated DSA catalog/editor, durable drafts, server Run/Submit, submission history, Code Intelligence, tutor and account-scoped state. This is an **implementation milestone**, not approval for a signed public release.
+
+- **Verified build:** the [debug APK handoff](docs/device-smoke-checklist.md) identifies `reasonai-1.0.0-build2-debug.apk`, its source revision and signature; the exact hash and emulator checks are in [release readiness](docs/release-readiness.md#verified-debug-delivery). It is **Android Debug signed**, not store-ready.
+- **Download:** no publicly accessible APK download URL has been independently verified. Do **not** substitute a private Drive folder URL for a judge-download link. Publish a direct file URL only after file access, filename, SHA-256 and installed identity are checked.
+- **Remaining release gates:** production keystore/signing, real-device Google OAuth and authenticated Run/Submit/report smoke, and iOS signing/device testing. Existing mocked device tests do not satisfy live API acceptance.
+- **Judge access:** the [web product](https://www.reasonai.tech/login) remains the primary public evaluation route while APK distribution is pending.
+
 System Design canvas collaboration remains a web-only capability today. The mobile app does not embed the Konva canvas, the Go realtime room protocol, or System Design editing.
 
 This README documents the current mobile implementation and its boundaries. It distinguishes server-authoritative state, device-local state, streamed AI state, and capabilities that exist in the backend but are not yet wired into Flutter.
