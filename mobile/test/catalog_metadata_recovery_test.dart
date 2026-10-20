@@ -183,10 +183,7 @@ void main() {
       expect(controller.problems, hasLength(2));
       expect(controller.companiesFor(controller.problems.last), hasLength(1));
       expect(controller.companyError, isNotNull);
-      expect(
-        controller.metadataWarning,
-        contains('Company matches may be incomplete'),
-      );
+      expect(controller.progressError, isNull);
     },
   );
 
@@ -205,7 +202,7 @@ void main() {
       api.failingVersions.clear();
       await controller.retryMetadata();
       expect(controller.companyError, isNull);
-      expect(controller.metadataWarning, isEmpty);
+      expect(controller.metadataError, isNull);
       expect(identical(controller.problems, problems), isTrue);
       expect(identical(controller.progress, progress), isTrue);
       expect(controller.cursor, 'page2');
@@ -291,12 +288,12 @@ void main() {
       final controller = CatalogController(api);
       addTearDown(controller.dispose);
       await controller.loadMetadata();
-      expect(controller.metadataWarning, 'Bookmarks could not refresh.');
+      expect(controller.bookmarksError, isNotNull);
       final progress = controller.progress;
       final pending = api.nextBookmarks = Completer<Set<String>>();
       final retry = controller.retryMetadata();
       await controller.retryMetadata();
-      expect(controller.metadataWarning, 'Bookmarks could not refresh.');
+      expect(controller.bookmarksError, isNotNull);
       expect(controller.progressBusy, isFalse);
       pending.complete({problemId});
       await retry;
@@ -310,24 +307,25 @@ void main() {
   );
 
   test(
-    'progress and category failures are accurately named and recover',
+    'progress and category failures preserve saved status and recover',
     () async {
       final api = RecoverableCatalogApi()
         ..failProgress = true
         ..failCategories = true;
       final controller = CatalogController(api);
       addTearDown(controller.dispose);
-      controller.progress[problemId] = {'executionStatus': 'solved'};
+      controller.progress[problemId] = {
+        'problemVersionId': problemVersion,
+        'executionStatus': 'solved',
+      };
       await controller.loadMetadata();
+      expect(controller.progressError, isNotNull);
+      expect(controller.categoriesError, isNotNull);
+      expect(controller.companyError, isNull);
       expect(
-        controller.metadataWarning,
-        contains('Progress could not refresh.'),
+        controller.progressLabel(Problem.parse(problemFixture())),
+        'Solved (saved)',
       );
-      expect(
-        controller.metadataWarning,
-        contains('Categories could not refresh.'),
-      );
-      expect(controller.metadataWarning, isNot(contains('company')));
       expect(controller.progress[problemId]?['executionStatus'], 'solved');
       api.failProgress = api.failCategories = false;
       await controller.retryMetadata();
@@ -339,7 +337,7 @@ void main() {
   );
 
   testWidgets(
-    'bookmark warning preserves solved status, company tags and filters',
+    'bookmark failure has no page banner and preserves solved status and filters',
     (tester) async {
       tester.view.physicalSize = const Size(320, 700);
       tester.view.devicePixelRatio = 1;
@@ -361,7 +359,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('Bookmarks could not refresh.'), findsOneWidget);
+      expect(find.byType(MaterialBanner), findsNothing);
       expect(find.textContaining('Progress or company'), findsNothing);
       expect(find.text('Fixture Co'), findsOneWidget);
       expect(find.textContaining('easy · Solved'), findsOneWidget);
@@ -380,11 +378,115 @@ void main() {
         isFalse,
       );
       api.failBookmarks = false;
-      await tester.tap(find.text('Retry'));
+      await tester.tap(find.byTooltip('Reload saved data'));
       await tester.pumpAndSettle();
-      expect(find.text('Bookmarks could not refresh.'), findsNothing);
+      expect(find.byType(MaterialBanner), findsNothing);
       expect(find.textContaining('easy · Solved'), findsOneWidget);
       expect(api.catalogReads, [null]);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'all optional failures leave the catalog usable without a banner',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 700);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final api = RecoverableCatalogApi()
+        ..failBookmarks = true
+        ..failProgress = true
+        ..failCategories = true;
+      final controller = CatalogController(api);
+      addTearDown(controller.dispose);
+      await controller.load();
+      await controller.loadMetadata();
+      final catalog = controller.problems;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [catalogControllerProvider.overrideWithValue(controller)],
+          child: MaterialApp(
+            theme: buildTheme(),
+            home: const DsaExplorerScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(MaterialBanner), findsNothing);
+      expect(find.textContaining('metadata'), findsNothing);
+      expect(find.text('Array total'), findsOneWidget);
+      expect(find.textContaining('Progress not loaded'), findsOneWidget);
+      expect(find.textContaining('Not started'), findsNothing);
+      final dropdowns = tester
+          .widgetList<DropdownButton<String>>(
+            find.byType(DropdownButton<String>),
+          )
+          .toList();
+      expect(
+        dropdowns[1].items!.any((item) => item.value == 'reload_categories'),
+        isTrue,
+      );
+      expect(
+        dropdowns.last.items!.any((item) => item.value == 'reload_progress'),
+        isTrue,
+      );
+      expect(
+        dropdowns.last.items!.any((item) => item.value == 'reload_bookmarks'),
+        isTrue,
+      );
+      api.failBookmarks = api.failProgress = api.failCategories = false;
+      api.failingVersions.clear();
+      await tester.tap(find.byTooltip('Reload saved data'));
+      await tester.pumpAndSettle();
+      expect(controller.metadataError, isNull);
+      expect(identical(controller.problems, catalog), isTrue);
+      expect(find.textContaining('easy · Solved'), findsOneWidget);
+      expect(find.byType(MaterialBanner), findsNothing);
+      expect(api.catalogReads, [null]);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'company filter retries and updates in place without a page warning',
+    (tester) async {
+      final api = RecoverableCatalogApi();
+      final controller = CatalogController(api);
+      addTearDown(controller.dispose);
+      await controller.load();
+      await controller.load(more: true);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [catalogControllerProvider.overrideWithValue(controller)],
+          child: MaterialApp(
+            theme: buildTheme(),
+            home: const DsaExplorerScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(MaterialBanner), findsNothing);
+      await tester.ensureVisible(find.text('Company'));
+      await tester.tap(find.text('Company'));
+      await tester.pumpAndSettle();
+      expect(find.text('Reload companies'), findsOneWidget);
+      api.failingVersions.clear();
+      await tester.tap(find.text('Reload companies'));
+      await tester.pumpAndSettle();
+      expect(find.text('Reload companies'), findsNothing);
+      expect(controller.companyError, isNull);
+      await tester.tap(
+        find.descendant(
+          of: find.byType(BottomSheet),
+          matching: find.text('Fixture Co'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(controller.company, 'fixture-co');
+      expect(controller.visible, hasLength(2));
+      expect(find.byType(MaterialBanner), findsNothing);
+      expect(api.catalogReads, [null, 'page2']);
       expect(tester.takeException(), isNull);
     },
   );

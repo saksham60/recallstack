@@ -34,10 +34,16 @@ class _DsaExplorerScreenState extends ConsumerState<DsaExplorerScreen> {
             title: const Text('DSA'),
             actions: [
               IconButton(
-                tooltip: 'Refresh catalog',
+                tooltip: controller.metadataError != null
+                    ? 'Reload saved data'
+                    : 'Refresh catalog',
                 onPressed: () {
-                  controller.load();
-                  controller.loadMetadata();
+                  if (controller.metadataError != null) {
+                    controller.retryMetadata();
+                  } else {
+                    controller.load();
+                    controller.loadMetadata();
+                  }
                 },
                 icon: const Icon(Icons.refresh),
               ),
@@ -96,6 +102,12 @@ class _DsaExplorerScreenState extends ConsumerState<DsaExplorerScreen> {
                           value: '',
                           child: Text('All categories'),
                         ),
+                        if (controller.categoriesError != null)
+                          DropdownMenuItem(
+                            value: 'reload_categories',
+                            enabled: !controller.retryBusy,
+                            child: const Text('Reload categories'),
+                          ),
                         for (final item in controller.categories)
                           DropdownMenuItem(
                             value: item['id'] as String,
@@ -103,6 +115,10 @@ class _DsaExplorerScreenState extends ConsumerState<DsaExplorerScreen> {
                           ),
                       ],
                       onChanged: (value) {
+                        if (value == 'reload_categories') {
+                          controller.retryMetadata();
+                          return;
+                        }
                         controller.category = value == '' ? null : value;
                         controller.load();
                       },
@@ -118,31 +134,48 @@ class _DsaExplorerScreenState extends ConsumerState<DsaExplorerScreen> {
                       onPressed: () async {
                         await controller.loadAll();
                         if (!context.mounted) return;
-                        final options = {
-                          for (final c in controller.companies)
-                            c['slug'] as String: c['name'] as String,
-                        };
                         final selected = await showModalBottomSheet<String>(
                           context: context,
                           isScrollControlled: true,
-                          builder: (context) => SafeArea(
-                            child: SizedBox(
-                              height: MediaQuery.sizeOf(context).height * 0.65,
-                              child: ListView(
-                                children: [
-                                  ListTile(
-                                    title: const Text('All companies'),
-                                    onTap: () => Navigator.pop(context, ''),
+                          builder: (context) => ListenableBuilder(
+                            listenable: controller,
+                            builder: (context, child) {
+                              final options = {
+                                for (final c in controller.companies)
+                                  c['slug'] as String: c['name'] as String,
+                              };
+                              return SafeArea(
+                                child: SizedBox(
+                                  height:
+                                      MediaQuery.sizeOf(context).height * 0.65,
+                                  child: ListView(
+                                    children: [
+                                      if (controller.companyError != null)
+                                        ListTile(
+                                          leading: const Icon(Icons.refresh),
+                                          title: const Text('Reload companies'),
+                                          subtitle: const Text(
+                                            'Some company matches may be missing.',
+                                          ),
+                                          enabled: !controller.retryBusy,
+                                          onTap: controller.retryMetadata,
+                                        ),
+                                      ListTile(
+                                        title: const Text('All companies'),
+                                        onTap: () => Navigator.pop(context, ''),
+                                      ),
+                                      for (final key
+                                          in (options.keys.toList()..sort()))
+                                        ListTile(
+                                          title: Text(options[key]!),
+                                          onTap: () =>
+                                              Navigator.pop(context, key),
+                                        ),
+                                    ],
                                   ),
-                                  for (final key
-                                      in (options.keys.toList()..sort()))
-                                    ListTile(
-                                      title: Text(options[key]!),
-                                      onTap: () => Navigator.pop(context, key),
-                                    ),
-                                ],
-                              ),
-                            ),
+                                ),
+                              );
+                            },
                           ),
                         );
                         if (selected != null && !controller.disposed) {
@@ -154,6 +187,18 @@ class _DsaExplorerScreenState extends ConsumerState<DsaExplorerScreen> {
                     DropdownButton<String>(
                       value: controller.completion,
                       items: [
+                        if (controller.progressError != null)
+                          DropdownMenuItem(
+                            value: 'reload_progress',
+                            enabled: !controller.retryBusy,
+                            child: const Text('Reload progress'),
+                          ),
+                        if (controller.bookmarksError != null)
+                          DropdownMenuItem(
+                            value: 'reload_bookmarks',
+                            enabled: !controller.retryBusy,
+                            child: const Text('Reload bookmarks'),
+                          ),
                         for (final pair in [
                           ('all', 'All statuses'),
                           ('solved', 'Solved'),
@@ -173,6 +218,11 @@ class _DsaExplorerScreenState extends ConsumerState<DsaExplorerScreen> {
                           ),
                       ],
                       onChanged: (value) {
+                        if (value == 'reload_progress' ||
+                            value == 'reload_bookmarks') {
+                          controller.retryMetadata();
+                          return;
+                        }
                         controller.completion = value ?? 'all';
                         controller.emit();
                         controller.loadAll();
@@ -181,18 +231,6 @@ class _DsaExplorerScreenState extends ConsumerState<DsaExplorerScreen> {
                   ],
                 ),
               ),
-              if (controller.metadataError != null)
-                MaterialBanner(
-                  content: Text(controller.metadataWarning),
-                  actions: [
-                    TextButton(
-                      onPressed: controller.retryBusy
-                          ? null
-                          : controller.retryMetadata,
-                      child: Text(controller.retryBusy ? 'Retrying…' : 'Retry'),
-                    ),
-                  ],
-                ),
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -300,11 +338,7 @@ class _DsaExplorerScreenState extends ConsumerState<DsaExplorerScreen> {
                                           CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          '${p.difficulty ?? 'Unrated'} · ${controller.progressError != null
-                                              ? 'Progress unavailable'
-                                              : controller.progressBusy && !controller.progress.containsKey(p.id)
-                                              ? 'Loading progress…'
-                                              : completionLabel(controller.progress[p.id], p.version)}',
+                                          '${p.difficulty ?? 'Unrated'} · ${controller.progressLabel(p)}',
                                         ),
                                         if (controller
                                             .companiesFor(p)

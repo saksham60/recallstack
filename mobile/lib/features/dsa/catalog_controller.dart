@@ -17,14 +17,6 @@ class CatalogController extends ChangeNotifier {
   Object? error, progressError, companyError, bookmarksError, categoriesError;
   Object? get metadataError =>
       progressError ?? companyError ?? bookmarksError ?? categoriesError;
-  String get metadataWarning => [
-    if (progressError != null)
-      'Progress could not refresh. Displayed progress may be out of date.',
-    if (companyError != null)
-      'Some company tags could not load. Company matches may be incomplete.',
-    if (bookmarksError != null) 'Bookmarks could not refresh.',
-    if (categoriesError != null) 'Categories could not refresh.',
-  ].join('\n');
   bool companyRetryBusy = false, progressBusy = false;
   bool get retryBusy => metadataBusy || companyRetryBusy;
   final _companyIndex = <String, List<Json>>{};
@@ -34,6 +26,17 @@ class CatalogController extends ChangeNotifier {
   int _generation = 0, _metadataGeneration = 0, _bookmarkRevision = 0;
   List<Json> companiesFor(Problem p) => _companyIndex[p.version] ?? const [];
   bool bookmarkPending(Problem p) => _bookmarkPending.contains(p.id);
+  String progressLabel(Problem p) {
+    final saved = progress[p.id];
+    if (progressError != null) {
+      return saved == null
+          ? 'Progress not loaded'
+          : '${completionLabel(saved, p.version)} (saved)';
+    }
+    if (progressBusy && saved == null) return 'Loading progress…';
+    return completionLabel(saved, p.version);
+  }
+
   void emit() {
     if (!disposed) notifyListeners();
   }
