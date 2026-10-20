@@ -6,18 +6,47 @@ from dataclasses import asdict
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from sqlalchemy import text
+
 from recallstack.composition.knowledge_job import (
     JobConfigurationError,
     job_services,
     refresh_lock,
     validate_job,
 )
+from recallstack.modules.knowledge.domain.entities import STORY_VISIBILITY_WINDOW
 from recallstack.shared.config import Settings
+from recallstack.shared.database import Database
 from recallstack.shared.database.event_loop import configure_psycopg_event_loop
 from recallstack.shared.logging import configure_logging
 from recallstack.shared.observability.langsmith import flush, span
 
 logger = logging.getLogger(__name__)
+
+
+async def active_story_count(settings: Settings) -> int:
+    """Count globally visible stories, excluding expired and disabled-source rows."""
+    database = Database(settings)
+    try:
+        async with database.session_factory() as session:
+            count = await session.scalar(
+                text(
+                    """
+                    SELECT count(k.id)
+                    FROM public.knowledge_stories k
+                    JOIN public.knowledge_sources s ON s.id = k.source_id
+                    WHERE k.status = 'active'
+                      AND s.enabled
+                      AND k.image_url IS NOT NULL
+                      AND k.published_at <= now()
+                      AND k.published_at >= now() - (:window_seconds * interval '1 second')
+                    """
+                ),
+                {"window_seconds": int(STORY_VISIBILITY_WINDOW.total_seconds())},
+            )
+            return int(count or 0)
+    finally:
+        await database.close()
 
 
 async def run(settings: Settings, *, limit: int, source: str, dry_run: bool) -> dict[str, object]:
@@ -36,15 +65,45 @@ async def run(settings: Settings, *, limit: int, source: str, dry_run: bool) -> 
         ) as traced:
             async with job_services(settings, source) as (cleanup, ingestion):
                 cleaned = await cleanup.run(datetime.now(UTC), dry_run=dry_run)
-                result = await ingestion.run(limit=limit, dry_run=dry_run, run_id=run_id)
+                before = None if dry_run else await active_story_count(settings)
+                missing = (
+                    max(settings.knowledge_min_active_stories - before, 0)
+                    if before is not None else limit
+                )
+                ingestion_limit = min(limit, missing)
+                if ingestion_limit:
+                    result = await ingestion.run(
+                        limit=ingestion_limit, dry_run=dry_run, run_id=run_id
+                    )
+                    counts = result.counts
+                    stories = [asdict(story) for story in result.previews]
+                else:
+                    counts = {"already_at_target": 1}
+                    stories = []
+                after = None if dry_run else await active_story_count(settings)
+                if after is not None:
+                    logger.info(
+                        "knowledge_refresh_target_status",
+                        extra={
+                            "run_id": run_id,
+                            "active_before": before,
+                            "active_after": after,
+                            "target_active": settings.knowledge_min_active_stories,
+                            "shortfall": max(settings.knowledge_min_active_stories - after, 0),
+                        },
+                    )
                 if traced:
-                    traced.end(outputs={"counts": result.counts, "dry_run": dry_run})
+                    traced.end(outputs={"counts": counts, "dry_run": dry_run, "active_after": after})
                 return {
                     "runId": run_id,
                     "dryRun": dry_run,
                     "cleanup": asdict(cleaned),
-                    "counts": result.counts,
-                    "stories": [asdict(story) for story in result.previews],
+                    "counts": counts,
+                    "stories": stories,
+                    "activeStoriesBefore": before,
+                    "activeStoriesAfter": after,
+                    "targetActive": settings.knowledge_min_active_stories,
+                    "targetReached": None if after is None else after >= settings.knowledge_min_active_stories,
                 }
 
 
