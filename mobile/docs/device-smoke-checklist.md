@@ -1,14 +1,14 @@
 # ReasonAI Android test handoff
 
-Candidate: **1.0.0 (5)**, package `com.recallstack.app`. This is a release-signed candidate for device testing. It has not been uploaded to Google Play or approved for public rollout. Its certificate differs from the earlier debug builds: use a separate device or preserve local work before replacing a debug installation.
+Candidate: **1.0.0 (6)**, package `com.recallstack.app`. This is a release-signed candidate for device testing and uses the same certificate as signed build 5. It has not been uploaded to Google Play or approved for public rollout. Its certificate differs from the earlier debug builds: use a separate device or preserve local work before replacing a debug installation.
 
-Local APK: `mobile/build/delivery/reasonai-1.0.0-build5-release.apk`.
-Its source commit and SHA-256 are recorded in `build/delivery/artifact-verification-release5.json`. See the [signed candidate handoff](release5-handoff.md). Existing CI debug artifacts remain a different signing identity.
+Local APK: `mobile/build/delivery/reasonai-1.0.0-build6-release.apk`.
+Its source commit and SHA-256 are recorded in `build/delivery/artifact-verification-release6.json`. See the [banner removal handoff](catalog-banner-removal.md). Existing CI debug artifacts remain a different signing identity.
 
 ## Install
 
 ```powershell
-adb install -r mobile/build/delivery/reasonai-1.0.0-build5-release.apk
+adb install -r mobile/build/delivery/reasonai-1.0.0-build6-release.apk
 adb shell am start -n com.recallstack.app/.MainActivity
 ```
 
@@ -17,9 +17,10 @@ Alternatively, copy the APK to the phone, open it from Files, and allow installa
 ## DSA metadata regression check
 
 Open DSA with your existing account and confirm progress totals, company tags and
-bookmarks load without the previous broad warning. Select a company and a progress
-filter. After a temporary network interruption, Retry should identify and refresh
-only unavailable metadata while retaining the loaded list and selected filters.
+bookmarks load without a page-wide warning banner. Select a company and a progress
+filter. After a temporary network interruption, the refresh icon or Reload action
+inside the affected filter should refresh unavailable data while retaining the
+loaded list and selected filters. Unloaded progress must not be labelled Not started.
 
 ## Live checks for the owner
 

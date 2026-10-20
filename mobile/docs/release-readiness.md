@@ -1,6 +1,6 @@
 # ReasonAI Mobile release candidate
 
-Current signed Android candidate: **1.0.0 (5)** on `feat/mobile-final-refinement`. Android application ID / iOS bundle ID: `com.recallstack.app`. See the [signed candidate handoff](release5-handoff.md) and [signing recovery instructions](android-release-signing.md). The build-2 evidence below, [build-3 refinement handoff](refinement-debug-handoff.md) and [build-4 DSA metadata correction](catalog-metadata-fix.md) remain historical records.
+Current signed Android candidate: **1.0.0 (6)** on `feat/mobile-final-refinement`. Android application ID / iOS bundle ID: `com.recallstack.app`. See the [banner removal and delivery](catalog-banner-removal.md), [first signed candidate handoff](release5-handoff.md) and [signing recovery instructions](android-release-signing.md). The build-2 evidence below, [build-3 refinement handoff](refinement-debug-handoff.md) and [build-4 DSA metadata correction](catalog-metadata-fix.md) remain historical records.
 Release verdict: **NOT READY** until the external gates below pass.
 
 The owner approved creation of the first Android release keystore on 2026-10-20. The private keystore and credentials are stored locally outside Git; only its public certificate is committed. Signed APK and AAB generation and signature verification have passed. This does not replace real-account testing or approve a public rollout.
