@@ -53,7 +53,7 @@ See [METHODOLOGY.md](METHODOLOGY.md) for measurement definitions, baselines and 
 
 ## Reproduction / collection procedure
 
-1. Freeze a git SHA and build/deploy revision. Record the date, environment and anonymized participant/test IDs.
+1. Record a fixed git SHA and build/deploy revision. Record the date, environment and anonymized participant/test IDs.
 2. Run existing code checks (for web, scripts declared in [web/package.json](../../web/package.json): `npm run verify` from `web/`, with required local dependencies/config). Report exact test totals **from this run**, not historical reports.
 3. Execute the fixed cases on the actual judge-accessible deployment. Distinguish `automated_mock`, `automated_live`, and `human` for every result.
 4. Export redacted LangSmith/Nebius request evidence, review failures, and enter one row per attempted case in [results/results-template.csv](results/results-template.csv). Never publish credentials, user content or raw identifiers.
