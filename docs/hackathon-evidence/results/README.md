@@ -1,5 +1,9 @@
 # Raw evaluations — awaiting real measurements
 
+## Freeze status — October 20, 2026
+
+No new controlled evaluation results have been added to this template. The [October 17 production DSA smoke test](../../dsa-v3/integration-20261017.md) is separately documented and must not be misreported as a 375-problem success-rate study. Existing judge certificates cover 10 problem versions; 365 are explicitly provisional. Signed mobile release and public APK accessibility also remain distinct from the verified debug APK build. Keep unmeasured study fields blank.
+
 The file [results-template.csv](results-template.csv) contains **only column headings**. No evaluation has been performed merely by adding this file.
 
 Enter **one row per attempted case**, including failures. Required fields: `run_id`, `timestamp_utc`, `git_sha`, `environment`, `suite`, `case_id`, `execution_type`, `outcome`. Allowed execution types: `automated_mock`, `automated_live`, `human`. Outcome: `success`, `failure`, `timeout`, `blocked`, `not_applicable`.
