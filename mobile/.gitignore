@@ -36,6 +36,11 @@ migrate_working_dir/
 # Local API settings and generated Android packages
 /.env
 *.apk
+*.aab
+*.jks
+*.keystore
+*.p12
+*.pfx
 
 # Symbolication related
 app.*.symbols

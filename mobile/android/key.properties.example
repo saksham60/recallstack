@@ -1,0 +1,7 @@
+# Copy to key.properties locally. Never commit the real file or keystore.
+# Use forward slashes for absolute Windows paths.
+storeFile=C:/path/outside/repository/reasonai-release.p12
+storeType=PKCS12
+keyAlias=reasonai-release
+storePassword=REPLACE_LOCALLY
+keyPassword=REPLACE_LOCALLY
