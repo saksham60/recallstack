@@ -88,6 +88,8 @@ so expiration or hiding can shorten a session but cannot expose stale stories.
 
 ## Offline lifecycle
 
+The refresh job targets 40 globally active, fresh, image-backed stories by default. It counts visible stories after cleanup, caps paid ingestion to the shortfall (subject to the configured per-run batch limit), and skips discovery if the target is already met. Before/after counts and the remaining shortfall are logged. The target is best-effort: provider, duplication, recency and image/quality rejections can leave fewer than 40; never fabricate or bypass validation to hit the target.
+
 The refresh command obtains a PostgreSQL session advisory lock on a dedicated nonpooled connection. Use a
 direct or session-pooler database URL; transaction pooling is incompatible (Supabase port 6543 is rejected).
 A competing run exits successfully with `already_running`. Normal completion and exceptions release the lock.
@@ -178,7 +180,7 @@ The same production image runs either entrypoint:
 uvicorn recallstack.main:app --host 0.0.0.0 --port 8080 --no-proxy-headers
 
 # Cloud Run Job
-python -m recallstack.modules.knowledge.jobs.refresh --limit 20
+python -m recallstack.modules.knowledge.jobs.refresh --limit 60
 ```
 
 Use one Cloud Run Job task per execution. Cloud Scheduler can trigger it later; the database advisory lock
