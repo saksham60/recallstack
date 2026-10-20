@@ -24,6 +24,5 @@
     "ledger": "artifacts/dsa-v3-migration-reconciliation.json"
   },
   "manualProductionAcceptance": "pending user checklist in docs/dsa-v3/results-studio-handoff.md",
-  "codeFreezeApproved": false,
   "deployment": "Final main SHA and verified Vercel READY metadata are reported with the release response."
 }
