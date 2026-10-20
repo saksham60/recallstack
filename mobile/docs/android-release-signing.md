@@ -36,8 +36,8 @@ Run from `mobile`, using the established Flutter/Android SDK versions:
 
 ```powershell
 dart run tool/prepare_build.dart build/production-defines.json
-flutter build apk --release --no-pub --target-platform android-arm,android-arm64,android-x64 --dart-define-from-file=build/verified-defines.json
-flutter build appbundle --release --no-pub --dart-define-from-file=build/verified-defines.json
+flutter build apk --release --target-platform android-arm,android-arm64,android-x64 --dart-define-from-file=build/verified-defines.json
+flutter build appbundle --release --dart-define-from-file=build/verified-defines.json
 python tool/verify_android_release.py --sdk C:/Users/saksh/AppData/Local/Android/Sdk --java-home 'E:/Code/Android Studios/jbr' --bundletool build/tools/bundletool-all-1.18.3.jar
 ```
 
@@ -45,6 +45,13 @@ Release signing is defined in `signingConfigs` before `buildTypes`. Release task
 fail without the local configuration; there is no debug-certificate fallback.
 Release is explicitly non-debuggable. Version 1.0.0 (5) retains package
 `com.recallstack.app` and the existing HTTPS production public configuration.
+
+Do not add `--no-pub` to these release commands on Flutter 3.32.5. The initial
+release attempt reproduced [Flutter issue 169336](https://github.com/flutter/flutter/issues/169336):
+the generated Android plugin registrant still referenced the dev-only integration
+test plugin, which is correctly excluded from release dependencies. Normal build
+dependency generation refreshes that registrant for release. Do not edit the
+generated registrant or move test plugins into production dependencies.
 
 The verifier checks APK and AAB signing against the public certificate, package
 identity and version, release flags, native ABIs, 16 KB ELF/ZIP alignment, bundle
