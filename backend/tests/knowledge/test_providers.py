@@ -331,3 +331,30 @@ async def test_r2_upload_and_partial_batch_delete():
     assert deleted == frozenset({"shorts/a.webp"})
     assert requests[0].headers["content-type"] == "image/webp"
     assert requests[1].headers["content-md5"]
+
+
+async def test_tavily_interleaves_topics_before_candidate_limit():
+    def handler(request):
+        topic = json.loads(request.content)["query"]
+        return httpx.Response(
+            200,
+            json={
+                "results": [
+                    {
+                        "title": f"{topic} story {index}",
+                        "url": f"https://example.org/{topic}/{index}",
+                        "content": "Technical article",
+                        "published_date": "2026-10-20T00:00:00Z",
+                    }
+                    for index in (1, 2)
+                ]
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        items = await TavilyDiscovery(
+            ProviderHttp(client), "secret", ("cloud", "security")
+        ).discover(3)
+    assert [item.title for item in items] == [
+        "cloud story 1", "security story 1", "cloud story 2"
+    ]
