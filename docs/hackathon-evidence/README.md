@@ -5,6 +5,14 @@
 
 This is the public verification appendix for ReasonAI, not a marketing scorecard. It distinguishes *source-documented implementation*, *historical test evidence*, *live production verification*, and *impact measured with people*. Absence of measured results is reported as **pending**, never silently converted into success.
 
+## Dated evidence addendum — October 20, 2026
+
+This evidence pack began with an October 11 audit and its planned evaluation samples are **not represented as completed studies**. The repository contains [later October 17 live DSA production verification](../dsa-v3/integration-20261017.md): the published 375-problem catalog exposed Run and Submit for every problem, including **10 legacy officially certified** and **365 provisionally graded** versions. Real authenticated 3Sum and Catalan Number journeys produced saved judge verdicts and Nebius/Nemotron Code Intelligence documents. A provisional `provisional_pass` is explicitly **not** official `Accepted`; these two runs do not establish a 375-problem sandbox pass rate.
+
+Flutter v1.0.0 (2) has a [debug-signed APK handoff](../../mobile/docs/release-readiness.md#verified-debug-delivery), but not a verified public download URL or signed production release. The final judge video remains a separate last step. All prior recorded Knowledge/System Design limitations are preserved as historical observations until rerun with dated evidence.
+
+The pending evaluation table below is a **new-study worklist**, not a denial of the narrower independently recorded production smoke tests. Quantitative usability, model quality, learning impact, reliability and scalability claims require raw measured results.
+
 ## Nebius judging rubric (four equal 25% criteria)
 
 The official [rules](https://nebiusglobalaihackathon.devpost.com/rules) use Stage 1 pass/fail for technical viability, then evaluate **Technological Implementation**, **Design**, **Potential Impact**, and **Quality of the Idea** equally (1–5 each). Judges may decide on text, visuals and video without launching the app.
