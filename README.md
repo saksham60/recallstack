@@ -4,9 +4,18 @@
 
 **Build Better Judgment.** An AI-native engineering workspace where developers **discover technical ideas, reason about architectures, build together, and master algorithms**—powered by **NVIDIA Nemotron on Nebius Token Factory**.
 
-**[Try ReasonAI](https://www.reasonai.tech/login)** · **[Watch the 3-minute demo](https://www.youtube.com/watch?v=FoV2KkK72Xs)** · **[Devpost submission](https://devpost.com/software/reasonai)** · **[Technical architecture](docs/ARCHITECTURE.md)**
+**[Try ReasonAI](https://www.reasonai.tech/login)** · **[Earlier product demo](https://www.youtube.com/watch?v=FoV2KkK72Xs)** (final hackathon video pending) · **[Devpost submission](https://devpost.com/software/reasonai)** · **[Technical architecture](docs/ARCHITECTURE.md)**
 
 > AI can generate answers in seconds. ReasonAI helps engineers develop the judgment to decide what to build, why it works, and what to change.
+
+## Submission code freeze — October 20, 2026
+
+ReasonAI web and mobile feature development is frozen for the hackathon submission. Documentation, factual corrections, release-artifact verification and critical acceptance fixes are the remaining release activities; code freeze is a project policy, not proof that every production or mobile-release gate has passed.
+
+- **Web:** [https://www.reasonai.tech](https://www.reasonai.tech) is the judge-access entry point. [DSA production verification](docs/dsa-v3/integration-20261017.md) documents 375 published problems with Run/Submit access: **10 officially certified, 365 provisionally graded**. The recorded 3Sum and Catalan Number submissions and persisted Nemotron Code Intelligence reports are production examples, **not** a 375-problem end-to-end pass benchmark.
+- **Mobile:** Flutter v1.0.0 (2) has a [verified debug-signed test APK](mobile/docs/release-readiness.md#verified-debug-delivery) and a [device smoke checklist](mobile/docs/device-smoke-checklist.md). A publicly accessible Drive APK URL and a production-signed Android release have **not** been verified; there is therefore no public APK download link here yet.
+- **Evidence:** Historical October 11 screenshots and failed runs remain archived in the [evidence hub](docs/evidence/INDEX.md). Newer [DSA production evidence](docs/dsa-v3/integration-20261017.md) supplements rather than retroactively changes those dated results.
+- **Demo:** The linked video is an earlier product recording. The final hackathon video is intentionally the last submission step.
 
 ### ReasonAI in action — real production capture
 
@@ -20,7 +29,7 @@
 2. **Discover:** In **Knowledge Feed**, select a story and ask ReasonAI for technical context or related developments. Inspect its cited sources.
 3. **Reason + Build:** In **System Design**, ask for a scalability review, then request concrete canvas edits. Inspect the proposed components/edges and **accept or discard** them.
 4. **Collaborate:** Start **Live Share**; open the invite in a second session, make a committed change, and confirm it appears in both views.
-5. **Master:** Open a **DSA** problem, request a progressive hint, then try a validated visual walkthrough.
+5. **Master:** Open a **DSA** problem, request a progressive hint, use local public-test **Run**, then try authenticated **Submit**. Inspect the persisted verdict, submission history and **Code Intelligence** review. Provisional passes are explicitly distinct from officially certified Accepted verdicts.
 
 **What makes this different:** the model can reason over **actual canvas nodes and edges** and propose typed operations, but the application validates them and **only the engineer can accept changes**. ReasonAI is a workspace with real artifacts and state—not a generic chatbot wrapper.
 
@@ -31,7 +40,7 @@
 | **Discover** | Engineering Knowledge Feed + Ask ReasonAI, web and Flutter | Nemotron enriches stories; Tavily enables grounded follow-up research |
 | **Reason** | Architecture review, scalability analysis, bottleneck/failure reasoning | LangGraph/Nemotron reason over the **current canvas**; results refer to real diagram elements |
 | **Build** | Editable Konva system-design canvas + Go WebSocket Live Share | AI proposes **validated, reviewable** node and edge operations; users control application |
-| **Master** | DSA workspace with hints, explanations, complexity, and visual lessons | Contextual agent tutoring with bounded conversation state and structured visual contracts |
+| **Master** | 375-problem DSA catalog, Python editor, local public-test Run, authenticated sandbox Submit, Results Studio, history, Code Intelligence, hints and visual lessons | Nemotron-backed, contextual tutoring and post-submission code review; official and provisional judging remain distinguishable |
 
 ## More product screenshots
 
@@ -115,9 +124,9 @@ ReasonAI extends an **existing** engineering learning project. The hackathon imp
 
 ## What is implemented vs. planned
 
-**Implemented:** agent-supported DSA tutoring, System Design review/typed proposals, Nemotron Knowledge enrichment, bounded research tools, single-instance Go realtime collaboration, native mobile Knowledge/DSA flows, and app-side learning context.
+**Implemented:** a 375-problem published DSA catalog with authenticated Run and Submit access, a Pyodide browser Run path, sandbox-backed submissions, Results Studio, saved submission history, AI Code Intelligence and contextual tutoring; System Design review/typed canvas proposals; Nemotron-backed Knowledge enrichment and bounded research tools; single-instance Go realtime collaboration; and Flutter Knowledge/DSA workflows including mobile editing and submission/report surfaces. See [October 17 production evidence](docs/dsa-v3/integration-20261017.md) and [mobile release gates](mobile/docs/release-readiness.md).
 
-**Not presented as implemented:** distributed durable realtime rooms, learned behavioral recommendation models, full System Design editing on mobile, sandbox-executed DSA code, GitHub-to-canvas generation, or an external MCP editing interface. See [current vs. future architecture](docs/ARCHITECTURE.md#current-vs-next-architecture).
+**Not presented as implemented or verified:** distributed durable realtime rooms, learned behavioral recommendation models, full System Design editing on mobile, GitHub-to-canvas generation, an external MCP editing interface, independently certified judging for all 375 problems, or a signed Android/iOS store release. Ten problems have existing official certificates and 365 have **provisional** Submit grading; success on a provisional path is `provisional_pass`, not official `Accepted`. See [current vs. future architecture](docs/ARCHITECTURE.md#current-vs-next-architecture).
 
 ---
 
