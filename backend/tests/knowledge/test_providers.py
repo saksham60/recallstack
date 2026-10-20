@@ -355,6 +355,4 @@ async def test_tavily_interleaves_topics_before_candidate_limit():
         items = await TavilyDiscovery(
             ProviderHttp(client), "secret", ("cloud", "security")
         ).discover(3)
-    assert [item.title for item in items] == [
-        "cloud story 1", "security story 1", "cloud story 2"
-    ]
+    assert [item.title for item in items] == ["cloud story 1", "security story 1", "cloud story 2"]
