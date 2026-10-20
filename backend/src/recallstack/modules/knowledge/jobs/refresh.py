@@ -28,7 +28,7 @@ async def active_story_count(settings: Settings) -> int:
     """Count globally visible stories, excluding expired and disabled-source rows."""
     database = Database(settings)
     try:
-        async with database.session_factory() as session:
+        async with database.session_factory.create_session() as session:
             count = await session.scalar(
                 text(
                     """
