@@ -8,13 +8,11 @@ The current deployment is deliberately **single-instance and memory-only**. Room
 
 ---
 
-## Submission code freeze — October 20, 2026
+## Implementation and verification status
 
-The existing Go WebSocket service is frozen for the Nebius × NVIDIA submission. Its documented boundary remains **single-instance, memory-only rooms** for the React/Konva System Design workspace; ordering, acknowledgements, bounded replay, presence, and reconnect are implemented but should **not** be described as durable distributed collaboration or benchmarked at large scale.
+The Go WebSocket service currently operates with **single-instance, memory-only rooms**, using ordered operations, acknowledgements, bounded replay, presence, and reconnect for the React/Konva System Design workspace. This does not establish durable distributed collaboration or high-scale performance.
 
-The [October 11 production collaboration recording](../docs/evidence/INDEX.md#real-screenshots--october-11-2026) demonstrated two browser sessions converging after edits and reconnect. It is evidence for that scenario only, not a comprehensive reliability or throughput study. The final hackathon evidence pack remains [here](../docs/hackathon-evidence/README.md).
-
-Code freeze allows documentation and critical correctness/security fixes, not new protocol features, deployment topology claims or API changes.
+The [October 11 browser verification](../docs/evidence/INDEX.md#real-screenshots--october-11-2026) captured two participants converging after committed edits and reconnect. That scenario is not a comprehensive reliability or throughput benchmark. See the [hackathon evidence pack](../docs/hackathon-evidence/README.md) for testing boundaries.
 
 ## Responsibilities
 
