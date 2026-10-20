@@ -46,6 +46,14 @@ This separation prevents the FastAPI domain backend from becoming coupled to one
 
 ---
 
+## Submission code freeze — October 20, 2026
+
+This backend remains a Python/FastAPI **product API and data domain**, not the primary web AI-agent host or the isolated execution worker. ReasonAI's Next.js runtime owns interactive LangGraph/Nemotron orchestration; Supabase holds authenticated data and persisted execution/report records; Go realtime is a separate service.
+
+The DSA V3 learner release exposes a **375-problem published catalog** with Run/Submit capability through the existing web and mobile clients and shared execution infrastructure. As verified on October 17, **10** problem versions had trusted certificates and **365** were admitted only to explicitly **provisional** grading. A passing provisional job is labeled `provisional_pass`, not official `Accepted`. Two authentic production Run → Submit → Code Intelligence examples are recorded; this does not establish 375 end-to-end judged solutions. See [production reconciliation and verified execution paths](../docs/dsa-v3/integration-20261017.md), [certification requirements](../docs/dsa-v3/certification.md) and [Results Studio handoff](../docs/dsa-v3/results-studio-handoff.md).
+
+**Freeze boundary:** documentation and critical acceptance/security fixes only; do not add duplicate execution APIs, change hidden fixtures or certify unreviewed problems to improve a submission claim. Historical sections below document this service's existing routes and contracts; the linked, dated DSA integration record is authoritative for V3 rollout status.
+
 # 1. High-level architecture
 
 ```mermaid
