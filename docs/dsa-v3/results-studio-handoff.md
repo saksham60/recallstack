@@ -3,7 +3,7 @@
 Implementation dates: 17–18 October 2026. Scope: web DSA UX and automatic Code Intelligence.
 Design reference: `Product Details/Architecture/DSA/reasonai_results_studio.html`.
 
-**Manual production acceptance is pending. This is not a code-freeze approval or a claim that a new production sandbox/model journey passed. No paid production verification calls were made for this change.**
+**Manual production acceptance is pending. This does not establish that a new production sandbox/model journey passed. No paid production verification calls were made for this change.**
 
 ## A. Root cause and recovery
 
@@ -197,12 +197,11 @@ Also reopen the older queued report under its owning account and check its saved
 status: the cutoff no longer excludes its dispatch or claim. A provider outage or
 daily quota can still prevent immediate completion; the UI must state that accurately.
 
-## F. Production and freeze status
+## F. Production verification status
 
 Target: Vercel project `recallstack`, team `team_szqDsSWF8Y7Yu6wdpQTRhmHo`, Git branch
 `main`, domains `www.reasonai.tech` and `reasonai.tech`. The final main SHA and
 deployment READY/alias metadata are verified after integration and reported with
 this handoff. GitHub CI is not a release gate, as requested.
 
-Production functional acceptance remains assigned to you. No new paid production
-journey is claimed, and code freeze remains pending your completion of the checklist.
+Production functional acceptance remains pending completion of the checklist; no new paid production journey is claimed.
