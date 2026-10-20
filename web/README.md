@@ -8,13 +8,11 @@ The web application is intentionally more than a frontend. It owns the browser e
 
 ---
 
-## Submission code freeze — October 20, 2026
+## DSA V3 execution and Code Intelligence
 
-This is the current web architecture reference. **No new features are planned before the hackathon submission; documentation and acceptance fixes only.** The live release must still be checked independently of unit/browser mocks.
+The web catalog includes **375 published DSA problems**, a Python editor, browser Pyodide **Run** on public tests, authenticated sandbox-backed **Submit**, Results Studio, saved submission history, Code Intelligence and contextual post-submission tutoring. [October 17 production integration](../docs/dsa-v3/integration-20261017.md) documented Run/Submit availability for all 375 problems, **10 official certificates** and **365 provisional grading paths**. A provisional success is `provisional_pass`, not an officially certified `Accepted` verdict. See the [Results Studio handoff](../docs/dsa-v3/results-studio-handoff.md) and [independent certification requirements](../docs/dsa-v3/certification.md).
 
-**DSA V3 is integrated:** the web catalog contains 375 published problems with a Python editor, local Pyodide **Run** on public tests, authenticated sandbox-backed **Submit**, Results Studio, saved history, Code Intelligence and contextual post-submission tutoring. Production evidence recorded 375/375 Run and Submit capability, **10 official certificates** and **365 provisional grading paths**; provisional success is `provisional_pass`, not an official Accepted/certified result. See [production integration](../docs/dsa-v3/integration-20261017.md), [Results Studio implementation and pending manual gate](../docs/dsa-v3/results-studio-handoff.md), and [separate certification requirements](../docs/dsa-v3/certification.md).
-
-The interactive Nemotron/Tavily agents live in the Next.js server boundary; the FastAPI backend remains the product-data boundary, and the Go service remains the single-instance, memory-only collaboration boundary. Never expose provider credentials or hidden judge fixtures to the client.
+The interactive Nemotron/Tavily agents operate in the Next.js server boundary; the FastAPI backend remains the product-data boundary, and the Go service provides single-instance, memory-only collaboration. Provider credentials and hidden judge fixtures remain server-side.
 
 ## 1. What the web application owns
 
