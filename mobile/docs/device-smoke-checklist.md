@@ -1,18 +1,25 @@
 # ReasonAI Android test handoff
 
-Candidate: **1.0.0 (3)**, package `com.recallstack.app`. This is a **debug-signed test build**, not a Play Store release. Production signing remains a later gate, as requested by the owner.
+Candidate: **1.0.0 (4)**, package `com.recallstack.app`. This is a **debug-signed test build**, not a Play Store release. Production signing remains a later gate, as requested by the owner.
 
-Local APK: `mobile/build/delivery/reasonai-1.0.0-build3-debug.apk`.
-Its source commit and SHA-256 are recorded in `build/delivery/artifact-verification-build3.json`. CI also uploads a debug APK for each successful Mobile CI run.
+Local APK: `mobile/build/delivery/reasonai-1.0.0-build4-debug.apk`.
+Its source commit and SHA-256 are recorded in `build/delivery/artifact-verification-build4.json`. See the [DSA metadata correction](catalog-metadata-fix.md). CI also uploads a debug APK for each successful Mobile CI run.
 
 ## Install
 
 ```powershell
-adb install -r mobile/build/delivery/reasonai-1.0.0-build3-debug.apk
+adb install -r mobile/build/delivery/reasonai-1.0.0-build4-debug.apk
 adb shell am start -n com.recallstack.app/.MainActivity
 ```
 
 Alternatively, copy the APK to the phone, open it from Files, and allow installation from that file app. A differently signed existing installation cannot be updated in place. Preserve drafts before choosing to uninstall anything; uninstalling clears local work.
+
+## DSA metadata regression check
+
+Open DSA with your existing account and confirm progress totals, company tags and
+bookmarks load without the previous broad warning. Select a company and a progress
+filter. After a temporary network interruption, Retry should identify and refresh
+only unavailable metadata while retaining the loaded list and selected filters.
 
 ## Live checks for the owner
 

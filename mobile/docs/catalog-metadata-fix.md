@@ -44,8 +44,27 @@ No backend deployment, production database change or new dependency is required.
 - The shared mock API now rejects DSA bookmark page sizes above 50, preventing
   future tests from silently accepting the incompatible request.
 
-Delivery target: `build/delivery/reasonai-1.0.0-build4-debug.apk`. Artifact
-signature, exact source SHA and install/start verification are recorded separately
-in `build/delivery/artifact-verification-build4.json` after packaging. Production
-signing remains deferred; real-account verification on the owner's phone remains
-necessary and is not replaced by mocked tests.
+## Verified debug delivery
+
+- APK: `build/delivery/reasonai-1.0.0-build4-debug.apk`, 171,459,627 bytes.
+- Application source: `0ffe142212bade8b0d6d05576c623378237ea5af`.
+- SHA-256: `2e73c12afda8e6738786923b1ccee38b1af790f54661311149057da24855783f`.
+- Normal `lib/main.dart` debug APK built successfully, with existing validated
+  production public configuration and judge mode disabled. Android Debug v2
+  signature verified; package `com.recallstack.app`, version 1.0.0 (4), ReasonAI
+  label; Flutter and SQLite native libraries present for ARM, ARM64 and x86_64.
+- Artifact checks confirm its source SHA, exclude define/environment assets and
+  integration-fixture markers, and scan for the server-secret prefix. These
+  checks supplement source review and do not constitute a universal secret scan.
+- Android API 30 x86_64: `adb install -r` updated the existing version 3 to version
+  4 with `Success`; no uninstall or data clear. `am start -W` returned `Status:
+  ok`; MainActivity remained resumed and its process alive. The startup screenshot
+  shows the normal branded Google sign-in screen. The emulator needed a cold boot;
+  no physical-device performance claim is made.
+- Evidence: `build/delivery/artifact-verification-build4.json`,
+  `install-build4.txt`, `startup-build4.txt`, `reasonai-build4-startup.png`, and
+  `deployed-dsa-bookmark-contract-build4.json`. Build-3 artifacts are preserved.
+
+Production signing remains deferred. Real-account verification on the owner's
+phone remains necessary and is not replaced by mocked tests or the startup smoke
+check. No authenticated user session or paid judge/AI service was used here.

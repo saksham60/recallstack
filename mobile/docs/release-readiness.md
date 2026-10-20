@@ -1,6 +1,6 @@
 # ReasonAI Mobile release candidate
 
-Current refinement candidate: **1.0.0 (3)** on `feat/mobile-final-refinement`. Android application ID / iOS bundle ID: `com.recallstack.app`. The build-2 evidence below is historical; see the [current refinement handoff](refinement-debug-handoff.md) for build-3 results.
+Current refinement candidate: **1.0.0 (4)** on `feat/mobile-final-refinement`. Android application ID / iOS bundle ID: `com.recallstack.app`. See the [DSA metadata correction](catalog-metadata-fix.md) for build-4 results. The build-2 evidence below and [build-3 refinement handoff](refinement-debug-handoff.md) remain historical records.
 Release verdict: **NOT READY** until the external gates below pass.
 
 The owner approved a **debug build handoff for device testing** on 2026-10-19. Production signing is explicitly deferred; no new signing credentials were generated.
