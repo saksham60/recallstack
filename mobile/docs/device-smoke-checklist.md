@@ -29,4 +29,4 @@ Alternatively, copy the APK to the phone, open it from Files, and allow installa
 
 Report phone model/Android version, app version/source SHA, the failing screen/action and the server submission ID where relevant. Do not share tokens, OAuth callback query strings, passwords or private keys.
 
-Production code freeze still requires the existing Android signing keystore, signed APK/AAB verification and successful live smoke checks. iOS unsigned compilation is a separate check; Apple signing, export and device testing remain unverified.
+Production release readiness requires the existing Android signing keystore, signed APK/AAB verification and successful live smoke checks. iOS unsigned compilation is a separate check; Apple signing, export and device testing remain unverified.
