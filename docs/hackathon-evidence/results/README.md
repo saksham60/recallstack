@@ -1,6 +1,6 @@
 # Raw evaluations — awaiting real measurements
 
-## Freeze status — October 20, 2026
+## Production evidence context — October 20, 2026
 
 No new controlled evaluation results have been added to this template. The [October 17 production DSA smoke test](../../dsa-v3/integration-20261017.md) is separately documented and must not be misreported as a 375-problem success-rate study. Existing judge certificates cover 10 problem versions; 365 are explicitly provisional. Signed mobile release and public APK accessibility also remain distinct from the verified debug APK build. Keep unmeasured study fields blank.
 
