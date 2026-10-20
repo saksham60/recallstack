@@ -93,7 +93,9 @@ async def run(settings: Settings, *, limit: int, source: str, dry_run: bool) -> 
                         },
                     )
                 if traced:
-                    traced.end(outputs={"counts": counts, "dry_run": dry_run, "active_after": after})
+                    traced.end(
+                        outputs={"counts": counts, "dry_run": dry_run, "active_after": after}
+                    )
                 return {
                     "runId": run_id,
                     "dryRun": dry_run,
@@ -103,7 +105,9 @@ async def run(settings: Settings, *, limit: int, source: str, dry_run: bool) -> 
                     "activeStoriesBefore": before,
                     "activeStoriesAfter": after,
                     "targetActive": settings.knowledge_min_active_stories,
-                    "targetReached": None if after is None else after >= settings.knowledge_min_active_stories,
+                    "targetReached": (
+                        None if after is None else after >= settings.knowledge_min_active_stories
+                    ),
                 }
 
 
