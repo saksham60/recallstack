@@ -7,10 +7,8 @@ import { positiveInt, useAdminUrlState } from "../use-url-state";
 import type { AuditLogParams } from "../types";
 import { CopyId, LoadingSkeleton, PageHeader, Pagination, QueryError, ResultsState, buttonClass, inputClass } from "../components/AdminPrimitives";
 
-const sensitiveKey = /authorization|token|password|secret|cookie|api[-_]?key/i;
-
 function safeMetadata(value: Record<string, unknown>) {
-  return Object.fromEntries(Object.entries(value).filter(([key]) => !sensitiveKey.test(key)));
+  return Object.fromEntries(Object.entries(value).filter(([key, item]) => (key === "page" || key === "page_size") && typeof item === "number" && Number.isInteger(item) && item > 0));
 }
 
 export function AuditLogsScreen() {

@@ -1,6 +1,7 @@
 import { test as base, expect, type Page } from '@playwright/test';
 import { test } from './fixtures/authenticated-test';
 import { createAdminOverview, createAdminUser, createPagination, createProblem, createProfile, createUserDetail } from './helpers/factories';
+import observedGrowth from './fixtures/admin-growth-observed.json';
 
 async function mockProfile(page: Page, roles = ['admin']) {
   await page.route('**/api/v1/me', route => route.fulfill({ json: createProfile({ roles }) }));
@@ -37,6 +38,66 @@ test.describe('Admin access and overview', () => {
 });
 
 test.describe('Platform growth analytics', () => {
+  test('renders genuine aggregate snapshot and requests exact 7/30/90 filters', async ({ authenticatedPage: page }) => {
+    await mockProfile(page);
+    const requests: number[] = [];
+    await page.route('**/api/v1/admin/growth?*', route => {
+      const days = Number(new URL(route.request().url()).searchParams.get('days')) as 7 | 30 | 90;
+      requests.push(days);
+      return route.fulfill({ json: observedGrowth[days] });
+    });
+    await page.goto('/admin');
+    for (const days of [30, 7, 90] as const) {
+      await page.getByLabel('Reporting period').selectOption(String(days));
+      await expect(page.getByText(`${days}-day window`, { exact: true })).toBeVisible();
+      await expect(page.getByText('Total accounts', { exact: true }).locator('..')).toContainText(String(observedGrowth[days].total_users));
+      await expect(page.getByText('Server Submit requests', { exact: true }).locator('..')).toContainText(String(observedGrowth[days].server_submissions));
+    }
+    expect(requests).toEqual([30,7,90]);
+    await expect(page.getByText(/Country-level activity is unavailable/)).toBeVisible();
+    await expect(page.getByText(/Billed costs and complete token usage are unavailable/)).toBeVisible();
+    await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+    await expect.poll(() => requests.length).toBe(4);
+    await page.screenshot({ path: '../docs/evidence/screenshots/2026-10-21/admin-audit/growth-observed-counts-local-fixture.png', fullPage: true });
+  });
+
+  test('keeps range and refresh controls during loading, validation error and empty recovery', async ({ authenticatedPage: page }) => {
+    await mockProfile(page);
+    let release!: () => void;
+    const pending = new Promise<void>(resolve => { release = resolve; });
+    let attempts = 0;
+    await page.route('**/api/v1/admin/growth?*', async route => {
+      attempts++;
+      const days = Number(new URL(route.request().url()).searchParams.get('days'));
+      if (attempts === 1) {
+        await pending;
+        return route.fulfill({ status: 422, json: { detail: 'query.days: Input should be 7, 30 or 90' } });
+      }
+      const data = observedGrowth[7];
+      return route.fulfill({ json: { ...data, period_days: days, total_users:0,new_users:0,tracked_engaged_users:0,newly_engaged_users:0,activation_rate:0,daily_signups:[],feature_usage:[] } });
+    });
+    await page.goto('/admin');
+    await expect(page.getByLabel('Reporting period')).toBeVisible();
+    await expect(page.getByLabel('Loading', { exact: true })).toBeVisible();
+    release();
+    await expect(page.getByRole('heading', { name: 'Invalid filters' })).toBeVisible();
+    await expect(page.getByText('query.days: Input should be 7, 30 or 90')).toBeVisible();
+    await page.getByLabel('Reporting period').selectOption('7');
+    await expect(page.getByText('7-day window', { exact: true })).toBeVisible();
+    await expect(page.getByText('Recorded activation rate', { exact: true }).locator('..')).toContainText('0%');
+    await expect(page.getByText(/NaN|Infinity/)).toHaveCount(0);
+    expect(attempts).toBe(2);
+  });
+
+  for (const status of [401,403]) test(`shows Growth HTTP ${status} accurately without automatic retries`, async ({ authenticatedPage: page }) => {
+    await mockProfile(page);
+    let requests=0;
+    await page.route('**/api/v1/admin/growth?*', route => { requests++; return route.fulfill({status,json:{detail:'Session or admin permission must be renewed'}}); });
+    await page.goto('/admin');
+    await expect(page.getByRole('heading', {name:status===401?'Session expired':'Access denied'})).toBeVisible();
+    expect(requests).toBe(1);
+  });
+
   test('shows persisted registration and feature metrics without inventing attribution', async ({ authenticatedPage: page }) => {
     await mockProfile(page);
     await page.route('**/api/v1/admin/growth?*', route => route.fulfill({ json: {
@@ -91,6 +152,7 @@ test.describe('Admin user workflows', () => {
     for (const difficulty of ['Beginner', 'Easy', 'Medium', 'Hard', 'Expert']) await expect(page.getByText(difficulty, { exact: true })).toBeVisible();
     await expect(page.getByText('Not available', { exact: true })).toHaveCount(2);
     await expect(page.getByText('Arrays')).toBeVisible();
+    await expect(page.getByRole('cell', { name: '30%', exact: true })).toBeVisible();
     await expect(page.getByText('Not available yet')).toBeVisible();
     await page.getByRole('tab', { name: 'Activity' }).click();
     await expect(page.getByRole('cell', { name: 'User Signed Up' })).toBeVisible();
@@ -135,6 +197,62 @@ test.describe('Admin user workflows', () => {
 });
 
 test.describe('Problems and audit logs', () => {
+  test('diagram library exposes API errors, prevents duplicate actions and recovers on refresh', async ({ authenticatedPage: page }) => {
+    await mockProfile(page);
+    const errors: string[]=[];
+    page.on('pageerror',error=>errors.push(error.message));
+    let reads=0,duplicates=0;
+    let release!:()=>void;
+    const pending=new Promise<void>(resolve=>{release=resolve;});
+    await page.route('**/api/v1/diagrams**', async route => {
+      if (route.request().method()==='POST') {
+        duplicates++; await pending;
+        return route.fulfill({status:409,json:{detail:'Diagram changed elsewhere. Reload and try again.'}});
+      }
+      reads++;
+      if(reads===1) return route.fulfill({status:503,json:{detail:'Diagram storage temporarily unavailable'}});
+      return route.fulfill({json:[{id:'00000000-0000-0000-0000-000000000001',title:'Audit diagram',schema_version:2,revision:1,page_count:1,element_count:0,enabled_pack_ids:['generic'],created_at:'2026-10-21T00:00:00Z',updated_at:'2026-10-21T00:00:00Z'}]});
+    });
+    await page.goto('/admin/diagrams', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('status')).toHaveText('Diagram storage temporarily unavailable');
+    await page.getByRole('button',{name:'Refresh',exact:true}).click();
+    await expect(page.getByRole('link',{name:'Audit diagram',exact:true})).toBeVisible();
+    await page.getByRole('button',{name:'Duplicate Audit diagram',exact:true}).click();
+    await expect(page.getByRole('button',{name:'Duplicate Audit diagram',exact:true})).toBeDisabled();
+    release();
+    await expect(page.getByRole('status')).toHaveText('Diagram changed elsewhere. Reload and try again.');
+    expect(duplicates).toBe(1);
+    expect(errors).toEqual([]);
+  });
+
+  test('empty out-of-range lists retain a route back to the first page', async ({ authenticatedPage: page }) => {
+    await mockProfile(page);
+    await page.route('**/api/v1/admin/users?*', route => {
+      const requested = Number(new URL(route.request().url()).searchParams.get('page'));
+      return route.fulfill({ json: { items: [], pagination: { page:requested,page_size:25,total_items:0,total_pages:0 } } });
+    });
+    await page.goto('/admin/users?page=99');
+    await expect(page.getByText('Nothing to show yet', {exact:true})).toBeVisible();
+    await page.getByRole('button',{name:'First page',exact:true}).click();
+    await expect(page).toHaveURL(/page=1(?:&|$)/);
+  });
+
+  test('problem detail keeps nullable measurements separate from learning outcomes', async ({ authenticatedPage: page }) => {
+    await mockProfile(page);
+    const data=createProblem();
+    await page.route('**/api/v1/admin/problems/*/analytics', route => route.fulfill({ json: {
+      problem:{problem_id:data.problem_id,title:data.title,difficulty:data.difficulty,publication_status:data.publication_status,topics:data.topics},
+      analytics:{total_attempts:100,accepted_attempts:50,unique_users_attempted:80,unique_users_completed:40,solve_rate:0.5,first_attempt_success_rate:0.25,average_attempts_before_completion:null,average_solve_time_seconds:null,hint_usage_count:null},
+      recent_attempts:[],
+    } }));
+    await page.goto(`/admin/problems/${data.problem_id}`);
+    await expect(page.getByRole('heading',{name:'Two Sum',exact:true})).toBeVisible();
+    await expect(page.getByText('Not captured',{exact:true})).toHaveCount(3);
+    await expect(page.getByText('Independent practice outcomes',{exact:true})).toBeVisible();
+    await expect(page.getByText('50%',{exact:true})).toBeVisible();
+    await expect(page.getByText('Nothing to show yet',{exact:true})).toBeVisible();
+  });
+
   test('renders null problem analytics without source code and forwards filters', async ({ authenticatedPage: page }) => {
     await mockProfile(page);
     let requestUrl = '';

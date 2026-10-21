@@ -1,0 +1,145 @@
+{
+  "at": "2026-10-21T06:51:40.350812+00:00",
+  "baseCommit": "29240fbc4fb6ab38339ab2126b91c6ac2d87e789",
+  "candidate": "Uncommitted local changes; not deployed",
+  "summary": {
+    "backendTests": 118,
+    "uniquePostgresIntegrationTests": 19,
+    "adminBrowserTests": 17,
+    "allRegisteredAdminOperationsNegativeAuthorization": 25,
+    "authorizedAdminProductionVerification": "blocked",
+    "productionMigrationApplied": false,
+    "productionAccess": "Normal judge login/page loading plus SELECT-only transaction and anonymous zero-row HEAD; no admin or schema mutation attempted",
+    "additionalPaidInferenceCalls": 0
+  },
+  "checks": [
+    {
+      "name": "backend_admin_and_diagrams",
+      "status": "passed",
+      "tests": 118,
+      "command": "cd backend && .venv/Scripts/python.exe -m pytest tests/admin tests/diagrams -q",
+      "privateLog": "C:\\Users\\saksh\\AppData\\Local\\Temp\\admin-backend-verified.log",
+      "logSha256": "2723804b8a18bb9e998e087ab67007b8bd58d44e77c643618c14c6d693ed2f4c"
+    },
+    {
+      "name": "postgres_admin_integration",
+      "status": "passed",
+      "tests": 18,
+      "command": "cd backend && RUN_INTEGRATION_TESTS=1 .venv/Scripts/python.exe -m pytest tests/integration/test_admin_growth.py tests/integration/test_admin_analytics.py tests/integration/test_admin_user_inspection.py tests/integration/test_admin_content_management.py -q",
+      "privateLog": "C:\\Users\\saksh\\AppData\\Local\\Temp\\admin-integration-final.log",
+      "logSha256": "1c7e4d6c50d5ac3601212d041a2e1f9e17ea2b803f105bd5d217b2046c2cad23"
+    },
+    {
+      "name": "postgres_authorized_http_workflow",
+      "status": "passed",
+      "tests": 1,
+      "command": "cd backend && RUN_INTEGRATION_TESTS=1 .venv/Scripts/python.exe -m pytest tests/integration/test_admin_http_workflow.py -q",
+      "privateLog": "C:\\Users\\saksh\\AppData\\Local\\Temp\\admin-http-integration.log",
+      "logSha256": "44e4d9ab24bd6790bc8dcba0997180a841788b6c77372a0e46c9634fb1a59adf"
+    },
+    {
+      "name": "postgres_growth_dst_followup",
+      "status": "passed",
+      "tests": 5,
+      "command": "cd backend && RUN_INTEGRATION_TESTS=1 .venv/Scripts/python.exe -m pytest tests/integration/test_admin_growth.py -q",
+      "privateLog": "C:\\Users\\saksh\\AppData\\Local\\Temp\\admin-growth-timezone.log",
+      "logSha256": "6a26c8517dfa695631c55a83f4bbb6109513244c574c601e494d7b64cc643fc8"
+    },
+    {
+      "name": "admin_browser",
+      "status": "passed",
+      "tests": 17,
+      "command": "cd web && npx playwright test --config=playwright.admin.config.ts --output=test-results/admin-audit-complete",
+      "privateLog": "C:\\Users\\saksh\\AppData\\Local\\Temp\\admin-ui-complete.log",
+      "logSha256": "04c82e954f5dd15965f365b23542777e931ccaa7abb39f8e687621e50a5d502e"
+    },
+    {
+      "name": "web_production_build",
+      "status": "passed",
+      "tests": null,
+      "command": "cd web && npm run build -- --webpack",
+      "privateLog": "C:\\Users\\saksh\\AppData\\Local\\Temp\\admin-build-final.log",
+      "logSha256": "e4687b20de21fa82dfb92b97a604b249ab7e1ad43ef4f0a6dbf653182875220f"
+    },
+    {
+      "name": "web_typecheck",
+      "status": "passed",
+      "tests": null,
+      "command": "cd web && npm run typecheck",
+      "privateLog": "C:\\Users\\saksh\\AppData\\Local\\Temp\\admin-typecheck.log",
+      "logSha256": "4c10fc02f6036f7fabac05e585d2cd1fc606a102497851e1e1b34f011aa205f1"
+    },
+    {
+      "name": "web_lint",
+      "status": "passed",
+      "tests": null,
+      "command": "cd web && npx eslint src/features/admin src/features/diagram/editor/DiagramLibrary.tsx e2e/admin.spec.ts playwright.admin.config.ts",
+      "privateLog": "C:\\Users\\saksh\\AppData\\Local\\Temp\\admin-eslint-final.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "backend_lint",
+      "status": "passed",
+      "tests": null,
+      "command": "cd backend && .venv/Scripts/ruff.exe check src/recallstack/modules/admin tests/admin tests/integration/test_admin_growth.py scripts/audit_admin_readonly.py",
+      "privateLog": "C:\\Users\\saksh\\AppData\\Local\\Temp\\admin-lint-final.log",
+      "logSha256": "af352a86840ad0af3d37ea0d9197f868363a6dac6b1c2ef5d2722f6b41d2d9af"
+    },
+    {
+      "name": "backend_types",
+      "status": "passed",
+      "tests": null,
+      "command": "cd backend && .venv/Scripts/mypy.exe src/recallstack/modules/admin src/recallstack/main.py",
+      "privateLog": "C:\\Users\\saksh\\AppData\\Local\\Temp\\admin-mypy-final.log",
+      "logSha256": "c4677112ff09f96be4ea18b2b118d3d25bbca15dd72afd33a25a3cae6229aef4"
+    }
+  ],
+  "sourceSha256": {
+    "backend/src/recallstack/modules/admin/__init__.py": "56e5ce4bab1b247d45f19f206827ca73fa31a77952f369c6686bdf38bd0b66b3",
+    "backend/src/recallstack/modules/admin/application/analytics.py": "898eee4e58f3bf335b33667c76783172ea3de4c8539e8b726442647920475900",
+    "backend/src/recallstack/modules/admin/application/content_management.py": "f57da2f28a4fc64a1a78d8085e35b72720f3a5e37e6c38a9ce8163b495187f8d",
+    "backend/src/recallstack/modules/admin/application/dsa_import.py": "1caaf4cd9d89d40e0d4dfae04c728409f73079e4cd83bcb49290f908c44b495f",
+    "backend/src/recallstack/modules/admin/application/user_inspection.py": "0601a3a0a3a1f7524d0798c7bc4155e8625bc71164d9c119018f503ff279ded4",
+    "backend/src/recallstack/modules/admin/application/__init__.py": "af86e1492df9361c8d3a7784ce056a8e35be2e6cae055a8d7e3f8acc886ceb8b",
+    "backend/src/recallstack/modules/admin/infrastructure/analytics_models.py": "efe4395f0e6d6c75f20d9010cc9971d4a9cd00dc4a52b5bd8d3948e770833925",
+    "backend/src/recallstack/modules/admin/infrastructure/analytics_repository.py": "30a8243f1544b3cb3f89a52bf36cab53b2bc3df3e557e3084ba05d4cca069fee",
+    "backend/src/recallstack/modules/admin/infrastructure/dsa_workbook.py": "203847f8d794324e155cfd7f70bf14bd7a13496599aada34929aee9a8cb7c9ba",
+    "backend/src/recallstack/modules/admin/infrastructure/growth_repository.py": "80a98e4760e5755df7f555c424a443f07c12e0adc7d3d2db857bc2c1c44478e3",
+    "backend/src/recallstack/modules/admin/presentation/analytics_routes.py": "28be839022ef71c05c135201fe4a0e5cbe1d13b2f45d79b8e80cda09eefd7eee",
+    "backend/src/recallstack/modules/admin/presentation/analytics_schemas.py": "db70cb27a73fdba73aef00a19f5d5c3b8ceb203b3f9c5e808bfbe515f2e5b8b9",
+    "backend/src/recallstack/modules/admin/presentation/middleware.py": "9e24e122f6382c9ea78425aa5ec83f5193a88c9bb610d258d7d0cebf4c4b71a6",
+    "backend/src/recallstack/modules/admin/presentation/routes.py": "2f57139a5d6968524fa0243d070563c930b5f65ea4242b79b4f51184e7972ecc",
+    "backend/src/recallstack/modules/admin/presentation/schemas.py": "cf4f31b4be9cd261eaae84214cb710955d539af949dc15ceb61ff3943e93c116",
+    "backend/src/recallstack/modules/admin/presentation/user_routes.py": "88fa33638fa8ab3067423103b8f1ca65171f8c8773b62fefdd23f4285746f5c2",
+    "backend/src/recallstack/modules/admin/presentation/user_schemas.py": "2e2862594a9f4b4f0907bc01c4d29025b5ce761c09269fe7ca6c2a6e031228df",
+    "backend/src/recallstack/modules/admin/presentation/__init__.py": "498ffe081e454bb86f5a3b52952f7c18e795fae55e2dc84d49d0323e7d653e08",
+    "backend/src/recallstack/main.py": "483233e8837805dd896aee466927e712334ae4b7a0be8cdcc0bf755bf54634f7",
+    "web/src/features/diagram/editor/DiagramLibrary.tsx": "65e355500e515a84bdf1a2fbdcb05c1d549f2f13de3e722405e1b25c37d2c735",
+    "web/src/lib/api/types.ts": "ab7a38001d7e0702ae3e92113c2290542c523f114d8c3b383e506e8156d97320",
+    "web/e2e/admin.spec.ts": "40f787d846bc804f6d939b4f2c4022022c978686d3b784e771c37e8ecb7ee911",
+    "web/supabase/migrations/20261021061454_admin_role_and_audit_access.sql": "1f976785875fa97701d7fbf3a9a42ca90c0ff0a0e4833b4f5037feeeeb7ec3db",
+    "web/src/features/admin/components/AdminPrimitives.tsx": "aa7566d00e1ac1e5a2b3f4b899622bf8c4aa8f04cdbf3aab87376a39c265dde0",
+    "web/src/features/admin/components/AdminShell.tsx": "1a7c4c2bc5e7c0401890441a84908902e502dade91a910530707d228f8d557e9",
+    "web/src/features/admin/screens/AuditLogsScreen.tsx": "f07cd8ddea30c740974999c9df981c9d1138507cb701304b47270f639448bb82",
+    "web/src/features/admin/screens/GrowthScreen.tsx": "4046debae8bf3fb33559ff1bca7ffbd64de9ae90b7ecb2f5353c86e8448cf896",
+    "web/src/features/admin/screens/OverviewScreen.tsx": "d07df24f3c7d4ab8c186c3ef3eaeaaebec3ded6bcf64bce7e6d00252702a3fea",
+    "web/src/features/admin/screens/ProblemDetailScreen.tsx": "827d3e75b594006d2ba85710a6a6190515cdc91f718f02707f99dadf2d5a5a55",
+    "web/src/features/admin/screens/ProblemsScreen.tsx": "de04e8c4c83a48a4b561725c76db5fd0b99cbffbe51799aba92c4aa58ff34075",
+    "web/src/features/admin/screens/UserDetailScreen.tsx": "704d9ea9baeb375295cc610c184385ba306c61daedf669c8ad502b3309980bf7",
+    "web/src/features/admin/screens/UsersScreen.tsx": "ce45a16a6a96299aa30ad11e2c47686416e41ee1aa0b5744f83b7178519eab22",
+    "web/src/features/admin/format.ts": "e465ab075da7f62477169fb12910fb85b6cff6011b7e717f890af8183b51670e",
+    "web/src/features/admin/index.ts": "db7032159ce55b1d0fb0f7b204e076f3baf25c1f91c987f939355259337f41db",
+    "web/src/features/admin/keys.ts": "654139aaa8369ca6694615aa350a9c0e2782f2120d0164f5f625b6b980e724c3",
+    "web/src/features/admin/types.ts": "33c0f285f8d3e805e100fa0ef0dbb06f948667eb9e69e173d23013d173d62c80",
+    "web/src/features/admin/use-admin.ts": "04fb8801b86c879349885ed54a27d6f31d9108bb5510d38a836b922bc9c82501",
+    "web/src/features/admin/use-url-state.ts": "73ec429d9fd86cdc3bceff475a831202168142d95d60e0aea0c93746c789716c"
+  },
+  "notes": [
+    "The five DST follow-up cases repeat five of the nineteen unique integration cases; do not add them again.",
+    "Browser tests use local auth/API fixtures. Growth uses genuine aggregate snapshot responses, not a live Admin API session.",
+    "Commands ran in PowerShell; set RUN_INTEGRATION_TESTS using PowerShell syntax. Web used Node 24.21.0.",
+    "Initial negative-auth harness omitted application lifespan and was corrected. First Diagram library navigation exceeded the 30-second load-event timeout; rerun used DOMContentLoaded and 60 seconds. These were test harness failures.",
+    "Final build passed. Nonfatal Queue local region fallback and color-environment warnings were observed.",
+    "Client-secret scan checks exact configured values, not all possible secret patterns."
+  ]
+}

@@ -54,7 +54,7 @@ export function UsersScreen() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Users" description="Search accounts and inspect authoritative progress." actions={<button className={buttonClass} disabled={query.isFetching} onClick={() => query.refetch()}>{query.isFetching ? "Refreshing…" : "Refresh"}</button>} />
+      <PageHeader title="Users" description="Registered accounts and legacy practice progress. Dates use UTC; account records do not indicate recent engagement." actions={<button className={buttonClass} disabled={query.isFetching} onClick={() => query.refetch()}>{query.isFetching ? "Refreshing…" : "Refresh"}</button>} />
       <div className="grid gap-3 rounded-lg border border-border bg-surface p-4 md:grid-cols-2 xl:grid-cols-4">
         <label className="text-xs font-medium text-muted xl:col-span-2">Search by name or email
           <input className={`${inputClass} mt-1`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search users…" />
@@ -64,8 +64,8 @@ export function UsersScreen() {
             <option value="">All users</option><option value="true">Eligible</option><option value="false">Not eligible</option>
           </select>
         </label>
-        <label className="text-xs font-medium text-muted">Account status
-          <select className={`${inputClass} mt-1`} disabled><option>Active</option></select>
+        <label className="text-xs font-medium text-muted">Account records
+          <select className={`${inputClass} mt-1`} disabled><option>Registered</option></select>
         </label>
         {[
           ["min_completed", "Minimum completed", "number"],
@@ -109,7 +109,7 @@ export function UsersScreen() {
                       <td className="px-3 py-3 tabular-nums">{formatCount(user.unique_problems_attempted)}</td>
                       <td className="px-3 py-3 tabular-nums">{formatCount(user.unique_problems_completed)}</td>
                       <td className="px-3 py-3">{user.interview_unlock.eligible ? <Badge variant="success">Eligible</Badge> : <div><Badge variant="secondary">Not eligible</Badge><p className="mt-1 text-xs text-muted">{formatCount(user.interview_unlock.remaining_completions)} remaining</p></div>}</td>
-                      <td className="px-3 py-3"><Badge variant="success">Active</Badge></td>
+                      <td className="px-3 py-3"><Badge variant="secondary">Registered</Badge></td>
                       <td className="px-3 py-3"><span className="text-accent">View details →</span></td>
                     </tr>
                   ))}

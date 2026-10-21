@@ -51,7 +51,7 @@ function UserOverview({ detail }: { detail: ReturnType<typeof useAdminUser>["dat
           <div><dt className="text-xs text-muted">User ID</dt><dd className="mt-1"><CopyId value={detail.profile.user_id} /></dd></div>
           <div><dt className="text-xs text-muted">Signup date</dt><dd className="mt-1" title={detail.profile.created_at}>{formatDate(detail.profile.created_at)}</dd></div>
           <div><dt className="text-xs text-muted">Last active</dt><dd className="mt-1" title={detail.profile.last_active_at ?? undefined}>{formatDate(detail.profile.last_active_at)}</dd></div>
-          <div><dt className="text-xs text-muted">Account status</dt><dd className="mt-1"><Badge variant="success">Active</Badge></dd></div>
+          <div><dt className="text-xs text-muted">Account record</dt><dd className="mt-1"><Badge variant="secondary">Registered</Badge></dd></div>
         </dl>
       </section>
       <section>
@@ -60,7 +60,7 @@ function UserOverview({ detail }: { detail: ReturnType<typeof useAdminUser>["dat
           <MetricCard label="Unique attempted" value={formatCount(summary.unique_problems_attempted)} />
           <MetricCard label="Unique completed" value={formatCount(summary.unique_problems_completed)} />
           <MetricCard label="Total attempts" value={formatCount(summary.total_attempts)} />
-          <MetricCard label="Accepted attempts" value={formatCount(summary.accepted_attempts)} />
+          <MetricCard label="Independent practice outcomes" value={formatCount(summary.accepted_attempts)} />
           <MetricCard label="First-attempt successes" value={formatCount(summary.first_attempt_successes)} />
           <MetricCard label="First-attempt success rate" value={formatPercent(summary.first_attempt_success_rate)} />
           <MetricCard label="Current / longest streak" value="Not available" />
@@ -84,7 +84,7 @@ function UserOverview({ detail }: { detail: ReturnType<typeof useAdminUser>["dat
         <h2 className="mb-3 font-semibold">Topic progress</h2>
         <ResultsState count={detail.topic_progress.length}>
           <div className="overflow-x-auto rounded-lg border border-border bg-surface">
-            <table className="w-full text-left text-sm"><thead className="border-b border-border bg-surface-elevated text-xs uppercase text-muted"><tr><th className="p-3">Topic</th><th className="p-3">Available</th><th className="p-3">Attempted</th><th className="p-3">Completed</th><th className="p-3">Completion</th></tr></thead><tbody className="divide-y divide-border">{detail.topic_progress.map((topic) => <tr key={topic.topic_id}><td className="p-3 font-medium">{topic.topic_name}</td><td className="p-3">{formatCount(topic.available_problems)}</td><td className="p-3">{formatCount(topic.attempted_problems)}</td><td className="p-3">{formatCount(topic.completed_problems)}</td><td className="p-3">{formatPercent(topic.completion_percentage)}</td></tr>)}</tbody></table>
+            <table className="w-full text-left text-sm"><thead className="border-b border-border bg-surface-elevated text-xs uppercase text-muted"><tr><th className="p-3">Topic</th><th className="p-3">Available</th><th className="p-3">Attempted</th><th className="p-3">Completed</th><th className="p-3">Completion</th></tr></thead><tbody className="divide-y divide-border">{detail.topic_progress.map((topic) => <tr key={topic.topic_id}><td className="p-3 font-medium">{topic.topic_name}</td><td className="p-3">{formatCount(topic.available_problems)}</td><td className="p-3">{formatCount(topic.attempted_problems)}</td><td className="p-3">{formatCount(topic.completed_problems)}</td><td className="p-3">{formatPercent(topic.completion_percentage / 100)}</td></tr>)}</tbody></table>
           </div>
         </ResultsState>
       </section>

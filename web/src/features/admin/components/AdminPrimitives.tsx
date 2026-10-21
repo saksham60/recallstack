@@ -73,6 +73,7 @@ export function Pagination({ pagination, onPage, onPageSize }: {
         Page {pagination.page} of {Math.max(1, pagination.total_pages)} · {formatCount(pagination.total_items)} results
       </span>
       <div className="flex items-center gap-2">
+        {pagination.page > 1 && <button className={buttonClass} onClick={() => onPage(1)}>First page</button>}
         {onPageSize && (
           <label className="flex items-center gap-2 text-muted">
             Rows
@@ -90,7 +91,7 @@ export function Pagination({ pagination, onPage, onPageSize }: {
 
 export function ResultsState({ count, filtered, children }: { count: number; filtered?: boolean; children: ReactNode }) {
   return count === 0
-    ? <EmptyState title={filtered ? "No results match these filters" : "Nothing to show yet"} description={filtered ? "Try clearing or broadening the filters." : undefined} />
+    ? <><EmptyState title={filtered ? "No results match these filters" : "Nothing to show yet"} description={filtered ? "Try clearing or broadening the filters." : undefined} />{children}</>
     : <>{children}</>;
 }
 

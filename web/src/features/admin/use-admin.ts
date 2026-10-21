@@ -11,6 +11,20 @@ function required<T>(data: T | undefined): T {
   return data;
 }
 
+export function useGrowth(days: 7 | 30 | 90) {
+  return useQuery({
+    queryKey: [...adminKeys.all, "growth", days] as const,
+    queryFn: async ({ signal }) => {
+      const { data } = await apiClient.GET("/api/v1/admin/growth", {
+        params: { query: { days } }, signal,
+      });
+      return required(data);
+    },
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
 export function useAdminIdentity() {
   const profile = useProfile();
   const isAdmin = profile.data?.roles.includes("admin") ?? false;

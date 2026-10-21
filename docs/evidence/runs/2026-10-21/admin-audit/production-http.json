@@ -1,0 +1,232 @@
+{
+  "at": "2026-10-21T06:12:40.512Z",
+  "apiOrigin": "https://recallstack-git-93054085833.asia-south2.run.app",
+  "productionWrites": "Normal sign-in only; no admin mutations or paid calls",
+  "requests": [
+    {
+      "path": "/openapi.json",
+      "session": "none",
+      "status": 200,
+      "elapsedMs": 6076,
+      "allowOrigin": "*"
+    },
+    {
+      "path": "/api/v1/admin/growth?days=30",
+      "session": "none",
+      "status": 401,
+      "elapsedMs": 75,
+      "allowOrigin": "*"
+    },
+    {
+      "path": "/api/v1/me",
+      "session": "normal judge",
+      "status": 200,
+      "elapsedMs": 273,
+      "allowOrigin": "*"
+    },
+    {
+      "path": "/api/v1/admin/overview",
+      "session": "none",
+      "status": 401,
+      "elapsedMs": 59,
+      "allowOrigin": "*"
+    },
+    {
+      "path": "/api/v1/admin/overview",
+      "session": "normal judge",
+      "status": 403,
+      "elapsedMs": 170,
+      "allowOrigin": "*"
+    },
+    {
+      "path": "/api/v1/admin/growth?days=7",
+      "session": "none",
+      "status": 401,
+      "elapsedMs": 59,
+      "allowOrigin": "*"
+    },
+    {
+      "path": "/api/v1/admin/growth?days=7",
+      "session": "normal judge",
+      "status": 403,
+      "elapsedMs": 183,
+      "allowOrigin": "*"
+    },
+    {
+      "path": "/api/v1/admin/growth?days=30",
+      "session": "none",
+      "status": 401,
+      "elapsedMs": 56,
+      "allowOrigin": "*"
+    },
+    {
+      "path": "/api/v1/admin/growth?days=30",
+      "session": "normal judge",
+      "status": 403,
+      "elapsedMs": 178,
+      "allowOrigin": "*"
+    },
+    {
+      "path": "/api/v1/admin/growth?days=90",
+      "session": "none",
+      "status": 401,
+      "elapsedMs": 56,
+      "allowOrigin": "*"
+    },
+    {
+      "path": "/api/v1/admin/growth?days=90",
+      "session": "normal judge",
+      "status": 403,
+      "elapsedMs": 179,
+      "allowOrigin": "*"
+    },
+    {
+      "path": "/api/v1/admin/users",
+      "session": "none",
+      "status": 401,
+      "elapsedMs": 57,
+      "allowOrigin": "*"
+    },
+    {
+      "path": "/api/v1/admin/users",
+      "session": "normal judge",
+      "status": 403,
+      "elapsedMs": 195,
+      "allowOrigin": "*"
+    },
+    {
+      "path": "/api/v1/admin/users/{userId}",
+      "session": "none",
+      "status": 401,
+      "elapsedMs": 58,
+      "allowOrigin": "*"
+    },
+    {
+      "path": "/api/v1/admin/users/{userId}",
+      "session": "normal judge",
+      "status": 403,
+      "elapsedMs": 181,
+      "allowOrigin": "*"
+    },
+    {
+      "path": "/api/v1/admin/users/{userId}/activity",
+      "session": "none",
+      "status": 401,
+      "elapsedMs": 60,
+      "allowOrigin": "*"
+    },
+    {
+      "path": "/api/v1/admin/users/{userId}/activity",
+      "session": "normal judge",
+      "status": 403,
+      "elapsedMs": 178,
+      "allowOrigin": "*"
+    },
+    {
+      "path": "/api/v1/admin/problems/analytics",
+      "session": "none",
+      "status": 401,
+      "elapsedMs": 64,
+      "allowOrigin": "*"
+    },
+    {
+      "path": "/api/v1/admin/problems/analytics",
+      "session": "normal judge",
+      "status": 403,
+      "elapsedMs": 203,
+      "allowOrigin": "*"
+    },
+    {
+      "path": "/api/v1/admin/audit-logs",
+      "session": "none",
+      "status": 401,
+      "elapsedMs": 58,
+      "allowOrigin": "*"
+    },
+    {
+      "path": "/api/v1/admin/audit-logs",
+      "session": "normal judge",
+      "status": 403,
+      "elapsedMs": 172,
+      "allowOrigin": "*"
+    },
+    {
+      "path": "/api/v1/admin/users/{userId}/roles",
+      "session": "none",
+      "status": 401,
+      "elapsedMs": 61,
+      "allowOrigin": "*"
+    },
+    {
+      "path": "/api/v1/admin/users/{userId}/roles",
+      "session": "normal judge",
+      "status": 403,
+      "elapsedMs": 205,
+      "allowOrigin": "*"
+    },
+    {
+      "path": "/api/v1/admin/users/{userId}/progress",
+      "session": "none",
+      "status": 401,
+      "elapsedMs": 58,
+      "allowOrigin": "*"
+    },
+    {
+      "path": "/api/v1/admin/users/{userId}/progress",
+      "session": "normal judge",
+      "status": 403,
+      "elapsedMs": 168,
+      "allowOrigin": "*"
+    },
+    {
+      "path": "/api/v1/admin/users/{userId}/practice-attempts",
+      "session": "none",
+      "status": 401,
+      "elapsedMs": 57,
+      "allowOrigin": "*"
+    },
+    {
+      "path": "/api/v1/admin/users/{userId}/practice-attempts",
+      "session": "normal judge",
+      "status": 403,
+      "elapsedMs": 181,
+      "allowOrigin": "*"
+    },
+    {
+      "path": "/api/v1/admin/users/{userId}/reviews",
+      "session": "none",
+      "status": 401,
+      "elapsedMs": 58,
+      "allowOrigin": "*"
+    },
+    {
+      "path": "/api/v1/admin/users/{userId}/reviews",
+      "session": "normal judge",
+      "status": 403,
+      "elapsedMs": 176,
+      "allowOrigin": "*"
+    }
+  ],
+  "deployedGrowthContract": [
+    {
+      "name": "days",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "$ref": "#/components/schemas/GrowthDays",
+        "default": 30
+      }
+    }
+  ],
+  "deployedGrowthDaysSchema": {
+    "type": "integer",
+    "enum": [
+      7,
+      30,
+      90
+    ],
+    "title": "GrowthDays"
+  },
+  "judgeRoles": [],
+  "authorizedAdminVerification": "Blocked: no authorized admin session; connected browser failed to initialize; ordinary judge roles=[]"
+}

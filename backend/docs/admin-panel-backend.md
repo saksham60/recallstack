@@ -1,5 +1,13 @@
 # Read-only Admin Panel backend
 
+October 21 audit: [readiness report](../../docs/admin/ADMIN_READINESS.md) and
+[database security handoff](../../docs/admin/SUPABASE_SECURITY_HANDOFF.md).
+Growth distinguishes recorded activity, deliberate engagement, repeat UTC days,
+legacy browser submissions and server judging. Ranges use UTC calendar days
+through an as-of timestamp; the legacy overview retains rolling 7/30-day windows.
+Legacy practice completions are self-reported learning, not execution verdicts.
+Location, attribution, full cohort retention and billed costs are not inferred.
+
 The Admin Panel API is mounted at `/api/v1/admin`. It uses the normal Supabase bearer-token
 authentication path and then loads active role grants from PostgreSQL. A client-provided role or
 JWT custom-role claim is never used for authorization.

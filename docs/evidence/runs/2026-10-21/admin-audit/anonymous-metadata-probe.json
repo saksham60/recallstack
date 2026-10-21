@@ -1,0 +1,27 @@
+{
+  "at": "2026-10-21T06:43:47.414Z",
+  "scope": "Anonymous Data API accessibility only; HEAD with limit=0; no rows or response body read; no writes attempted",
+  "results": [
+    {
+      "table": "roles",
+      "method": "HEAD",
+      "limit": 0,
+      "status": 200,
+      "bodyRead": false
+    },
+    {
+      "table": "profile_role_grants",
+      "method": "HEAD",
+      "limit": 0,
+      "status": 200,
+      "bodyRead": false
+    },
+    {
+      "table": "admin_audit_logs",
+      "method": "HEAD",
+      "limit": 0,
+      "status": 200,
+      "bodyRead": false
+    }
+  ]
+}

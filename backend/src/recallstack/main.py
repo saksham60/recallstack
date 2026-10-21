@@ -25,6 +25,7 @@ from recallstack.modules.admin.application.analytics import AdminAnalyticsServic
 from recallstack.modules.admin.application.content_management import AdminContentService
 from recallstack.modules.admin.application.user_inspection import AdminUserService
 from recallstack.modules.admin.presentation.analytics_routes import router as admin_analytics_router
+from recallstack.modules.admin.presentation.middleware import AdminCacheMiddleware
 from recallstack.modules.admin.presentation.routes import router as admin_content_router
 from recallstack.modules.admin.presentation.user_routes import router as admin_user_router
 from recallstack.modules.catalog.application.category_dashboard import CategoryDashboardService
@@ -225,6 +226,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(BodySizeLimitMiddleware, max_bytes=resolved.request_body_max_bytes)
     app.add_middleware(RequestContextMiddleware)
     app.add_middleware(DsaCacheMiddleware)
+    app.add_middleware(AdminCacheMiddleware)
     install_error_handlers(app)
     app.include_router(health_router)
     app.include_router(identity_router, prefix="/api/v1")

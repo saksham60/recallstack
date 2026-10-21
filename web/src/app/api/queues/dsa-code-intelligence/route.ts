@@ -8,7 +8,7 @@ import { generateCodeReport } from "@/lib/dsa-reports/provider";
 import { processReport, RetryReport } from "@/lib/dsa-reports/worker";
 export const runtime = "nodejs";
 export const maxDuration = 60;
-export const POST = handleCallback(
+const callback = handleCallback(
   async (message: unknown) => {
     const parsed = z.object({ reportId: z.uuid() }).strict().safeParse(message);
     if (!parsed.success || !codeIntelligenceEnabled()) return;
@@ -24,3 +24,8 @@ export const POST = handleCallback(
     }),
   },
 );
+
+// Next route handlers receive Request; the SDK also supports other runtimes.
+export async function POST(request: Request): Promise<Response> {
+  return callback(request);
+}

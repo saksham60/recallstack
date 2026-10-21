@@ -2432,6 +2432,21 @@ export interface components {
             new_users: number;
             /** Tracked Engaged Users */
             tracked_engaged_users: number;
+            /**
+             * Recorded Active Users
+             * @default 0
+             */
+            recorded_active_users: number;
+            /**
+             * Returning Users
+             * @default 0
+             */
+            returning_users: number;
+            /**
+             * Repeat Active Users
+             * @default 0
+             */
+            repeat_active_users: number;
             /** Newly Engaged Users */
             newly_engaged_users: number;
             /** Activation Rate */
@@ -2440,10 +2455,50 @@ export interface components {
             ai_runs: number;
             /** Ai Failed Runs */
             ai_failed_runs: number;
+            /**
+             * Ai Interrupted Runs
+             * @default 0
+             */
+            ai_interrupted_runs: number;
             /** Knowledge Events */
             knowledge_events: number;
+            /**
+             * Knowledge Impressions
+             * @default 0
+             */
+            knowledge_impressions: number;
             /** Dsa Submissions */
             dsa_submissions: number;
+            /**
+             * Server Runs
+             * @default 0
+             */
+            server_runs: number;
+            /**
+             * Server Submissions
+             * @default 0
+             */
+            server_submissions: number;
+            /**
+             * Official Accepted
+             * @default 0
+             */
+            official_accepted: number;
+            /**
+             * Provisional Passes
+             * @default 0
+             */
+            provisional_passes: number;
+            /**
+             * Code Intelligence Reports
+             * @default 0
+             */
+            code_intelligence_reports: number;
+            /**
+             * Code Intelligence Failed
+             * @default 0
+             */
+            code_intelligence_failed: number;
             /** Tracking Source Available */
             tracking_source_available: boolean;
             /** Signup Source Unknown */

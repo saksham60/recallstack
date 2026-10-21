@@ -154,7 +154,7 @@ async function runClaim(claim:Claim) {
     }
   }
 }
-export const POST=handleCallback(async (message:unknown)=>{
+const callback=handleCallback(async (message:unknown)=>{
   if(!tokenSchema.safeParse(message).success)return;
   const raw=await command("claim");
   if(raw && typeof raw==="object" && !("skipped" in raw)){
@@ -169,3 +169,8 @@ export const POST=handleCallback(async (message:unknown)=>{
     ?{acknowledge:true}
     :{afterSeconds:Math.min(120,5*2**Math.min(metadata.deliveryCount-1,4))},
 });
+
+// Next route handlers receive Request; the SDK also supports other runtimes.
+export async function POST(request: Request): Promise<Response> {
+  return callback(request);
+}

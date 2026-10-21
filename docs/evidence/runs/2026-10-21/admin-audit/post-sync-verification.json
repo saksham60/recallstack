@@ -1,0 +1,60 @@
+{
+  "at": "2026-10-21T07:54:41.532329+00:00",
+  "integrationBase": "ede49dff80d60d4bb8b2ee70e3769051c392ec7b",
+  "target": "origin/main",
+  "conflicts": 0,
+  "scope": "Admin fixes, tests, documentation and evidence; three Queue Request wrappers and two CSS selector scopes required for the production build",
+  "earlierUnfinishedWorkPreserved": true,
+  "productionMigrationApplied": false,
+  "productionAdminLoginStillUnverified": true,
+  "newProductionOrPaidCallsDuringPushVerification": 0,
+  "testCases": {
+    "backend": 118,
+    "postgres": 19,
+    "adminUi": 17
+  },
+  "testLogs": [
+    {
+      "log": "backend.log",
+      "sha256": "3f84b35a3aa678a22366aa80e4569af20059fd7fb97b5761bd7444185ff0e1b0",
+      "result": "118 test cases passed; overall run initially had 19 Docker setup errors, resolved by the separate integration retry."
+    },
+    {
+      "log": "integration-retry.log",
+      "sha256": "c78c7f5c236d5228f03dc114933960114629099def7a270daf70030f9b876bce",
+      "result": "All 19 PostgreSQL integration tests passed after Docker recovered."
+    },
+    {
+      "log": "ui.log",
+      "sha256": "4d518b662c043d79a279e53a8776b049d0cb7bff213dc5e5713f4e3a3f67391b",
+      "result": "Local Admin UI fixture suite; no production auth bypass."
+    },
+    {
+      "log": "build-fixed.log",
+      "sha256": "7157695494a6178990af4bb1b340072921b45a7cf193d9afc2560a54a530bc24",
+      "result": "Production webpack build completed successfully, including TypeScript and 39 static pages."
+    },
+    {
+      "log": "backend-lint.log",
+      "sha256": "af352a86840ad0af3d37ea0d9197f868363a6dac6b1c2ef5d2722f6b41d2d9af",
+      "result": "Targeted backend Ruff passed."
+    },
+    {
+      "log": "backend-types.log",
+      "sha256": "c4677112ff09f96be4ea18b2b118d3d25bbca15dd72afd33a25a3cae6229aef4",
+      "result": "Strict checks passed for 19 source files."
+    },
+    {
+      "log": "web-lint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "result": "Targeted ESLint passed with no diagnostics."
+    }
+  ],
+  "notes": [
+    "Initial fresh build found the existing unscoped CSS Module focus selectors; the scoped selectors fixed compilation.",
+    "The initial Docker SDK timeout was an infrastructure failure, not a failed assertion. All 19 integration tests subsequently passed.",
+    "No PR, force push, manual deployment or production SQL execution is part of this publication.",
+    "Historical audit evidence retains its original source and timestamps. This record covers the isolated checkout on current main.",
+    "GitHub CI is not used as a publication gate, following the user instruction."
+  ]
+}

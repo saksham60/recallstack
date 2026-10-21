@@ -1,7 +1,7 @@
 import json
 import logging
 from collections.abc import Awaitable, Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -20,7 +20,13 @@ class AdminAnalyticsService:
 
     @staticmethod
     def validate_range(start: datetime | None, end: datetime | None) -> None:
-        if start is not None and end is not None and start > end:
+        # Interpret naive ISO inputs as UTC; mixed offsets must not produce a 500.
+        if (
+            start is not None
+            and end is not None
+            and (start.replace(tzinfo=UTC) if start.tzinfo is None else start)
+            > (end.replace(tzinfo=UTC) if end.tzinfo is None else end)
+        ):
             raise AppError(
                 error_type="invalid-date-range",
                 title="Invalid date range",
@@ -73,6 +79,14 @@ class AdminAnalyticsService:
     ) -> tuple[int, list[dict[str, Any]]]:
         self.validate_range(filters.get("signed_up_from"), filters.get("signed_up_to"))
         self.validate_range(filters.get("active_from"), filters.get("active_to"))
+        minimum, maximum = filters.get("min_completed"), filters.get("max_completed")
+        if minimum is not None and maximum is not None and minimum > maximum:
+            raise AppError(
+                error_type="invalid-completion-range",
+                title="Invalid filters",
+                status=422,
+                detail="Minimum completed must not exceed maximum completed",
+            )
         return await self._run(
             lambda repository: repository.list_users(
                 filters=filters,

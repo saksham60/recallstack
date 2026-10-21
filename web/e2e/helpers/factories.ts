@@ -118,7 +118,7 @@ export function createUserDetail(overrides: Partial<UserDetailResponse> = {}): U
     },
     interview_unlock: { required_completions: 100, current_completions: 10, remaining_completions: 90, eligible: false },
     difficulty_breakdown: ['beginner', 'easy', 'medium', 'hard', 'expert'].map((difficulty) => ({ difficulty, attempted: 2, completed: 1 })),
-    topic_progress: [{ topic_id: '00000000-0000-0000-0000-000000000001', topic_name: 'Arrays', available_problems: 10, attempted_problems: 4, completed_problems: 3, completion_percentage: 0.3 }],
+    topic_progress: [{ topic_id: '00000000-0000-0000-0000-000000000001', topic_name: 'Arrays', available_problems: 10, attempted_problems: 4, completed_problems: 3, completion_percentage: 30 }],
     revision_summary: { available: true, total_revision_items: 4, completed_revisions: 2, overdue_revisions: 1, last_revision_at: null },
     mock_test_summary: { available: false, total_attempts: 0, completed_tests: 0, average_score: null },
     ...overrides,

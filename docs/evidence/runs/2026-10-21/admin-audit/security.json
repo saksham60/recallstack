@@ -1,0 +1,529 @@
+{
+  "at": "2026-10-21T06:41:33.295Z",
+  "scope": "Production metadata only; no user rows read via exposed browser roles; no write or exploitation attempted",
+  "roleTablePermissions": [
+    {
+      "nspname": "public",
+      "relname": "admin_audit_logs",
+      "relrowsecurity": false,
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "nspname": "public",
+      "relname": "dsa_practice_submissions",
+      "relrowsecurity": true,
+      "anon_select": false,
+      "anon_write": false,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "nspname": "public",
+      "relname": "practice_attempts",
+      "relrowsecurity": false,
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "nspname": "public",
+      "relname": "profile_role_grants",
+      "relrowsecurity": false,
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "nspname": "public",
+      "relname": "profiles",
+      "relrowsecurity": true,
+      "anon_select": false,
+      "anon_write": false,
+      "authenticated_select": true,
+      "authenticated_write": false
+    },
+    {
+      "nspname": "public",
+      "relname": "reasonai_runs",
+      "relrowsecurity": true,
+      "anon_select": false,
+      "anon_write": false,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "nspname": "public",
+      "relname": "roles",
+      "relrowsecurity": false,
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "nspname": "public",
+      "relname": "user_story_events",
+      "relrowsecurity": true,
+      "anon_select": false,
+      "anon_write": false,
+      "authenticated_select": false,
+      "authenticated_write": false
+    }
+  ],
+  "disabledRlsTables": [
+    {
+      "table_name": "activity_events",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "admin_audit_logs",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "alembic_version",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "bookmarks",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "catalog_release_versions",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "catalog_releases",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "catalog_sync_change_log",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "catalog_sync_counters",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "categories",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "content_blocks",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "content_item_categories",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "content_item_topics",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "content_items",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "content_relations",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "content_version_blocks",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "content_version_categories",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "content_version_status_history",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "content_version_topics",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "content_versions",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "device_catalog_sync_state",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "device_user_sync_state",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "devices",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "domains",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "full_resync_snapshots",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "practice_attempts",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "practice_providers",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "practice_resources",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "profile_role_grants",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "review_cards",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "review_history",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "roles",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "sync_mutations",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "topic_categories",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "topics",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "user_notes",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "user_progress",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "user_sync_change_log",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    },
+    {
+      "table_name": "user_sync_counters",
+      "anon_select": true,
+      "anon_write": true,
+      "authenticated_select": true,
+      "authenticated_write": true
+    }
+  ],
+  "policyDependencies": [
+    {
+      "schemaname": "public",
+      "tablename": "dsa_practice_submissions",
+      "policyname": "dsa_practice_submission_insert_own_current",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((user_id = ( SELECT auth.uid() AS uid)) AND dsa_execution_private.practice_problem_published(problem_id, problem_version_id))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "dsa_practice_submissions",
+      "policyname": "dsa_practice_submission_read_own",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(user_id = ( SELECT auth.uid() AS uid))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "profiles",
+      "policyname": "profiles_select_self",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(id = ( SELECT auth.uid() AS uid))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "profiles",
+      "policyname": "profiles_update_self",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "(id = ( SELECT auth.uid() AS uid))",
+      "with_check": "(id = ( SELECT auth.uid() AS uid))"
+    }
+  ],
+  "functionDependencies": [],
+  "sequenceNames": [
+    {
+      "table_name": "roles",
+      "sequence": "public.roles_id_seq"
+    },
+    {
+      "table_name": "profile_role_grants",
+      "sequence": "public.profile_role_grants_id_seq"
+    },
+    {
+      "table_name": "admin_audit_logs",
+      "sequence": "public.admin_audit_logs_id_seq"
+    }
+  ],
+  "advisorGroups": [
+    {
+      "name": "rls_enabled_no_policy",
+      "level": "INFO",
+      "count": 32,
+      "findings": 32
+    },
+    {
+      "name": "function_search_path_mutable",
+      "level": "WARN",
+      "count": 1,
+      "findings": 1
+    },
+    {
+      "name": "rls_disabled_in_public",
+      "level": "ERROR",
+      "count": 38,
+      "findings": 38
+    },
+    {
+      "name": "extension_in_public",
+      "level": "WARN",
+      "count": 1,
+      "findings": 1
+    },
+    {
+      "name": "anon_security_definer_function_executable",
+      "level": "WARN",
+      "count": 2,
+      "findings": 2
+    },
+    {
+      "name": "authenticated_security_definer_function_executable",
+      "level": "WARN",
+      "count": 8,
+      "findings": 8
+    },
+    {
+      "name": "auth_allow_anonymous_sign_ins",
+      "level": "WARN",
+      "count": 1,
+      "findings": 1
+    },
+    {
+      "name": "auth_allow_anonymous_sign_ins",
+      "level": "WARN",
+      "count": 1,
+      "findings": 1
+    },
+    {
+      "name": "auth_allow_anonymous_sign_ins",
+      "level": "WARN",
+      "count": 1,
+      "findings": 1
+    },
+    {
+      "name": "auth_allow_anonymous_sign_ins",
+      "level": "WARN",
+      "count": 1,
+      "findings": 1
+    },
+    {
+      "name": "auth_allow_anonymous_sign_ins",
+      "level": "WARN",
+      "count": 1,
+      "findings": 1
+    },
+    {
+      "name": "auth_allow_anonymous_sign_ins",
+      "level": "WARN",
+      "count": 1,
+      "findings": 1
+    },
+    {
+      "name": "auth_allow_anonymous_sign_ins",
+      "level": "WARN",
+      "count": 1,
+      "findings": 1
+    },
+    {
+      "name": "auth_allow_anonymous_sign_ins",
+      "level": "WARN",
+      "count": 1,
+      "findings": 1
+    },
+    {
+      "name": "auth_allow_anonymous_sign_ins",
+      "level": "WARN",
+      "count": 1,
+      "findings": 1
+    },
+    {
+      "name": "auth_allow_anonymous_sign_ins",
+      "level": "WARN",
+      "count": 1,
+      "findings": 1
+    },
+    {
+      "name": "auth_allow_anonymous_sign_ins",
+      "level": "WARN",
+      "count": 1,
+      "findings": 1
+    },
+    {
+      "name": "auth_allow_anonymous_sign_ins",
+      "level": "WARN",
+      "count": 1,
+      "findings": 1
+    },
+    {
+      "name": "auth_allow_anonymous_sign_ins",
+      "level": "WARN",
+      "count": 1,
+      "findings": 1
+    },
+    {
+      "name": "auth_allow_anonymous_sign_ins",
+      "level": "WARN",
+      "count": 1,
+      "findings": 1
+    },
+    {
+      "name": "auth_leaked_password_protection",
+      "level": "WARN",
+      "count": 1,
+      "findings": 1
+    }
+  ],
+  "candidateMigration": "20261021061454_admin_role_and_audit_access.sql",
+  "appliedInProduction": false
+}

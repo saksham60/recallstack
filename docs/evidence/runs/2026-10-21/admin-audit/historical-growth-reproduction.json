@@ -1,0 +1,69 @@
+{
+  "environment": "Local ASGI HTTP reproduction; not a production response",
+  "historicalContract": "7493e87^",
+  "requests": [
+    {
+      "path": "/historical-growth",
+      "days": 7,
+      "status": 422,
+      "body": {
+        "type": "https://recallstack.dev/problems/validation-error",
+        "title": "Request validation failed",
+        "status": 422,
+        "detail": "query.days: Input should be 7, 30 or 90",
+        "instance": "/historical-growth",
+        "request_id": "unknown"
+      }
+    },
+    {
+      "path": "/historical-growth",
+      "days": 30,
+      "status": 422,
+      "body": {
+        "type": "https://recallstack.dev/problems/validation-error",
+        "title": "Request validation failed",
+        "status": 422,
+        "detail": "query.days: Input should be 7, 30 or 90",
+        "instance": "/historical-growth",
+        "request_id": "unknown"
+      }
+    },
+    {
+      "path": "/historical-growth",
+      "days": 90,
+      "status": 422,
+      "body": {
+        "type": "https://recallstack.dev/problems/validation-error",
+        "title": "Request validation failed",
+        "status": 422,
+        "detail": "query.days: Input should be 7, 30 or 90",
+        "instance": "/historical-growth",
+        "request_id": "unknown"
+      }
+    },
+    {
+      "path": "/current-growth",
+      "days": 7,
+      "status": 200,
+      "body": {
+        "period_days": 7
+      }
+    },
+    {
+      "path": "/current-growth",
+      "days": 30,
+      "status": 200,
+      "body": {
+        "period_days": 30
+      }
+    },
+    {
+      "path": "/current-growth",
+      "days": 90,
+      "status": 200,
+      "body": {
+        "period_days": 90
+      }
+    }
+  ]
+}

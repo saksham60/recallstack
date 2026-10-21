@@ -602,7 +602,20 @@ class SqlAlchemyAdminAnalyticsRepository:
             .mappings()
             .all()
         )
-        return total, [dict(row) for row in rows]
+        return total, [
+            {**dict(row), "metadata_json": self._audit_metadata(row["metadata_json"])}
+            for row in rows
+        ]
+
+    @staticmethod
+    def _audit_metadata(value: Any) -> dict[str, int]:
+        if not isinstance(value, dict):
+            return {}
+        return {
+            key: item
+            for key, item in value.items()
+            if key in {"page", "page_size"} and type(item) is int and item > 0
+        }
 
     @staticmethod
     def _unlock(completed: int) -> dict[str, Any]:

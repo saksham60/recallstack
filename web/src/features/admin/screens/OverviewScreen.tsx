@@ -20,10 +20,11 @@ export function OverviewScreen() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title="Platform overview"
+        title="DSA practice overview"
         description={`Generated ${formatDate(generated_at)} in your local timezone`}
         actions={<button className={buttonClass} disabled={query.isFetching} onClick={() => query.refetch()}>{query.isFetching ? "Refreshing…" : "Refresh"}</button>}
       />
+      <p className="text-sm text-muted">Legacy practice outcomes are self-reported learning activity, not official judge verdicts. Active users here reflect learning events, practice attempts and revisions only; use Platform Overview for recorded activity across Feed, AI and execution. New today uses UTC; 7/30-day values use rolling windows.</p>
       <section aria-labelledby="user-metrics">
         <h2 id="user-metrics" className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">Users</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
@@ -41,7 +42,7 @@ export function OverviewScreen() {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <MetricCard label="Published" value={formatCount(problems.total_published)} />
           <MetricCard label="Total attempts" value={formatCount(problems.total_attempts)} />
-          <MetricCard label="Accepted attempts" value={formatCount(problems.accepted_attempts)} />
+          <MetricCard label="Independent practice outcomes" value={formatCount(problems.accepted_attempts)} />
           <MetricCard label="Unique attempts" value={formatCount(problems.unique_user_problem_attempts)} />
           <MetricCard label="Unique completions" value={formatCount(problems.unique_user_problem_completions)} />
           <MetricCard label="Completion rate" value={formatPercent(problems.completion_rate)} />

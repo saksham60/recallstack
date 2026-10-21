@@ -14,13 +14,14 @@ export function ProblemDetailScreen({ problemId }: { problemId: string }) {
   return (
     <div className="space-y-7">
       <div className="text-sm text-muted"><Link href="/admin/problems" className="hover:text-accent">Problem Analytics</Link> <span aria-hidden> / </span> {problem.title}</div>
-      <PageHeader title={problem.title} description={problem.topics.join(" · ") || "No topics"} actions={<button className={buttonClass} onClick={() => query.refetch()}>Refresh</button>} />
+      <PageHeader title={problem.title} description={problem.topics.join(" · ") || "No topics"} actions={<button className={buttonClass} disabled={query.isFetching} onClick={() => query.refetch()}>Refresh</button>} />
       <div className="flex flex-wrap items-center gap-3"><Badge variant="secondary">{titleCase(problem.difficulty)}</Badge><Badge variant={problem.publication_status === "published" ? "success" : "outline"}>{titleCase(problem.publication_status)}</Badge><CopyId value={problem.problem_id} label="problem ID" /></div>
+      <p className="text-sm text-muted">Legacy self-reported practice activity; these are not official judge verdicts.</p>
       <section>
         <h2 className="mb-3 font-semibold">Analytics</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <MetricCard label="Total attempts" value={formatCount(analytics.total_attempts)} />
-          <MetricCard label="Accepted attempts" value={formatCount(analytics.accepted_attempts)} />
+          <MetricCard label="Independent practice outcomes" value={formatCount(analytics.accepted_attempts)} />
           <MetricCard label="Users attempted" value={formatCount(analytics.unique_users_attempted)} />
           <MetricCard label="Users completed" value={formatCount(analytics.unique_users_completed)} />
           <MetricCard label="Solve rate" value={formatPercent(analytics.solve_rate)} />

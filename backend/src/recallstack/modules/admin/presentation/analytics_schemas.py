@@ -68,12 +68,23 @@ class GrowthResponse(AdminSchema):
     total_users: int
     new_users: int
     tracked_engaged_users: int
+    recorded_active_users: int = 0
+    returning_users: int = 0
+    repeat_active_users: int = 0
     newly_engaged_users: int
     activation_rate: float
     ai_runs: int
     ai_failed_runs: int
+    ai_interrupted_runs: int = 0
     knowledge_events: int
+    knowledge_impressions: int = 0
     dsa_submissions: int
+    server_runs: int = 0
+    server_submissions: int = 0
+    official_accepted: int = 0
+    provisional_passes: int = 0
+    code_intelligence_reports: int = 0
+    code_intelligence_failed: int = 0
     tracking_source_available: bool
     signup_source_unknown: int
     daily_signups: list[GrowthDailyPoint]

@@ -10,7 +10,7 @@ import { dispatchReports } from "@/lib/dsa-reports/queue";
 import { ReportDispatchError } from "@/lib/dsa-reports/delivery";
 export const runtime = "nodejs";
 export const maxDuration = 60;
-export const POST = handleCallback(
+const callback = handleCallback(
   async (message: unknown) => {
     const parsed = z
       .object({ submissionId: z.uuid() })
@@ -52,3 +52,8 @@ export const POST = handleCallback(
             },
   },
 );
+
+// Next route handlers receive Request; the SDK also supports other runtimes.
+export async function POST(request: Request): Promise<Response> {
+  return callback(request);
+}

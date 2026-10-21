@@ -278,6 +278,7 @@ async def test_growth_days_are_parsed_from_http_query(
         ) as client:
             response = await client.get(f"/api/v1/admin/growth{query_string}")
     assert response.status_code == 200, response.text
+    assert response.headers["cache-control"] == "private, no-store"
     assert response.json()["period_days"] == expected_days
     assert len(response.json()["daily_signups"]) == expected_days
 
@@ -432,6 +433,41 @@ def test_interview_unlock_boundary_is_exact() -> None:
 def test_invalid_date_ranges_are_rejected() -> None:
     with pytest.raises(AppError) as error:
         AdminAnalyticsService.validate_range(NOW, NOW - timedelta(seconds=1))
+    assert error.value.status == 422
+
+
+def test_mixed_timezone_filters_are_compared_as_utc() -> None:
+    AdminAnalyticsService.validate_range(NOW.replace(tzinfo=None), NOW)
+    with pytest.raises(AppError) as error:
+        AdminAnalyticsService.validate_range(NOW, (NOW - timedelta(seconds=1)).replace(tzinfo=None))
+    assert error.value.status == 422
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    (
+        {"page": 2, "page_size": 25, "authorization": "private", "nested": {"email": "private"}},
+        ["private"],
+        "private",
+        None,
+    ),
+)
+def test_audit_response_metadata_is_allowlisted(metadata: object) -> None:
+    result = SqlAlchemyAdminAnalyticsRepository._audit_metadata(metadata)
+    assert result == ({"page": 2, "page_size": 25} if isinstance(metadata, dict) else {})
+
+
+async def test_completion_filter_range_rejects_reversed_bounds_before_database() -> None:
+    service = AdminAnalyticsService(None)  # No database may be reached for invalid input.
+    with pytest.raises(AppError) as error:
+        await service.list_users(
+            filters={"min_completed": 20, "max_completed": 10},
+            page=1,
+            page_size=25,
+            sort_by="created_at",
+            descending=True,
+            audit={},
+        )
     assert error.value.status == 422
 
 
