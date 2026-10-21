@@ -19,6 +19,10 @@
 
 This is a [documented October 17 production run](docs/dsa-v3/integration-20261017.md), **not** evidence that a learner subsequently solved the problem or improved interview performance. Trusted judging is deterministic; the model's explanation is advisory.
 
+![Animated illustrated ReasonAI journey from 9 of 9 visible tests to a trusted wrong-answer verdict and a saved Nemotron Super code review](docs/assets/reasonai-evidence-loop.gif)
+
+*Illustrative animated sequence of the verified October 17 flow—not a UI recording or proof of learning improvement.*
+
 ### Real product, not a concept render
 
 ![Actual production capture of two-browser ReasonAI System Design Live Share, showing a moved architecture node synchronized between collaborators](docs/evidence/screenshots/2026-10-11/collab-move-synced-a.png)
