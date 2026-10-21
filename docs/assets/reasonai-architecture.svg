@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 558" role="img" aria-labelledby="title desc">
+<title id="title">ReasonAI architecture: deterministic execution and NVIDIA Nemotron reasoning</title>
+<desc id="desc">Web and Flutter clients use authenticated server routes. Deterministic systems perform public test execution, sandbox judging, canvas validation, websocket collaboration and persistence. LangGraph orchestrates NVIDIA Nemotron through Nebius Token Factory and bounded Tavily research. Users approve canvas changes before they become operations.</desc>
+<defs>
+ <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#10182c"/><stop offset=".55" stop-color="#0b1020"/><stop offset="1" stop-color="#17132c"/></linearGradient>
+ <linearGradient id="teal" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#15b8b4"/><stop offset="1" stop-color="#58dfc9"/></linearGradient>
+ <linearGradient id="violet" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#746bfb"/><stop offset="1" stop-color="#b291fa"/></linearGradient>
+ <linearGradient id="soft" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#5ad7d1" stop-opacity=".1"/><stop offset="1" stop-color="#9580ff" stop-opacity=".10"/></linearGradient>
+ <pattern id="grid" width="25" height="25" patternUnits="userSpaceOnUse"><path d="M25 0H0V25" fill="none" stroke="#ffffff" stroke-opacity=".045" stroke-width="1"/></pattern>
+ <filter id="glow"><feGaussianBlur stdDeviation="3"/></filter>
+ <marker id="arrow" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0 0L6 3L0 6Z" fill="#8799be"/></marker>
+</defs>
+<rect width="1180" height="558" rx="24" fill="url(#bg)"/>
+<rect x="1" y="1" width="1178" height="556" rx="23" fill="none" stroke="#64748b" stroke-opacity=".3"/>
+<rect width="1180" height="558" rx="24" fill="url(#grid)"/>
+<circle cx="1065" cy="64" r="113" fill="#7868f7" opacity=".08"/>
+<circle cx="80" cy="475" r="130" fill="#10bdb6" opacity=".06"/>
+<g font-family="Inter, Segoe UI, Arial, sans-serif">
+ <text x="43" y="51" fill="#fafaff" font-size="31" font-weight="750" letter-spacing="-.6">ReasonAI</text>
+ <text x="43" y="79" fill="#adbad1" font-size="15">Build better judgment. Reason over real artifacts, not just prompts.</text>
+ <rect x="912" y="32" width="224" height="37" rx="18" fill="#272244" stroke="#786cce" stroke-opacity=".7"/>
+ <circle cx="933" cy="50" r="6" fill="#67decc"/>
+ <text x="947" y="55" fill="#e7dfff" font-weight="700" font-size="14">NEBIUS × NVIDIA</text>
+ <text x="43" y="116" fill="#8395b9" font-size="12" font-weight="700" letter-spacing="2">REQUEST FLOW</text>
+
+ <!-- Client, API, state cards -->
+ <rect x="43" y="134" width="270" height="80" rx="13" fill="#1b2940" stroke="#4c6388"/>
+ <text x="62" y="157" fill="#8da8d3" font-size="12" letter-spacing="1.1">CLIENT EXPERIENCE</text>
+ <text x="62" y="181" fill="#ffffff" font-size="21" font-weight="700">Web + Flutter</text>
+ <text x="62" y="201" fill="#acbed4" font-size="12">Next.js · Konva · mobile learning</text>
+
+ <rect x="430" y="134" width="322" height="80" rx="13" fill="#253047" stroke="#667ba3"/>
+ <text x="450" y="157" fill="#acc3ef" font-size="12" letter-spacing="1.1">AUTHENTICATED SERVER</text>
+ <text x="450" y="181" fill="#ffffff" font-size="20" font-weight="700">Next.js API + FastAPI</text>
+ <text x="450" y="201" fill="#c0ccde" font-size="12">Session checks · bounded requests</text>
+
+ <rect x="868" y="134" width="270" height="80" rx="13" fill="#1b2940" stroke="#4c6388"/>
+ <text x="888" y="157" fill="#8da8d3" font-size="12" letter-spacing="1.1">AUTH + DATA</text>
+ <text x="888" y="181" fill="#ffffff" font-size="19" font-weight="700">Supabase / PostgreSQL</text>
+ <text x="888" y="201" fill="#acbed4" font-size="12">User state · learning · stories</text>
+
+ <!-- Top connectors -->
+ <path d="M313 173H430" stroke="#91a2be" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+ <path d="M752 173H868" stroke="#91a2be" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+ <path d="M591 214V251H304V268 M591 251H876V268" stroke="#8395b4" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+ <circle r="4" fill="#71e9d6"><animateMotion dur="5s" repeatCount="indefinite" path="M313 173H430"/></circle>
+ <circle r="4" fill="#b49dff"><animateMotion dur="5s" begin="1s" repeatCount="indefinite" path="M752 173H868"/></circle>
+
+ <!-- deterministic lane -->
+ <rect x="43" y="271" width="530" height="226" rx="16" fill="#0d252a" stroke="#259b9a" stroke-width="1.5"/>
+ <rect x="43" y="271" width="530" height="51" rx="16" fill="url(#teal)" opacity=".12"/>
+ <path d="M43 322H573" stroke="#259b9a" stroke-opacity=".48"/>
+ <circle cx="68" cy="295" r="7" fill="#6de6d2"/>
+ <text x="86" y="302" font-size="17" fill="#b9fff0" font-weight="750">DETERMINISTIC SYSTEMS</text>
+ <text x="553" y="300" text-anchor="end" font-size="11" fill="#8ad3c7">EXECUTION &amp; TRUTH</text>
+ <rect x="62" y="338" width="492" height="42" rx="9" fill="#173539"/>
+ <text x="79" y="357" font-size="15" fill="#f3fffc" font-weight="650">Pyodide Run + sandbox Submit</text>
+ <text x="79" y="371" font-size="11" fill="#a3c4c5">Public tests and trusted private verdicts are code paths</text>
+ <rect x="62" y="386" width="492" height="42" rx="9" fill="#173539"/>
+ <text x="79" y="405" font-size="15" fill="#f3fffc" font-weight="650">Typed canvas validation + human approval</text>
+ <text x="79" y="419" font-size="11" fill="#a3c4c5">AI proposals cannot mutate documents without acceptance</text>
+ <rect x="62" y="434" width="492" height="42" rx="9" fill="#173539"/>
+ <text x="79" y="453" font-size="15" fill="#f3fffc" font-weight="650">Go WebSockets + persistence</text>
+ <text x="79" y="467" font-size="11" fill="#a3c4c5">Ordered room operations, replay and durable product state</text>
+
+ <!-- AI lane -->
+ <rect x="607" y="271" width="530" height="226" rx="16" fill="#211a38" stroke="#7364ce" stroke-width="1.5"/>
+ <rect x="607" y="271" width="530" height="51" rx="16" fill="url(#violet)" opacity=".14"/>
+ <path d="M607 322H1137" stroke="#7364ce" stroke-opacity=".48"/>
+ <circle cx="632" cy="295" r="7" fill="#a999ff"/>
+ <text x="650" y="302" font-size="17" fill="#e7daff" font-weight="750">MODEL-ASSISTED REASONING</text>
+ <text x="1119" y="300" text-anchor="end" font-size="11" fill="#c3b1ff">SERVER-SIDE</text>
+ <rect x="626" y="338" width="492" height="42" rx="9" fill="#33284d"/>
+ <text x="643" y="357" font-size="15" fill="#ffffff" font-weight="650">LangGraph agents + bounded tools</text>
+ <text x="643" y="371" font-size="11" fill="#c4b8dd">Typed tool calls, durable context, validated responses</text>
+ <rect x="626" y="386" width="492" height="42" rx="9" fill="#33284d"/>
+ <text x="643" y="405" font-size="15" fill="#ffffff" font-weight="650">Nebius Token Factory → NVIDIA Nemotron</text>
+ <text x="643" y="419" font-size="11" fill="#c4b8dd">Lightning · Super · Ultra / Auto for System Design</text>
+ <rect x="626" y="434" width="492" height="42" rx="9" fill="#33284d"/>
+ <text x="643" y="453" font-size="15" fill="#ffffff" font-weight="650">Tavily research + source grounding</text>
+ <text x="643" y="467" font-size="11" fill="#c4b8dd">Fresh search and enrichment outside static model knowledge</text>
+
+ <!-- bound / bridge -->
+ <path d="M573 390H607" stroke="#cbbeff" stroke-width="2.2" stroke-dasharray="4 5"/>
+ <circle cx="590" cy="390" r="5" fill="#ffffff" opacity=".7"><animate attributeName="opacity" values=".2;1;.2" dur="2.5s" repeatCount="indefinite"/></circle>
+ <rect x="43" y="509" width="1094" height="34" rx="9" fill="url(#soft)" stroke="#52627d" stroke-opacity=".55"/>
+ <text x="590" y="530" text-anchor="middle" font-size="14" fill="#e1e8fa" font-weight="600">AI proposes and explains  ·  Code validates and executes  ·  Engineers retain control</text>
+</g>
+</svg>
