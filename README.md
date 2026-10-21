@@ -1,130 +1,103 @@
 # ReasonAI
 
-> **Nebius × NVIDIA evidence:** [evaluation methodology and verification plan](docs/hackathon-evidence/README.md). Live results are not claimed unless explicitly measured.
+**Build Better Judgment.** When a developer passes the visible tests but fails a real submission—or has an architecture diagram but cannot see its failure modes—another generic AI answer is not enough. **ReasonAI connects executable evidence, editable architecture artifacts, and NVIDIA Nemotron reasoning** so engineers can investigate what failed and decide what to change.
 
-**Build Better Judgment.** An AI-native engineering workspace where developers **discover technical ideas, reason about architectures, build together, and master algorithms**—powered by **NVIDIA Nemotron on Nebius Token Factory**.
+[**Launch ReasonAI**](https://www.reasonai.tech/login) · [**Watch product demo**](https://www.youtube.com/watch?v=FoV2KkK72Xs) *(earlier demo; final hackathon video pending)* · [**Devpost**](https://devpost.com/software/reasonai) · [**Architecture details**](docs/ARCHITECTURE.md)
 
-**[Try ReasonAI](https://www.reasonai.tech/login)** · **[Earlier product demo](https://www.youtube.com/watch?v=FoV2KkK72Xs)** (final hackathon video pending) · **[Devpost submission](https://devpost.com/software/reasonai)** · **[Technical architecture](docs/ARCHITECTURE.md)**
+### Architecture first — where code ends and reasoning begins
 
-> AI can generate answers in seconds. ReasonAI helps engineers develop the judgment to decide what to build, why it works, and what to change.
+![ReasonAI architecture showing web and mobile clients, deterministic Pyodide and sandbox execution, validated canvas operations, Go collaboration, and LangGraph routing to NVIDIA Nemotron on Nebius Token Factory with Tavily research](docs/assets/reasonai-architecture.svg)
 
-## DSA execution and Android test build
+**Not a prompt wrapper:** Nemotron **reasons, teaches, analyzes, and proposes**. Deterministic code **runs tests, grades submissions, validates typed operations, orders real-time updates, and persists authoritative state**. AI-generated canvas changes require human approval. All Nebius credentials remain server-side. [Inspect the actual flows and trust boundaries →](docs/ARCHITECTURE.md)
 
-[October 17 production verification](docs/dsa-v3/integration-20261017.md) documented a published catalog of **375 problems** with Run and Submit paths: **10 officially certified** and **365 provisionally graded**. Real 3Sum and Catalan Number production submissions generated saved verdicts and NVIDIA Nemotron Code Intelligence reports. These two runs do not establish a 375-problem end-to-end benchmark, and a provisional pass is not official `Accepted`.
+## A concrete failure: visible tests are not the whole truth
 
-Flutter v1.0.0 (2) supports the Feed and DSA learning, editor, submission history and AI review. See the [Android debug APK verification and distribution requirements](mobile/docs/release-readiness.md#verified-debug-delivery); a public APK URL and production-signed Android build are not yet verified.
+| Before: ordinary local confidence | After: evidence-backed reasoning in ReasonAI |
+| --- | --- |
+| A deliberately overfitted **3Sum** implementation passed **9/9 visible tests**. That did **not** establish correctness. | A real sandbox-backed **Submit** returned **`wrong_answer`** on the provisional judging path; the result was saved with submission history. |
+| The learner has a green local result but no reliable hidden-case verdict. | **NVIDIA Nemotron Super** produced a persisted Code Intelligence review associated with that exact submission. |
 
-### ReasonAI in action — real production capture
+This is a [documented October 17 production run](docs/dsa-v3/integration-20261017.md), **not** evidence that a learner subsequently solved the problem or improved interview performance. Trusted judging is deterministic; the model's explanation is advisory.
 
-![ReasonAI live System Design canvas after a second collaborator moved an architecture node; four nodes and three connections synchronized](docs/evidence/screenshots/2026-10-11/collab-move-synced-a.png)
+### Real product, not a concept render
 
-*Live production capture, October 11, 2026: System Design canvas during a **successful two-browser Live Share test**. This is evidence of manual realtime collaboration, **not** proof of successful AI canvas generation. [View the full before/after/reconnect sequence](docs/evidence/INDEX.md#real-screenshots--october-11-2026).*
+![Actual production capture of two-browser ReasonAI System Design Live Share, showing a moved architecture node synchronized between collaborators](docs/evidence/screenshots/2026-10-11/collab-move-synced-a.png)
+
+*October 11 production capture: manual canvas changes synchronized across two browser sessions, including reconnect verification. This image does not demonstrate AI-created canvas changes. [See original captures, runs, and failures →](docs/evidence/INDEX.md#real-screenshots--october-11-2026)*
+
+## Why Nebius + NVIDIA Nemotron (and where Tavily fits)
+
+Nebius **Token Factory** is ReasonAI's server-side model inference boundary. The application uses its OpenAI-compatible interface for streamed agent turns, structured tool calls, and offline Knowledge enrichment—not for execution or trusted judging.
+
+| Routing / component | Exact implemented role | Engineering trade-off |
+| --- | --- | --- |
+| **Nemotron Lightning** · `nvidia/Nemotron-3_5-Lightning` | Explicit lightweight model preference in **System Design** | Gives engineers a smaller-tier choice; no public latency or accuracy superiority claim |
+| **Nemotron Super** · `nvidia/nemotron-3-super-120b-a12b` | Default ReasonAI model; DSA tutoring, Code Intelligence, story reasoning, System Design | Baseline general reasoning path; a real Code Intelligence production run used Super |
+| **Nemotron Ultra** · `nvidia/Nemotron-3-Ultra-550b-a55b` | Explicit deeper-reasoning option in **System Design** | Available for more demanding turns; quality/cost benefit has not been independently benchmarked |
+| **Auto routing** | System Design starts with **Super** and can escalate a qualifying turn to **Ultra** | Server records selected tier, actual models used and escalation rather than trusting generated text |
+| **Tavily** | News discovery for Knowledge ingestion; bounded `search_web` for current facts and cited research | Fresh external evidence complements static model knowledge; citations don't guarantee factual correctness |
+
+**Why this architecture matters:** The Knowledge Feed performs discovery, deduplication, image validation, Nemotron enrichment and persistence **offline**. Its normal online read/ranking path stays deterministic instead of paying for live model generation on every scroll. DSA Run uses **Pyodide in the browser**; trusted Submit uses the sandbox-based judge, not an LLM verdict. [Model IDs, sponsor integration, and hackathon-period changes →](HACKATHON_SUBMISSION.md) · [Technical evaluation protocol →](docs/evidence/EVALUATION_PROTOCOL.md)
 
 ## Judge quickstart — try it in five minutes
 
-1. **Enter:** Open [ReasonAI's login page](https://www.reasonai.tech/login) and choose **Continue as Hackathon Judge**. No personal signup is needed.
-2. **Discover:** In **Knowledge Feed**, select a story and ask ReasonAI for technical context or related developments. Inspect its cited sources.
-3. **Reason + Build:** In **System Design**, ask for a scalability review, then request concrete canvas edits. Inspect the proposed components/edges and **accept or discard** them.
-4. **Collaborate:** Start **Live Share**; open the invite in a second session, make a committed change, and confirm it appears in both views.
-5. **Master:** Open a **DSA** problem, request a progressive hint, use local public-test **Run**, then try authenticated **Submit**. Inspect the persisted verdict, submission history and **Code Intelligence** review. Provisional passes are explicitly distinct from officially certified Accepted verdicts.
+**No install or personal signup required.** Open **[ReasonAI](https://www.reasonai.tech/login)** and choose **Continue as Hackathon Judge**.
 
-**What makes this different:** the model can reason over **actual canvas nodes and edges** and propose typed operations, but the application validates them and **only the engineer can accept changes**. ReasonAI is a workspace with real artifacts and state—not a generic chatbot wrapper.
+1. **First insight:** Open **System Design**, ask for a bottleneck or failure review of the current architecture, and inspect the analysis against actual canvas nodes and edges.
+2. **See the safety boundary:** Request canvas changes. Review any proposed operations and choose whether to **accept or discard** them. The model cannot silently edit a shared document.
+3. **Test the learning loop:** Open **DSA → 3Sum**, request a progressive hint, then use local **Run** and authenticated **Submit**. Review the returned verdict, history and Code Intelligence report.
+4. **Explore collaboration and freshness:** Use **Live Share** with a second browser to test synchronized canvas edits, or open a Knowledge story and ask for recent related developments using Tavily-backed research.
 
-## One product, four connected workflows
+**Try this prompt in System Design:** `Review this architecture for a single point of failure. Identify affected nodes and propose reviewable changes.`
 
-| Workflow | Working experience | AI contribution |
-| --- | --- | --- |
-| **Discover** | Engineering Knowledge Feed + Ask ReasonAI, web and Flutter | Nemotron enriches stories; Tavily enables grounded follow-up research |
-| **Reason** | Architecture review, scalability analysis, bottleneck/failure reasoning | LangGraph/Nemotron reason over the **current canvas**; results refer to real diagram elements |
-| **Build** | Editable Konva system-design canvas + Go WebSocket Live Share | AI proposes **validated, reviewable** node and edge operations; users control application |
-| **Master** | 375-problem DSA catalog, Python editor, local public-test Run, authenticated sandbox Submit, Results Studio, history, Code Intelligence, hints and visual lessons | Nemotron-backed, contextual tutoring and post-submission code review; official and provisional judging remain distinguishable |
+These are suggested evaluation steps, **not** a promise of a successful AI result within 30 seconds; provider latency and content quality vary. For recorded outcomes and known gaps, use the [Evidence Hub](docs/evidence/INDEX.md).
 
-## More product screenshots
+## What doesn't work yet — and what we learned
 
-| DSA tutor: actual 3Sum hint | Knowledge Feed: actual story cards |
+| Known limitation / evidence boundary | Engineering implication |
 | --- | --- |
-| ![ReasonAI DSA workspace with a generated 3Sum hint shown beside the editor](docs/evidence/screenshots/2026-10-11/dsa-hint.png) | ![ReasonAI engineering Knowledge Feed showing technical story cards and Ask ReasonAI entry points](docs/evidence/screenshots/2026-10-11/knowledge-story.png) |
+| **DSA certification:** the last published October 17 audit verified **375 accessible Run/Submit paths**, but only **10 officially certified** and **365 provisionally graded**. | A `provisional_pass` is never displayed as official `Accepted`. Later certification work requires a fresh documented audit. |
+| **AI visual correctness:** an October 11 DSA walkthrough rendered successfully but included a mathematically invalid triplet. | Typed/schema-valid visuals are **not** automatically factually correct; content-level checking remains necessary. |
+| **Research failures:** the October 11 Knowledge story-chat run did not complete a user-visible answer despite separate evidence of server-side searches. | Tool execution is not the same as a grounded answer delivered to the user; end-to-end reliability must be measured. |
+| **Canvas persistence:** a production Nemotron-generated proposal was saved as **pending**, but that test did not verify its acceptance or standalone canvas restoration after refresh. | Proposed edits, applied edits and durable canvas state must be tested independently. |
+| **Realtime scaling:** Go room operations, ACKs, replay and reconnect were exercised in a single-instance topology. | Cross-instance durable rooms and distributed failure recovery are **not** claimed. |
+| **Mobile distribution:** an Android debug build and unsigned iOS compilation were documented; store-signing and real-device release gates remain separate. | A test build is not an officially distributed app. |
+| **Security and impact:** older Supabase advisor findings and the absence of a controlled learning-impact study remain open evidence gaps. | Never substitute implementation complexity or signup counts for a completed security audit or proven learner outcomes. |
 
-**Evidence caveat:** The hint UI worked, but the captured DSA visual walkthrough contained mathematical errors; the Feed displayed stories, but AI follow-up answer generation failed in the recorded runs. These images **do not** establish successful end-to-end AI outcomes. [See the evidence, failures, and original screenshots](docs/evidence/INDEX.md#real-screenshots--october-11-2026).
+These are **dated observations, not assertions that every issue still reproduces today**. We preserve failures instead of rewriting history after fixes. See [run records and verification scope](docs/evidence/INDEX.md), [mobile release gates](mobile/docs/release-readiness.md), and [current versus future architecture](docs/ARCHITECTURE.md#current-vs-next-architecture).
 
-## Architecture at a glance
+## Reproduce, inspect, verify
 
-```mermaid
-flowchart LR
-    WEB["Web: Next.js / React / Konva"]
-    MOBILE["Flutter mobile"]
-    APP["Next.js server routes + FastAPI"]
-    AGENTS["LangGraph agents and bounded tools"]
-    NEBIUS["Nebius Token Factory / NVIDIA Nemotron"]
-    TAVILY["Tavily research"]
-    DATA["Supabase Auth + PostgreSQL"]
-    R2["Cloudflare R2 feed media"]
-    REALTIME["Go realtime WebSocket on Render"]
-    WEB --> APP
-    MOBILE --> APP
-    APP --> AGENTS
-    AGENTS --> NEBIUS
-    AGENTS --> TAVILY
-    APP --> DATA
-    APP --> R2
-    WEB --> REALTIME
+**Fastest reproduction:** use the live **judge path above**; it uses the hosted backend and requires no local secrets.
+
+For a local development environment, the web, Python API, database and Go realtime service require independent configuration. The minimal bootstrap is:
+
+```bash
+git clone https://github.com/saksham60/recallstack.git
+cd recallstack
+
+# In separate terminals, follow each component's documented setup:
+# docs/DEVELOPMENT.md
+# web/README.md · backend/README.md · realtime/README.md
 ```
 
-Three boundaries are deliberate:
+Server-side keys include `NEBIUS_API_KEY` and `TAVILY_API_KEY`, with `REASONAI_BASE_URL=https://api.tokenfactory.nebius.com/v1`. Database/Supabase settings, authentication configuration and other component-specific variables are also required. Copy the supplied `.env.example` files; **never commit populated credentials**. [Exact shell commands, environment variables, local services, and verification suites →](docs/DEVELOPMENT.md).
 
-- **AI is server-side:** Nebius credentials are never bundled into browser or Flutter clients; LangGraph bounds tool calls and persisted state.
-- **AI proposals are not mutations:** typed contracts, state validation, and explicit human acceptance govern System Design edits.
-- **Realtime is not model memory:** a Go WebSocket service synchronizes committed diagram operations; Supabase stores application and learning state.
+### Inspectable engineering evidence
 
-Explore the [full architecture, flows, memory model, trust boundaries, deployment, and known limitations](docs/ARCHITECTURE.md).
-
-## Why Nebius + NVIDIA matter
-
-| Actual product path | Nemotron's role |
+| Claim | Source of evidence |
 | --- | --- |
-| Knowledge refresh | Structured enrichment of retrieved stories **before** they appear in the feed |
-| Ask ReasonAI | Story-context answers and model-selected bounded research tools |
-| DSA agent | Progressive tutoring, reasoning, and structured visual/tool responses |
-| System Design agent | Architecture review, analysis and reviewable canvas proposals |
+| Nemotron agent orchestration and tier routing | [Hackathon technical submission](HACKATHON_SUBMISSION.md) · [System Design agent](web/docs/system-design-reasonai.md) |
+| Deterministic judging and saved code reviews | [DSA integration run](docs/dsa-v3/integration-20261017.md) |
+| Typed AI canvas proposals and safety checks | [Proposal lifecycle](web/docs/reasonai-proposal-recovery.md) · [browser tests](web/e2e/reasonai.spec.ts) |
+| Ordered collaboration and replay | [Realtime service](realtime/README.md) · [room tests](realtime/internal/room/room_test.go) |
+| Tavily ingestion and deterministic feed ranking | [Knowledge pipeline](backend/docs/knowledge-shorts.md) · [Knowledge API tests](backend/tests/knowledge/test_api.py) |
+| Raw successes, failed attempts and evidence gaps | [Hackathon Evidence Hub](docs/evidence/INDEX.md) |
 
-System Design supports **Lightning**, **Super**, and **Ultra**, with **Auto** routing that can escalate qualifying turns from Super to Ultra. See [verified model configuration and implementation boundaries](HACKATHON_SUBMISSION.md). No claim is made that each model tier outperforms the others without a controlled evaluation.
+**Evidence policy:** Having source code and tests is not the same as a dated passing production benchmark. Model quality, token economics, load capacity, end-to-end latency, and user learning outcomes are **not** claimed as independently measured unless a linked evaluation run establishes them. [Evaluation methodology →](docs/hackathon-evidence/README.md)
 
-## Technical evidence and reproducibility
+## Built during the hackathon
 
-**[Hackathon Evidence Hub](docs/evidence/INDEX.md)** — claims-to-code mapping, [live evidence capture guide](docs/evidence/CAPTURE_RUNBOOK.md), [fixed evaluation protocol](docs/evidence/EVALUATION_PROTOCOL.md), and [run record template](docs/evidence/RUN_RECORD_TEMPLATE.md). Quantitative results remain unpublished until real trials are completed and reviewed.
+ReasonAI predates the August 26, 2026 submission window. The major work since then includes **Nebius/Nemotron-based LangGraph agents, bounded Tavily tools, reviewable architecture proposals, tiered System Design models, a Go collaboration service, Knowledge enrichment, contextual DSA feedback, persistent learning state and Flutter clients**. The [hackathon submission record](HACKATHON_SUBMISSION.md) and Git history distinguish this work from the pre-existing product.
 
-These links point to **existing implementation or tests**. They are not presented as measured benchmark results.
-
-| What to inspect | Evidence in this repository |
-| --- | --- |
-| Nebius integration, model routing, hackathon changes | [HACKATHON_SUBMISSION.md](HACKATHON_SUBMISSION.md) · [System Design reasoning documentation](web/docs/system-design-reasonai.md) |
-| Safe AI canvas suggestions and recovery | [Proposal contracts and lifecycle](web/docs/reasonai-proposal-recovery.md) · [AI browser tests](web/e2e/reasonai.spec.ts) |
-| Multi-user ordering, replay and reconnect | [Go realtime documentation](realtime/README.md) · [Room test cases](realtime/internal/room/room_test.go) |
-| Knowledge enrichment and feed delivery | [Ingestion pipeline](backend/docs/knowledge-shorts.md) · [Knowledge API tests](backend/tests/knowledge/test_api.py) |
-| LangSmith wiring, tracing contracts | [LangSmith integration tests](web/e2e/langsmith.spec.ts) |
-| Setup and test commands | [Development and Verification](docs/DEVELOPMENT.md) |
-
-**Evidence status:** implementation and automated test *sources* are available; this README does **not** claim that all tests passed in a fresh run or that agent quality, latency, load capacity, or user impact have been benchmarked. Those results require dated execution artifacts and an explicit evaluation protocol.
-
-## What was added during the hackathon?
-
-ReasonAI extends an **existing** engineering learning project. The hackathon implementation introduced Nebius/Nemotron-backed AI workflows, LangGraph agents, reviewable canvas proposals, contextual DSA tutoring, Knowledge Feed enrichment and research, enhanced collaboration, model selection, and mobile experiences. The [hackathon submission record](HACKATHON_SUBMISSION.md) identifies the concrete changes and reproducible entry points; repository history provides the chronological record.
-
-## Developer guide
-
-- **[Set up the application](docs/DEVELOPMENT.md#local-development):** backend, Go realtime service, Next.js web client, Flutter mobile and required configuration.
-- **[Run verification](docs/DEVELOPMENT.md#verification):** typecheck, lint, build, browser tests, backend checks and realtime tests. Some E2E tests need additional services and credentials.
-- **[Inspect architecture](docs/ARCHITECTURE.md):** detailed flows, memory/personalization, Knowledge lifecycle, collaboration semantics, security and deployment.
-- **Feature docs:** [DSA](web/docs/dsa-workspace.md) · [System Design](web/docs/system-design-reasonai.md) · [Knowledge Feed](web/docs/knowledge-feed.md) · [Mobile](mobile/README.md).
-
-**Project stack:** Next.js, React, TypeScript, Konva, Flutter, Dart, FastAPI, Python, LangGraph, Go, WebSockets, Supabase/PostgreSQL, Cloudflare R2, Tavily, LangSmith, Nebius Token Factory, NVIDIA Nemotron, Vercel, Google Cloud Run, Render.
-
-## What is implemented vs. planned
-
-**Implemented:** a 375-problem published DSA catalog with authenticated Run and Submit access, a Pyodide browser Run path, sandbox-backed submissions, Results Studio, saved submission history, AI Code Intelligence and contextual tutoring; System Design review/typed canvas proposals; Nemotron-backed Knowledge enrichment and bounded research tools; single-instance Go realtime collaboration; and Flutter Knowledge/DSA workflows including mobile editing and submission/report surfaces. See [October 17 production evidence](docs/dsa-v3/integration-20261017.md) and [mobile release gates](mobile/docs/release-readiness.md).
-
-**Not presented as implemented or verified:** distributed durable realtime rooms, learned behavioral recommendation models, full System Design editing on mobile, GitHub-to-canvas generation, an external MCP editing interface, independently certified judging for all 375 problems, or a signed Android/iOS store release. Ten problems have existing official certificates and 365 have **provisional** Submit grading; success on a provisional path is `provisional_pass`, not official `Accepted`. See [current vs. future architecture](docs/ARCHITECTURE.md#current-vs-next-architecture).
-
----
-
-**ReasonAI — Build Better Judgment.** [Try it](https://www.reasonai.tech/login) · [Demo](https://www.youtube.com/watch?v=FoV2KkK72Xs) · [Devpost](https://devpost.com/software/reasonai)
+**ReasonAI — Build Better Judgment.** [Live app](https://www.reasonai.tech/login) · [Devpost](https://devpost.com/software/reasonai) · [Full architecture](docs/ARCHITECTURE.md) · [MIT license](LICENSE)
