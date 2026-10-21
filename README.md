@@ -2,13 +2,13 @@
 
 **Build Better Judgment.** When a developer passes the visible tests but fails a real submission—or has an architecture diagram but cannot see its failure modes—another generic AI answer is not enough. **ReasonAI connects executable evidence, editable architecture artifacts, and NVIDIA Nemotron reasoning** so engineers can investigate what failed and decide what to change.
 
-[**Launch ReasonAI**](https://www.reasonai.tech/login) · [**Watch product demo**](https://www.youtube.com/watch?v=FoV2KkK72Xs) *(earlier demo; final hackathon video pending)* · [**Devpost**](https://devpost.com/software/reasonai) · [**Tavily tool-call flow**](#tavily-tool-calls--exact-execution-path) · [**Architecture details**](docs/ARCHITECTURE.md)
+[**Launch ReasonAI**](https://www.reasonai.tech/login) · [**Watch product demo**](https://www.youtube.com/watch?v=FoV2KkK72Xs) *(earlier demo; final hackathon video pending)* · [**Devpost**](https://devpost.com/software/reasonai) · [**Architecture details**](docs/ARCHITECTURE.md)
 
 ### Architecture first — where code ends and reasoning begins
 
 ![ReasonAI architecture showing web and mobile clients, deterministic Pyodide and sandbox execution, validated canvas operations, Go collaboration, and LangGraph routing to NVIDIA Nemotron on Nebius Token Factory with Tavily research](docs/assets/reasonai-architecture.svg)
 
-**Not a prompt wrapper:** Nemotron **reasons, teaches, analyzes, and proposes**. Deterministic code **runs tests, grades submissions, validates typed operations, orders real-time updates, and persists authoritative state**. AI-generated canvas changes require human approval. All Nebius credentials remain server-side. [Inspect the actual flows and trust boundaries →](docs/ARCHITECTURE.md)
+**Not a prompt wrapper:** Nemotron **reasons, teaches, analyzes, and proposes**. Deterministic code **runs tests, grades submissions, validates typed operations, orders real-time updates, and persists authoritative state**. The diagram also shows the **Nemotron → validated `search_web` → Tavily → source evidence → Nemotron** loop and the separate offline Tavily News discovery pipeline. AI-generated canvas changes require human approval. All Nebius credentials remain server-side. [Inspect the actual flows and trust boundaries →](docs/ARCHITECTURE.md)
 
 ## A concrete failure: visible tests are not the whole truth
 
@@ -42,85 +42,6 @@ Nebius **Token Factory** is ReasonAI's server-side model inference boundary. The
 | **Tavily** | News discovery for Knowledge ingestion; bounded `search_web` for current facts and cited research | Fresh external evidence complements static model knowledge; citations don't guarantee factual correctness |
 
 **Why this architecture matters:** The Knowledge Feed performs discovery, deduplication, image validation, Nemotron enrichment and persistence **offline**. Its normal online read/ranking path stays deterministic instead of paying for live model generation on every scroll. DSA Run uses **Pyodide in the browser**; trusted Submit uses the sandbox-based judge, not an LLM verdict. [Model IDs, sponsor integration, and hackathon-period changes →](HACKATHON_SUBMISSION.md) · [Technical evaluation protocol →](docs/evidence/EVALUATION_PROTOCOL.md)
-
-## Tavily tool calls — exact execution path
-
-**Two complementary integrations, not a search box bolted onto chat:** Nemotron may **request external evidence during a reasoning turn**; separately, the Knowledge refresh job **discovers stories ahead of time**. The model never receives a Tavily API key and cannot directly fetch arbitrary pages from the user's browser.
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Engineer
-    participant UI as DSA / System Design / Knowledge
-    participant API as Authenticated ReasonAI API
-    participant N as NVIDIA Nemotron on Nebius
-    participant Tool as Validated search_web executor
-    participant T as Tavily Search API
-
-    Engineer->>UI: Ask a question requiring current facts
-    UI->>API: Authenticated request + bounded context
-    API->>N: Stream model round with tool schema
-    alt Nemotron requests external research
-        N-->>API: tool_call: search_web(query, domains?)
-        API->>Tool: Parse arguments + enforce limits
-        Tool->>T: POST /search (server-side only)
-        T-->>Tool: Search results: title / URL / excerpt
-        Tool-->>API: Validate URLs, dedupe, number sources
-        API->>N: Tool result as untrusted evidence
-        N-->>API: Synthesis with references to returned sources
-    else Static context is sufficient
-        N-->>API: Answer without a Tavily call
-    end
-    API-->>UI: Answer + safe tool status / citations
-    UI-->>Engineer: Review evidence and decide what to do
-```
-
-**Example model-selected function arguments (illustrative, matching the System Design contract):**
-
-```json
-{
-  "query": "Amazon SQS standard queues message ordering guarantees",
-  "domains": ["docs.aws.amazon.com"]
-}
-```
-
-Nemotron emits these as a `search_web` tool call. The server validates and sanitizes the arguments before issuing a **real Tavily HTTP request**, configured as:
-
-```json
-{
-  "query": "Amazon SQS standard queues message ordering guarantees",
-  "search_depth": "basic",
-  "max_results": 3,
-  "include_answer": false,
-  "include_raw_content": false,
-  "include_images": false,
-  "auto_parameters": false,
-  "include_domains": ["docs.aws.amazon.com"]
-}
-```
-
-*Example payload, not a captured production request or a search result.* This is a server-side `POST https://api.tavily.com/search` with `TAVILY_API_KEY`; the key is never shipped to web/mobile clients. The application consumes **source titles, URLs and bounded excerpts**, not a generated Tavily answer. [Inspect the real request builder →](web/src/lib/tavily/search.ts) · [Tool schema and query validation →](web/src/features/system-design/reasonai/research.ts)
-
-### Where each Tavily call is used
-
-| Entry point | Trigger and actual tool behavior | Result |
-| --- | --- | --- |
-| **System Design — `/api/reasonai/chat`** | Nemotron selects `search_web` for fresh provider limits, service capabilities, deprecations, pricing or documentation. No search is required for ordinary architecture reasoning. | Up to **2 searches / request**, **3 results / search**, **6 unique sources**; retrieved evidence can inform a sourced explanation or an architecture overlay. |
-| **DSA V2 — `/api/reasonai/dsa/chat`** | The LangGraph tutor chooses `search_web` when a question requires external problem/technical context; otherwise it can tutor without search. | Up to **5 public URLs**, **1,500-character snippets**, bounded tool rounds; external evidence is not durable learner memory. |
-| **DSA linked-source fallback** | When exact external problem requirements are necessary, the legacy/source-context path can try **Tavily Extract**, then source-domain search, then broader search. | Prefers the exact linked problem over similarly titled but different problem statements; does **not** send private code, notes or history to Tavily. |
-| **Knowledge story chat — `/api/reasonai/knowledge/chat`** | The model chooses `search_web` for “more like this”, recent related developments or external verification, when story context is insufficient. | At most **2 tool rounds** and **3 external cited URLs**; the final answer is checked against the actual story/search URL allowlist. |
-| **Knowledge refresh job** | A separate worker searches Tavily using `topic: "news"`, `time_range: "week"` and `search_depth: "basic"` alongside Hacker News discovery. | URL canonicalization → dedupe and recency gates → image validation → **Nemotron structured enrichment** → PostgreSQL + R2. Normal feed reads make **no Tavily or model call**. |
-
-### Bounded execution and evidence integrity
-
-- **Privacy:** server-only credentials; public-technology queries are filtered to reject secrets, opaque tokens, private diagram descriptions and copied conversation content on the System Design path.
-- **Cost / latency:** Tavily online searches use **basic** depth, at most **3 results each**, a **7-second search deadline**, and a **128 KiB response cap** in the shared search adapter. External research is skipped when unnecessary.
-- **Source safety:** only normalized public HTTP(S) URLs are accepted; duplicates, malformed URLs and suspicious credential-bearing content are rejected. Retrieved text is **untrusted data**, never instructions.
-- **Failures:** unavailable or empty results become a safe tool status; agents must acknowledge unsupported current facts rather than inventing sources. Model synthesis can still fail after a successful search—both stages require independent verification.
-- **Observability:** LangSmith tool spans and structured runtime events distinguish `tool.started`, `tool.completed`, `tool.failed`, source emission, and final answer completion. Their existence is not a claimed end-to-end reliability benchmark.
-
-**Code and verification:** [System Design executor](web/src/lib/reasonai/server/langgraph/system-design/tools.ts) · [DSA search implementation](web/src/features/dsa/reasonai/web-context.ts) · [Knowledge chat orchestration](web/src/features/feed/reasonai.ts) · [Tavily discovery adapter](backend/src/recallstack/modules/knowledge/infrastructure/providers/tavily.py) · [Recorded Knowledge research failure](docs/evidence/runs/2026-10-11/KNOW-01/record.md). The diagram and example are **implementation explanations**, not evidence of a successful production search-to-answer run.
-
 
 ## Judge quickstart — try it in five minutes
 
