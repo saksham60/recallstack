@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="520" viewBox="0 0 1600 520" role="img" aria-labelledby="title desc">
+<title id="title">ReasonAI: actual DSA submission evidence and System Design approval workflow</title>
+<desc id="desc">Recorded 3Sum: nine passing visible tests, Nebius ConTree wrong-answer verdict, saved Nemotron code review. System Design implementation: Nemotron proposes nodes and edges, typed validation checks them, and users approve or discard. The latter is a contract diagram, not footage of completed acceptance.</desc>
+<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0a1120"/><stop offset=".55" stop-color="#0c1730"/><stop offset="1" stop-color="#161630"/></linearGradient><pattern id="grid" width="42" height="42" patternUnits="userSpaceOnUse"><path d="M42 0H0V42" fill="none" stroke="#496178" stroke-width=".6" opacity=".22"/></pattern></defs>
+<rect width="1600" height="520" rx="30" fill="url(#bg)"/><rect width="1600" height="520" rx="30" fill="url(#grid)"/>
+<text x="55" y="63" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="26" font-weight="800" fill="#f1f7ff">TWO LOOPS. ONE STANDARD: INSPECTABLE EVIDENCE.</text>
+<rect x="54" y="92" width="1492" height="180" rx="21" fill="#10233a" stroke="#2d5267" stroke-width="1.5"/>
+<rect x="75" y="108" width="122" height="31" rx="16" fill="#1c2b40" stroke="#46dcc7" stroke-width="1.5"/>
+<text x="136" y="129" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="15" font-weight="800" fill="#46dcc7">DSA / REAL</text>
+<text x="219" y="130" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="600" fill="#aabbd0">Recorded production example: deliberately overfitted 3Sum</text>
+<rect x="77" y="164" width="320" height="87" rx="16" fill="#142238" stroke="#344862" stroke-width="1.5"/>
+<rect x="77" y="164" width="6" height="87" rx="3" fill="#46dcc7" stroke="#46dcc7" stroke-width="1.5"/>
+<text x="98" y="202" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="22" font-weight="700" fill="#f1f7ff">9 / 9 visible tests</text>
+<text x="98" y="234" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="17" font-weight="500" fill="#aabbd0">Pyodide · public Run</text>
+<rect x="465" y="164" width="320" height="87" rx="16" fill="#142238" stroke="#344862" stroke-width="1.5"/>
+<rect x="465" y="164" width="6" height="87" rx="3" fill="#f7b67a" stroke="#f7b67a" stroke-width="1.5"/>
+<text x="486" y="202" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="22" font-weight="700" fill="#f1f7ff">wrong_answer</text>
+<text x="486" y="234" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="17" font-weight="500" fill="#aabbd0">Nebius ConTree Submit</text>
+<rect x="855" y="164" width="320" height="87" rx="16" fill="#142238" stroke="#344862" stroke-width="1.5"/>
+<rect x="855" y="164" width="6" height="87" rx="3" fill="#ac96ff" stroke="#ac96ff" stroke-width="1.5"/>
+<text x="876" y="202" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="22" font-weight="700" fill="#f1f7ff">Saved Code Review</text>
+<text x="876" y="234" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="17" font-weight="500" fill="#aabbd0">Nemotron Super</text>
+<rect x="1250" y="164" width="266" height="87" rx="14" fill="#142238" stroke="#344862" stroke-width="1.5"/>
+<text x="1280" y="199" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="21" font-weight="600" fill="#f1f7ff">Learn from the</text>
+<text x="1280" y="227" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="21" font-weight="750" fill="#f1f7ff">actual verdict</text>
+<path d="M409,207 L443,207" stroke="#75a8bb" stroke-width="3" stroke-linecap="round" fill="none"/>
+<path d="M440,200 L453,207 L440,214" fill="none" stroke="#75a8bb" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M797,207 L833,207" stroke="#75a8bb" stroke-width="3" stroke-linecap="round" fill="none"/>
+<path d="M830,200 L843,207 L830,214" fill="none" stroke="#75a8bb" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1187,207 L1228,207" stroke="#75a8bb" stroke-width="3" stroke-linecap="round" fill="none"/>
+<path d="M1225,200 L1238,207 L1225,214" fill="none" stroke="#75a8bb" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="54" y="287" width="1492" height="181" rx="21" fill="#1a1c34" stroke="#403c69" stroke-width="1.5"/>
+<rect x="75" y="302" width="186" height="31" rx="16" fill="#1c2b40" stroke="#ac96ff" stroke-width="1.5"/>
+<text x="168" y="323" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="15" font-weight="800" fill="#ac96ff">SYSTEM DESIGN</text>
+<text x="281" y="324" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="600" fill="#aabbd0">Architecture contract: no silent model-authored writes</text>
+<rect x="77" y="357" width="320" height="87" rx="16" fill="#142238" stroke="#344862" stroke-width="1.5"/>
+<rect x="77" y="357" width="6" height="87" rx="3" fill="#ac96ff" stroke="#ac96ff" stroke-width="1.5"/>
+<text x="98" y="395" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="22" font-weight="700" fill="#f1f7ff">Nemotron proposes</text>
+<text x="98" y="427" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="17" font-weight="500" fill="#aabbd0">Nodes · edges · intent</text>
+<rect x="465" y="357" width="320" height="87" rx="16" fill="#142238" stroke="#344862" stroke-width="1.5"/>
+<rect x="465" y="357" width="6" height="87" rx="3" fill="#46dcc7" stroke="#46dcc7" stroke-width="1.5"/>
+<text x="486" y="395" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="22" font-weight="700" fill="#f1f7ff">Typed validation</text>
+<text x="486" y="427" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="17" font-weight="500" fill="#aabbd0">Schema · references · scope</text>
+<rect x="855" y="357" width="320" height="87" rx="16" fill="#142238" stroke="#344862" stroke-width="1.5"/>
+<rect x="855" y="357" width="6" height="87" rx="3" fill="#f5bd73" stroke="#f5bd73" stroke-width="1.5"/>
+<text x="876" y="395" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="22" font-weight="700" fill="#f1f7ff">Review / Accept</text>
+<text x="876" y="427" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="17" font-weight="500" fill="#aabbd0">Engineer decides</text>
+<rect x="1250" y="357" width="266" height="87" rx="14" fill="#142238" stroke="#344862" stroke-width="1.5"/>
+<text x="1280" y="391" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="21" font-weight="600" fill="#f1f7ff">Canvas change</text>
+<text x="1280" y="419" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="750" fill="#f1f7ff">requires approval</text>
+<path d="M409,400 L443,400" stroke="#8975b5" stroke-width="3" stroke-linecap="round" fill="none"/>
+<path d="M440,393 L453,400 L440,407" fill="none" stroke="#8975b5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M797,400 L833,400" stroke="#8975b5" stroke-width="3" stroke-linecap="round" fill="none"/>
+<path d="M830,393 L843,400 L830,407" fill="none" stroke="#8975b5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1187,400 L1228,400" stroke="#8975b5" stroke-width="3" stroke-linecap="round" fill="none"/>
+<path d="M1225,393 L1238,400 L1225,407" fill="none" stroke="#8975b5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="55" y="502" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="17" font-weight="500" fill="#aabbd0">DSA is a recorded outcome. System Design describes the validated, human-reviewed application contract.</text>
+</svg>
