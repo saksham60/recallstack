@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+<defs><linearGradient id="base" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0a1020"/><stop offset=".55" stop-color="#101b35"/><stop offset="1" stop-color="#1a1530"/></linearGradient><pattern id="lines" width="45" height="45" patternUnits="userSpaceOnUse"><path d="M45 0H0V45" stroke="#7897ba" stroke-width=".5" opacity=".20" fill="none"/></pattern></defs><rect width="1600" height="900" rx="18" fill="url(#base)"/><rect width="1600" height="900" rx="18" fill="url(#lines)"/>
+<title id="title">ReasonAI Mobile: Flutter client and server authority architecture</title><desc id="desc">Flutter, Riverpod and go_router present five mobile navigation destinations. Supabase Auth is shared with both authenticated Dio clients; account scoped Drift SQLite holds local drafts and saved story cache. FastAPI product API serves Knowledge, DSA catalog, progress, bookmarks, reviews and PostgreSQL backed state; Next.js/Vercel serves streaming Nemotron and Tavily AI, DSA submission, history and reports. Vercel Queue dispatches to Nebius ConTree isolated Python sandbox and deterministic judge. Mobile has no Pyodide or System Design Go WebSocket canvas.</desc>
+<rect x="50" y="48" width="41" height="41" rx="13" fill="#174456" stroke="#44d7c5" stroke-width="1.5"/>
+<path d="M61 68h9l5-10 7 19 4-9h-2" fill="none" stroke="#44d7c5" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="106" y="82" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="800" font-size="34" fill="#eff6ff">REASONAI  /  MOBILE</text>
+<text x="50" y="121" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="650" font-size="20" fill="#a6b9d0">NATIVE LEARNING. SERVER-TRUSTED RESULTS.</text>
+<rect x="1115" y="58" width="127" height="30" rx="15" fill="#1c2e45" stroke="#44d7c5" stroke-width="0.9"/>
+<text x="1178.5" y="79" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="800" font-size="14" fill="#44d7c5">FLUTTER</text>
+<rect x="1255" y="58" width="139" height="30" rx="15" fill="#1c2e45" stroke="#ae9bff" stroke-width="0.9"/>
+<text x="1324.5" y="79" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="800" font-size="14" fill="#ae9bff">NEMOTRON</text>
+<rect x="1407" y="58" width="143" height="30" rx="15" fill="#1c2e45" stroke="#f6c479" stroke-width="0.9"/>
+<text x="1478.5" y="79" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="800" font-size="14" fill="#f6c479">NEBIUS</text>
+<rect x="50" y="153" width="1500" height="132" rx="22" fill="#13243a" stroke="#3a5673" stroke-width="1.5"/>
+<text x="78" y="189" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="800" font-size="23" fill="#eff6ff">01  NATIVE EXPERIENCE</text>
+<text x="78" y="220" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="550" font-size="17" fill="#44d7c5">Flutter · Riverpod · GoRouter · account-scoped state</text>
+<rect x="240" y="223" width="187" height="42" rx="12" fill="#1d334a" stroke="#416177" stroke-width="1"/>
+<text x="333" y="250" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="760" font-size="18" fill="#eff6ff">FEED</text>
+<rect x="480" y="223" width="187" height="42" rx="12" fill="#1d334a" stroke="#416177" stroke-width="1"/>
+<text x="573" y="250" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="760" font-size="18" fill="#eff6ff">DSA</text>
+<rect x="720" y="223" width="187" height="42" rx="12" fill="#1d334a" stroke="#416177" stroke-width="1"/>
+<text x="813" y="250" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="760" font-size="18" fill="#eff6ff">REVISE</text>
+<rect x="960" y="223" width="187" height="42" rx="12" fill="#1d334a" stroke="#416177" stroke-width="1"/>
+<text x="1053" y="250" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="760" font-size="18" fill="#eff6ff">LIBRARY</text>
+<rect x="1200" y="223" width="187" height="42" rx="12" fill="#1d334a" stroke="#416177" stroke-width="1"/>
+<text x="1293" y="250" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="760" font-size="18" fill="#eff6ff">ME</text>
+<rect x="50" y="305" width="464" height="160" rx="22" fill="#10253b" stroke="#29596c" stroke-width="1.5"/>
+<text x="76" y="344" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="800" font-size="23" fill="#eff6ff">02  ON-DEVICE STATE</text>
+<text x="76" y="375" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="550" font-size="17" fill="#44d7c5">Not a competing source of truth</text>
+<rect x="76" y="370" width="414" height="76" rx="17" fill="#142238" stroke="#37506e" stroke-width="1.5"/>
+<rect x="76" y="370" width="6" height="76" rx="3" fill="#44d7c5" stroke="#44d7c5" stroke-width="0"/>
+<text x="98" y="408" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="730" font-size="20" fill="#eff6ff">Drift / SQLite</text>
+<text x="98" y="440" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="500" font-size="16" fill="#a6b9d0">Saved stories · drafts · recovery</text>
+<rect x="535" y="305" width="480" height="160" rx="22" fill="#10253b" stroke="#29596c" stroke-width="1.5"/>
+<text x="563" y="344" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="800" font-size="23" fill="#eff6ff">AUTHENTICATION</text>
+<text x="563" y="375" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="550" font-size="17" fill="#44d7c5">Supabase OAuth · JWT bearer identity</text>
+<rect x="563" y="370" width="424" height="76" rx="17" fill="#142238" stroke="#37506e" stroke-width="1.5"/>
+<rect x="563" y="370" width="6" height="76" rx="3" fill="#44d7c5" stroke="#44d7c5" stroke-width="0"/>
+<text x="585" y="408" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="730" font-size="20" fill="#eff6ff">Account boundary</text>
+<text x="585" y="440" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="500" font-size="16" fill="#a6b9d0">Credentials and cache scoped to user</text>
+<rect x="1036" y="305" width="514" height="160" rx="22" fill="#10253b" stroke="#29596c" stroke-width="1.5"/>
+<text x="1064" y="344" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="800" font-size="23" fill="#eff6ff">TWO AUTHENTICATED ROUTES</text>
+<text x="1064" y="375" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="550" font-size="17" fill="#82b7ff">Separate Dio clients; token recovery</text>
+<rect x="1064" y="370" width="458" height="76" rx="17" fill="#142238" stroke="#37506e" stroke-width="1.5"/>
+<rect x="1064" y="370" width="6" height="76" rx="3" fill="#82b7ff" stroke="#82b7ff" stroke-width="0"/>
+<text x="1086" y="408" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="730" font-size="20" fill="#eff6ff">FastAPI  +  ReasonAI</text>
+<text x="1086" y="440" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="500" font-size="16" fill="#a6b9d0">Product endpoints and streamed AI</text>
+<path d="M804 285 L804 304" fill="none" stroke="#44d7c5" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M810 292 L804 304 L798 292" fill="none" stroke="#44d7c5" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<rect x="50" y="486" width="729" height="213" rx="22" fill="#141f37" stroke="#436b72" stroke-width="1.5"/>
+<rect x="821" y="486" width="729" height="213" rx="22" fill="#171f3b" stroke="#625b8d" stroke-width="1.5"/>
+<rect x="75" y="508" width="162" height="30" rx="15" fill="#1c2e45" stroke="#44d7c5" stroke-width="0.9"/>
+<text x="156" y="529" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="800" font-size="14" fill="#44d7c5">PRODUCT DATA</text>
+<rect x="846" y="508" width="179" height="30" rx="15" fill="#1c2e45" stroke="#ae9bff" stroke-width="0.9"/>
+<text x="935.5" y="529" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="800" font-size="14" fill="#ae9bff">AI + EXECUTION</text>
+<rect x="75" y="552" width="676" height="95" rx="17" fill="#142238" stroke="#37506e" stroke-width="1.5"/>
+<rect x="75" y="552" width="6" height="95" rx="3" fill="#44d7c5" stroke="#44d7c5" stroke-width="0"/>
+<text x="97" y="590" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="730" font-size="23" fill="#eff6ff">FastAPI · Cloud Run</text>
+<text x="97" y="622" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="500" font-size="16" fill="#a6b9d0">Feed · DSA catalog · progress · revision</text>
+<rect x="846" y="552" width="676" height="95" rx="17" fill="#142238" stroke="#37506e" stroke-width="1.5"/>
+<rect x="846" y="552" width="6" height="95" rx="3" fill="#ae9bff" stroke="#ae9bff" stroke-width="0"/>
+<text x="868" y="590" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="730" font-size="23" fill="#eff6ff">Next.js · Vercel routes</text>
+<text x="868" y="622" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="500" font-size="16" fill="#a6b9d0">NDJSON tutor · Submit · history · reports</text>
+<text x="75" y="680" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="550" font-size="16" fill="#a6b9d0">Server owns learner state, ranking and permissions</text>
+<text x="846" y="680" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="550" font-size="16" fill="#a6b9d0">Server holds provider keys and private judge fixtures</text>
+<path d="M400 465 L400 483" fill="none" stroke="#44d7c5" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M406 471 L400 483 L394 471" fill="none" stroke="#44d7c5" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M1235 465 L1235 483" fill="none" stroke="#ae9bff" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M1241 471 L1235 483 L1229 471" fill="none" stroke="#ae9bff" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<rect x="50" y="723" width="457" height="113" rx="20" fill="#16293d" stroke="#4c6677" stroke-width="1.5"/>
+<rect x="525" y="723" width="489" height="113" rx="20" fill="#1c2443" stroke="#65578b" stroke-width="1.5"/>
+<rect x="1033" y="723" width="517" height="113" rx="20" fill="#242539" stroke="#7c6952" stroke-width="1.5"/>
+<text x="76" y="759" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="850" font-size="18" fill="#44d7c5">SUPABASE  /  R2</text>
+<text x="76" y="792" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="640" font-size="19" fill="#eff6ff">PostgreSQL · prepared media · Auth</text>
+<text x="550" y="759" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="850" font-size="18" fill="#ae9bff">NEBIUS TOKEN FACTORY  /  TAVILY</text>
+<text x="550" y="792" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="640" font-size="19" fill="#eff6ff">Nemotron reasoning · bounded search</text>
+<text x="1059" y="759" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="850" font-size="18" fill="#f6c479">VERCEL QUEUE  →  CONTREE</text>
+<text x="1059" y="792" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="640" font-size="19" fill="#eff6ff">Sandbox execution → trusted judge</text>
+<path d="M370 698 L278 720" fill="none" stroke="#44d7c5" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M291.0663859791832 723.044594791266 L278 720 L288.2755074205228 711.3736480914131" fill="none" stroke="#44d7c5" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M1160 698 L762 720" fill="none" stroke="#ae9bff" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M774.3128617969641 725.3285489928181 L762 720 L773.6505562724329 713.3468399581196" fill="none" stroke="#ae9bff" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M1350 698 L1290 720" fill="none" stroke="#f6c479" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M1303.3320436855897 721.5022021054185 L1290 720 L1299.2009878956887 710.2356863147793" fill="none" stroke="#f6c479" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M50 858 L1550 858" fill="none" stroke="#3e5772" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="52" y="882" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="610" font-size="17" fill="#a6b9d0">MOBILE BOUNDARY  •  No local Pyodide  •  No System Design canvas / Go Live Share  •  No provider secrets on device</text>
+</svg>
