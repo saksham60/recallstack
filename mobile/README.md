@@ -4,6 +4,22 @@ Flutter client for ReasonAI's learning and knowledge experience. The mobile app 
 
 The Flutter client supports the canonical DSA explorer, Python editor, server Run/Submit, saved submissions and Nemotron Code Intelligence. See the [mobile release guide](docs/release-readiness.md) for supported contracts, packaging, branding, signing and device-verification procedures. Implemented functionality does not by itself establish store-release approval.
 
+## 1. Mobile system architecture
+
+![ReasonAI Mobile architecture with Flutter UI and Riverpod, Supabase Auth, dual authenticated Dio API clients, account-scoped Drift/SQLite, FastAPI on Cloud Run, Next.js/Vercel AI runtime, Nebius ConTree sandbox Run and Submit, NVIDIA Nemotron inference, Tavily tool calls, and offline Knowledge ingestion](docs/assets/reasonai-mobile-architecture.svg)
+
+**Three independent state and execution boundaries:**
+
+1. **Device layer — Flutter:** Material UI with five navigation branches; Riverpod-managed application state; two authenticated Dio clients; account-scoped Drift/SQLite for saved-story cache, local DSA drafts and client recovery pointers. Device cache is **not** a second source of truth for grading or learner progress.
+2. **Product layer — FastAPI:** verified identity, canonical DSA content, learning progress, notes, bookmarks, revisions, prepared Knowledge Feed, viewer events and deterministic ranking. PostgreSQL is authoritative for product state; Cloudflare R2 serves processed Feed media.
+3. **AI and judging layer — Next.js:** authenticated ReasonAI DSA/Knowledge chat, bounded LangGraph tools, streaming NDJSON, Nebius Token Factory → NVIDIA Nemotron, Tavily research, execution/history/report APIs, Vercel Queue → **Nebius ConTree disposable Python sandbox**, trusted judge verdicts and Code Intelligence reports. Mobile **does not** run Pyodide or native Python.
+
+**Important scope boundaries:** Supabase Auth handles identity; provider credentials and hidden fixtures never ship with Flutter. **System Design canvas and Go WebSocket Live Share remain web-only**, and the mobile app is not a complete offline-sync client. The diagram describes implemented interfaces and architecture, **not** proof of signed-store distribution or passing live end-to-end release gates.
+
+**Follow the flows in code:** [Mobile Dio and authentication](lib/core/api/api_client.dart) · [Mobile DSA execution routes](lib/features/dsa/canonical_api.dart) · [NDJSON ReasonAI client](lib/core/reasonai/reasonai_client.dart) · [Account-scoped local database](lib/core/db/app_database.dart) · [Execution worker and Nebius ConTree adapter](../web/src/lib/dsa-execution/contree.ts) · [Mobile release validation](docs/release-readiness.md).
+
+---
+
 ## Android builds and distribution
 
 ReasonAI Mobile implements Knowledge Feed, an authenticated DSA explorer and editor, account-scoped local drafts, server Run/Submit, submission history, Code Intelligence and contextual tutoring.
@@ -16,54 +32,6 @@ ReasonAI Mobile implements Knowledge Feed, an authenticated DSA explorer and edi
 System Design canvas collaboration remains a web-only capability today. The mobile app does not embed the Konva canvas, the Go realtime room protocol, or System Design editing.
 
 This README documents the current mobile implementation and its boundaries. It distinguishes server-authoritative state, device-local state, streamed AI state, and capabilities that exist in the backend but are not yet wired into Flutter.
-
----
-
-## 1. Position in the ReasonAI architecture
-
-```text
-                         ReasonAI Mobile
-                    Flutter + Riverpod + Dio
-                              |
-             +----------------+----------------+
-             |                                 |
-             v                                 v
-      FastAPI backend                    Next.js web runtime
-      API_BASE_URL                       WEB_BASE_URL
-      /api/v1/...                        /api/reasonai/...
-             |                                 |
-             |                                 +--> LangGraph / ReasonAI
-             |                                 +--> Nemotron
-             |                                 +--> Tavily tools
-             |                                 +--> durable AI conversation state
-             |
-             +--> catalog/content
-             +--> learning progress
-             +--> notes/bookmarks
-             +--> practice/reviews
-             +--> Knowledge Feed
-             +--> feed events/preferences
-             +--> Supabase-backed PostgreSQL
-
-      Supabase Auth
-             |
-             +--> Google OAuth
-             +--> anonymous Hackathon Judge sessions
-
-      Device-local Drift / SQLite
-             |
-             +--> saved-story cache for Library
-             +--> DSA approach drafts
-             +--> DSA code drafts
-```
-
-There are therefore three distinct data planes in the mobile application:
-
-1. **FastAPI product state** - authoritative user/content state.
-2. **Next.js ReasonAI runtime** - streamed AI interaction state and orchestration.
-3. **Drift device state** - local UX persistence that should survive navigation/app restarts on the same account/device.
-
-These are deliberately not collapsed into one generic "mobile state" layer.
 
 ---
 
