@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0a1426"/><stop offset=".56" stop-color="#0c1931"/><stop offset="1" stop-color="#171630"/></linearGradient><pattern id="grid" width="45" height="45" patternUnits="userSpaceOnUse"><path d="M45 0H0V45" stroke="#7193bd" stroke-opacity=".15" fill="none"/></pattern></defs><rect width="1600" height="900" rx="18" fill="url(#bg)"/><rect width="1600" height="900" rx="18" fill="url(#grid)"/>
+<title id="title">ReasonAI Web: verified browser, agent, sandbox and collaboration architecture</title>
+<desc id="desc">Next.js 16 and React browser with Monaco editor, Pyodide local public Run, Konva System Design and Knowledge Feed. Supabase Auth protects Next.js server routes and FastAPI Cloud Run product APIs. DSA Submit flows through Vercel Queue, Nebius ConTree isolated sandbox and a deterministic judge to Supabase, then Nemotron Code Intelligence. System Design uses LangGraph and NVIDIA Nemotron through Nebius Token Factory for proposals checked by typed validators and approved by the user; Go WebSocket Live Share orders committed edits. Knowledge Feed uses Tavily offline discovery, Nemotron enrichment, PostgreSQL and Cloudflare R2. Tools and provider keys remain server-side.</desc>
+<rect x="51" y="46" width="42" height="42" rx="13" fill="#153d54" stroke="#47dbc5" stroke-width="1.5"/>
+<path d="M62 67h9l5-10 7 20 5-11h-2" fill="none" stroke="#47dbc5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="109" y="79" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="35" font-weight="800" fill="#f0f6ff">REASONAI  /  WEB</text>
+<text x="51" y="119" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="21" font-weight="650" fill="#abc0d7">INTERACTIVE ENGINEERING WORKBENCH</text>
+<rect x="1053" y="55" width="151" height="32" rx="16" fill="#1a2b44" stroke="#47dbc5" stroke-width="0.8"/>
+<text x="1128.5" y="77" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="14" font-weight="800" fill="#47dbc5">DETERMINISTIC</text>
+<rect x="1216" y="55" width="147" height="32" rx="16" fill="#1a2b44" stroke="#b39bff" stroke-width="0.8"/>
+<text x="1289.5" y="77" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="14" font-weight="800" fill="#b39bff">NEMOTRON AI</text>
+<rect x="1375" y="55" width="172" height="32" rx="16" fill="#1a2b44" stroke="#f7c67f" stroke-width="0.8"/>
+<text x="1461" y="77" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="14" font-weight="800" fill="#f7c67f">USER APPROVAL</text>
+<rect x="51" y="149" width="1496" height="90" rx="22" fill="#14253d" stroke="#435977" stroke-width="1.5"/>
+<text x="80" y="180" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="830" fill="#47dbc5">BROWSER</text>
+<text x="80" y="211" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="22" font-weight="650" fill="#f0f6ff">Next.js 16 · React 19 · Monaco · Konva</text>
+<path d="M627 171v46" fill="none" stroke="#39536d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="657" y="180" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="830" fill="#b39bff">SERVER ROUTES</text>
+<text x="657" y="211" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="21" font-weight="650" fill="#f0f6ff">LangGraph · protected APIs</text>
+<path d="M1087 171v46" fill="none" stroke="#39536d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="1118" y="180" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="830" fill="#47dbc5">PLATFORM</text>
+<text x="1118" y="211" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="20" font-weight="650" fill="#f0f6ff">FastAPI · Supabase Auth/DB</text>
+<rect x="51" y="261" width="1496" height="177" rx="24" fill="#101c31" stroke="#2e4964" stroke-width="1.5"/>
+<rect x="51" y="261" width="8" height="177" rx="3" fill="#47dbc5" stroke="#47dbc5" stroke-width="0"/>
+<text x="78" y="293" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="21" font-weight="810" fill="#f0f6ff">01  DSA  ·  EXECUTION IS THE VERDICT</text>
+<text x="78" y="318" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="560" fill="#abc0d7">Public Run stays in the browser. Trusted Submit runs isolated code.</text>
+<rect x="1370" y="279" width="150" height="32" rx="16" fill="#1a2b44" stroke="#47dbc5" stroke-width="0.8"/>
+<text x="1445" y="301" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="14" font-weight="800" fill="#47dbc5">LOCAL + CLOUD</text>
+<rect x="78" y="328" width="323" height="83" rx="16" fill="#15243c" stroke="#38536d" stroke-width="1.5"/>
+<rect x="78" y="328" width="6" height="83" rx="3" fill="#47dbc5" stroke="#47dbc5" stroke-width="0"/>
+<text x="98" y="365" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="740" fill="#f0f6ff">Monaco + Pyodide</text>
+<text x="98" y="398" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="500" fill="#abc0d7">Local public-case Run</text>
+<rect x="451" y="328" width="323" height="83" rx="16" fill="#15243c" stroke="#38536d" stroke-width="1.5"/>
+<rect x="451" y="328" width="6" height="83" rx="3" fill="#47dbc5" stroke="#47dbc5" stroke-width="0"/>
+<text x="471" y="365" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="740" fill="#f0f6ff">Vercel Queue</text>
+<text x="471" y="398" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="500" fill="#abc0d7">Idempotent Submit</text>
+<rect x="824" y="328" width="323" height="83" rx="16" fill="#15243c" stroke="#38536d" stroke-width="1.5"/>
+<rect x="824" y="328" width="6" height="83" rx="3" fill="#47dbc5" stroke="#47dbc5" stroke-width="0"/>
+<text x="844" y="365" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="740" fill="#f0f6ff">Nebius ConTree</text>
+<text x="844" y="398" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="500" fill="#abc0d7">Isolated Python sandbox</text>
+<rect x="1197" y="328" width="323" height="83" rx="16" fill="#15243c" stroke="#38536d" stroke-width="1.5"/>
+<rect x="1197" y="328" width="6" height="83" rx="3" fill="#f7c67f" stroke="#f7c67f" stroke-width="0"/>
+<text x="1217" y="365" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="740" fill="#f0f6ff">Judge + History</text>
+<text x="1217" y="398" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="500" fill="#abc0d7">Persisted verdict, AI review</text>
+<path d="M409 369L434 369" fill="none" stroke="#47dbc5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M431 362L444 369L431 376" fill="none" stroke="#47dbc5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M782 369L807 369" fill="none" stroke="#47dbc5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M804 362L817 369L804 376" fill="none" stroke="#47dbc5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1155 369L1180 369" fill="none" stroke="#47dbc5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1177 362L1190 369L1177 376" fill="none" stroke="#47dbc5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="798" y="430" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="15" font-weight="600" fill="#47dbc5">Nemotron Super uses saved evidence for Code Intelligence; the judge—not the model—decides correctness.</text>
+<rect x="51" y="457" width="1496" height="177" rx="24" fill="#101c31" stroke="#2e4964" stroke-width="1.5"/>
+<rect x="51" y="457" width="8" height="177" rx="3" fill="#b39bff" stroke="#b39bff" stroke-width="0"/>
+<text x="78" y="489" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="21" font-weight="810" fill="#f0f6ff">02  SYSTEM DESIGN  ·  MODEL PROPOSES, HUMAN DECIDES</text>
+<text x="78" y="514" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="560" fill="#abc0d7">Editable canvas, bounded agents, and verified proposal operations.</text>
+<rect x="1370" y="475" width="150" height="32" rx="16" fill="#1a2b44" stroke="#b39bff" stroke-width="0.8"/>
+<text x="1445" y="497" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="14" font-weight="800" fill="#b39bff">WEB ONLY</text>
+<rect x="78" y="524" width="323" height="83" rx="16" fill="#15243c" stroke="#38536d" stroke-width="1.5"/>
+<rect x="78" y="524" width="6" height="83" rx="3" fill="#b39bff" stroke="#b39bff" stroke-width="0"/>
+<text x="98" y="561" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="740" fill="#f0f6ff">Konva Canvas</text>
+<text x="98" y="594" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="500" fill="#abc0d7">Nodes, edges, interactions</text>
+<rect x="451" y="524" width="323" height="83" rx="16" fill="#15243c" stroke="#38536d" stroke-width="1.5"/>
+<rect x="451" y="524" width="6" height="83" rx="3" fill="#b39bff" stroke="#b39bff" stroke-width="0"/>
+<text x="471" y="561" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="740" fill="#f0f6ff">LangGraph + Tavily</text>
+<text x="471" y="594" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="500" fill="#abc0d7">Analysis, bounded research</text>
+<rect x="824" y="524" width="323" height="83" rx="16" fill="#15243c" stroke="#38536d" stroke-width="1.5"/>
+<rect x="824" y="524" width="6" height="83" rx="3" fill="#b39bff" stroke="#b39bff" stroke-width="0"/>
+<text x="844" y="561" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="740" fill="#f0f6ff">Nemotron / Nebius</text>
+<text x="844" y="594" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="500" fill="#abc0d7">Token Factory inference</text>
+<rect x="1197" y="524" width="323" height="83" rx="16" fill="#15243c" stroke="#38536d" stroke-width="1.5"/>
+<rect x="1197" y="524" width="6" height="83" rx="3" fill="#f7c67f" stroke="#f7c67f" stroke-width="0"/>
+<text x="1217" y="561" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="740" fill="#f0f6ff">Typed Review</text>
+<text x="1217" y="594" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="500" fill="#abc0d7">Validate → Accept / Discard</text>
+<path d="M409 565L434 565" fill="none" stroke="#b39bff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M431 558L444 565L431 572" fill="none" stroke="#b39bff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M782 565L807 565" fill="none" stroke="#b39bff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M804 558L817 565L804 572" fill="none" stroke="#b39bff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1155 565L1180 565" fill="none" stroke="#b39bff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1177 558L1190 565L1177 572" fill="none" stroke="#b39bff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="798" y="626" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="15" font-weight="600" fill="#b39bff">Go WebSockets provide Live Share ordering, ACKs and replay for committed collaboration operations.</text>
+<rect x="51" y="653" width="1496" height="171" rx="24" fill="#101c31" stroke="#2e4964" stroke-width="1.5"/>
+<rect x="51" y="653" width="8" height="171" rx="3" fill="#f7c67f" stroke="#f7c67f" stroke-width="0"/>
+<text x="78" y="685" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="21" font-weight="810" fill="#f0f6ff">03  KNOWLEDGE  ·  RESEARCH OFFLINE, SERVE FAST</text>
+<text x="78" y="710" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="560" fill="#abc0d7">Separate discovery/enrichment from the online feed read path.</text>
+<rect x="1370" y="671" width="150" height="32" rx="16" fill="#1a2b44" stroke="#f7c67f" stroke-width="0.8"/>
+<text x="1445" y="693" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="14" font-weight="800" fill="#f7c67f">FEED</text>
+<rect x="78" y="720" width="323" height="83" rx="16" fill="#15243c" stroke="#38536d" stroke-width="1.5"/>
+<rect x="78" y="720" width="6" height="83" rx="3" fill="#f7c67f" stroke="#f7c67f" stroke-width="0"/>
+<text x="98" y="757" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="740" fill="#f0f6ff">Tavily Discovery</text>
+<text x="98" y="790" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="500" fill="#abc0d7">Public technical sources</text>
+<rect x="451" y="720" width="323" height="83" rx="16" fill="#15243c" stroke="#38536d" stroke-width="1.5"/>
+<rect x="451" y="720" width="6" height="83" rx="3" fill="#f7c67f" stroke="#f7c67f" stroke-width="0"/>
+<text x="471" y="757" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="740" fill="#f0f6ff">Nemotron Enrich</text>
+<text x="471" y="790" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="500" fill="#abc0d7">Offline synthesis</text>
+<rect x="824" y="720" width="323" height="83" rx="16" fill="#15243c" stroke="#38536d" stroke-width="1.5"/>
+<rect x="824" y="720" width="6" height="83" rx="3" fill="#f7c67f" stroke="#f7c67f" stroke-width="0"/>
+<text x="844" y="757" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="740" fill="#f0f6ff">PostgreSQL + R2</text>
+<text x="844" y="790" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="500" fill="#abc0d7">Prepared stories, images</text>
+<rect x="1197" y="720" width="323" height="83" rx="16" fill="#15243c" stroke="#38536d" stroke-width="1.5"/>
+<rect x="1197" y="720" width="6" height="83" rx="3" fill="#f7c67f" stroke="#f7c67f" stroke-width="0"/>
+<text x="1217" y="757" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="740" fill="#f0f6ff">Feed + Story Chat</text>
+<text x="1217" y="790" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="500" fill="#abc0d7">Ranked reads, live research</text>
+<path d="M409 761L434 761" fill="none" stroke="#f7c67f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M431 754L444 761L431 768" fill="none" stroke="#f7c67f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M782 761L807 761" fill="none" stroke="#f7c67f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M804 754L817 761L804 768" fill="none" stroke="#f7c67f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1155 761L1180 761" fill="none" stroke="#f7c67f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1177 754L1190 761L1177 768" fill="none" stroke="#f7c67f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="798" y="816" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="15" font-weight="600" fill="#f7c67f">Feed scrolling is deterministic; Ask ReasonAI can use bounded live Tavily search.</text>
+<path d="M52 847H1547" fill="none" stroke="#364d68" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="52" y="882" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="17" font-weight="550" fill="#abc0d7">TRUST CONTRACT  •  Provider secrets stay server-side  •  AI proposals require approval  •  Real-time rooms are memory-only</text>
+</svg>
