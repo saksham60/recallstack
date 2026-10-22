@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="632" viewBox="0 0 1600 632" role="img" aria-labelledby="title desc">
+<defs><linearGradient id="base" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0a1020"/><stop offset=".55" stop-color="#101b35"/><stop offset="1" stop-color="#1a1530"/></linearGradient><pattern id="lines" width="45" height="45" patternUnits="userSpaceOnUse"><path d="M45 0H0V45" stroke="#7897ba" stroke-width=".5" opacity=".20" fill="none"/></pattern></defs><rect width="1600" height="632" rx="18" fill="url(#base)"/><rect width="1600" height="632" rx="18" fill="url(#lines)"/>
+<title id="title">ReasonAI Mobile native product workflows</title><desc id="desc">Three mobile flows. Learn: prepared Knowledge Feed, story details, Ask ReasonAI and citation-backed Tavily research via Next.js. Practice: DSA explorer, native Python editor with account scoped Drift drafts, backend Run and Submit through Vercel Queue and Nebius ConTree, results and Nemotron Code Intelligence. Retain: review due cards, bookmarks and local saved-story Library, user-scoped state.</desc>
+<text x="56" y="58" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="800" font-size="27" fill="#eff6ff">MOBILE EXPERIENCES BUILT AROUND EVIDENCE</text>
+<text x="56" y="91" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="560" font-size="19" fill="#a6b9d0">Three native loops · one authoritative backend · streamed reasoning when it matters</text>
+<rect x="53" y="125" width="1494" height="146" rx="22" fill="#121e32" stroke="#2f4460" stroke-width="1.5"/>
+<rect x="53" y="125" width="8" height="146" rx="4" fill="#44d7c5" stroke="#44d7c5" stroke-width="0"/>
+<rect x="79" y="140" width="167" height="30" rx="15" fill="#1c2e45" stroke="#44d7c5" stroke-width="0.9"/>
+<text x="162.5" y="161" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="800" font-size="14" fill="#44d7c5">01  DISCOVER</text>
+<text x="264" y="162" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="570" font-size="18" fill="#a6b9d0">Knowledge Feed and research</text>
+<rect x="79" y="175" width="302" height="84" rx="17" fill="#142238" stroke="#37506e" stroke-width="1.5"/>
+<rect x="79" y="175" width="6" height="84" rx="3" fill="#44d7c5" stroke="#44d7c5" stroke-width="0"/>
+<text x="101" y="213" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="730" font-size="20" fill="#eff6ff">Prepared Feed</text>
+<text x="101" y="245" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="500" font-size="16" fill="#a6b9d0">Browse · paginate</text>
+<rect x="454" y="175" width="302" height="84" rx="17" fill="#142238" stroke="#37506e" stroke-width="1.5"/>
+<rect x="454" y="175" width="6" height="84" rx="3" fill="#44d7c5" stroke="#44d7c5" stroke-width="0"/>
+<text x="476" y="213" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="730" font-size="20" fill="#eff6ff">Story Detail</text>
+<text x="476" y="245" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="500" font-size="16" fill="#a6b9d0">Read · source · save</text>
+<rect x="830" y="175" width="302" height="84" rx="17" fill="#142238" stroke="#37506e" stroke-width="1.5"/>
+<rect x="830" y="175" width="6" height="84" rx="3" fill="#44d7c5" stroke="#44d7c5" stroke-width="0"/>
+<text x="852" y="213" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="730" font-size="20" fill="#eff6ff">Ask ReasonAI</text>
+<text x="852" y="245" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="500" font-size="16" fill="#a6b9d0">NDJSON stream</text>
+<rect x="1206" y="175" width="302" height="84" rx="17" fill="#142238" stroke="#37506e" stroke-width="1.5"/>
+<rect x="1206" y="175" width="6" height="84" rx="3" fill="#44d7c5" stroke="#44d7c5" stroke-width="0"/>
+<text x="1228" y="213" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="730" font-size="20" fill="#eff6ff">Tavily Sources</text>
+<text x="1228" y="245" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="500" font-size="16" fill="#a6b9d0">Current web evidence</text>
+<path d="M386 217 L446 217" fill="none" stroke="#44d7c5" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M434 211 L446 217 L434 223" fill="none" stroke="#44d7c5" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M761 217 L822 217" fill="none" stroke="#44d7c5" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M810 211 L822 217 L810 223" fill="none" stroke="#44d7c5" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M1137 217 L1198 217" fill="none" stroke="#44d7c5" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M1186 211 L1198 217 L1186 223" fill="none" stroke="#44d7c5" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<rect x="53" y="287" width="1494" height="146" rx="22" fill="#121e32" stroke="#2f4460" stroke-width="1.5"/>
+<rect x="53" y="287" width="8" height="146" rx="4" fill="#ae9bff" stroke="#ae9bff" stroke-width="0"/>
+<rect x="79" y="302" width="167" height="30" rx="15" fill="#1c2e45" stroke="#ae9bff" stroke-width="0.9"/>
+<text x="162.5" y="323" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="800" font-size="14" fill="#ae9bff">02  PRACTICE</text>
+<text x="264" y="324" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="570" font-size="18" fill="#a6b9d0">DSA execution and learning</text>
+<rect x="79" y="337" width="302" height="84" rx="17" fill="#142238" stroke="#37506e" stroke-width="1.5"/>
+<rect x="79" y="337" width="6" height="84" rx="3" fill="#ae9bff" stroke="#ae9bff" stroke-width="0"/>
+<text x="101" y="375" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="730" font-size="20" fill="#eff6ff">DSA Explorer</text>
+<text x="101" y="407" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="500" font-size="16" fill="#a6b9d0">Search · difficulty</text>
+<rect x="454" y="337" width="302" height="84" rx="17" fill="#142238" stroke="#37506e" stroke-width="1.5"/>
+<rect x="454" y="337" width="6" height="84" rx="3" fill="#ae9bff" stroke="#ae9bff" stroke-width="0"/>
+<text x="476" y="375" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="730" font-size="20" fill="#eff6ff">Python Editor</text>
+<text x="476" y="407" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="500" font-size="16" fill="#a6b9d0">Drift draft saved</text>
+<rect x="830" y="337" width="302" height="84" rx="17" fill="#142238" stroke="#37506e" stroke-width="1.5"/>
+<rect x="830" y="337" width="6" height="84" rx="3" fill="#ae9bff" stroke="#ae9bff" stroke-width="0"/>
+<text x="852" y="375" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="730" font-size="20" fill="#eff6ff">Run / Submit</text>
+<text x="852" y="407" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="500" font-size="16" fill="#a6b9d0">Server-side ConTree</text>
+<rect x="1206" y="337" width="302" height="84" rx="17" fill="#142238" stroke="#37506e" stroke-width="1.5"/>
+<rect x="1206" y="337" width="6" height="84" rx="3" fill="#ae9bff" stroke="#ae9bff" stroke-width="0"/>
+<text x="1228" y="375" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="730" font-size="20" fill="#eff6ff">Results + Tutor</text>
+<text x="1228" y="407" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="500" font-size="16" fill="#a6b9d0">Nemotron Code Review</text>
+<path d="M386 379 L446 379" fill="none" stroke="#ae9bff" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M434 373 L446 379 L434 385" fill="none" stroke="#ae9bff" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M761 379 L822 379" fill="none" stroke="#ae9bff" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M810 373 L822 379 L810 385" fill="none" stroke="#ae9bff" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M1137 379 L1198 379" fill="none" stroke="#ae9bff" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M1186 373 L1198 379 L1186 385" fill="none" stroke="#ae9bff" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<rect x="53" y="449" width="1494" height="146" rx="22" fill="#121e32" stroke="#2f4460" stroke-width="1.5"/>
+<rect x="53" y="449" width="8" height="146" rx="4" fill="#f6c479" stroke="#f6c479" stroke-width="0"/>
+<rect x="79" y="464" width="167" height="30" rx="15" fill="#1c2e45" stroke="#f6c479" stroke-width="0.9"/>
+<text x="162.5" y="485" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="800" font-size="14" fill="#f6c479">03  RETAIN</text>
+<text x="264" y="486" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="570" font-size="18" fill="#a6b9d0">Practice, revisit, and organize</text>
+<rect x="79" y="499" width="302" height="84" rx="17" fill="#142238" stroke="#37506e" stroke-width="1.5"/>
+<rect x="79" y="499" width="6" height="84" rx="3" fill="#f6c479" stroke="#f6c479" stroke-width="0"/>
+<text x="101" y="537" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="730" font-size="20" fill="#eff6ff">Revision</text>
+<text x="101" y="569" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="500" font-size="16" fill="#a6b9d0">Due cards · scheduling</text>
+<rect x="454" y="499" width="302" height="84" rx="17" fill="#142238" stroke="#37506e" stroke-width="1.5"/>
+<rect x="454" y="499" width="6" height="84" rx="3" fill="#f6c479" stroke="#f6c479" stroke-width="0"/>
+<text x="476" y="537" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="730" font-size="20" fill="#eff6ff">Bookmarks</text>
+<text x="476" y="569" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="500" font-size="16" fill="#a6b9d0">Server-backed learning</text>
+<rect x="830" y="499" width="302" height="84" rx="17" fill="#142238" stroke="#37506e" stroke-width="1.5"/>
+<rect x="830" y="499" width="6" height="84" rx="3" fill="#f6c479" stroke="#f6c479" stroke-width="0"/>
+<text x="852" y="537" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="730" font-size="20" fill="#eff6ff">Saved Library</text>
+<text x="852" y="569" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="500" font-size="16" fill="#a6b9d0">Device-local stories</text>
+<rect x="1206" y="499" width="302" height="84" rx="17" fill="#142238" stroke="#37506e" stroke-width="1.5"/>
+<rect x="1206" y="499" width="6" height="84" rx="3" fill="#f6c479" stroke="#f6c479" stroke-width="0"/>
+<text x="1228" y="537" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="730" font-size="20" fill="#eff6ff">Account Safety</text>
+<text x="1228" y="569" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="500" font-size="16" fill="#a6b9d0">Separate local caches</text>
+<path d="M386 541 L446 541" fill="none" stroke="#f6c479" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M434 535 L446 541 L434 547" fill="none" stroke="#f6c479" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M761 541 L822 541" fill="none" stroke="#f6c479" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M810 535 L822 541 L810 547" fill="none" stroke="#f6c479" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M1137 541 L1198 541" fill="none" stroke="#f6c479" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M1186 535 L1198 541 L1186 547" fill="none" stroke="#f6c479" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="54" y="624" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="500" font-size="16" fill="#a6b9d0">Device previews are architectural illustrations, not screenshots. Run/Submit uses server execution; mobile cannot edit collaborative System Design canvases.</text>
+</svg>
