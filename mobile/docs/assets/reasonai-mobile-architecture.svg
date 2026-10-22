@@ -1,0 +1,172 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 1335" width="1440" height="1335" role="img" aria-labelledby="title desc">
+<title id="title">ReasonAI Mobile architecture: Flutter, Supabase Auth, FastAPI, Next.js, Drift, Nebius ConTree, Nemotron and Tavily</title>
+<desc id="desc">An engineering map of the Flutter mobile application. Its feature shell uses Riverpod and two authenticated Dio transport clients, Supabase Auth and an account-scoped Drift SQLite database. FastAPI handles product data and Knowledge Feed; Next.js handles LangGraph AI chats and server-side Run Submit and reports. Nebius ConTree provides disposable Python sandboxes for mobile execution requests; Nemotron inference uses Nebius Token Factory. Tavily supports bounded research and offline Knowledge discovery. Mobile has no local Python interpreter, no native Konva collaboration canvas, and no completed full offline sync engine.</desc>
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#111a31"/><stop offset=".58" stop-color="#0b1121"/><stop offset="1" stop-color="#17122e"/></linearGradient>
+<linearGradient id="strip" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#1c5e5d" stop-opacity=".27"/><stop offset=".52" stop-color="#35305d" stop-opacity=".15"/><stop offset="1" stop-color="#243a60" stop-opacity=".25"/></linearGradient>
+<pattern id="grid" width="27" height="27" patternUnits="userSpaceOnUse"><path d="M27 0H0V27" stroke="#89a2d0" stroke-opacity=".055" stroke-width="1" fill="none"/></pattern>
+<marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3.5" orient="auto"><path d="M1 1 L6 3.5 L1 6Z" fill="#8ca9cc"/></marker>
+</defs>
+<rect width="1440" height="1335" rx="26" fill="url(#bg)"/>
+<rect x="1" y="1" width="1438" height="1333" rx="25" fill="none" stroke="#526483" stroke-opacity=".52"/>
+<rect width="1440" height="1335" rx="26" fill="url(#grid)"/>
+<circle cx="1370" cy="62" r="180" fill="#7c6bff" opacity=".08"/>
+<circle cx="50" cy="1160" r="180" fill="#43d7c5" opacity=".04"/>
+<g>
+<text x="50" y="57" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#f1f6ff" font-size="36" font-weight="800" text-anchor="start" letter-spacing="0">ReasonAI Mobile</text>
+<text x="52" y="88" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="17" font-weight="500" text-anchor="start" letter-spacing="0">Native Flutter UX · authenticated server execution · scoped local state</text>
+<rect x="1043" y="29" width="168" height="30" rx="9" fill="#28213e" stroke="#6755ad" stroke-width="0.8"/>
+<text x="1127" y="49" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#e1d5ff" font-size="12" font-weight="700" text-anchor="middle" letter-spacing="0.35">FLUTTER + RIVERPOD</text>
+<rect x="1220" y="29" width="168" height="30" rx="9" fill="#143c3c" stroke="#25857b" stroke-width="0.8"/>
+<text x="1304" y="49" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#b1ffec" font-size="12" font-weight="700" text-anchor="middle" letter-spacing="0.35">ANDROID + iOS</text>
+<path d="M50 109H1390" stroke="#385070" stroke-width="1.5" fill="none"   stroke-linecap="round" stroke-linejoin="round"/>
+<text x="50" y="141" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#40dbc5" font-size="13" font-weight="800" text-anchor="start" letter-spacing="1.8">01  DEVICE RUNTIME</text>
+<text x="50" y="161" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="13" font-weight="500" text-anchor="start" letter-spacing="0">UI, network orchestration and storage stay in separate boundaries</text>
+<rect x="50" y="179" width="1340" height="247" rx="16" fill="#111b2e" stroke="#39687b" stroke-width="1.5"/>
+<rect x="67" y="196" width="393" height="214" rx="13" fill="#1b2e42" stroke="#356a7b" stroke-width="1.4"/>
+<text x="87" y="222" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#40dbc5" font-size="12" font-weight="800" text-anchor="start" letter-spacing="1.3">FLUTTER CLIENT SHELL</text>
+<text x="87" y="249" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#f1f6ff" font-size="18" font-weight="720" text-anchor="start" letter-spacing="0">Material · Riverpod · go_router</text>
+<text x="87" y="275" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="13" font-weight="500" text-anchor="start" letter-spacing="0">Five persistent navigation branches</text>
+<rect x="87" y="290" width="67" height="30" rx="9" fill="#143c3c" stroke="#296c71" stroke-width="0.8"/>
+<text x="120.5" y="310" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#40dbc5" font-size="12" font-weight="700" text-anchor="middle" letter-spacing="0.35">FEED</text>
+<rect x="161" y="290" width="61" height="30" rx="9" fill="#143c3c" stroke="#296c71" stroke-width="0.8"/>
+<text x="191.5" y="310" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#40dbc5" font-size="12" font-weight="700" text-anchor="middle" letter-spacing="0.35">DSA</text>
+<rect x="229" y="290" width="77" height="30" rx="9" fill="#143c3c" stroke="#296c71" stroke-width="0.8"/>
+<text x="267.5" y="310" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#40dbc5" font-size="12" font-weight="700" text-anchor="middle" letter-spacing="0.35">REVISE</text>
+<rect x="313" y="290" width="83" height="30" rx="9" fill="#143c3c" stroke="#296c71" stroke-width="0.8"/>
+<text x="354.5" y="310" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#40dbc5" font-size="12" font-weight="700" text-anchor="middle" letter-spacing="0.35">LIBRARY</text>
+<rect x="87" y="329" width="55" height="30" rx="9" fill="#143c3c" stroke="#296c71" stroke-width="0.8"/>
+<text x="114.5" y="349" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#40dbc5" font-size="12" font-weight="700" text-anchor="middle" letter-spacing="0.35">ME</text>
+<text x="87" y="386" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#dae8ff" font-size="13" font-weight="500" text-anchor="start" letter-spacing="0">Feed · Study · Results · Tutor · Profile</text>
+<rect x="482" y="196" width="493" height="214" rx="13" fill="#25213e" stroke="#6e5ba0" stroke-width="1.4"/>
+<text x="502" y="222" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#b097ff" font-size="12" font-weight="800" text-anchor="start" letter-spacing="1.3">SESSION + TRANSPORT</text>
+<text x="502" y="249" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#f1f6ff" font-size="18" font-weight="720" text-anchor="start" letter-spacing="0">Supabase bearer identity</text>
+<text x="502" y="272" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="13" font-weight="500" text-anchor="start" letter-spacing="0">Two separate Dio clients + auth interceptors</text>
+<rect x="502" y="287" width="220" height="90" rx="10" fill="#203349" stroke="#416989" stroke-width="1.3"/>
+<text x="516" y="308" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#83b8ff" font-size="11" font-weight="800" text-anchor="start" letter-spacing="0.6">PRODUCT DATA</text>
+<text x="516" y="334" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#f1f6ff" font-size="18" font-weight="700" text-anchor="start" letter-spacing="0">API_BASE_URL</text>
+<text x="516" y="354" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="12" font-weight="500" text-anchor="start" letter-spacing="0">FastAPI /api/v1</text>
+<rect x="735" y="287" width="220" height="90" rx="10" fill="#302847" stroke="#6856a4" stroke-width="1.3"/>
+<text x="749" y="308" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#b097ff" font-size="11" font-weight="800" text-anchor="start" letter-spacing="0.6">WEB RUNTIME</text>
+<text x="749" y="334" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#f1f6ff" font-size="18" font-weight="700" text-anchor="start" letter-spacing="0">WEB_BASE_URL</text>
+<text x="749" y="354" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="12" font-weight="500" text-anchor="start" letter-spacing="0">Next.js /api/...</text>
+<text x="502" y="396" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#dae8ff" font-size="12" font-weight="500" text-anchor="start" letter-spacing="0">Single refresh retry · owner checks · cancellation</text>
+<rect x="998" y="196" width="375" height="214" rx="13" fill="#16333b" stroke="#278f88" stroke-width="1.4"/>
+<text x="1018" y="222" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#40dbc5" font-size="12" font-weight="800" text-anchor="start" letter-spacing="1">DEVICE-LOCAL DRIFT / SQLITE</text>
+<text x="1018" y="248" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#f1f6ff" font-size="18" font-weight="720" text-anchor="start" letter-spacing="0">Account-scoped database</text>
+<text x="1018" y="273" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="13" font-weight="500" text-anchor="start" letter-spacing="0">reasonai / userId / reasonai.sqlite</text>
+<text x="1020" y="307" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#dae8ff" font-size="15" font-weight="550" text-anchor="start" letter-spacing="0">• Saved-story cache</text>
+<text x="1020" y="332" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#dae8ff" font-size="15" font-weight="550" text-anchor="start" letter-spacing="0">• DSA approach + code drafts</text>
+<text x="1020" y="357" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#dae8ff" font-size="15" font-weight="550" text-anchor="start" letter-spacing="0">• Client recovery / conversation IDs</text>
+<text x="1018" y="388" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#40dbc5" font-size="12" font-weight="600" text-anchor="start" letter-spacing="0">Not the authority for judge results or progress</text>
+<path d="M460 302H481" stroke="#83b8ff" stroke-width="2" fill="none" marker-end="url(#arr)"  stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M975 302H996" stroke="#40dbc5" stroke-width="2" fill="none" marker-end="url(#arr)" stroke-dasharray="4 5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="50" y="471" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#83b8ff" font-size="13" font-weight="800" text-anchor="start" letter-spacing="1.8">02  AUTHENTICATED SERVICES</text>
+<text x="50" y="491" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="13" font-weight="500" text-anchor="start" letter-spacing="0">Backend-owned product truth · Web-owned AI and execution · Supabase identity</text>
+<path d="M265 426V516" stroke="#40dbc5" stroke-width="2" fill="none" marker-end="url(#arr)"  stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M610 426V516" stroke="#83b8ff" stroke-width="2" fill="none" marker-end="url(#arr)"  stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M854 426V444H1160V516" stroke="#b097ff" stroke-width="2" fill="none" marker-end="url(#arr)"  stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="50" y="517" width="399" height="257" rx="16" fill="#172b3b" stroke="#39778b" stroke-width="1.4"/>
+<text x="70" y="546" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#40dbc5" font-size="12" font-weight="800" text-anchor="start" letter-spacing="1.2">SUPABASE AUTH</text>
+<text x="70" y="575" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#f1f6ff" font-size="17" font-weight="700" text-anchor="start" letter-spacing="0">Google OAuth · Judge session (when enabled)</text>
+<text x="70" y="604" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="14" font-weight="500" text-anchor="start" letter-spacing="0">Access token + verified user identity</text>
+<rect x="69" y="626" width="362" height="50" rx="9" fill="#193e43" stroke="#246e71" stroke-width="1.2"/>
+<text x="82" y="646" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#f1f6ff" font-size="15" font-weight="650" text-anchor="start" letter-spacing="0">Shared identity</text>
+<text x="82" y="665" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="12" font-weight="500" text-anchor="start" letter-spacing="0">Client sends bearer token; services verify</text>
+<rect x="69" y="689" width="362" height="64" rx="9" fill="#142235" stroke="#354b69" stroke-width="1.2"/>
+<text x="82" y="710" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#40dbc5" font-size="12" font-weight="800" text-anchor="start" letter-spacing="0">SESSION SAFETY</text>
+<text x="82" y="731" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#dae8ff" font-size="13" font-weight="500" text-anchor="start" letter-spacing="0">Refresh once; account switch invalidates work</text>
+<rect x="470" y="517" width="445" height="257" rx="16" fill="#17283d" stroke="#446d99" stroke-width="1.4"/>
+<text x="489" y="546" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#83b8ff" font-size="12" font-weight="800" text-anchor="start" letter-spacing="1.2">FASTAPI · CLOUD RUN</text>
+<text x="489" y="575" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#f1f6ff" font-size="20" font-weight="750" text-anchor="start" letter-spacing="0">Product + Knowledge APIs</text>
+<text x="489" y="604" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="13" font-weight="500" text-anchor="start" letter-spacing="0">GET /api/v1/dsa/problems · /knowledge/feed</text>
+<rect x="488" y="624" width="407" height="59" rx="9" fill="#233650" stroke="#3a5c7b" stroke-width="1.2"/>
+<text x="503" y="647" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#f1f6ff" font-size="15" font-weight="650" text-anchor="start" letter-spacing="0">Catalog, versions, public tests, notes</text>
+<text x="503" y="667" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="12" font-weight="500" text-anchor="start" letter-spacing="0">Bookmarks · progress · revision · feed events</text>
+<rect x="488" y="697" width="407" height="56" rx="9" fill="#1b3844" stroke="#357d7d" stroke-width="1.2"/>
+<text x="503" y="718" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#dae8ff" font-size="15" font-weight="650" text-anchor="start" letter-spacing="0">Supabase PostgreSQL · Cloudflare R2</text>
+<text x="503" y="739" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="12" font-weight="500" text-anchor="start" letter-spacing="0">Deterministic ranking; story images via CDN</text>
+<rect x="937" y="517" width="453" height="257" rx="16" fill="#26203c" stroke="#715fb6" stroke-width="1.4"/>
+<text x="956" y="546" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#b097ff" font-size="12" font-weight="800" text-anchor="start" letter-spacing="1.2">NEXT.JS · VERCEL SERVER ROUTES</text>
+<text x="956" y="575" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#f1f6ff" font-size="20" font-weight="750" text-anchor="start" letter-spacing="0">ReasonAI + DSA execution</text>
+<text x="956" y="604" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="13" font-weight="500" text-anchor="start" letter-spacing="0">POST /api/reasonai/dsa/chat · /knowledge/chat</text>
+<rect x="955" y="624" width="416" height="59" rx="9" fill="#302948" stroke="#68559f" stroke-width="1.2"/>
+<text x="970" y="646" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#f1f6ff" font-size="15" font-weight="650" text-anchor="start" letter-spacing="0">LangGraph · streaming NDJSON events</text>
+<text x="970" y="666" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="12" font-weight="500" text-anchor="start" letter-spacing="0">Nemotron reasoning · Tavily research tools</text>
+<rect x="955" y="696" width="416" height="57" rx="9" fill="#253149" stroke="#6171a5" stroke-width="1.2"/>
+<text x="970" y="718" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#dae8ff" font-size="14" font-weight="650" text-anchor="start" letter-spacing="0">/api/dsa/executions · submissions · reports</text>
+<text x="970" y="739" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="12" font-weight="500" text-anchor="start" letter-spacing="0">Durable jobs, private verdicts and AI analysis</text>
+<path d="M449 646H469" stroke="#83b8ff" stroke-width="1.7" fill="none" marker-end="url(#arr)" stroke-dasharray="4 5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M915 646H936" stroke="#b097ff" stroke-width="1.7" fill="none" marker-end="url(#arr)" stroke-dasharray="4 5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="50" y="821" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#ffd08a" font-size="13" font-weight="800" text-anchor="start" letter-spacing="1.8">03  END-TO-END FEATURE FLOWS</text>
+<text x="50" y="843" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="13" font-weight="500" text-anchor="start" letter-spacing="0">Actual mobile routes reach different service pipelines; provider keys never enter Flutter</text>
+<rect x="50" y="865" width="428" height="316" rx="15" fill="#132c33" stroke="#2b9994" stroke-width="1.5"/>
+<text x="69" y="891" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#40dbc5" font-size="12" font-weight="800" text-anchor="start" letter-spacing="1.2">KNOWLEDGE FEED</text>
+<text x="69" y="915" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#dae8ff" font-size="14" font-weight="600" text-anchor="start" letter-spacing="0">Precomputed discovery → fast mobile reads</text>
+<rect x="67" y="938" width="185" height="75" rx="10" fill="#1b4142" stroke="#378f89" stroke-width="1.3"/>
+<text x="81" y="959" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#40dbc5" font-size="11" font-weight="800" text-anchor="start" letter-spacing="0.6">BACKGROUND</text>
+<text x="81" y="985" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#f1f6ff" font-size="18" font-weight="700" text-anchor="start" letter-spacing="0">Tavily News</text>
+<text x="81" y="1005" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="12" font-weight="500" text-anchor="start" letter-spacing="0">HN discovery too</text>
+<rect x="270" y="938" width="190" height="75" rx="10" fill="#302847" stroke="#6859a2" stroke-width="1.3"/>
+<text x="284" y="959" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#b097ff" font-size="11" font-weight="800" text-anchor="start" letter-spacing="0.6">ENRICHMENT</text>
+<text x="284" y="985" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#f1f6ff" font-size="18" font-weight="700" text-anchor="start" letter-spacing="0">Nemotron</text>
+<text x="284" y="1005" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="12" font-weight="500" text-anchor="start" letter-spacing="0">Offline batch</text>
+<path d="M252 974H269" stroke="#40dbc5" stroke-width="1.8" fill="none" marker-end="url(#arr)"  stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="67" y="1034" width="393" height="87" rx="10" fill="#1d3a42" stroke="#3f7d83" stroke-width="1.3"/>
+<text x="81" y="1055" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#40dbc5" font-size="11" font-weight="800" text-anchor="start" letter-spacing="0.6">PERSISTED + SERVED</text>
+<text x="81" y="1081" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#f1f6ff" font-size="18" font-weight="700" text-anchor="start" letter-spacing="0">Postgres / R2 → FastAPI</text>
+<text x="81" y="1101" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="12" font-weight="500" text-anchor="start" letter-spacing="0">Feed pagination · ranking · saved state</text>
+<path d="M364 1014V1028H265V1033" stroke="#40dbc5" stroke-width="1.5" fill="none" marker-end="url(#arr)"  stroke-linecap="round" stroke-linejoin="round"/>
+<text x="69" y="1150" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#dae8ff" font-size="14" font-weight="650" text-anchor="start" letter-spacing="0">Mobile: signed cursors + behavior events</text>
+<text x="69" y="1169" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="12" font-weight="500" text-anchor="start" letter-spacing="0">Offline enrichment, not LLM-on-every-scroll</text>
+<rect x="493" y="865" width="454" height="316" rx="15" fill="#162c3a" stroke="#45769f" stroke-width="1.5"/>
+<text x="511" y="891" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#83b8ff" font-size="12" font-weight="800" text-anchor="start" letter-spacing="1.2">MOBILE RUN + SUBMIT</text>
+<text x="511" y="915" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#dae8ff" font-size="14" font-weight="600" text-anchor="start" letter-spacing="0">No on-device Python execution</text>
+<rect x="510" y="938" width="196" height="75" rx="10" fill="#243b52" stroke="#51779a" stroke-width="1.3"/>
+<text x="524" y="959" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#83b8ff" font-size="11" font-weight="800" text-anchor="start" letter-spacing="0.6">AUTH REQUEST</text>
+<text x="524" y="985" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#f1f6ff" font-size="18" font-weight="700" text-anchor="start" letter-spacing="0">Web execution API</text>
+<text x="524" y="1005" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="12" font-weight="500" text-anchor="start" letter-spacing="0">Idempotency + polling</text>
+<rect x="727" y="938" width="202" height="75" rx="10" fill="#243b52" stroke="#51779a" stroke-width="1.3"/>
+<text x="741" y="959" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#83b8ff" font-size="11" font-weight="800" text-anchor="start" letter-spacing="0.6">DURABLE WORKER</text>
+<text x="741" y="985" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#f1f6ff" font-size="18" font-weight="700" text-anchor="start" letter-spacing="0">Vercel Queue</text>
+<text x="741" y="1005" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="12" font-weight="500" text-anchor="start" letter-spacing="0">Recover + retry</text>
+<path d="M706 974H725" stroke="#83b8ff" stroke-width="1.8" fill="none" marker-end="url(#arr)"  stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="510" y="1034" width="196" height="76" rx="10" fill="#174046" stroke="#38ac9d" stroke-width="1.3"/>
+<text x="524" y="1055" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#40dbc5" font-size="11" font-weight="800" text-anchor="start" letter-spacing="0.6">ISOLATED PYTHON</text>
+<text x="524" y="1081" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#f1f6ff" font-size="18" font-weight="700" text-anchor="start" letter-spacing="0">Nebius ConTree</text>
+<text x="524" y="1101" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="12" font-weight="500" text-anchor="start" letter-spacing="0">Disposable sandbox</text>
+<rect x="727" y="1034" width="202" height="76" rx="10" fill="#243b52" stroke="#51779a" stroke-width="1.3"/>
+<text x="741" y="1055" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#83b8ff" font-size="11" font-weight="800" text-anchor="start" letter-spacing="0.6">TRUSTED VERDICT</text>
+<text x="741" y="1081" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#f1f6ff" font-size="18" font-weight="700" text-anchor="start" letter-spacing="0">Judge + Supabase</text>
+<text x="741" y="1101" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="12" font-weight="500" text-anchor="start" letter-spacing="0">Hidden cases stay private</text>
+<path d="M828 1014V1027H612V1033" stroke="#83b8ff" stroke-width="1.8" fill="none" marker-end="url(#arr)"  stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M706 1072H725" stroke="#83b8ff" stroke-width="1.8" fill="none" marker-end="url(#arr)"  stroke-linecap="round" stroke-linejoin="round"/>
+<text x="511" y="1148" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#dae8ff" font-size="13" font-weight="600" text-anchor="start" letter-spacing="0">Results/history → Nemotron Code Intelligence</text>
+<text x="511" y="1168" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="12" font-weight="500" text-anchor="start" letter-spacing="0">AI reviews; deterministic judge decides</text>
+<rect x="962" y="865" width="428" height="316" rx="15" fill="#24203b" stroke="#7661b1" stroke-width="1.5"/>
+<text x="980" y="891" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#b097ff" font-size="12" font-weight="800" text-anchor="start" letter-spacing="1.2">AI TUTOR + STORY CHAT</text>
+<text x="980" y="915" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#dae8ff" font-size="14" font-weight="600" text-anchor="start" letter-spacing="0">Bounded requests; model-selected tools</text>
+<rect x="980" y="938" width="183" height="75" rx="10" fill="#302847" stroke="#6859a2" stroke-width="1.3"/>
+<text x="994" y="959" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#b097ff" font-size="11" font-weight="800" text-anchor="start" letter-spacing="0.6">SERVER AGENT</text>
+<text x="994" y="985" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#f1f6ff" font-size="18" font-weight="700" text-anchor="start" letter-spacing="0">LangGraph</text>
+<text x="994" y="1005" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="12" font-weight="500" text-anchor="start" letter-spacing="0">Scoped conversation</text>
+<rect x="1180" y="938" width="190" height="75" rx="10" fill="#302847" stroke="#6859a2" stroke-width="1.3"/>
+<text x="1194" y="959" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#b097ff" font-size="11" font-weight="800" text-anchor="start" letter-spacing="0.6">MODEL</text>
+<text x="1194" y="985" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#f1f6ff" font-size="18" font-weight="700" text-anchor="start" letter-spacing="0">Nebius Token Factory</text>
+<text x="1194" y="1005" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="12" font-weight="500" text-anchor="start" letter-spacing="0">NVIDIA Nemotron</text>
+<path d="M1163 974H1179" stroke="#b097ff" stroke-width="1.8" fill="none" marker-end="url(#arr)"  stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="980" y="1034" width="390" height="76" rx="10" fill="#27374e" stroke="#526e9a" stroke-width="1.3"/>
+<text x="994" y="1055" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#83b8ff" font-size="11" font-weight="800" text-anchor="start" letter-spacing="0.6">OPTIONAL EXTERNAL CONTEXT</text>
+<text x="994" y="1081" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#f1f6ff" font-size="18" font-weight="700" text-anchor="start" letter-spacing="0">Tavily search_web / extract</text>
+<text x="994" y="1101" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="12" font-weight="500" text-anchor="start" letter-spacing="0">Server validates queries + source URLs</text>
+<path d="M1274 1014V1033" stroke="#b097ff" stroke-width="1.5" fill="none" marker-end="url(#arr)"  stroke-linecap="round" stroke-linejoin="round"/>
+<text x="980" y="1148" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#dae8ff" font-size="13" font-weight="600" text-anchor="start" letter-spacing="0">NDJSON answer + tools + sources → Flutter</text>
+<text x="980" y="1168" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="12" font-weight="500" text-anchor="start" letter-spacing="0">Model output is parsed, never executed</text>
+<rect x="50" y="1200" width="1340" height="88" rx="12" fill="#141d30" stroke="#445879" stroke-width="1.2"/>
+<text x="72" y="1227" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#ffd08a" font-size="12" font-weight="800" text-anchor="start" letter-spacing="1.5">TRUST BOUNDARIES</text>
+<text x="72" y="1253" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#dae8ff" font-size="15" font-weight="600" text-anchor="start" letter-spacing="0">Public Flutter client: no Nebius, Tavily, R2 or service-role secrets. Mobile judges through the web API, not locally.</text>
+<text x="72" y="1275" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="13" font-weight="500" text-anchor="start" letter-spacing="0">Not implemented in Flutter: native System Design/Konva + Go room collaboration, full offline-sync engine, store-release verification.</text>
+<text x="52" y="1313" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="12" font-weight="700" text-anchor="start" letter-spacing="1.3">REASONAI  /  MOBILE SYSTEM ARCHITECTURE</text>
+<text x="1388" y="1313" font-family="Inter,Segoe UI,Arial,sans-serif" fill="#a7b8d1" font-size="12" font-weight="500" text-anchor="end" letter-spacing="0">Product architecture · implementation boundaries</text>
+</g>
+</svg>
