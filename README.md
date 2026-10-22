@@ -10,36 +10,35 @@
 
 **Not a prompt wrapper:** Nemotron **reasons, teaches, analyzes, and proposes**. Deterministic code **runs tests, grades submissions, validates typed operations, orders real-time updates, and persists authoritative state**. The architecture explicitly separates **Nebius ConTree Sandbox** (Vercel Queue → isolated Python execution → deterministic judge → saved verdict → Nemotron Code Intelligence) from **Nebius Token Factory** (model inference), alongside the **Nemotron → validated `search_web` → Tavily → source evidence → Nemotron** loop and separate offline Tavily News discovery. AI-generated canvas changes require human approval. All Nebius credentials remain server-side. [Inspect the actual flows and trust boundaries →](docs/ARCHITECTURE.md)
 
-## A concrete failure: visible tests are not the whole truth
+## From green tests to a trusted verdict
 
-| Before: ordinary local confidence | After: evidence-backed reasoning in ReasonAI |
+| Local Run | Trusted Submit + Code Intelligence |
 | --- | --- |
-| A deliberately overfitted **3Sum** implementation passed **9/9 visible tests**. That did **not** establish correctness. | A real **Nebius ConTree Sandbox**-backed **Submit** returned **`wrong_answer`** on the provisional judging path; the result was saved with submission history. |
-| The learner has a green local result but no reliable hidden-case verdict. | **NVIDIA Nemotron Super** produced a persisted Code Intelligence review associated with that exact submission. |
+| A deliberately overfitted **3Sum** solution passed **9/9 public tests** with browser-local Pyodide. | The same solution returned **`wrong_answer`** through **Nebius ConTree Sandbox → deterministic judge → persisted submission history**. |
+| Local execution gives immediate feedback while coding. | **NVIDIA Nemotron Super** uses the saved submission as context for a Code Intelligence review. |
 
-This [documented production test](docs/dsa-v3/integration-20261017.md) demonstrates the distinction between public-test success and a trusted submission verdict; it does **not** establish improved learner outcomes. Trusted judging is deterministic; the model's explanation is advisory.
+[Inspect the execution evidence →](docs/dsa-v3/integration-20261017.md)
 
-![Animated illustrated ReasonAI journey from 9 of 9 visible tests to a trusted wrong-answer verdict and a saved Nemotron Super code review](docs/assets/reasonai-evidence-loop.gif)
+### System Design: from Nemotron proposal to editable canvas
 
-*Illustrative animation of a recorded execution-and-review workflow—not a UI recording or proof of learning improvement.*
+![System Design proposal review interface in ReasonAI](docs/evidence/screenshots/2026-10-11/system-design-proposal.png)
 
-### Real product, not a concept render
+**Ask Nemotron → receive typed canvas operations → inspect the proposed diff → Accept or discard.** The proposal remains separate from the authoritative Konva diagram until the user accepts it. The browser applies validated operations; the Go service orders the accepted collaborative edits.
 
-![Actual production capture of two-browser ReasonAI System Design Live Share, showing a moved architecture node synchronized between collaborators](docs/evidence/screenshots/2026-10-11/collab-move-synced-a.png)
-
-*Recorded production capture: manual canvas changes synchronized across two browser sessions, including reconnect testing. This image does not demonstrate AI-created canvas changes. [See original captures, runs, and failures →](docs/evidence/INDEX.md)*
+[**Watch the product demo ↗**](https://www.youtube.com/watch?v=FoV2KkK72Xs) · [Proposal lifecycle](web/docs/reasonai-proposal-recovery.md) · [Live Share protocol](realtime/README.md)
 
 ## Why Nebius + NVIDIA Nemotron (and where Tavily fits)
 
 Nebius **Token Factory** is ReasonAI's server-side model inference boundary. The application uses its OpenAI-compatible interface for streamed agent turns, structured tool calls, and offline Knowledge enrichment—not for execution or trusted judging.
 
-| Routing / component | Exact implemented role | Engineering trade-off |
+| Routing / component | Implemented role | Exact routing rule / enforcement |
 | --- | --- | --- |
-| **Nemotron Lightning** · `nvidia/Nemotron-3_5-Lightning` | Explicit lightweight model preference in **System Design** | Gives engineers a smaller-tier choice; no public latency or accuracy superiority claim |
-| **Nemotron Super** · `nvidia/nemotron-3-super-120b-a12b` | Default ReasonAI model; DSA tutoring, Code Intelligence, story reasoning, System Design | Baseline general reasoning path; a real Code Intelligence production run used Super |
-| **Nemotron Ultra** · `nvidia/Nemotron-3-Ultra-550b-a55b` | Explicit deeper-reasoning option in **System Design** | Available for more demanding turns; quality/cost benefit has not been independently benchmarked |
-| **Auto routing** | System Design starts with **Super** and can escalate a qualifying turn to **Ultra** | Server records selected tier, actual models used and escalation rather than trusting generated text |
-| **Tavily** | News discovery for Knowledge ingestion; bounded `search_web` for current facts and cited research | Fresh external evidence complements static model knowledge; citations don't guarantee factual correctness |
+| **Nemotron Lightning** · `nvidia/Nemotron-3_5-Lightning` | Explicit lighter System Design option | Selected only when `modelPreference = "lightning"`; Auto never chooses Lightning. |
+| **Nemotron Super** · `nvidia/nemotron-3-super-120b-a12b` | Default ReasonAI model; DSA tutoring, Code Intelligence, Knowledge reasoning and System Design | `modelPreference = "super"` pins Super. `modelPreference = "auto"` **starts on Super**. |
+| **Nemotron Ultra** · `nvidia/Nemotron-3-Ultra-550b-a55b` | Deeper System Design option | Explicit `"ultra"`, or a **single validated Auto escalation** from Super; no implicit upgrade on timeout, request length or provider failure. |
+| **Auto: Super → Ultra** | Model-initiated deeper reasoning with server-owned tier selection | Escalation is offered only if `toolRounds === 0`, the turn does **not** require a canvas proposal, preference is `"auto"`, tier is `"super"` and no prior escalation occurred. The model must make `escalate_reasoning` its **only** call with exactly one allowed `reason`: `architecture_tradeoff`, `conflicting_constraints`, `deep_reliability` or `complex_synthesis`; the server validates it and then runs Ultra. |
+| **Tavily `search_web`** | Current architecture facts and source-grounded research | At most **2 searches per turn**, **3 results per search**, **6 deduplicated evidence items**, **7 s Tavily request deadline**; private canvas content is excluded from public search queries. Offline feed discovery is a separate pipeline. |
+| **Bounded agent/tool loop** | Deterministic guardrails around model-generated actions | Maximum **4 tool rounds**, **15 s per tool**, **8,192 requested output tokens per model round**; at most **6 recent conversation turns** plus **4,000 summary characters**. Repeat tool calls are rejected. An explicitly required canvas proposal gets **one missing-proposal retry**; invalid proposals get **one validation repair**. |
 
 **Why this architecture matters:** The Knowledge Feed performs discovery, deduplication, image validation, Nemotron enrichment and persistence **offline**. Its normal online read/ranking path stays deterministic instead of paying for live model generation on every scroll. DSA Run uses **Pyodide in the browser**; trusted Submit uses the sandbox-based judge, not an LLM verdict. [Model IDs, sponsor integration, and hackathon-period changes →](HACKATHON_SUBMISSION.md) · [Technical evaluation protocol →](docs/evidence/EVALUATION_PROTOCOL.md)
 
@@ -54,38 +53,29 @@ Nebius **Token Factory** is ReasonAI's server-side model inference boundary. The
 
 **Try this prompt in System Design:** `Review this architecture for a single point of failure. Identify affected nodes and propose reviewable changes.`
 
-These are suggested evaluation steps, **not** a promise of a successful AI result within 30 seconds; provider latency and content quality vary. For recorded outcomes and known gaps, use the [Evidence Hub](docs/evidence/INDEX.md).
-
 ## What doesn't work yet — and what we learned
 
-| Known limitation / evidence boundary | Engineering implication |
+| Deep systems trade-off | Where the architecture stops today |
 | --- | --- |
-| **DSA certification:** execution access is distinct from independently verified problem certification. | A `provisional_pass` is never displayed as an officially certified `Accepted`. Review the [certification process](docs/dsa-v3/certification.md) for evidence requirements. |
-| **AI visual correctness:** a valid visualization schema does not guarantee correct mathematical explanations. | Content-level checks are needed in addition to structural validation; [recorded cases](docs/evidence/INDEX.md) illustrate the risk. |
-| **Research reliability:** a successful Tavily tool call does not guarantee a complete, correctly sourced user-visible answer. | Search and final response synthesis need independent end-to-end validation; [failure records](docs/evidence/INDEX.md) are retained. |
-| **Canvas persistence:** an AI proposal saved as **pending** is not the same as an accepted, applied or durably restored document. | Proposal generation, acceptance and restoration have separate verification requirements. |
-| **Realtime scaling:** Go room operations, ACKs, replay and reconnect were exercised in a single-instance topology. | Cross-instance durable rooms and distributed failure recovery are **not** claimed. |
-| **Mobile distribution:** debug builds and unsigned compilations are not equivalent to store-ready releases. | Signing, provisioning and real-device acceptance checks are distinct release requirements. |
-| **Security and impact:** implementing safeguards and gaining users are not substitutes for a formal security audit or a controlled learning-outcome study. | Report measured results only when supported by independent verification. |
+| **Valid schema ≠ true reasoning.** | Zod/typed canvas tools can ensure nodes, IDs, edges and operations are structurally valid; they cannot prove an LLM's capacity estimates, failure analysis or mathematical explanations. A proposal still needs human architectural judgment. |
+| **Single-instance collaboration ≠ distributed durability.** | Go rooms keep ordered operations, snapshots, presence and replay in process memory. Reconnect works within the retained history of a running instance; process restarts and multiple independent instances do not provide a durable, shared room state. |
+| **Offline efficiency ≠ real-time freshness.** | Tavily discovery and Nemotron enrichment happen before Knowledge stories are stored, so infinite-scroll feed reads stay cheap and deterministic. Stories can age between refreshes; on-demand `search_web` improves recency only when the user asks a current-facts question. |
+| **Auto escalation ≠ objective difficulty detection.** | The server gates when Ultra can be requested, but the initial judgment to call `escalate_reasoning` still comes from Super. It is not a calibrated correctness-or-cost optimizer, and deeper model inference does not guarantee a better architecture. |
 
-These are **engineering boundaries and evidence gaps**, not a claim that every recorded defect remains unresolved. Reproduction details and follow-up checks belong in the [Evidence Hub](docs/evidence/INDEX.md), [mobile release guide](mobile/docs/release-readiness.md), and [architecture documentation](docs/ARCHITECTURE.md#current-vs-next-architecture).
+## Run the stack locally
 
-## Reproduce, inspect, verify
+**Prerequisites:** Node.js 22+, Python 3.12, [uv](https://docs.astral.sh/uv/), Docker, Go 1.27+, and your own Supabase project (Auth). After **command 1**, populate the copied environment files: `backend/.env` (set `DATABASE_URL=postgresql+psycopg://recallstack:recallstack-local@localhost:5432/recallstack` for the bundled Docker database, plus your Supabase Auth configuration), `web/.env.local` (Supabase URL/anon key, `NEXT_PUBLIC_REALTIME_BASE_URL=http://localhost:8081`, `NEXT_PUBLIC_API_BASE_URL=http://localhost:8080`, and server-side `NEBIUS_API_KEY`/`TAVILY_API_KEY`), and `realtime/.env`. Add ConTree credentials and enable execution flags if you are testing sandbox Submit.
 
-**Fastest reproduction:** use the live **judge path above**; it uses the hosted backend and requires no local secrets.
-
-For a local development environment, the web, Python API, database and Go realtime service require independent configuration. The minimal bootstrap is:
+Run **these four actual terminal commands** in Bash/Git Bash. Commands **2–4** run in separate terminals opened from the directory containing `recallstack`:
 
 ```bash
-git clone https://github.com/saksham60/recallstack.git
-cd recallstack
-
-# In separate terminals, follow each component's documented setup:
-# docs/DEVELOPMENT.md
-# web/README.md · backend/README.md · realtime/README.md
+git clone https://github.com/saksham60/recallstack.git && cd recallstack && cp backend/.env.example backend/.env && cp realtime/.env.example realtime/.env && cp web/.env.example web/.env.local
+cd recallstack/backend && docker compose up -d --wait postgres && uv sync --frozen && uv run alembic upgrade head && uv run python -m recallstack.commands.seed && uv run uvicorn recallstack.main:app --reload --port 8080
+cd recallstack/realtime && PORT=8081 ALLOWED_ORIGINS=http://localhost:3000 go run ./cmd/server
+cd recallstack/web && npm ci && npm run dev
 ```
 
-Server-side keys include `NEBIUS_API_KEY` and `TAVILY_API_KEY`, with `REASONAI_BASE_URL=https://api.tokenfactory.nebius.com/v1`. Database/Supabase settings, authentication configuration and other component-specific variables are also required. Copy the supplied `.env.example` files; **never commit populated credentials**. [Exact shell commands, environment variables, local services, and verification suites →](docs/DEVELOPMENT.md).
+Open **http://localhost:3000**. Browser sessions use the configured Supabase Auth project; Nebius and Tavily calls run server-side. [Full environment and verification reference →](docs/DEVELOPMENT.md)
 
 ### Inspectable engineering evidence
 
@@ -96,9 +86,6 @@ Server-side keys include `NEBIUS_API_KEY` and `TAVILY_API_KEY`, with `REASONAI_B
 | Typed AI canvas proposals and safety checks | [Proposal lifecycle](web/docs/reasonai-proposal-recovery.md) · [browser tests](web/e2e/reasonai.spec.ts) |
 | Ordered collaboration and replay | [Realtime service](realtime/README.md) · [room tests](realtime/internal/room/room_test.go) |
 | Tavily ingestion and deterministic feed ranking | [Knowledge pipeline](backend/docs/knowledge-shorts.md) · [Knowledge API tests](backend/tests/knowledge/test_api.py) |
-| Raw successes, failed attempts and evidence gaps | [Hackathon Evidence Hub](docs/evidence/INDEX.md) |
-
-**Evidence policy:** Having source code and tests is not the same as a reproducible production benchmark. Model quality, token economics, load capacity, end-to-end latency, and user learning outcomes are **not** claimed as independently measured unless a linked evaluation run establishes them. [Evaluation methodology →](docs/hackathon-evidence/README.md)
 
 ## Built during the hackathon
 
