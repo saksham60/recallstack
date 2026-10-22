@@ -8,9 +8,9 @@ The web application is intentionally more than a frontend. It owns the browser e
 
 ---
 
-## DSA V3 execution and Code Intelligence
+## DSA execution and Code Intelligence
 
-The web catalog includes **375 published DSA problems**, a Python editor, browser Pyodide **Run** on public tests, authenticated sandbox-backed **Submit**, Results Studio, saved submission history, Code Intelligence and contextual post-submission tutoring. [October 17 production integration](../docs/dsa-v3/integration-20261017.md) documented Run/Submit availability for all 375 problems, **10 official certificates** and **365 provisional grading paths**. A provisional success is `provisional_pass`, not an officially certified `Accepted` verdict. See the [Results Studio handoff](../docs/dsa-v3/results-studio-handoff.md) and [independent certification requirements](../docs/dsa-v3/certification.md).
+The DSA workspace provides a published problem catalog, Python editor, browser-local Pyodide **Run** for public tests, **Nebius ConTree Sandbox Submit** through Vercel Queue, Results Studio, submission history, Nemotron Code Intelligence and contextual tutoring. **Execution availability is not the same as independent certification**: a provisional success is `provisional_pass`, not an officially certified `Accepted` verdict. See the [execution integration evidence](../docs/dsa-v3/integration-20261017.md), [Results Studio documentation](../docs/dsa-v3/results-studio-handoff.md) and [certification requirements](../docs/dsa-v3/certification.md).
 
 The interactive Nemotron/Tavily agents operate in the Next.js server boundary; the FastAPI backend remains the product-data boundary, and the Go service provides single-instance, memory-only collaboration. Provider credentials and hidden judge fixtures remain server-side.
 
@@ -19,7 +19,7 @@ The interactive Nemotron/Tavily agents operate in the Next.js server boundary; t
 ReasonAI Web currently owns these product surfaces:
 
 - **Knowledge Feed** — personalized technical stories, detail view, interaction events, feed preferences, on-demand refresh and Ask ReasonAI.
-- **DSA Learning Workspace** — 375-problem explorer and Monaco editor, public-test local Run, sandbox-backed Submit, Results Studio, saved verdict/history, Code Intelligence and source-aware tutoring (progressive hints, review, research, visual walkthroughs and durable learner context).
+- **DSA Learning Workspace** — searchable problem explorer and Monaco editor, public-test local Run, Nebius ConTree Submit, Results Studio, saved verdict/history, Code Intelligence and source-aware tutoring (progressive hints, review, research, visual walkthroughs and durable learner context).
 - **System Design Workspace** — Konva architecture canvas, AI chat/review/fix/eagle modes, web research, semantic architecture analysis, reviewable canvas proposals and Live Share.
 - **Authentication and session UX** — Supabase browser/server integration, route protection and bounded refresh/retry behavior.
 - **Admin UI** — content/user administration and System Design administration.
