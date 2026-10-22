@@ -174,7 +174,7 @@
 <!-- Animation is decorative: static architecture remains readable if SVG motion is blocked. -->
 <g opacity=".9">
 <circle r="4" fill="#85FFE4"><animateMotion path="M719 390V484" dur="5.2s" repeatCount="indefinite"/></circle>
-<circle r="4" fill="#B0D0FF"><animateMotion path="M860 580H858" dur="5s" repeatCount="indefinite"/></circle>
+<circle r="4" fill="#B0D0FF"><animateMotion path="M840 580H858" dur="5s" repeatCount="indefinite"/></circle>
 <circle r="3.8" fill="#B1F5EA"><animateMotion path="M566 1344H591" dur="3s" repeatCount="indefinite"/></circle>
 <circle r="3.8" fill="#C9B4FF"><animateMotion path="M1092 1344H1117" dur="3.8s" begin="1.3s" repeatCount="indefinite"/></circle>
 </g>
