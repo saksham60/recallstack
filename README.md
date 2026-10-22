@@ -19,13 +19,11 @@
 
 [Inspect the execution evidence →](docs/dsa-v3/integration-20261017.md)
 
-### System Design: from Nemotron proposal to editable canvas
+### System Design: model-proposed changes, human-controlled application
 
-![System Design proposal review interface in ReasonAI](docs/evidence/screenshots/2026-10-11/system-design-proposal.png)
+**Nemotron reasons over canvas nodes and edges → proposes typed operations → the server validates them → the user reviews and accepts or discards them.** The AI cannot commit a canvas edit itself; Konva applies accepted operations, while the Go service orders collaborative updates.
 
-**Ask Nemotron → receive typed canvas operations → inspect the proposed diff → Accept or discard.** The proposal remains separate from the authoritative Konva diagram until the user accepts it. The browser applies validated operations; the Go service orders the accepted collaborative edits.
-
-[**Watch the product demo ↗**](https://www.youtube.com/watch?v=FoV2KkK72Xs) · [Proposal lifecycle](web/docs/reasonai-proposal-recovery.md) · [Live Share protocol](realtime/README.md)
+[**Watch the product demo ↗**](https://www.youtube.com/watch?v=FoV2KkK72Xs) · [Verified production AI proposal](docs/evidence/runs/2026-10-11/SD-LIVE-01/record.md) · [Proposal and acceptance architecture](web/docs/reasonai-proposal-recovery.md)
 
 ## Why Nebius + NVIDIA Nemotron (and where Tavily fits)
 
