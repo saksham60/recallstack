@@ -37,7 +37,7 @@
 <text x="964" y="276" fill="#f4f7ff" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="20" font-weight="750" text-anchor="start" letter-spacing="0">System Design / Konva</text>
 <text x="964" y="297" fill="#a8b7cf" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="500" text-anchor="start" letter-spacing="0">Canvas · proposals · review · Live Share</text>
 <rect x="67" y="372" width="1306" height="59" rx="11" fill="#1a2a40" stroke="#385573" stroke-width="1"/>
-<text x="84" y="394" fill="#4de0c9" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="800" text-anchor="start" letter-spacing="0">CLIENT SECURITY &amp;amp; UI STATE</text>
+<text x="84" y="394" fill="#4de0c9" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="800" text-anchor="start" letter-spacing="0">CLIENT SECURITY &amp; UI STATE</text>
 <text x="84" y="416" fill="#eaf1ff" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="14" font-weight="580" text-anchor="start" letter-spacing="0">Supabase OAuth / session · server-owned identity · browser interactions &amp;amp; editor drafts</text>
 <text x="1351" y="398" fill="#ffd293" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="800" text-anchor="end" letter-spacing="0">NO PROVIDER SECRETS</text>
 <text x="1351" y="417" fill="#a8b7cf" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="580" text-anchor="end" letter-spacing="0">HTTPS · WSS</text>
