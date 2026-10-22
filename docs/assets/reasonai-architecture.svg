@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 866" role="img" aria-labelledby="title desc">
-<title id="title">ReasonAI architecture with Nebius Nemotron tool calls to Tavily Search and separate offline knowledge enrichment</title>
-<desc id="desc">Authenticated web and mobile clients access deterministic Pyodide, sandbox judging, validation, collaboration, and state. Nebius Nemotron invokes a validated LangGraph search_web tool; it makes bounded server-side Tavily Search API calls, validates results, and sends evidence back to Nemotron. Separately, a Knowledge refresh worker uses Tavily news discovery before Nemotron enrichment and storage. No client-side provider keys.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 1066" role="img" aria-labelledby="title desc">
+<title id="title">ReasonAI architecture showing Nebius ConTree Sandbox judging, Nemotron AI, and Tavily tool calls</title>
+<desc id="desc">Authenticated web and mobile clients access deterministic browser Pyodide Run and Vercel Queue based Submit to Nebius ConTree disposable Python sandboxes, trusted checking, Supabase verdict storage, followed by Nemotron Code Intelligence. Clients also access deterministic canvas validation, collaboration, and state. Nebius Nemotron invokes a validated LangGraph search_web tool; it makes bounded server-side Tavily Search API calls, validates results, and sends evidence back to Nemotron. Separately, a Knowledge refresh worker uses Tavily news discovery before Nemotron enrichment and storage. No client-side provider keys.</desc>
 <defs>
  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#10182c"/><stop offset=".55" stop-color="#0b1020"/><stop offset="1" stop-color="#17132c"/></linearGradient>
  <linearGradient id="teal" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#15b8b4"/><stop offset="1" stop-color="#58dfc9"/></linearGradient>
@@ -10,11 +10,11 @@
  <filter id="glow"><feGaussianBlur stdDeviation="3"/></filter>
  <marker id="arrow" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0 0L6 3L0 6Z" fill="#8799be"/></marker>
 </defs>
-<rect width="1180" height="866" rx="24" fill="url(#bg)"/>
-<rect x="1" y="1" width="1178" height="864" rx="23" fill="none" stroke="#64748b" stroke-opacity=".3"/>
-<rect width="1180" height="558" rx="24" fill="url(#grid)"/>
+<rect width="1180" height="1066" rx="24" fill="url(#bg)"/>
+<rect x="1" y="1" width="1178" height="1064" rx="23" fill="none" stroke="#64748b" stroke-opacity=".3"/>
+<rect width="1180" height="1066" rx="24" fill="url(#grid)"/>
 <circle cx="1065" cy="64" r="113" fill="#7868f7" opacity=".08"/>
-<circle cx="80" cy="790" r="130" fill="#10bdb6" opacity=".06"/>
+<circle cx="80" cy="990" r="130" fill="#10bdb6" opacity=".06"/>
 <g font-family="Inter, Segoe UI, Arial, sans-serif">
  <text x="43" y="51" fill="#fafaff" font-size="31" font-weight="750" letter-spacing="-.6">ReasonAI</text>
  <text x="43" y="79" fill="#adbad1" font-size="15">Build better judgment. Reason over real artifacts, not just prompts.</text>
@@ -54,8 +54,8 @@
  <text x="86" y="302" font-size="17" fill="#b9fff0" font-weight="750">DETERMINISTIC SYSTEMS</text>
  <text x="553" y="300" text-anchor="end" font-size="11" fill="#8ad3c7">EXECUTION &amp; TRUTH</text>
  <rect x="62" y="338" width="492" height="42" rx="9" fill="#173539"/>
- <text x="79" y="357" font-size="15" fill="#f3fffc" font-weight="650">Pyodide Run + sandbox Submit</text>
- <text x="79" y="371" font-size="11" fill="#a3c4c5">Public tests and trusted private verdicts are code paths</text>
+ <text x="79" y="357" font-size="15" fill="#f3fffc" font-weight="650">Pyodide Run + Nebius ConTree Submit</text>
+ <text x="79" y="371" font-size="11" fill="#a3c4c5">Run is browser-local; Submit uses isolated Python execution</text>
  <rect x="62" y="386" width="492" height="42" rx="9" fill="#173539"/>
  <text x="79" y="405" font-size="15" fill="#f3fffc" font-weight="650">Typed canvas validation + human approval</text>
  <text x="79" y="419" font-size="11" fill="#a3c4c5">AI proposals cannot mutate documents without acceptance</text>
@@ -83,7 +83,47 @@
  <!-- bound / bridge -->
  <path d="M573 390H607" stroke="#cbbeff" stroke-width="2.2" stroke-dasharray="4 5"/>
  <circle cx="590" cy="390" r="5" fill="#ffffff" opacity=".7"><animate attributeName="opacity" values=".2;1;.2" dur="2.5s" repeatCount="indefinite"/></circle>
- <!-- Real-time agent tool execution: arrows describe the actual tool lifecycle -->
+ <!-- Distinct sponsor integration: DSA Submit uses Nebius ConTree, not Token Factory inference -->
+<path d="M310 497V510" fill="none" stroke="#39b3aa" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="43" y="511" width="1094" height="185" rx="16" fill="#102a31" stroke="#278e92" stroke-width="1.6"/>
+<rect x="43" y="511" width="1094" height="36" rx="16" fill="#2d777a" fill-opacity=".20"/>
+<text x="62" y="536" font-size="16" fill="#c7fff2" font-weight="750">DSA SUBMIT · NEBIUS CONTREE SANDBOX</text>
+<text x="1117" y="534" text-anchor="end" font-size="11" fill="#a9dad8">separate from Nebius Token Factory inference</text>
+<rect x="60" y="563" width="166" height="80" rx="10" fill="#243750" stroke="#537fac" stroke-width="1.25"/>
+<text x="72" y="584" fill="#a5ccf4" font-size="10" font-weight="750" letter-spacing=".3">1 · USER SUBMIT</text>
+<text x="72" y="605" fill="#fafcff" font-size="15" font-weight="750">Submit API</text>
+<text x="72" y="624" fill="#bed0d9" font-size="11">auth + idempotency</text>
+<rect x="238" y="563" width="166" height="80" rx="10" fill="#243750" stroke="#537fac" stroke-width="1.25"/>
+<text x="250" y="584" fill="#a5ccf4" font-size="10" font-weight="750" letter-spacing=".3">2 · DURABLE DELIVERY</text>
+<text x="250" y="605" fill="#fafcff" font-size="15" font-weight="750">Vercel Queue</text>
+<text x="250" y="624" fill="#bed0d9" font-size="11">worker + recovery</text>
+<rect x="416" y="563" width="166" height="80" rx="10" fill="#173b41" stroke="#39b3aa" stroke-width="2.1"/>
+<text x="428" y="584" fill="#89f9e1" font-size="10" font-weight="750" letter-spacing=".3">3 · NEBIUS SANDBOX</text>
+<text x="428" y="605" fill="#fafcff" font-size="15" font-weight="750">Nebius ConTree</text>
+<text x="428" y="624" fill="#bed0d9" font-size="11">disposable Python VM</text>
+<rect x="594" y="563" width="166" height="80" rx="10" fill="#173b41" stroke="#39b3aa" stroke-width="1.25"/>
+<text x="606" y="584" fill="#89f9e1" font-size="10" font-weight="750" letter-spacing=".3">4 · TRUSTED JUDGE</text>
+<text x="606" y="605" fill="#fafcff" font-size="15" font-weight="750">Test-suite checker</text>
+<text x="606" y="624" fill="#bed0d9" font-size="11">verdict outside VM</text>
+<rect x="772" y="563" width="166" height="80" rx="10" fill="#243750" stroke="#537fac" stroke-width="1.25"/>
+<text x="784" y="584" fill="#a5ccf4" font-size="10" font-weight="750" letter-spacing=".3">5 · STORED RESULTS</text>
+<text x="784" y="605" fill="#fafcff" font-size="15" font-weight="750">Supabase verdict</text>
+<text x="784" y="624" fill="#bed0d9" font-size="11">history + private tests</text>
+<rect x="950" y="563" width="166" height="80" rx="10" fill="#302847" stroke="#8a75dd" stroke-width="1.25"/>
+<text x="962" y="584" fill="#d0b9ff" font-size="10" font-weight="750" letter-spacing=".3">6 · AI CODE REVIEW</text>
+<text x="962" y="605" fill="#fafcff" font-size="15" font-weight="750">Nemotron Super</text>
+<text x="962" y="624" fill="#bed0d9" font-size="11">Code Intelligence</text>
+<path d="M226 602H235" stroke="#7ab8be" stroke-width="1.8" fill="none" marker-end="url(#arrow)"/>
+<path d="M404 602H413" stroke="#7ab8be" stroke-width="1.8" fill="none" marker-end="url(#arrow)"/>
+<path d="M582 602H591" stroke="#7ab8be" stroke-width="1.8" fill="none" marker-end="url(#arrow)"/>
+<path d="M760 602H769" stroke="#7ab8be" stroke-width="1.8" fill="none" marker-end="url(#arrow)"/>
+<path d="M938 602H947" stroke="#7ab8be" stroke-width="1.8" fill="none" marker-end="url(#arrow)"/>
+<circle r="3.8" fill="#a7ffe9"><animateMotion dur="3.4s" repeatCount="indefinite" path="M404 602H413"/></circle>
+<text x="590" y="668" text-anchor="middle" font-size="13" fill="#d0eee8">Run: browser Pyodide / public cases · Submit: ConTree / hidden suite · Final verdict: deterministic</text>
+<text x="590" y="685" text-anchor="middle" font-size="11" fill="#9bbec2">Disposable sandbox · network disabled · no model-generated acceptance · AI review follows saved judgment</text>
+
+<g transform="translate(0 200)">
+<!-- Real-time agent tool execution: arrows describe the actual tool lifecycle -->
 <rect x="43" y="508" width="1094" height="180" rx="16" fill="#101d30" stroke="#5477a0" stroke-width="1.5"/>
 <rect x="43" y="508" width="1094" height="37" rx="16" fill="#284868" fill-opacity=".35"/>
 <text x="62" y="534" font-size="16" fill="#e7f0ff" font-weight="750">LIVE TOOL-CALL FLOW</text>
@@ -140,5 +180,6 @@
 
 <rect x="43" y="817" width="1094" height="34" rx="9" fill="url(#soft)" stroke="#52627d" stroke-opacity=".55"/>
 <text x="590" y="838" text-anchor="middle" font-size="14" fill="#e1e8fa" font-weight="600">AI proposes and explains  ·  Code validates and executes  ·  Engineers retain control</text>
+</g>
 </g>
 </svg>
