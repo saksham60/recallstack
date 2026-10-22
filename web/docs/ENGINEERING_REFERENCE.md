@@ -1,6 +1,6 @@
 # ReasonAI Web — Engineering Reference
 
-This document preserves the full web implementation reference: browser architecture, Next.js AI and execution routes, DSA judging, LangGraph, System Design, collaboration, Knowledge, safety, verification and deployment. For the visual overview and quickstart, use the [Web README](../../README.md).
+This document preserves the full web implementation reference: browser architecture, Next.js AI and execution routes, DSA judging, LangGraph, System Design, collaboration, Knowledge, safety, verification and deployment. For the visual overview and quickstart, use the [Web README](../README.md).
 
 ReasonAI Web is the primary interactive client and AI orchestration boundary for ReasonAI. It combines a Next.js App Router application, React/Konva visual workspaces, authenticated FastAPI product APIs, LangGraph-based ReasonAI runtimes, durable AI conversation state, Tavily-grounded research, Nebius-hosted NVIDIA Nemotron inference, and the Go realtime collaboration service.
 
