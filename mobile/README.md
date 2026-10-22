@@ -2,15 +2,15 @@
 
 Flutter client for ReasonAI's learning and knowledge experience. The mobile app is intentionally focused on the workflows that make sense on a phone: Knowledge Feed, Ask ReasonAI, DSA learning, revision, saved material, search, profile and preferences.
 
-The 1.0.0 (2) release candidate adds the canonical DSA explorer, mobile Python editor, server Run/Submit, saved submissions and Code Intelligence. See [release readiness](docs/release-readiness.md) for current contracts, verified checks, packaging, branding, and outstanding signing/live-verification gates. Implementation status does not imply production release approval.
+The Flutter client supports the canonical DSA explorer, Python editor, server Run/Submit, saved submissions and Nemotron Code Intelligence. See the [mobile release guide](docs/release-readiness.md) for supported contracts, packaging, branding, signing and device-verification procedures. Implemented functionality does not by itself establish store-release approval.
 
-## Android test build and distribution
+## Android builds and distribution
 
-Flutter v1.0.0 (2) implements Knowledge Feed, an authenticated DSA explorer and editor, local drafts, server Run/Submit, submission history, Code Intelligence, contextual tutoring and account-scoped state. These implemented workflows do not by themselves establish production release approval.
+ReasonAI Mobile implements Knowledge Feed, an authenticated DSA explorer and editor, account-scoped local drafts, server Run/Submit, submission history, Code Intelligence and contextual tutoring.
 
-- **Verified test build:** [debug APK handoff](docs/device-smoke-checklist.md) for `reasonai-1.0.0-build2-debug.apk`; source revision, checksums and emulator/device verification are documented in [release readiness](docs/release-readiness.md#verified-debug-delivery). The artifact is **Android Debug signed**, not store-ready.
-- **Download availability:** no publicly accessible APK file URL has yet been independently verified. Do not substitute an unverified private Drive-folder URL for a judge download.
-- **Release verification:** Android production signing, real-device OAuth and authenticated Run/Submit/report tests remain separate gates. Mocked integration tests do not prove live backend operation.
+- **Build and device testing:** follow the [device test checklist](docs/device-smoke-checklist.md) and [release guide](docs/release-readiness.md) for APK packaging, integrity checks and smoke tests.
+- **Distribution:** a debug-signed APK is for testing, not store distribution. Public download links should point to an actually accessible, verified build artifact.
+- **Release verification:** production signing, real-device OAuth and authenticated Run/Submit/report testing must be checked independently; mocked integration tests do not prove live backend operation.
 - **Web access:** [try ReasonAI in the browser](https://www.reasonai.tech/login).
 
 System Design canvas collaboration remains a web-only capability today. The mobile app does not embed the Konva canvas, the Go realtime room protocol, or System Design editing.
