@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+<defs><linearGradient id="background" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0a1121"/><stop offset=".53" stop-color="#0e1931"/><stop offset="1" stop-color="#191731"/></linearGradient><pattern id="grid" width="46" height="46" patternUnits="userSpaceOnUse"><path d="M46 0H0V46" fill="none" stroke="#80a4c5" stroke-width=".6" opacity=".18"/></pattern></defs><rect width="1600" height="900" rx="17" fill="url(#background)"/><rect width="1600" height="900" rx="17" fill="url(#grid)"/>
+<title id="title">ReasonAI backend architecture: FastAPI deterministic domain APIs, separate Knowledge job and PostgreSQL state</title>
+<desc id="desc">Web and mobile clients use verified Supabase JWT bearer identity to reach FastAPI Cloud Run. Domain routers and application services use a SQLAlchemy Unit of Work with Supabase PostgreSQL for DSA content, learner progress, diagrams, Knowledge and admin. Online feed reads use deterministic ranking without inference. A separate Cloud Run Knowledge refresh job uses a PostgreSQL advisory lock, Tavily and Hacker News discovery, image validation, NVIDIA Nemotron on Nebius Token Factory and Cloudflare R2. Sync uses owner-scoped idempotent mutation ledgers and cursors. Next.js LangGraph interactive inference, Nebius ConTree judging, and Go WebSocket collaboration are outside the backend API runtime.</desc>
+<rect x="51" y="46" width="42" height="42" rx="13" fill="#173e50" stroke="#49ddc9" stroke-width="1.5"/>
+<path d="M63 70l9-9 7 6 8-13" stroke="#49ddc9" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<text x="109" y="79" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="800" font-size="35" fill="#f2f7ff">REASONAI  /  BACKEND</text>
+<text x="51" y="120" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="600" font-size="21" fill="#a7b9ce">THE DETERMINISTIC DOMAIN AND DATA FOUNDATION</text>
+<rect x="1062" y="55" width="153" height="30" rx="15" fill="#192e43" stroke="#49ddc9" stroke-width="0.75"/>
+<text x="1138.5" y="76" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="800" font-size="14" fill="#49ddc9">FASTAPI</text>
+<rect x="1229" y="55" width="156" height="30" rx="15" fill="#192e43" stroke="#87bcff" stroke-width="0.75"/>
+<text x="1307" y="76" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="800" font-size="14" fill="#87bcff">POSTGRESQL</text>
+<rect x="1399" y="55" width="151" height="30" rx="15" fill="#192e43" stroke="#b49cff" stroke-width="0.75"/>
+<text x="1474.5" y="76" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="800" font-size="14" fill="#b49cff">NEMOTRON JOB</text>
+<rect x="52" y="152" width="1496" height="117" rx="23" fill="#14243d" stroke="#415c75" stroke-width="1.5"/>
+<text x="80" y="182" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="850" font-size="17" fill="#49ddc9">ENTRYPOINT  /  VERIFIED APPLICATION BOUNDARY</text>
+<rect x="80" y="197" width="310" height="51" rx="12" fill="#20334c" stroke="#3f5f77" stroke-width="1"/>
+<text x="235" y="218" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="800" font-size="16" fill="#f2f7ff">NEXT.JS + FLUTTER</text>
+<text x="235" y="239" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="500" font-size="14" fill="#a7b9ce">Authenticated clients</text>
+<path d="M398 222H438" stroke="#49ddc9" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<path d="M434 215L447 222L434 229" stroke="#49ddc9" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<rect x="456" y="197" width="310" height="51" rx="12" fill="#20334c" stroke="#3f5f77" stroke-width="1"/>
+<text x="611" y="218" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="800" font-size="16" fill="#f2f7ff">SUPABASE AUTH</text>
+<text x="611" y="239" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="500" font-size="14" fill="#a7b9ce">JWT · JWKS · ownership</text>
+<path d="M774 222H814" stroke="#49ddc9" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<path d="M810 215L823 222L810 229" stroke="#49ddc9" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<rect x="832" y="197" width="310" height="51" rx="12" fill="#20334c" stroke="#3f5f77" stroke-width="1"/>
+<text x="987" y="218" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="800" font-size="16" fill="#f2f7ff">FASTAPI / CLOUD RUN</text>
+<text x="987" y="239" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="500" font-size="14" fill="#a7b9ce">Routers · Pydantic</text>
+<path d="M1150 222H1190" stroke="#49ddc9" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<path d="M1186 215L1199 222L1186 229" stroke="#49ddc9" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<rect x="1208" y="197" width="310" height="51" rx="12" fill="#20334c" stroke="#3f5f77" stroke-width="1"/>
+<text x="1363" y="218" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="800" font-size="16" fill="#f2f7ff">POSTGRESQL</text>
+<text x="1363" y="239" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="500" font-size="14" fill="#a7b9ce">Transactions · source of truth</text>
+<rect x="52" y="290" width="1496" height="175" rx="24" fill="#101c2f" stroke="#2a4360" stroke-width="1.5"/>
+<rect x="52" y="290" width="9" height="175" rx="4" fill="#49ddc9" stroke="#49ddc9" stroke-width="0"/>
+<text x="80" y="321" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="810" font-size="21" fill="#f2f7ff">01  ONLINE API  ·  DETERMINISTIC PRODUCT STATE</text>
+<text x="80" y="345" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="550" font-size="16" fill="#a7b9ce">Domain modules share request-scoped transactions, not ad-hoc route SQL.</text>
+<rect x="1386" y="305" width="140" height="30" rx="15" fill="#192e43" stroke="#49ddc9" stroke-width="0.75"/>
+<text x="1456" y="326" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="800" font-size="14" fill="#49ddc9">DOMAIN API</text>
+<rect x="79" y="358" width="316" height="84" rx="18" fill="#14243a" stroke="#364e69" stroke-width="1.5"/>
+<rect x="79" y="358" width="6" height="84" rx="3" fill="#49ddc9" stroke="#49ddc9" stroke-width="0"/>
+<text x="100" y="396" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="750" font-size="19" fill="#f2f7ff">Content + DSA</text>
+<text x="100" y="430" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="540" font-size="16" fill="#a7b9ce">Publication · versions</text>
+<rect x="454" y="358" width="316" height="84" rx="18" fill="#14243a" stroke="#364e69" stroke-width="1.5"/>
+<rect x="454" y="358" width="6" height="84" rx="3" fill="#49ddc9" stroke="#49ddc9" stroke-width="0"/>
+<text x="475" y="396" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="750" font-size="19" fill="#f2f7ff">Learning + Recall</text>
+<text x="475" y="430" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="540" font-size="16" fill="#a7b9ce">Practice · review cards</text>
+<rect x="829" y="358" width="316" height="84" rx="18" fill="#14243a" stroke="#364e69" stroke-width="1.5"/>
+<rect x="829" y="358" width="6" height="84" rx="3" fill="#49ddc9" stroke="#49ddc9" stroke-width="0"/>
+<text x="850" y="396" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="750" font-size="19" fill="#f2f7ff">Diagram + Search</text>
+<text x="850" y="430" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="540" font-size="16" fill="#a7b9ce">Revisions · FTS</text>
+<rect x="1204" y="358" width="316" height="84" rx="18" fill="#14243a" stroke="#364e69" stroke-width="1.5"/>
+<rect x="1204" y="358" width="6" height="84" rx="3" fill="#49ddc9" stroke="#49ddc9" stroke-width="0"/>
+<text x="1225" y="396" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="750" font-size="19" fill="#f2f7ff">Admin + Identity</text>
+<text x="1225" y="430" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="540" font-size="16" fill="#a7b9ce">Owner and role checks</text>
+<text x="800" y="458" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="570" font-size="15" fill="#49ddc9">SQLAlchemy repositories and Unit of Work enforce persistence boundaries across modules.</text>
+<rect x="52" y="483" width="1496" height="175" rx="24" fill="#101c2f" stroke="#2a4360" stroke-width="1.5"/>
+<rect x="52" y="483" width="9" height="175" rx="4" fill="#b49cff" stroke="#b49cff" stroke-width="0"/>
+<text x="80" y="514" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="810" font-size="21" fill="#f2f7ff">02  KNOWLEDGE  ·  PRODUCE OFFLINE, SERVE PREPARED</text>
+<text x="80" y="538" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="550" font-size="16" fill="#a7b9ce">A separate Cloud Run Job pays for discovery, enrichment and media validation.</text>
+<rect x="1386" y="498" width="140" height="30" rx="15" fill="#192e43" stroke="#b49cff" stroke-width="0.75"/>
+<text x="1456" y="519" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="800" font-size="14" fill="#b49cff">OFFLINE JOB</text>
+<rect x="79" y="551" width="316" height="84" rx="18" fill="#14243a" stroke="#364e69" stroke-width="1.5"/>
+<rect x="79" y="551" width="6" height="84" rx="3" fill="#b49cff" stroke="#b49cff" stroke-width="0"/>
+<text x="100" y="589" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="750" font-size="19" fill="#f2f7ff">Refresh + DB Lock</text>
+<text x="100" y="623" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="540" font-size="16" fill="#a7b9ce">Advisory lock · cleanup</text>
+<path d="M400 594H437" stroke="#b49cff" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<path d="M433 587L446 594L433 601" stroke="#b49cff" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<rect x="454" y="551" width="316" height="84" rx="18" fill="#14243a" stroke="#364e69" stroke-width="1.5"/>
+<rect x="454" y="551" width="6" height="84" rx="3" fill="#b49cff" stroke="#b49cff" stroke-width="0"/>
+<text x="475" y="589" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="750" font-size="19" fill="#f2f7ff">Tavily + Hacker News</text>
+<text x="475" y="623" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="540" font-size="16" fill="#a7b9ce">Discover · deduplicate</text>
+<path d="M775 594H812" stroke="#b49cff" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<path d="M808 587L821 594L808 601" stroke="#b49cff" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<rect x="829" y="551" width="316" height="84" rx="18" fill="#14243a" stroke="#364e69" stroke-width="1.5"/>
+<rect x="829" y="551" width="6" height="84" rx="3" fill="#b49cff" stroke="#b49cff" stroke-width="0"/>
+<text x="850" y="589" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="750" font-size="19" fill="#f2f7ff">Quality + Images</text>
+<text x="850" y="623" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="540" font-size="16" fill="#a7b9ce">Recency · WebP gates</text>
+<path d="M1150 594H1187" stroke="#b49cff" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<path d="M1183 587L1196 594L1183 601" stroke="#b49cff" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<rect x="1204" y="551" width="316" height="84" rx="18" fill="#14243a" stroke="#364e69" stroke-width="1.5"/>
+<rect x="1204" y="551" width="6" height="84" rx="3" fill="#b49cff" stroke="#b49cff" stroke-width="0"/>
+<text x="1225" y="589" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="750" font-size="19" fill="#f2f7ff">Nemotron → R2 / DB</text>
+<text x="1225" y="623" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="540" font-size="16" fill="#a7b9ce">Enrich · upload · commit</text>
+<text x="800" y="651" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="570" font-size="15" fill="#b49cff">Online /api/v1/knowledge/feed ranks stored stories in SQL; no model calls on scroll.</text>
+<rect x="52" y="676" width="1496" height="170" rx="24" fill="#101c2f" stroke="#2a4360" stroke-width="1.5"/>
+<rect x="52" y="676" width="9" height="170" rx="4" fill="#f7ca82" stroke="#f7ca82" stroke-width="0"/>
+<text x="80" y="707" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="810" font-size="21" fill="#f2f7ff">03  DEVICE SYNC  ·  EXPLICIT CONFLICT SEMANTICS</text>
+<text x="80" y="731" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="550" font-size="16" fill="#a7b9ce">The backend protocol is implemented; complete mobile offline-sync wiring is separate.</text>
+<rect x="1386" y="691" width="140" height="30" rx="15" fill="#192e43" stroke="#f7ca82" stroke-width="0.75"/>
+<text x="1456" y="712" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="800" font-size="14" fill="#f7ca82">SYNC API</text>
+<rect x="79" y="744" width="316" height="84" rx="18" fill="#14243a" stroke="#364e69" stroke-width="1.5"/>
+<rect x="79" y="744" width="6" height="84" rx="3" fill="#f7ca82" stroke="#f7ca82" stroke-width="0"/>
+<text x="100" y="782" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="750" font-size="19" fill="#f2f7ff">Registered Device</text>
+<text x="100" y="816" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="540" font-size="16" fill="#a7b9ce">Authenticated user scope</text>
+<path d="M400 787H437" stroke="#f7ca82" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<path d="M433 780L446 787L433 794" stroke="#f7ca82" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<rect x="454" y="744" width="316" height="84" rx="18" fill="#14243a" stroke="#364e69" stroke-width="1.5"/>
+<rect x="454" y="744" width="6" height="84" rx="3" fill="#f7ca82" stroke="#f7ca82" stroke-width="0"/>
+<text x="475" y="782" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="750" font-size="19" fill="#f2f7ff">Validate + Deduplicate</text>
+<text x="475" y="816" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="540" font-size="16" fill="#a7b9ce">Mutation ID · request hash</text>
+<path d="M775 787H812" stroke="#f7ca82" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<path d="M808 780L821 787L808 794" stroke="#f7ca82" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<rect x="829" y="744" width="316" height="84" rx="18" fill="#14243a" stroke="#364e69" stroke-width="1.5"/>
+<rect x="829" y="744" width="6" height="84" rx="3" fill="#f7ca82" stroke="#f7ca82" stroke-width="0"/>
+<text x="850" y="782" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="750" font-size="19" fill="#f2f7ff">Atomic UoW Commit</text>
+<text x="850" y="816" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="540" font-size="16" fill="#a7b9ce">Ledger · change cursor</text>
+<path d="M1150 787H1187" stroke="#f7ca82" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<path d="M1183 780L1196 787L1183 794" stroke="#f7ca82" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<rect x="1204" y="744" width="316" height="84" rx="18" fill="#14243a" stroke="#364e69" stroke-width="1.5"/>
+<rect x="1204" y="744" width="6" height="84" rx="3" fill="#f7ca82" stroke="#f7ca82" stroke-width="0"/>
+<text x="1225" y="782" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="750" font-size="19" fill="#f2f7ff">Pull / Full Resync</text>
+<text x="1225" y="816" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="540" font-size="16" fill="#a7b9ce">Snapshot · ACK · resume</text>
+<text x="800" y="839" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="570" font-size="15" fill="#f7ca82">Identity, revision checks and mutations remain deterministic server-side obligations.</text>
+<path d="M52 862H1548" stroke="#3c536c" stroke-width="1" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<text x="53" y="885" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="600" font-size="16" fill="#a7b9ce">OUTSIDE FASTAPI  •  Next.js LangGraph + Nemotron interactive chat  •  Vercel Queue / ConTree trusted Submit  •  Go Live Share</text>
+</svg>
