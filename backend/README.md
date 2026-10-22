@@ -20,7 +20,10 @@
 
 ### The authoritative domain layer behind ReasonAI
 
-![ReasonAI Backend architecture: verified web/mobile JWT identity, FastAPI on Cloud Run, SQLAlchemy Unit of Work, PostgreSQL, deterministic product state, offline Tavily and NVIDIA Nemotron Knowledge refresh, Cloudflare R2 and owner-scoped synchronization](docs/assets/reasonai-backend-overview.svg)
+<picture>
+  <source media="(max-width: 767px)" srcset="docs/assets/reasonai-backend-overview-mobile.svg">
+  <img src="docs/assets/reasonai-backend-overview.svg" alt="Backend architecture showing FastAPI authenticated requests, domain services, Supabase PostgreSQL, Knowledge refresh and adjacent execution services">
+</picture>
 
 **FastAPI owns durable product state. Next.js owns interactive AI and DSA judging orchestration. Go owns ephemeral collaboration.**
 
@@ -33,12 +36,17 @@ The **separate Knowledge Cloud Run Job** uses **Tavily** and **Hacker News** dis
 
 ![Detailed backend architecture with product modules, Knowledge refresh, auth and runtime boundaries](docs/assets/reasonai-backend-architecture.svg)
 
+[Open the full-resolution architecture SVG →](docs/assets/reasonai-backend-architecture.svg)
+
 [Full backend engineering reference →](docs/ENGINEERING_REFERENCE.md) · [Web orchestration →](../web/README.md) · [Mobile →](../mobile/README.md) · [Go Live Share →](../realtime/README.md)
 </details>
 
 ## Three backend workflows: serve, enrich, synchronize
 
-![ReasonAI Backend workflows: authenticated JWT request to transactional FastAPI service, offline Tavily and Nemotron Knowledge ingestion, and idempotent device mutation/cursor synchronization](docs/assets/reasonai-backend-workflows.svg)
+<picture>
+  <source media="(max-width: 767px)" srcset="docs/assets/reasonai-backend-workflows-mobile.svg">
+  <img src="docs/assets/reasonai-backend-workflows.svg" alt="Backend workflows for authenticated transactions, offline Nemotron Knowledge enrichment and idempotent device synchronization">
+</picture>
 
 ### 01 · Serve verified, deterministic product APIs
 
