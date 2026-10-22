@@ -2,7 +2,7 @@
 
 **Build Better Judgment.** When a developer passes the visible tests but fails a real submission—or has an architecture diagram but cannot see its failure modes—another generic AI answer is not enough. **ReasonAI connects executable evidence, editable architecture artifacts, and NVIDIA Nemotron reasoning** so engineers can investigate what failed and decide what to change.
 
-[**Launch ReasonAI**](https://www.reasonai.tech/login) · [**Watch product demo**](https://www.youtube.com/watch?v=FoV2KkK72Xs) *(earlier demo; final hackathon video pending)* · [**Devpost**](https://devpost.com/software/reasonai) · [**Architecture details**](docs/ARCHITECTURE.md)
+[**Launch ReasonAI**](https://www.reasonai.tech/login) · [**Product demo**](https://www.youtube.com/watch?v=FoV2KkK72Xs) · [**Devpost**](https://devpost.com/software/reasonai) · [**Architecture details**](docs/ARCHITECTURE.md)
 
 ### Architecture first — where code ends and reasoning begins
 
@@ -17,17 +17,17 @@
 | A deliberately overfitted **3Sum** implementation passed **9/9 visible tests**. That did **not** establish correctness. | A real **Nebius ConTree Sandbox**-backed **Submit** returned **`wrong_answer`** on the provisional judging path; the result was saved with submission history. |
 | The learner has a green local result but no reliable hidden-case verdict. | **NVIDIA Nemotron Super** produced a persisted Code Intelligence review associated with that exact submission. |
 
-This is a [documented October 17 production run](docs/dsa-v3/integration-20261017.md), **not** evidence that a learner subsequently solved the problem or improved interview performance. Trusted judging is deterministic; the model's explanation is advisory.
+This [documented production test](docs/dsa-v3/integration-20261017.md) demonstrates the distinction between public-test success and a trusted submission verdict; it does **not** establish improved learner outcomes. Trusted judging is deterministic; the model's explanation is advisory.
 
 ![Animated illustrated ReasonAI journey from 9 of 9 visible tests to a trusted wrong-answer verdict and a saved Nemotron Super code review](docs/assets/reasonai-evidence-loop.gif)
 
-*Illustrative animated sequence of the verified October 17 flow—not a UI recording or proof of learning improvement.*
+*Illustrative animation of a recorded execution-and-review workflow—not a UI recording or proof of learning improvement.*
 
 ### Real product, not a concept render
 
 ![Actual production capture of two-browser ReasonAI System Design Live Share, showing a moved architecture node synchronized between collaborators](docs/evidence/screenshots/2026-10-11/collab-move-synced-a.png)
 
-*October 11 production capture: manual canvas changes synchronized across two browser sessions, including reconnect verification. This image does not demonstrate AI-created canvas changes. [See original captures, runs, and failures →](docs/evidence/INDEX.md#real-screenshots--october-11-2026)*
+*Recorded production capture: manual canvas changes synchronized across two browser sessions, including reconnect testing. This image does not demonstrate AI-created canvas changes. [See original captures, runs, and failures →](docs/evidence/INDEX.md)*
 
 ## Why Nebius + NVIDIA Nemotron (and where Tavily fits)
 
@@ -60,15 +60,15 @@ These are suggested evaluation steps, **not** a promise of a successful AI resul
 
 | Known limitation / evidence boundary | Engineering implication |
 | --- | --- |
-| **DSA certification:** the last published October 17 audit verified **375 accessible Run/Submit paths**, but only **10 officially certified** and **365 provisionally graded**. | A `provisional_pass` is never displayed as official `Accepted`. Later certification work requires a fresh documented audit. |
-| **AI visual correctness:** an October 11 DSA walkthrough rendered successfully but included a mathematically invalid triplet. | Typed/schema-valid visuals are **not** automatically factually correct; content-level checking remains necessary. |
-| **Research failures:** the October 11 Knowledge story-chat run did not complete a user-visible answer despite separate evidence of server-side searches. | Tool execution is not the same as a grounded answer delivered to the user; end-to-end reliability must be measured. |
-| **Canvas persistence:** a production Nemotron-generated proposal was saved as **pending**, but that test did not verify its acceptance or standalone canvas restoration after refresh. | Proposed edits, applied edits and durable canvas state must be tested independently. |
+| **DSA certification:** execution access is distinct from independently verified problem certification. | A `provisional_pass` is never displayed as an officially certified `Accepted`. Review the [certification process](docs/dsa-v3/certification.md) for evidence requirements. |
+| **AI visual correctness:** a valid visualization schema does not guarantee correct mathematical explanations. | Content-level checks are needed in addition to structural validation; [recorded cases](docs/evidence/INDEX.md) illustrate the risk. |
+| **Research reliability:** a successful Tavily tool call does not guarantee a complete, correctly sourced user-visible answer. | Search and final response synthesis need independent end-to-end validation; [failure records](docs/evidence/INDEX.md) are retained. |
+| **Canvas persistence:** an AI proposal saved as **pending** is not the same as an accepted, applied or durably restored document. | Proposal generation, acceptance and restoration have separate verification requirements. |
 | **Realtime scaling:** Go room operations, ACKs, replay and reconnect were exercised in a single-instance topology. | Cross-instance durable rooms and distributed failure recovery are **not** claimed. |
-| **Mobile distribution:** an Android debug build and unsigned iOS compilation were documented; store-signing and real-device release gates remain separate. | A test build is not an officially distributed app. |
-| **Security and impact:** older Supabase advisor findings and the absence of a controlled learning-impact study remain open evidence gaps. | Never substitute implementation complexity or signup counts for a completed security audit or proven learner outcomes. |
+| **Mobile distribution:** debug builds and unsigned compilations are not equivalent to store-ready releases. | Signing, provisioning and real-device acceptance checks are distinct release requirements. |
+| **Security and impact:** implementing safeguards and gaining users are not substitutes for a formal security audit or a controlled learning-outcome study. | Report measured results only when supported by independent verification. |
 
-These are **dated observations, not assertions that every issue still reproduces today**. We preserve failures instead of rewriting history after fixes. See [run records and verification scope](docs/evidence/INDEX.md), [mobile release gates](mobile/docs/release-readiness.md), and [current versus future architecture](docs/ARCHITECTURE.md#current-vs-next-architecture).
+These are **engineering boundaries and evidence gaps**, not a claim that every recorded defect remains unresolved. Reproduction details and follow-up checks belong in the [Evidence Hub](docs/evidence/INDEX.md), [mobile release guide](mobile/docs/release-readiness.md), and [architecture documentation](docs/ARCHITECTURE.md#current-vs-next-architecture).
 
 ## Reproduce, inspect, verify
 
@@ -98,10 +98,10 @@ Server-side keys include `NEBIUS_API_KEY` and `TAVILY_API_KEY`, with `REASONAI_B
 | Tavily ingestion and deterministic feed ranking | [Knowledge pipeline](backend/docs/knowledge-shorts.md) · [Knowledge API tests](backend/tests/knowledge/test_api.py) |
 | Raw successes, failed attempts and evidence gaps | [Hackathon Evidence Hub](docs/evidence/INDEX.md) |
 
-**Evidence policy:** Having source code and tests is not the same as a dated passing production benchmark. Model quality, token economics, load capacity, end-to-end latency, and user learning outcomes are **not** claimed as independently measured unless a linked evaluation run establishes them. [Evaluation methodology →](docs/hackathon-evidence/README.md)
+**Evidence policy:** Having source code and tests is not the same as a reproducible production benchmark. Model quality, token economics, load capacity, end-to-end latency, and user learning outcomes are **not** claimed as independently measured unless a linked evaluation run establishes them. [Evaluation methodology →](docs/hackathon-evidence/README.md)
 
 ## Built during the hackathon
 
-ReasonAI predates the August 26, 2026 submission window. The major work since then includes **Nebius/Nemotron-based LangGraph agents, bounded Tavily tools, reviewable architecture proposals, tiered System Design models, a Go collaboration service, Knowledge enrichment, contextual DSA feedback, persistent learning state and Flutter clients**. The [hackathon submission record](HACKATHON_SUBMISSION.md) and Git history distinguish this work from the pre-existing product.
+ReasonAI began before the hackathon. The submission-period work includes **Nebius/Nemotron-based LangGraph agents, bounded Tavily tools, reviewable architecture proposals, tiered System Design models, a Go collaboration service, Knowledge enrichment, contextual DSA feedback, persistent learning state and Flutter clients**. The [hackathon submission record](HACKATHON_SUBMISSION.md) and Git history distinguish these contributions from the pre-existing product.
 
 **ReasonAI — Build Better Judgment.** [Live app](https://www.reasonai.tech/login) · [Devpost](https://devpost.com/software/reasonai) · [Full architecture](docs/ARCHITECTURE.md) · [MIT license](LICENSE)
