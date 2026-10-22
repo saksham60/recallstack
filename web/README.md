@@ -20,7 +20,10 @@
 
 ### A browser experience backed by real execution and reviewable AI.
 
-![ReasonAI Web widescreen architecture: Monaco Pyodide Run, Vercel Queue Nebius ConTree sandbox Submit, LangGraph Nemotron reasoning on Token Factory, Konva canvas proposals, Go WebSocket Live Share and Tavily Knowledge discovery](docs/assets/reasonai-web-overview.svg)
+<picture>
+  <source media="(max-width: 767px)" srcset="docs/assets/reasonai-web-overview-mobile.svg">
+  <img src="docs/assets/reasonai-web-overview.svg" alt="Web architecture overview of Next.js, Pyodide, Nebius ConTree Submit, Nemotron agents, FastAPI and Go realtime services">
+</picture>
 
 **The browser owns interaction. Next.js owns protected AI and execution APIs. FastAPI owns product data. Go owns live collaboration.**
 
@@ -31,12 +34,17 @@ This is **not a prompt wrapper**. **Pyodide** executes local public tests; **Neb
 
 ![Detailed ReasonAI Web technical architecture](docs/assets/reasonai-web-architecture.svg)
 
+[Open the full-resolution architecture SVG →](docs/assets/reasonai-web-architecture.svg)
+
 [Complete web engineering reference →](docs/ENGINEERING_REFERENCE.md) · [Cross-service architecture →](../docs/ARCHITECTURE.md) · [Backend →](../backend/README.md) · [Realtime →](../realtime/README.md)
 </details>
 
 ## Three engineering workflows, one consistent trust model
 
-![ReasonAI Web DSA, System Design and Knowledge journeys: public Run versus trusted Submit, Nemotron proposals requiring human approval, and offline Knowledge enrichment followed by source-grounded research](docs/assets/reasonai-web-workflows.svg)
+<picture>
+  <source media="(max-width: 767px)" srcset="docs/assets/reasonai-web-workflows-mobile.svg">
+  <img src="docs/assets/reasonai-web-workflows.svg" alt="Web workflows for public Run and sandbox Submit, human-approved System Design canvas operations and offline Knowledge Feed">
+</picture>
 
 ### 01 · Verify code, don't guess correctness
 
