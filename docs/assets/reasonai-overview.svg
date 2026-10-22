@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+<title id="title">ReasonAI architecture: deterministic execution, NVIDIA Nemotron reasoning and human-approved changes</title>
+<desc id="desc">Next.js, Flutter, FastAPI and Supabase underpin separate DSA, System Design and Knowledge workflows. DSA: Pyodide to Vercel Queue to Nebius ConTree to a deterministic judge, then Nemotron Code Intelligence. System Design: Konva to LangGraph to Nemotron on Nebius Token Factory to validated human-approved proposals, with Go collaboration. Knowledge: Tavily discovery to offline Nemotron enrichment to PostgreSQL and R2 to deterministic feed.</desc>
+<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0a1120"/><stop offset=".55" stop-color="#0c1730"/><stop offset="1" stop-color="#161630"/></linearGradient><pattern id="grid" width="42" height="42" patternUnits="userSpaceOnUse"><path d="M42 0H0V42" fill="none" stroke="#496178" stroke-width=".6" opacity=".22"/></pattern></defs>
+<rect width="1600" height="900" rx="0" fill="url(#bg)"/><rect width="1600" height="900" rx="0" fill="url(#grid)"/>
+<rect x="54" y="45" width="42" height="42" rx="13" fill="#183e4b" stroke="#41d9bd" stroke-width="1.5"/>
+<path d="M65 66h9l5-10 7 19 4-9h-3" fill="none" stroke="#4ce1c3" stroke-width="3" stroke-linejoin="round"/>
+<text x="110" y="78" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="35" font-weight="800" fill="#f1f7ff">REASONAI</text>
+<text x="54" y="119" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="22" font-weight="600" fill="#aabbd0">ENGINEERING JUDGMENT, BACKED BY EXECUTION</text>
+<rect x="1068" y="55" width="152" height="31" rx="16" fill="#1c2b40" stroke="#46dcc7" stroke-width="1.5"/>
+<text x="1144" y="76" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="15" font-weight="800" fill="#46dcc7">DETERMINISTIC</text>
+<rect x="1231" y="55" width="142" height="31" rx="16" fill="#1c2b40" stroke="#ac96ff" stroke-width="1.5"/>
+<text x="1302" y="76" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="15" font-weight="800" fill="#ac96ff">NEMOTRON AI</text>
+<rect x="1384" y="55" width="160" height="31" rx="16" fill="#1c2b40" stroke="#f5bd73" stroke-width="1.5"/>
+<text x="1464" y="76" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="15" font-weight="800" fill="#f5bd73">HUMAN CONTROL</text>
+<rect x="54" y="149" width="1492" height="87" rx="22" fill="#15243b" stroke="#425373" stroke-width="1.5"/>
+<text x="83" y="179" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="800" fill="#aabbd0">CLIENTS &amp; SERVICES</text>
+<text x="83" y="211" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="23" font-weight="700" fill="#f1f7ff">Next.js Web • Flutter Mobile</text>
+<path d="M493,172 L493,217" stroke="#3d5671" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+<path d="M849,172 L849,217" stroke="#3d5671" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+<path d="M1155,172 L1155,217" stroke="#3d5671" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+<text x="535" y="182" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="800" fill="#46dcc7">NEXT.JS</text>
+<text x="535" y="211" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="20" font-weight="600" fill="#f1f7ff">LangGraph · AI routes</text>
+<text x="892" y="182" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="800" fill="#46dcc7">FASTAPI</text>
+<text x="892" y="211" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="20" font-weight="600" fill="#f1f7ff">Product APIs</text>
+<text x="1183" y="182" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="800" fill="#46dcc7">SUPABASE</text>
+<text x="1183" y="211" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="20" font-weight="600" fill="#f1f7ff">Auth · PostgreSQL</text>
+<rect x="54" y="258" width="1492" height="174" rx="24" fill="#101a2c" stroke="#2b3d57" stroke-width="1.5"/>
+<rect x="54" y="258" width="9" height="174" rx="4" fill="#46dcc7" stroke="#46dcc7" stroke-width="1.5"/>
+<text x="83" y="291" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="23" font-weight="800" fill="#f1f7ff">01  DSA · EXECUTION AS EVIDENCE</text>
+<text x="83" y="316" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="500" fill="#aabbd0">Local Run is fast; Submit is isolated and judged.</text>
+<rect x="1400" y="276" width="108" height="31" rx="16" fill="#1c2b40" stroke="#46dcc7" stroke-width="1.5"/>
+<text x="1454" y="297" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="15" font-weight="800" fill="#46dcc7">CODE</text>
+<rect x="78" y="325" width="314" height="90" rx="16" fill="#142238" stroke="#344862" stroke-width="1.5"/>
+<rect x="78" y="325" width="6" height="90" rx="3" fill="#46dcc7" stroke="#46dcc7" stroke-width="1.5"/>
+<text x="99" y="363" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="22" font-weight="700" fill="#f1f7ff">Pyodide • Local Run</text>
+<text x="99" y="395" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="17" font-weight="500" fill="#aabbd0">Public tests, in-browser</text>
+<rect x="452" y="325" width="314" height="90" rx="16" fill="#142238" stroke="#344862" stroke-width="1.5"/>
+<rect x="452" y="325" width="6" height="90" rx="3" fill="#46dcc7" stroke="#46dcc7" stroke-width="1.5"/>
+<text x="473" y="363" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="22" font-weight="700" fill="#f1f7ff">Vercel Queue</text>
+<text x="473" y="395" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="17" font-weight="500" fill="#aabbd0">Durable Submit dispatch</text>
+<rect x="826" y="325" width="314" height="90" rx="16" fill="#142238" stroke="#344862" stroke-width="1.5"/>
+<rect x="826" y="325" width="6" height="90" rx="3" fill="#46dcc7" stroke="#46dcc7" stroke-width="1.5"/>
+<text x="847" y="363" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="22" font-weight="700" fill="#f1f7ff">Nebius ConTree</text>
+<text x="847" y="395" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="17" font-weight="500" fill="#aabbd0">Isolated Python sandbox</text>
+<rect x="1200" y="325" width="314" height="90" rx="16" fill="#142238" stroke="#344862" stroke-width="1.5"/>
+<rect x="1200" y="325" width="6" height="90" rx="3" fill="#46dcc7" stroke="#46dcc7" stroke-width="1.5"/>
+<text x="1221" y="363" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="22" font-weight="700" fill="#f1f7ff">Trusted Judge</text>
+<text x="1221" y="395" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="17" font-weight="500" fill="#aabbd0">Verdict → saved evidence</text>
+<path d="M399,370 L433,370" stroke="#46dcc7" stroke-width="3" stroke-linecap="round" fill="none"/>
+<path d="M430,363 L443,370 L430,377" fill="none" stroke="#46dcc7" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M773,370 L807,370" stroke="#46dcc7" stroke-width="3" stroke-linecap="round" fill="none"/>
+<path d="M804,363 L817,370 L804,377" fill="none" stroke="#46dcc7" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1147,370 L1181,370" stroke="#46dcc7" stroke-width="3" stroke-linecap="round" fill="none"/>
+<path d="M1178,363 L1191,370 L1178,377" fill="none" stroke="#46dcc7" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="54" y="453" width="1492" height="185" rx="24" fill="#101a2c" stroke="#2b3d57" stroke-width="1.5"/>
+<rect x="54" y="453" width="9" height="185" rx="4" fill="#ac96ff" stroke="#ac96ff" stroke-width="1.5"/>
+<text x="83" y="486" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="23" font-weight="800" fill="#f1f7ff">02  SYSTEM DESIGN · REASON ABOUT FAILURE</text>
+<text x="83" y="511" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="500" fill="#aabbd0">Typed proposals are reviewed before they touch a shared canvas.</text>
+<rect x="1400" y="471" width="108" height="31" rx="16" fill="#1c2b40" stroke="#ac96ff" stroke-width="1.5"/>
+<text x="1454" y="492" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="15" font-weight="800" fill="#ac96ff">WEB ONLY</text>
+<rect x="78" y="519" width="314" height="87" rx="16" fill="#142238" stroke="#344862" stroke-width="1.5"/>
+<rect x="78" y="519" width="6" height="87" rx="3" fill="#ac96ff" stroke="#ac96ff" stroke-width="1.5"/>
+<text x="99" y="557" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="22" font-weight="700" fill="#f1f7ff">Konva Canvas</text>
+<text x="99" y="589" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="17" font-weight="500" fill="#aabbd0">Current nodes + edges</text>
+<rect x="452" y="519" width="314" height="87" rx="16" fill="#142238" stroke="#344862" stroke-width="1.5"/>
+<rect x="452" y="519" width="6" height="87" rx="3" fill="#ac96ff" stroke="#ac96ff" stroke-width="1.5"/>
+<text x="473" y="557" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="22" font-weight="700" fill="#f1f7ff">LangGraph Agent</text>
+<text x="473" y="589" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="17" font-weight="500" fill="#aabbd0">Bounded tools · Tavily search</text>
+<rect x="826" y="519" width="314" height="87" rx="16" fill="#142238" stroke="#344862" stroke-width="1.5"/>
+<rect x="826" y="519" width="6" height="87" rx="3" fill="#ac96ff" stroke="#ac96ff" stroke-width="1.5"/>
+<text x="847" y="557" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="22" font-weight="700" fill="#f1f7ff">Nebius Token Factory</text>
+<text x="847" y="589" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="17" font-weight="500" fill="#aabbd0">NVIDIA Nemotron reasoning</text>
+<rect x="1200" y="519" width="314" height="87" rx="16" fill="#142238" stroke="#344862" stroke-width="1.5"/>
+<rect x="1200" y="519" width="6" height="87" rx="3" fill="#f5bd73" stroke="#f5bd73" stroke-width="1.5"/>
+<text x="1221" y="557" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="22" font-weight="700" fill="#f1f7ff">Typed Proposal</text>
+<text x="1221" y="589" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="17" font-weight="500" fill="#aabbd0">Validate → Accept / Discard</text>
+<path d="M399,563 L433,563" stroke="#ac96ff" stroke-width="3" stroke-linecap="round" fill="none"/>
+<path d="M430,556 L443,563 L430,570" fill="none" stroke="#ac96ff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M773,563 L807,563" stroke="#ac96ff" stroke-width="3" stroke-linecap="round" fill="none"/>
+<path d="M804,556 L817,563 L804,570" fill="none" stroke="#ac96ff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1147,563 L1181,563" stroke="#ac96ff" stroke-width="3" stroke-linecap="round" fill="none"/>
+<path d="M1178,556 L1191,563 L1178,570" fill="none" stroke="#ac96ff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="54" y="659" width="1492" height="171" rx="24" fill="#101a2c" stroke="#2b3d57" stroke-width="1.5"/>
+<rect x="54" y="659" width="9" height="171" rx="4" fill="#f5bd73" stroke="#f5bd73" stroke-width="1.5"/>
+<text x="83" y="692" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="23" font-weight="800" fill="#f1f7ff">03  KNOWLEDGE · KEEP CONTEXT CURRENT</text>
+<text x="83" y="717" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="500" fill="#aabbd0">Enrich offline. Serve prepared stories without a model call per scroll.</text>
+<rect x="1400" y="677" width="108" height="31" rx="16" fill="#1c2b40" stroke="#f5bd73" stroke-width="1.5"/>
+<text x="1454" y="698" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="15" font-weight="800" fill="#f5bd73">FEED</text>
+<rect x="78" y="725" width="314" height="88" rx="16" fill="#142238" stroke="#344862" stroke-width="1.5"/>
+<rect x="78" y="725" width="6" height="88" rx="3" fill="#f5bd73" stroke="#f5bd73" stroke-width="1.5"/>
+<text x="99" y="763" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="22" font-weight="700" fill="#f1f7ff">Tavily Discovery</text>
+<text x="99" y="795" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="17" font-weight="500" fill="#aabbd0">Technical sources · dedupe</text>
+<rect x="452" y="725" width="314" height="88" rx="16" fill="#142238" stroke="#344862" stroke-width="1.5"/>
+<rect x="452" y="725" width="6" height="88" rx="3" fill="#ac96ff" stroke="#ac96ff" stroke-width="1.5"/>
+<text x="473" y="763" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="22" font-weight="700" fill="#f1f7ff">Nemotron Enrichment</text>
+<text x="473" y="795" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="17" font-weight="500" fill="#aabbd0">Offline structured synthesis</text>
+<rect x="826" y="725" width="314" height="88" rx="16" fill="#142238" stroke="#344862" stroke-width="1.5"/>
+<rect x="826" y="725" width="6" height="88" rx="3" fill="#f5bd73" stroke="#f5bd73" stroke-width="1.5"/>
+<text x="847" y="763" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="22" font-weight="700" fill="#f1f7ff">PostgreSQL + R2</text>
+<text x="847" y="795" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="17" font-weight="500" fill="#aabbd0">Stories · approved media</text>
+<rect x="1200" y="725" width="314" height="88" rx="16" fill="#142238" stroke="#344862" stroke-width="1.5"/>
+<rect x="1200" y="725" width="6" height="88" rx="3" fill="#f5bd73" stroke="#f5bd73" stroke-width="1.5"/>
+<text x="1221" y="763" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="22" font-weight="700" fill="#f1f7ff">Prepared Feed</text>
+<text x="1221" y="795" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="17" font-weight="500" fill="#aabbd0">Deterministic read / ranking</text>
+<path d="M399,769 L433,769" stroke="#f5bd73" stroke-width="3" stroke-linecap="round" fill="none"/>
+<path d="M430,762 L443,769 L430,776" fill="none" stroke="#f5bd73" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M773,769 L807,769" stroke="#f5bd73" stroke-width="3" stroke-linecap="round" fill="none"/>
+<path d="M804,762 L817,769 L804,776" fill="none" stroke="#f5bd73" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1147,769 L1181,769" stroke="#f5bd73" stroke-width="3" stroke-linecap="round" fill="none"/>
+<path d="M1178,762 L1191,769 L1178,776" fill="none" stroke="#f5bd73" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="805" y="442" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="650" fill="#90ecda">After verdict → Nemotron Super Code Intelligence (Token Factory)</text>
+<rect x="545" y="608" width="520" height="24" rx="9" fill="#22233c" stroke="#48456e" stroke-width="1.5"/>
+<text x="805" y="625" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="650" fill="#cabaff">Accepted changes → Go WebSockets: ordered ops · ACK · replay</text>
+<path d="M54,857 L1546,857" stroke="#38506d" stroke-width="1" stroke-linecap="round" fill="none"/>
+<text x="54" y="882" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="18" font-weight="600" fill="#aabbd0">CONTRACT • Models explain and propose. Tests, validators and users decide what becomes authoritative.</text>
+</svg>
