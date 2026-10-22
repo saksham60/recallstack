@@ -8,13 +8,31 @@ The web application is intentionally more than a frontend. It owns the browser e
 
 ---
 
+## 1. Web system architecture
+
+![ReasonAI Web architecture: React/TanStack Query, Knowledge Feed, Monaco DSA and Pyodide, Konva System Design, FastAPI Cloud Run, Supabase, Go WebSocket collaboration, LangGraph, Tavily tools, NVIDIA Nemotron via Nebius Token Factory, and Vercel Queue to Nebius ConTree sandbox judging](docs/assets/reasonai-web-architecture.svg)
+
+**The diagram separates five independent responsibilities** rather than presenting ReasonAI as a single LLM call:
+
+1. **Browser experience:** Next.js/React, Knowledge Feed, Monaco DSA and Konva System Design. Browser-local **Run** executes Python public tests in a Pyodide Web Worker; session state and UI state remain client-side.
+2. **Product APIs:** authenticated FastAPI on Cloud Run serves DSA content, learning data and a deterministically ranked Knowledge Feed from Supabase PostgreSQL. Cloudflare R2 serves processed story images.
+3. **AI agents:** protected Next.js Node routes use LangGraph for DSA and System Design, **NVIDIA Nemotron through Nebius Token Factory**, and validated `search_web` → **Tavily** calls when external facts are needed. Story chat uses its separately bounded streaming provider/tool loop.
+4. **Trusted DSA Submit:** Next.js accepts idempotent submissions; **Vercel Queue → Nebius ConTree disposable Python sandbox → deterministic judge outside the VM → persisted Supabase verdict**. Nemotron Code Intelligence analyzes stored submission evidence but never chooses the authoritative verdict.
+5. **Collaboration and ingestion:** Konva Live Share connects to a separate **Go WebSocket** room service with ordered operations, ACK/replay and ephemeral presence. Knowledge discovery runs offline through **Tavily News / Hacker News → validation → Nemotron enrichment → PostgreSQL + R2**; feed scrolling makes no inference call.
+
+**Trust boundaries:** Nebius/Tavily/DB service credentials stay server-side. AI architecture proposals are inert until the engineer approves valid operations. Go rooms are **single-instance and memory-only**, not persistent architecture document storage. Model-generated text, search snippets and sandbox operation status are not trusted judging evidence.
+
+**Trace the actual implementation:** [ConTree adapter](src/lib/dsa-execution/contree.ts) · [Vercel Queue consumer](src/app/api/queues/dsa-executions/route.ts) · [Server-side Tavily adapter](src/lib/tavily/search.ts) · [System Design typed tools](src/lib/reasonai/server/langgraph/system-design/tools.ts) · [Feed ingestion](../backend/docs/knowledge-shorts.md) · [Go realtime service](../realtime/README.md).
+
+---
+
 ## DSA execution and Code Intelligence
 
 The DSA workspace provides a published problem catalog, Python editor, browser-local Pyodide **Run** for public tests, **Nebius ConTree Sandbox Submit** through Vercel Queue, Results Studio, submission history, Nemotron Code Intelligence and contextual tutoring. **Execution availability is not the same as independent certification**: a provisional success is `provisional_pass`, not an officially certified `Accepted` verdict. See the [execution integration evidence](../docs/dsa-v3/integration-20261017.md), [Results Studio documentation](../docs/dsa-v3/results-studio-handoff.md) and [certification requirements](../docs/dsa-v3/certification.md).
 
 The interactive Nemotron/Tavily agents operate in the Next.js server boundary; the FastAPI backend remains the product-data boundary, and the Go service provides single-instance, memory-only collaboration. Provider credentials and hidden judge fixtures remain server-side.
 
-## 1. What the web application owns
+## 2. What the web application owns
 
 ReasonAI Web currently owns these product surfaces:
 
@@ -26,74 +44,6 @@ ReasonAI Web currently owns these product surfaces:
 - **ReasonAI server routes** — protected Node.js routes that perform model/tool orchestration, streaming, durable conversation lifecycle handling and telemetry.
 
 The web package does **not** own the core learning database, Knowledge Feed ranking database queries, offline-sync engine or realtime room server. Those remain in the FastAPI backend and Go realtime service.
-
----
-
-## 2. Runtime topology
-
-```mermaid
-flowchart TB
-    USER[Browser user]
-
-    subgraph WEB[Next.js Web on Vercel]
-      UI[React UI\nApp Router • TanStack Query • Konva]
-      AIR[ReasonAI Server Routes\nNode.js runtime]
-      AUTHC[Supabase browser/server auth]
-    end
-
-    subgraph PRODUCT[Product Services]
-      API[FastAPI on GCP Cloud Run\nlearning • knowledge • profile • sync]
-      RT[Go Realtime on Render\nWebSocket rooms • ordered ops • presence]
-    end
-
-    subgraph AI[AI + Research]
-      LG[LangGraph runtime\nagent → tools → finalize]
-      NEB[Nebius Token Factory]
-      NEM[NVIDIA Nemotron]
-      TAV[Tavily\nsearch / extract]
-    end
-
-    subgraph DATA[State]
-      SUPA[(Supabase Auth + PostgreSQL\nReasonAI conversation state + learner memory)]
-      R2[Cloudflare R2 / CDN\nKnowledge media]
-    end
-
-    USER --> UI
-    UI --> AUTHC
-    UI -->|REST + bearer token| API
-    UI -->|AI requests / NDJSON stream| AIR
-    UI -->|WSS| RT
-
-    AIR --> LG
-    LG --> NEB --> NEM
-    LG --> TAV
-    AIR --> SUPA
-
-    AUTHC --> SUPA
-    API --> SUPA
-    API --> R2
-    RT --> UI
-```
-
-The most important boundary is:
-
-```text
-Browser
-  ├─ public configuration only
-  ├─ authenticated FastAPI calls
-  ├─ authenticated ReasonAI calls
-  └─ realtime WebSocket connection
-
-Next.js server
-  ├─ NEBIUS_API_KEY
-  ├─ TAVILY_API_KEY
-  ├─ LangGraph execution
-  ├─ tool execution
-  ├─ durable ReasonAI lifecycle
-  └─ optional LangSmith tracing
-```
-
-Provider credentials must never cross into client bundles.
 
 ---
 
