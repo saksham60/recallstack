@@ -1,52 +1,58 @@
 # ReasonAI
 
-**Build Better Engineering Judgment.**
+<p align="center">
+  <strong>Build Better Engineering Judgment.</strong>
+</p>
 
-Passing visible tests does not prove an algorithm correct. Drawing an architecture does not expose every bottleneck. And receiving an AI answer is not the same as testing it.
+<p align="center">
+  <strong>Run the code. Challenge the architecture. Review the evidence.</strong><br/>
+  One engineering workbench combining deterministic DSA execution, multiplayer System Design, and NVIDIA Nemotron reasoning on Nebius.
+</p>
 
-**ReasonAI brings executable DSA evidence, an editable multiplayer System Design canvas, and NVIDIA Nemotron reasoning on Nebius into one engineering workbench.** Developers can run code, submit it to isolated judging, explore architectural trade-offs, and turn AI suggestions into reviewed changes.
-
-[**Launch ReasonAI — Judge Access**](https://www.reasonai.tech/login) · [**Watch the Hackathon Demo**](https://www.youtube.com/watch?v=FoV2KkK72Xs) · [**Devpost Submission**](https://devpost.com/software/reasonai) · [**Full Architecture**](docs/ARCHITECTURE.md)
+<p align="center">
+  <a href="https://www.reasonai.tech/login"><strong>Launch ReasonAI · Judge Access</strong></a> &nbsp;·&nbsp;
+  <a href="https://www.youtube.com/watch?v=FoV2KkK72Xs"><strong>Watch the Demo</strong></a> &nbsp;·&nbsp;
+  <a href="https://devpost.com/software/reasonai">Devpost</a> &nbsp;·&nbsp;
+  <a href="docs/ARCHITECTURE.md">Architecture Deep Dive</a>
+</p>
 
 ---
 
-### Architecture first: where deterministic execution ends and AI reasoning begins
+### One workbench. Three evidence-backed workflows.
 
-![ReasonAI architecture: Next.js and Flutter clients, Pyodide local Run, Vercel Queue and Nebius ConTree sandbox Submit, trusted judge and Supabase verdicts, LangGraph agents using NVIDIA Nemotron through Nebius Token Factory, Tavily research, and Go WebSocket collaboration](docs/assets/reasonai-architecture.svg)
+![Wide architecture overview of ReasonAI: Pyodide and Nebius ConTree deterministic judging, LangGraph/NVIDIA Nemotron via Nebius Token Factory, reviewable Konva canvas changes, Go realtime collaboration, and Tavily-enriched Knowledge Feed](docs/assets/reasonai-overview.svg)
 
-**A clear separation of responsibilities:**
+**Deterministic systems decide what happened.** Pyodide runs public tests; ConTree isolates private-case Submit; trusted code grades and persists verdicts; Go sequences shared canvas operations. **Nemotron reasons over that evidence**, invokes bounded Tavily search, and proposes validated changes. **Engineers decide what to accept.**
 
-| Deterministic systems — the source of truth | NVIDIA Nemotron — the reasoning layer | Human control — the final decision |
-| --- | --- | --- |
-| **Pyodide** runs public tests locally. **Nebius ConTree Sandbox** isolates Submit execution; the judge evaluates results. **Supabase/PostgreSQL** stores verdicts and conversation state. **Go WebSockets** sequence collaborative operations and support ACK/replay. Typed validators check canvas operations. | **Nebius Token Factory** serves Nemotron models. **LangGraph** coordinates tutoring, Code Intelligence, System Design analysis, and tool calls. **Tavily** supplies bounded current-source research and offline Knowledge discovery. | The engineer evaluates Code Intelligence against the execution verdict and reviews proposed architecture operations before choosing **Accept** or **Discard**. |
+<details>
+<summary><strong>Explore the full architecture, service boundaries, and detailed data flows</strong></summary>
 
-**The two Nebius boundaries are deliberately different:** **ConTree Sandbox executes user code**; **Token Factory runs NVIDIA Nemotron inference**. Models propose and explain. The judge, validators, persistence layer, and user-controlled canvas decide what becomes authoritative.
+![Detailed ReasonAI technical architecture](docs/assets/reasonai-architecture.svg)
 
-[Explore service boundaries, data flows, and deployment topology →](docs/ARCHITECTURE.md)
+[Read the technical architecture →](docs/ARCHITECTURE.md)
+</details>
 
-## The core loop: from plausible answers to inspectable evidence
+## The core loops: from plausible answers to inspectable evidence
 
-| Engineering problem | ReasonAI workflow |
-| --- | --- |
-| **DSA: false confidence.** A solution passes public cases but fails on an unseen input. | **Run → Submit → Review.** Pyodide gives fast local feedback; queued **Nebius ConTree** execution evaluates private cases through the deterministic judge; the saved verdict and submission context feed **Nemotron Super Code Intelligence** and follow-up tutoring. |
-| **System Design: blind spots in a diagram.** A canvas contains components and connections, but the engineer needs to reason about resilience, capacity, or trade-offs. | **Analyze → Propose → Review → Apply.** Nemotron receives bounded node/edge context, optionally calls **Tavily `search_web`** for current public facts, and returns validated architecture analysis or typed node/edge proposals. **Konva** keeps the diagram editable, and **Go Live Share** synchronizes committed changes. |
-| **Knowledge: static answers age quickly.** Engineers need relevant technical developments without generating every feed card on demand. | **Discover → Enrich → Read → Research.** Offline **Tavily** discovery, deduplication, Nemotron enrichment, and storage prepare Knowledge stories. Feed reads and ranking are deterministic; story chat can invoke live `search_web` when fresh evidence matters. |
+![Two ReasonAI engineering workflows: recorded 3Sum Pyodide 9/9 to Nebius ConTree wrong_answer and saved Nemotron review; System Design typed Nemotron proposal and human approval architecture](docs/assets/reasonai-workflows.svg)
 
-### A concrete DSA result: 9/9 locally, `wrong_answer` on Submit
+### DSA · A green Run is not a trusted Submit
 
-A deliberately overfitted **3Sum** solution passed **9/9 public tests** in the browser. A real **Nebius ConTree Sandbox** submission returned **`wrong_answer`**, and the result was persisted with its submission history. **Nemotron Super** then generated a Code Intelligence review tied to that submission.
+In a recorded **3Sum** example, a deliberately overfitted solution passed **9/9 public tests** in browser-local Pyodide but returned **`wrong_answer`** on real **Nebius ConTree Sandbox** Submit. The deterministic verdict was persisted, and **Nemotron Super** generated a saved Code Intelligence review associated with that submission.
 
-The distinction is central to ReasonAI: **execution establishes the verdict; the model helps explain and learn from it.**
+[See the real Run → Submit → Code Intelligence evidence →](docs/dsa-v3/integration-20261017.md)
 
-[Inspect the real submission and Code Intelligence evidence →](docs/dsa-v3/integration-20261017.md)
+### System Design · From reasoning to a reviewable canvas diff
 
-### A concrete System Design result: a structured proposal, not drawing instructions
+**Konva canvas context → Nemotron/LangGraph reasoning → typed node and edge operations → validation → user Accept or Discard.** A recorded production run generated **five nodes and four edges**, storing the nine validated proposed changes as `pending` for review. Live Share uses **Go WebSockets** to order committed collaboration operations.
 
-In a real product run, the System Design agent generated a **nine-operation proposal**: **five nodes** (Web Application, API Gateway, Backend Service, PostgreSQL, Redis) and **four edges**. The typed proposal passed validation and was stored as **pending** for review.
+[Inspect the recorded AI proposal →](docs/evidence/runs/2026-10-11/SD-LIVE-01/record.md) · [Inspect proposal handling →](web/docs/reasonai-proposal-recovery.md)
 
-That is the product contract: **Nemotron proposes operations → validators check them → the engineer accepts or discards them → the canvas applies accepted changes.**
+### Knowledge · Research once, read efficiently
 
-[Inspect the recorded proposal](docs/evidence/runs/2026-10-11/SD-LIVE-01/record.md) · [See the proposal lifecycle](web/docs/reasonai-proposal-recovery.md)
+**Tavily discovery → deduplication → offline Nemotron enrichment → PostgreSQL/R2 → prepared feed.** The feed read path does not call an LLM per scroll. Ask ReasonAI can separately invoke a bounded live `search_web` tool for current public technical information.
+
+[Knowledge ingestion and ranking →](backend/docs/knowledge-shorts.md)
 
 ---
 
@@ -63,24 +69,34 @@ That is the product contract: **Nemotron proposes operations → validators chec
 
 ## Multi-model orchestration: Nebius Token Factory + Nemotron + Tavily
 
-ReasonAI calls the **Nebius Token Factory** OpenAI-compatible inference API from server-side routes. In System Design, users can choose a model tier or select **Auto**, which uses a constrained **Super → Ultra** escalation path.
+**Nebius Token Factory** is the server-side NVIDIA Nemotron inference boundary. **Nebius ConTree** is a separate sandbox execution boundary: it runs submitted code, not model-generated verdicts.
 
-| Component | Actual responsibility | Implemented selection / limit |
+| Nemotron tier | Role | Exact selection rule |
 | --- | --- | --- |
-| **Nemotron Lightning** · `nvidia/Nemotron-3_5-Lightning` | Explicit lightweight model option for System Design interactions. | Selected when `modelPreference = "lightning"`. **Auto does not route to Lightning.** |
-| **Nemotron Super** · `nvidia/nemotron-3-super-120b-a12b` | Default reasoning tier for ReasonAI; System Design baseline, DSA tutoring, saved Code Intelligence, and Knowledge enrichment. | Explicit `"super"` stays on Super; **Auto starts on Super**. |
-| **Nemotron Ultra** · `nvidia/Nemotron-3-Ultra-550b-a55b` | Explicit deeper-reasoning tier in System Design or the destination of an approved Auto escalation. | Selected explicitly with `"ultra"` or after a single valid `escalate_reasoning` tool request. |
-| **Auto routing** | Model-requested escalation with deterministic server validation. | Escalation is offered **only on the first tool round**, when preference is `auto`, tier is `super`, no canvas proposal is required, and escalation has not already occurred. |
-| **`escalate_reasoning`** | Requests a Super → Ultra switch before producing the answer. | Must be the **only call** in that round, with exactly one `reason`: `architecture_tradeoff`, `conflicting_constraints`, `deep_reliability`, or `complex_synthesis`. Invalid requests are rejected. |
-| **Tavily `search_web`** | Bounded public-source research for architecture and Knowledge chat. | System Design permits **up to two searches per turn**; each Tavily request asks for **up to three results** with a **7-second timeout**. The turn retains at most **six deduplicated evidence items**. |
-| **Agent and proposal safety** | Bounds model/tool cycles and validates proposed mutations. | **Four completed tool rounds maximum**; **15-second tool timeout**; **8,192 requested output tokens per System Design model round**; repeat calls rejected; **one missing-proposal retry** and **one proposal-validation repair**. |
-| **Durable System Design context** | Preserves bounded conversation state for later turns. | At most **six recent turns** plus a **4,000-character summary**; pending proposals are held separately from committed canvas documents. |
+| **Lightning** · `nvidia/Nemotron-3_5-Lightning` | Explicit lightweight System Design model option | `modelPreference = "lightning"`; **Auto never selects Lightning**. |
+| **Super** · `nvidia/nemotron-3-super-120b-a12b` | Default ReasonAI tier for DSA tutoring, Code Intelligence, System Design and Knowledge enrichment | `"super"` pins this tier. **Auto starts on Super**. |
+| **Ultra** · `nvidia/Nemotron-3-Ultra-550b-a55b` | Explicit deeper-reasoning option in System Design | `"ultra"`, or exactly one permitted escalation from Super. |
+| **Auto: Super → Ultra** | Model-requested escalation, validated by application code | Allowed only if **`toolRounds === 0`**, `modelPreference === "auto"`, current tier is `super`, no canvas proposal is required, and no earlier escalation occurred. The model must call **`escalate_reasoning` alone** with exactly one permitted `reason`: `architecture_tradeoff`, `conflicting_constraints`, `deep_reliability`, or `complex_synthesis`. |
 
-The server records the **selected preference, models used, final model, and escalation flag** as execution metadata. Tool calls and canvas operations are validated in application code rather than trusted because a model emitted them.
+The runtime tracks **selected preference, models used, final tier, and escalation**, instead of trusting the generated answer to report its own execution path.
 
-**Token economics are architectural, not rhetorical:** local Pyodide Run uses no hosted LLM; ConTree Submit spends sandbox compute rather than asking an LLM to grade correctness; offline Knowledge enrichment avoids a new model call on each feed scroll. Model inference is concentrated where reasoning and synthesis add value.
+<details>
+<summary><strong>Inspect exact Tavily, tool-loop, retry, and state limits</strong></summary>
 
-[System Design routing implementation](web/src/lib/reasonai/server/langgraph/system-design/nodes/agent.ts) · [Model registry](web/src/features/system-design/reasonai/model-registry.ts) · [Tool limits](web/src/lib/reasonai/server/langgraph/system-design/tools.ts) · [Sponsor integration](HACKATHON_SUBMISSION.md)
+| Boundary | Implemented guardrail |
+| --- | --- |
+| **Tavily research** | Up to **2 searches** in a System Design turn, **3 requested results** per search, up to **6 deduplicated evidence items**, **7 s** timeout per Tavily request. |
+| **Model rounds** | **8,192 requested output tokens** per System Design model call; maximum **4 completed tool rounds**. |
+| **Tool calls** | **15 s** tool execution timeout; repeated equivalent calls rejected. |
+| **Canvas operations** | Typed validation and authorization; **one missing-proposal retry** and **one proposal-validation repair**. |
+| **Durable conversation** | At most **6 recent turns** and a **4,000-character summary**; proposal state is separate from committed diagram state. |
+
+[Agent routing](web/src/lib/reasonai/server/langgraph/system-design/nodes/agent.ts) · [Model registry](web/src/features/system-design/reasonai/model-registry.ts) · [Tool executor](web/src/lib/reasonai/server/langgraph/system-design/tools.ts) · [Tavily implementation](web/src/lib/tavily/search.ts)
+</details>
+
+**Efficiency by design:** Pyodide's public Run does not require hosted inference; the judge—not an LLM—grades sandbox execution; prepared Knowledge stories avoid per-scroll model calls. Nemotron is reserved for tasks that require explanation, synthesis, and proposals.
+
+[Detailed Nebius + NVIDIA integration →](HACKATHON_SUBMISSION.md)
 
 ---
 
