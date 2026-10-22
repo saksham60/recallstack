@@ -20,7 +20,10 @@
 
 ### Designed for mobile. Connected to the same trusted engineering backend.
 
-![ReasonAI Mobile wide architecture: Flutter Feed, DSA, Revise, Library and Me; Riverpod, Supabase Auth and account-scoped Drift; FastAPI product APIs, Next.js streamed Nemotron tutoring, Tavily research, and Nebius ConTree sandbox judging](docs/assets/reasonai-mobile-overview.svg)
+<picture>
+  <source media="(max-width: 767px)" srcset="docs/assets/reasonai-mobile-overview-mobile.svg">
+  <img src="docs/assets/reasonai-mobile-overview.svg" alt="Flutter architecture showing Supabase identity, FastAPI and Next.js services, Nebius ConTree execution and local Drift storage">
+</picture>
 
 **Flutter owns the experience. FastAPI owns the learning data. Next.js owns interactive AI and judging.**
 
@@ -31,12 +34,17 @@ The app deliberately separates **device-local drafts and caches** from **server-
 
 ![Detailed ReasonAI Mobile architecture with Flutter, authenticated APIs, Drift, Supabase, Nemotron, Tavily, ConTree and persistence boundaries](docs/assets/reasonai-mobile-architecture.svg)
 
+[Open the full-resolution architecture SVG →](docs/assets/reasonai-mobile-architecture.svg)
+
 [Full mobile engineering reference →](docs/ENGINEERING_REFERENCE.md) · [Web architecture →](../web/README.md) · [Backend architecture →](../backend/README.md)
 </details>
 
 ## Three native workflows: learn, prove, retain
 
-![Three ReasonAI Mobile product flows: Knowledge Feed, Story, Ask ReasonAI and Tavily; DSA Explorer, Python editor, server Run/Submit and Nemotron review; Revision, Bookmarks, Saved Library and account isolation](docs/assets/reasonai-mobile-workflows.svg)
+<picture>
+  <source media="(max-width: 767px)" srcset="docs/assets/reasonai-mobile-workflows-mobile.svg">
+  <img src="docs/assets/reasonai-mobile-workflows.svg" alt="Mobile workflows for Knowledge Feed and AI search, authenticated DSA Run and Submit, and account-scoped learning data">
+</picture>
 
 ### 01 · Discover engineering knowledge
 
