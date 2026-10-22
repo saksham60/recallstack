@@ -20,7 +20,10 @@
 
 ### One workbench. Three evidence-backed workflows.
 
-![Wide architecture overview of ReasonAI: Pyodide and Nebius ConTree deterministic judging, LangGraph/NVIDIA Nemotron via Nebius Token Factory, reviewable Konva canvas changes, Go realtime collaboration, and Tavily-enriched Knowledge Feed](docs/assets/reasonai-overview.svg)
+<picture>
+  <source media="(max-width: 767px)" srcset="docs/assets/reasonai-overview-mobile.svg">
+  <img src="docs/assets/reasonai-overview.svg" alt="ReasonAI architecture overview showing clients, deterministic code execution, Nemotron reasoning, product data, and collaboration boundaries">
+</picture>
 
 **Deterministic systems decide what happened.** Pyodide runs public tests; ConTree isolates private-case Submit; trusted code grades and persists verdicts; Go sequences shared canvas operations. **Nemotron reasons over that evidence**, invokes bounded Tavily search, and proposes validated changes. **Engineers decide what to accept.**
 
@@ -29,12 +32,17 @@
 
 ![Detailed ReasonAI technical architecture](docs/assets/reasonai-architecture.svg)
 
+[Open the full-resolution architecture SVG →](docs/assets/reasonai-architecture.svg)
+
 [Read the technical architecture →](docs/ARCHITECTURE.md)
 </details>
 
 ## The core loops: from plausible answers to inspectable evidence
 
-![Two ReasonAI engineering workflows: recorded 3Sum Pyodide 9/9 to Nebius ConTree wrong_answer and saved Nemotron review; System Design typed Nemotron proposal and human approval architecture](docs/assets/reasonai-workflows.svg)
+<picture>
+  <source media="(max-width: 767px)" srcset="docs/assets/reasonai-workflows-mobile.svg">
+  <img src="docs/assets/reasonai-workflows.svg" alt="ReasonAI DSA, System Design and Knowledge workflows showing deterministic judging, human-approved changes and prepared feed delivery">
+</picture>
 
 ### DSA · A green Run is not a trusted Submit
 
