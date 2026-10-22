@@ -8,83 +8,21 @@ A crucial architecture boundary is that this service is **not the primary intera
 
 ---
 
-## What the backend owns
+# 1. Backend system architecture
 
-| Capability | Backend responsibility |
-| --- | --- |
-| Identity projection | Verify Supabase access tokens, resolve/create application profiles and roles |
-| Catalog | Domains, categories, topics, searchable published content |
-| DSA content | Publication-gated problem specifications, verified public fixtures, study-note documents, practice resources, taxonomy and progress projections |
-| Learning | Progress, bookmarks, notes and activity events |
-| Practice | Immutable practice attempts and initial review scheduling |
-| Recall / Revise | Review cards, submissions, scheduling and immutable history |
-| System Design persistence | Per-user diagram snapshots with optimistic revision control |
-| Knowledge Feed | Prepared stories, deterministic ranking, preferences, viewer state and interaction events |
-| Knowledge ingestion | Offline discovery → validation → Nemotron enrichment → R2 → PostgreSQL |
-| Offline sync | Device registry, push mutations, incremental pull, full-resync snapshots and retention |
-| Administration | Content authoring/publishing, user inspection, role administration and analytics |
-| Search | PostgreSQL full-text search over published content |
-| Platform concerns | health/readiness, body limits, request IDs, structured errors, DB instrumentation |
+![ReasonAI Backend architecture illustrating authenticated Next.js and Flutter clients, Supabase JWT verification, FastAPI middleware, modular services, SQLAlchemy Unit of Work, Supabase PostgreSQL, Content and DSA, learning, revision, diagram persistence, Knowledge Feed, offline sync, admin, Cloud Run Knowledge Job, Tavily discovery, NVIDIA Nemotron, Cloudflare R2, and the separate Next.js AI, Nebius ConTree and Go WebSocket services](docs/assets/reasonai-backend-architecture.svg)
 
-### Explicitly outside this service
+**The architecture separates five responsibilities:**
 
-The DSA REST contracts, reviewer preview rules, learner synchronization behavior and examples
-are documented in [DSA API contract](docs/dsa-api-contract.md), with the exported
-[OpenAPI specification](docs/dsa-openapi.json) and [verification results](docs/dsa-verification.md).
+1. **Request security:** authenticated web/mobile/admin calls enter FastAPI on Cloud Run; middleware handles CORS, body limits, request IDs and trace context. Server-side Supabase JWT verification resolves the effective profile and permissions.
+2. **Deterministic domain logic:** FastAPI routers and Pydantic contracts call application services through explicit ports and request-scoped SQLAlchemy **Unit of Work** transactions against Supabase PostgreSQL. Modules cover DSA catalog/content, progress, practice, revision, saved diagrams, Knowledge Feed, offline sync, admin and search.
+3. **Prepared Knowledge serving:** the regular `/api/v1/knowledge/feed` request uses PostgreSQL-backed **deterministic ranking** and scoped signed cursors. Web/mobile clients receive prepared stories and public R2 image URLs; a feed read does **not** invoke Nemotron or Tavily.
+4. **Offline Knowledge production:** a separate **Cloud Run Job**, protected by a PostgreSQL advisory lock, discovers technical stories through **Tavily and Hacker News**. Deduplication, recency/content gates and image checks precede **NVIDIA Nemotron enrichment on Nebius Token Factory**, with WebP media in **Cloudflare R2** and authoritative story metadata committed to PostgreSQL.
+5. **Adjacent runtime boundaries:** **Next.js LangGraph agents** handle interactive AI and Tavily `search_web`; **Vercel Queue → Nebius ConTree Sandbox** runs isolated DSA Submit followed by trusted judging; a separate **Go WebSocket** service handles ephemeral System Design Live Share. None of these is the FastAPI request execution engine.
 
-The following currently live elsewhere:
+**State and security guarantees:** published content is version-controlled; progress, diagrams and sync mutations are owner-scoped and transactionally validated. **Go room presence is not persisted diagram state**, Nebius sandbox operation status is not an accepted judge verdict, and conversational memory is not FastAPI learner progress. Model/provider secrets for the Knowledge Job stay in that Job's environment rather than the online Feed API.
 
-- interactive DSA/System Design LangGraph execution
-- ReasonAI NDJSON chat streaming
-- server-owned ReasonAI conversation/run persistence
-- cross-conversation DSA learner memory extraction/storage
-- System Design realtime WebSocket room state
-- Nemotron/Tavily execution for interactive ReasonAI turns
-- web/mobile presentation state
-
-This separation prevents the FastAPI domain backend from becoming coupled to one model provider or conversational runtime.
-
----
-
-## DSA V3 integration and service boundaries
-
-This FastAPI backend owns product APIs and data, not the interactive web AI-agent runtime or isolated execution worker. Next.js owns interactive LangGraph/Nemotron orchestration; Supabase persists application, execution and report state, while a separate Go service provides realtime collaboration.
-
-DSA problem publication and metadata are managed through FastAPI, while web-side infrastructure handles **Nebius ConTree Sandbox execution**, trusted judging, saved verdicts and Nemotron Code Intelligence. A provisional result (`provisional_pass`) must not be represented as an independently certified `Accepted`. For implementation details and test records, see [execution integration evidence](../docs/dsa-v3/integration-20261017.md), [certification requirements](../docs/dsa-v3/certification.md) and [Results Studio](../docs/dsa-v3/results-studio-handoff.md).
-
-# 1. High-level architecture
-
-```mermaid
-flowchart TB
-    WEB[Next.js Web] --> API[FastAPI API\nCloud Run]
-    MOBILE[Flutter Mobile] --> API
-    WEB_AI[Next.js ReasonAI runtime] --> API
-
-    AUTH[Supabase Auth / JWKS] --> API
-
-    subgraph FASTAPI[ReasonAI Backend]
-      API --> MW[Request middleware\nrequest ID + body limit + CORS]
-      MW --> ROUTES[Presentation / FastAPI routers]
-      ROUTES --> APP[Application services]
-      APP --> UOW[Unit of Work / repository ports]
-      UOW --> INFRA[SQLAlchemy infrastructure]
-      INFRA --> DB[(PostgreSQL / Supabase)]
-
-      APP --> EVENTS[In-process domain events]
-    end
-
-    subgraph KNOWLEDGE_JOB[Knowledge Refresh Job]
-      JOB[Cloud Run Job] --> DISC[Tavily + Hacker News discovery]
-      DISC --> ENRICH[Article/image validation]
-      ENRICH --> NEM[NVIDIA Nemotron\nNebius Token Factory]
-      NEM --> R2[Cloudflare R2]
-      NEM --> DB
-    end
-
-    API -->|optional trigger| JOB
-    R2 --> WEB
-    R2 --> MOBILE
-```
+**Code and contracts:** [FastAPI composition](src/recallstack/composition/) · [Domain modules](src/recallstack/modules/) · [Knowledge refresh job](src/recallstack/modules/knowledge/jobs/refresh.py) · [Knowledge APIs and ranking](docs/knowledge-shorts.md) · [Offline sync](docs/offline-sync.md) · [DSA execution adapter](../web/src/lib/dsa-execution/contree.ts) · [Go Live Share](../realtime/README.md).
 
 ### Runtime paths
 
@@ -133,6 +71,52 @@ prepared story becomes eligible for feed
 ```
 
 No model call belongs on the normal Knowledge Feed read path.
+
+---
+
+## What the backend owns
+
+| Capability | Backend responsibility |
+| --- | --- |
+| Identity projection | Verify Supabase access tokens, resolve/create application profiles and roles |
+| Catalog | Domains, categories, topics, searchable published content |
+| DSA content | Publication-gated problem specifications, verified public fixtures, study-note documents, practice resources, taxonomy and progress projections |
+| Learning | Progress, bookmarks, notes and activity events |
+| Practice | Immutable practice attempts and initial review scheduling |
+| Recall / Revise | Review cards, submissions, scheduling and immutable history |
+| System Design persistence | Per-user diagram snapshots with optimistic revision control |
+| Knowledge Feed | Prepared stories, deterministic ranking, preferences, viewer state and interaction events |
+| Knowledge ingestion | Offline discovery → validation → Nemotron enrichment → R2 → PostgreSQL |
+| Offline sync | Device registry, push mutations, incremental pull, full-resync snapshots and retention |
+| Administration | Content authoring/publishing, user inspection, role administration and analytics |
+| Search | PostgreSQL full-text search over published content |
+| Platform concerns | health/readiness, body limits, request IDs, structured errors, DB instrumentation |
+
+### Explicitly outside this service
+
+The DSA REST contracts, reviewer preview rules, learner synchronization behavior and examples
+are documented in [DSA API contract](docs/dsa-api-contract.md), with the exported
+[OpenAPI specification](docs/dsa-openapi.json) and [verification results](docs/dsa-verification.md).
+
+The following currently live elsewhere:
+
+- interactive DSA/System Design LangGraph execution
+- ReasonAI NDJSON chat streaming
+- server-owned ReasonAI conversation/run persistence
+- cross-conversation DSA learner memory extraction/storage
+- System Design realtime WebSocket room state
+- Nemotron/Tavily execution for interactive ReasonAI turns
+- web/mobile presentation state
+
+This separation prevents the FastAPI domain backend from becoming coupled to one model provider or conversational runtime.
+
+---
+
+## DSA V3 integration and service boundaries
+
+This FastAPI backend owns product APIs and data, not the interactive web AI-agent runtime or isolated execution worker. Next.js owns interactive LangGraph/Nemotron orchestration; Supabase persists application, execution and report state, while a separate Go service provides realtime collaboration.
+
+DSA problem publication and metadata are managed through FastAPI, while web-side infrastructure handles **Nebius ConTree Sandbox execution**, trusted judging, saved verdicts and Nemotron Code Intelligence. A provisional result (`provisional_pass`) must not be represented as an independently certified `Accepted`. For implementation details and test records, see [execution integration evidence](../docs/dsa-v3/integration-20261017.md), [certification requirements](../docs/dsa-v3/certification.md) and [Results Studio](../docs/dsa-v3/results-studio-handoff.md).
 
 ---
 
