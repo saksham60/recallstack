@@ -6,15 +6,15 @@
 
 ### Architecture first — where code ends and reasoning begins
 
-![ReasonAI architecture showing web and mobile clients, deterministic Pyodide and sandbox execution, validated canvas operations, Go collaboration, and LangGraph routing to NVIDIA Nemotron on Nebius Token Factory with Tavily research](docs/assets/reasonai-architecture.svg)
+![ReasonAI architecture showing Pyodide Run, Vercel Queue to Nebius ConTree disposable sandbox Submit, deterministic judging, Supabase verdicts, Nemotron Code Intelligence through Nebius Token Factory, LangGraph tool calls to Tavily, and offline feed discovery](docs/assets/reasonai-architecture.svg)
 
-**Not a prompt wrapper:** Nemotron **reasons, teaches, analyzes, and proposes**. Deterministic code **runs tests, grades submissions, validates typed operations, orders real-time updates, and persists authoritative state**. The diagram also shows the **Nemotron → validated `search_web` → Tavily → source evidence → Nemotron** loop and the separate offline Tavily News discovery pipeline. AI-generated canvas changes require human approval. All Nebius credentials remain server-side. [Inspect the actual flows and trust boundaries →](docs/ARCHITECTURE.md)
+**Not a prompt wrapper:** Nemotron **reasons, teaches, analyzes, and proposes**. Deterministic code **runs tests, grades submissions, validates typed operations, orders real-time updates, and persists authoritative state**. The architecture explicitly separates **Nebius ConTree Sandbox** (Vercel Queue → isolated Python execution → deterministic judge → saved verdict → Nemotron Code Intelligence) from **Nebius Token Factory** (model inference), alongside the **Nemotron → validated `search_web` → Tavily → source evidence → Nemotron** loop and separate offline Tavily News discovery. AI-generated canvas changes require human approval. All Nebius credentials remain server-side. [Inspect the actual flows and trust boundaries →](docs/ARCHITECTURE.md)
 
 ## A concrete failure: visible tests are not the whole truth
 
 | Before: ordinary local confidence | After: evidence-backed reasoning in ReasonAI |
 | --- | --- |
-| A deliberately overfitted **3Sum** implementation passed **9/9 visible tests**. That did **not** establish correctness. | A real sandbox-backed **Submit** returned **`wrong_answer`** on the provisional judging path; the result was saved with submission history. |
+| A deliberately overfitted **3Sum** implementation passed **9/9 visible tests**. That did **not** establish correctness. | A real **Nebius ConTree Sandbox**-backed **Submit** returned **`wrong_answer`** on the provisional judging path; the result was saved with submission history. |
 | The learner has a green local result but no reliable hidden-case verdict. | **NVIDIA Nemotron Super** produced a persisted Code Intelligence review associated with that exact submission. |
 
 This is a [documented October 17 production run](docs/dsa-v3/integration-20261017.md), **not** evidence that a learner subsequently solved the problem or improved interview performance. Trusted judging is deterministic; the model's explanation is advisory.
