@@ -50,7 +50,7 @@ This separation prevents the FastAPI domain backend from becoming coupled to one
 
 This FastAPI backend owns product APIs and data, not the interactive web AI-agent runtime or isolated execution worker. Next.js owns interactive LangGraph/Nemotron orchestration; Supabase persists application, execution and report state, while a separate Go service provides realtime collaboration.
 
-The [October 17 production record](../docs/dsa-v3/integration-20261017.md) documents the **375-problem** published catalog and shared Run/Submit infrastructure. Ten problem versions had trusted certificates, while 365 were admitted through **provisional** grading; a passing provisional job is `provisional_pass`, not officially certified `Accepted`. Two authenticated production submissions and saved Nemotron Code Intelligence reports were verified, which does not imply 375 successful judged solutions. See also [certification](../docs/dsa-v3/certification.md) and the [Results Studio implementation](../docs/dsa-v3/results-studio-handoff.md).
+DSA problem publication and metadata are managed through FastAPI, while web-side infrastructure handles **Nebius ConTree Sandbox execution**, trusted judging, saved verdicts and Nemotron Code Intelligence. A provisional result (`provisional_pass`) must not be represented as an independently certified `Accepted`. For implementation details and test records, see [execution integration evidence](../docs/dsa-v3/integration-20261017.md), [certification requirements](../docs/dsa-v3/certification.md) and [Results Studio](../docs/dsa-v3/results-studio-handoff.md).
 
 # 1. High-level architecture
 
