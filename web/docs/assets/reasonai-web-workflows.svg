@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="639" viewBox="0 0 1600 639" role="img" aria-labelledby="title desc">
+<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0a1426"/><stop offset=".56" stop-color="#0c1931"/><stop offset="1" stop-color="#171630"/></linearGradient><pattern id="grid" width="45" height="45" patternUnits="userSpaceOnUse"><path d="M45 0H0V45" stroke="#7193bd" stroke-opacity=".15" fill="none"/></pattern></defs><rect width="1600" height="639" rx="18" fill="url(#bg)"/><rect width="1600" height="639" rx="18" fill="url(#grid)"/>
+<title id="title">ReasonAI Web: three engineering workflows across coding, System Design and Knowledge</title>
+<desc id="desc">Three workflows: DSA Monaco editor and browser-local Pyodide public Run then queued Nebius ConTree sandbox Submit, deterministic verdict and saved Nemotron Code Intelligence. System Design Konva canvas, Nemotron LangGraph proposal and Tavily research, schema checks, human Accept or Discard and Go Live Share. Knowledge Tavily discovery, offline Nemotron enrichment, prepared Supabase R2 content, feed and live search-grounded chat. These are architecture illustrations, not screenshots of completed user-acceptance events.</desc>
+<text x="55" y="61" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="27" font-weight="800" fill="#f0f6ff">THREE WEB WORKFLOWS · ONE TRUST BOUNDARY</text>
+<text x="55" y="94" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="560" fill="#abc0d7">Code executes. Models reason. Engineers review.</text>
+<rect x="52" y="130" width="1495" height="146" rx="21" fill="#13213a" stroke="#344962" stroke-width="1.5"/>
+<rect x="52" y="130" width="8" height="146" rx="3" fill="#47dbc5" stroke="#47dbc5" stroke-width="0"/>
+<rect x="79" y="143" width="200" height="32" rx="16" fill="#1a2b44" stroke="#47dbc5" stroke-width="0.8"/>
+<text x="179" y="165" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="14" font-weight="800" fill="#47dbc5">01  VERIFY CODE</text>
+<text x="298" y="166" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="18" font-weight="550" fill="#abc0d7">Public green tests are not final verdicts</text>
+<rect x="81" y="179" width="326" height="86" rx="16" fill="#15243c" stroke="#38536d" stroke-width="1.5"/>
+<rect x="81" y="179" width="6" height="86" rx="3" fill="#47dbc5" stroke="#47dbc5" stroke-width="0"/>
+<text x="101" y="216" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="740" fill="#f0f6ff">Monaco + Pyodide</text>
+<text x="101" y="249" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="500" fill="#abc0d7">Public Run in browser</text>
+<rect x="451" y="179" width="326" height="86" rx="16" fill="#15243c" stroke="#38536d" stroke-width="1.5"/>
+<rect x="451" y="179" width="6" height="86" rx="3" fill="#47dbc5" stroke="#47dbc5" stroke-width="0"/>
+<text x="471" y="216" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="740" fill="#f0f6ff">Trusted Submit</text>
+<text x="471" y="249" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="500" fill="#abc0d7">Vercel Queue · ConTree</text>
+<rect x="822" y="179" width="326" height="86" rx="16" fill="#15243c" stroke="#38536d" stroke-width="1.5"/>
+<rect x="822" y="179" width="6" height="86" rx="3" fill="#f7c67f" stroke="#f7c67f" stroke-width="0"/>
+<text x="842" y="216" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="740" fill="#f0f6ff">Deterministic Judge</text>
+<text x="842" y="249" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="500" fill="#abc0d7">Official / provisional verdict</text>
+<rect x="1192" y="179" width="326" height="86" rx="16" fill="#15243c" stroke="#38536d" stroke-width="1.5"/>
+<rect x="1192" y="179" width="6" height="86" rx="3" fill="#47dbc5" stroke="#47dbc5" stroke-width="0"/>
+<text x="1212" y="216" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="740" fill="#f0f6ff">Nemotron Super</text>
+<text x="1212" y="249" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="500" fill="#abc0d7">Saved Code Intelligence</text>
+<path d="M412 224L431 224" fill="none" stroke="#47dbc5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M428 217L441 224L428 231" fill="none" stroke="#47dbc5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M782 224L802 224" fill="none" stroke="#47dbc5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M799 217L812 224L799 231" fill="none" stroke="#47dbc5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1153 224L1172 224" fill="none" stroke="#47dbc5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1169 217L1182 224L1169 231" fill="none" stroke="#47dbc5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="52" y="294" width="1495" height="146" rx="21" fill="#13213a" stroke="#344962" stroke-width="1.5"/>
+<rect x="52" y="294" width="8" height="146" rx="3" fill="#b39bff" stroke="#b39bff" stroke-width="0"/>
+<rect x="79" y="307" width="200" height="32" rx="16" fill="#1a2b44" stroke="#b39bff" stroke-width="0.8"/>
+<text x="179" y="329" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="14" font-weight="800" fill="#b39bff">02  REVIEW SYSTEMS</text>
+<text x="298" y="330" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="18" font-weight="550" fill="#abc0d7">AI suggestions are not silent edits</text>
+<rect x="81" y="343" width="326" height="86" rx="16" fill="#15243c" stroke="#38536d" stroke-width="1.5"/>
+<rect x="81" y="343" width="6" height="86" rx="3" fill="#b39bff" stroke="#b39bff" stroke-width="0"/>
+<text x="101" y="380" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="740" fill="#f0f6ff">Konva Canvas</text>
+<text x="101" y="413" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="500" fill="#abc0d7">Architecture context</text>
+<rect x="451" y="343" width="326" height="86" rx="16" fill="#15243c" stroke="#38536d" stroke-width="1.5"/>
+<rect x="451" y="343" width="6" height="86" rx="3" fill="#b39bff" stroke="#b39bff" stroke-width="0"/>
+<text x="471" y="380" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="740" fill="#f0f6ff">LangGraph Agent</text>
+<text x="471" y="413" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="500" fill="#abc0d7">Nemotron · Tavily tools</text>
+<rect x="822" y="343" width="326" height="86" rx="16" fill="#15243c" stroke="#38536d" stroke-width="1.5"/>
+<rect x="822" y="343" width="6" height="86" rx="3" fill="#b39bff" stroke="#b39bff" stroke-width="0"/>
+<text x="842" y="380" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="740" fill="#f0f6ff">Validated Proposal</text>
+<text x="842" y="413" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="500" fill="#abc0d7">Typed node + edge ops</text>
+<rect x="1192" y="343" width="326" height="86" rx="16" fill="#15243c" stroke="#38536d" stroke-width="1.5"/>
+<rect x="1192" y="343" width="6" height="86" rx="3" fill="#f7c67f" stroke="#f7c67f" stroke-width="0"/>
+<text x="1212" y="380" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="740" fill="#f0f6ff">Human + Live Share</text>
+<text x="1212" y="413" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="500" fill="#abc0d7">Accept / Discard · Go ACK</text>
+<path d="M412 388L431 388" fill="none" stroke="#b39bff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M428 381L441 388L428 395" fill="none" stroke="#b39bff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M782 388L802 388" fill="none" stroke="#b39bff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M799 381L812 388L799 395" fill="none" stroke="#b39bff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1153 388L1172 388" fill="none" stroke="#b39bff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1169 381L1182 388L1169 395" fill="none" stroke="#b39bff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="52" y="458" width="1495" height="146" rx="21" fill="#13213a" stroke="#344962" stroke-width="1.5"/>
+<rect x="52" y="458" width="8" height="146" rx="3" fill="#f7c67f" stroke="#f7c67f" stroke-width="0"/>
+<rect x="79" y="471" width="200" height="32" rx="16" fill="#1a2b44" stroke="#f7c67f" stroke-width="0.8"/>
+<text x="179" y="493" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="14" font-weight="800" fill="#f7c67f">03  FOLLOW KNOWLEDGE</text>
+<text x="298" y="494" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="18" font-weight="550" fill="#abc0d7">Prepare stories before users scroll</text>
+<rect x="81" y="507" width="326" height="86" rx="16" fill="#15243c" stroke="#38536d" stroke-width="1.5"/>
+<rect x="81" y="507" width="6" height="86" rx="3" fill="#f7c67f" stroke="#f7c67f" stroke-width="0"/>
+<text x="101" y="544" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="740" fill="#f0f6ff">Tavily Discovery</text>
+<text x="101" y="577" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="500" fill="#abc0d7">News · source filtering</text>
+<rect x="451" y="507" width="326" height="86" rx="16" fill="#15243c" stroke="#38536d" stroke-width="1.5"/>
+<rect x="451" y="507" width="6" height="86" rx="3" fill="#f7c67f" stroke="#f7c67f" stroke-width="0"/>
+<text x="471" y="544" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="740" fill="#f0f6ff">Nemotron Offline</text>
+<text x="471" y="577" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="500" fill="#abc0d7">Enrichment · dedupe</text>
+<rect x="822" y="507" width="326" height="86" rx="16" fill="#15243c" stroke="#38536d" stroke-width="1.5"/>
+<rect x="822" y="507" width="6" height="86" rx="3" fill="#f7c67f" stroke="#f7c67f" stroke-width="0"/>
+<text x="842" y="544" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="740" fill="#f0f6ff">Postgres + R2</text>
+<text x="842" y="577" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="500" fill="#abc0d7">Prepared feed content</text>
+<rect x="1192" y="507" width="326" height="86" rx="16" fill="#15243c" stroke="#38536d" stroke-width="1.5"/>
+<rect x="1192" y="507" width="6" height="86" rx="3" fill="#f7c67f" stroke="#f7c67f" stroke-width="0"/>
+<text x="1212" y="544" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="740" fill="#f0f6ff">Story + AI Chat</text>
+<text x="1212" y="577" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="500" fill="#abc0d7">Read · source-grounded</text>
+<path d="M412 552L431 552" fill="none" stroke="#f7c67f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M428 545L441 552L428 559" fill="none" stroke="#f7c67f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M782 552L802 552" fill="none" stroke="#f7c67f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M799 545L812 552L799 559" fill="none" stroke="#f7c67f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1153 552L1172 552" fill="none" stroke="#f7c67f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1169 545L1182 552L1169 559" fill="none" stroke="#f7c67f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="54" y="630" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="500" fill="#abc0d7">Workflow illustration, not live UI footage. In System Design, recorded proposal creation does not itself establish accepted canvas persistence.</text>
+</svg>
