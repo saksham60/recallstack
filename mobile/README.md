@@ -813,7 +813,7 @@ The app creates a separate SQLite location per authenticated user:
 
 This prevents two accounts on the same device from sharing the same local library/draft rows.
 
-Current schema version: `1`.
+Drift schema version: `2`. Upgrading from v1 adds `ClientRecords` without replacing existing saved stories or drafts.
 
 ### SavedStories
 
@@ -838,6 +838,10 @@ updatedAt
 ```
 
 Used to protect unfinished DSA work.
+
+### ClientRecords
+
+Stores account-scoped client recovery data such as durable request/idempotency payloads and references to server-side conversation runs. These records are **not** trusted submission verdicts or a mirror of server state.
 
 ### Important boundary
 
