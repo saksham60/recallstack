@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="633" viewBox="0 0 1600 633" role="img" aria-labelledby="title desc">
+<defs><linearGradient id="background" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0a1121"/><stop offset=".53" stop-color="#0e1931"/><stop offset="1" stop-color="#191731"/></linearGradient><pattern id="grid" width="46" height="46" patternUnits="userSpaceOnUse"><path d="M46 0H0V46" fill="none" stroke="#80a4c5" stroke-width=".6" opacity=".18"/></pattern></defs><rect width="1600" height="633" rx="17" fill="url(#background)"/><rect width="1600" height="633" rx="17" fill="url(#grid)"/>
+<title id="title">ReasonAI backend workflows for verified API, offline Knowledge ingestion and idempotent device synchronization</title>
+<desc id="desc">Three implementation workflows: Supabase JWT verification to FastAPI/Pydantic to domain application Unit of Work to PostgreSQL. Knowledge refresh uses advisory lock with Tavily and Hacker News discovery, quality and image validation, Nebius Nemotron enrichment, Cloudflare R2 and committed stories before deterministic feed reads. Offline device sync verifies owner and mutation identity, applies transactionally with a mutation ledger, then serves cursor-based incremental pull or full resync with acknowledgement. The backend does not run interactive LangGraph agents or Nebius ConTree Submit.</desc>
+<text x="55" y="62" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="820" font-size="27" fill="#f2f7ff">THREE WORKFLOWS. ONE AUTHORITATIVE DATA BOUNDARY.</text>
+<text x="55" y="94" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="550" font-size="19" fill="#a7b9ce">API transactions, Knowledge production, and replay-safe learner state.</text>
+<rect x="52" y="127" width="1496" height="147" rx="22" fill="#121f34" stroke="#314763" stroke-width="1.5"/>
+<rect x="52" y="127" width="8" height="147" rx="3" fill="#49ddc9" stroke="#49ddc9" stroke-width="0"/>
+<rect x="78" y="140" width="166" height="30" rx="15" fill="#192e43" stroke="#49ddc9" stroke-width="0.75"/>
+<text x="161" y="161" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="800" font-size="14" fill="#49ddc9">01  SERVE</text>
+<text x="262" y="163" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="550" font-size="18" fill="#a7b9ce">Verified product API request</text>
+<rect x="80" y="178" width="314" height="84" rx="18" fill="#14243a" stroke="#364e69" stroke-width="1.5"/>
+<rect x="80" y="178" width="6" height="84" rx="3" fill="#49ddc9" stroke="#49ddc9" stroke-width="0"/>
+<text x="101" y="216" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="750" font-size="19" fill="#f2f7ff">Supabase JWT</text>
+<text x="101" y="250" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="540" font-size="16" fill="#a7b9ce">Identity · issuer · audience</text>
+<path d="M400 220H435" stroke="#49ddc9" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<path d="M431 213L444 220L431 227" stroke="#49ddc9" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<rect x="454" y="178" width="314" height="84" rx="18" fill="#14243a" stroke="#364e69" stroke-width="1.5"/>
+<rect x="454" y="178" width="6" height="84" rx="3" fill="#49ddc9" stroke="#49ddc9" stroke-width="0"/>
+<text x="475" y="216" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="750" font-size="19" fill="#f2f7ff">FastAPI Contract</text>
+<text x="475" y="250" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="540" font-size="16" fill="#a7b9ce">Middleware · Pydantic</text>
+<path d="M774 220H809" stroke="#49ddc9" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<path d="M805 213L818 220L805 227" stroke="#49ddc9" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<rect x="828" y="178" width="314" height="84" rx="18" fill="#14243a" stroke="#364e69" stroke-width="1.5"/>
+<rect x="828" y="178" width="6" height="84" rx="3" fill="#49ddc9" stroke="#49ddc9" stroke-width="0"/>
+<text x="849" y="216" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="750" font-size="19" fill="#f2f7ff">Application / UoW</text>
+<text x="849" y="250" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="540" font-size="16" fill="#a7b9ce">Owner scope · domain rules</text>
+<path d="M1148 220H1183" stroke="#49ddc9" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<path d="M1179 213L1192 220L1179 227" stroke="#49ddc9" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<rect x="1202" y="178" width="314" height="84" rx="18" fill="#14243a" stroke="#364e69" stroke-width="1.5"/>
+<rect x="1202" y="178" width="6" height="84" rx="3" fill="#49ddc9" stroke="#49ddc9" stroke-width="0"/>
+<text x="1223" y="216" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="750" font-size="19" fill="#f2f7ff">PostgreSQL Commit</text>
+<text x="1223" y="250" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="540" font-size="16" fill="#a7b9ce">State + typed response</text>
+<rect x="52" y="292" width="1496" height="147" rx="22" fill="#121f34" stroke="#314763" stroke-width="1.5"/>
+<rect x="52" y="292" width="8" height="147" rx="3" fill="#b49cff" stroke="#b49cff" stroke-width="0"/>
+<rect x="78" y="305" width="166" height="30" rx="15" fill="#192e43" stroke="#b49cff" stroke-width="0.75"/>
+<text x="161" y="326" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="800" font-size="14" fill="#b49cff">02  ENRICH</text>
+<text x="262" y="328" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="550" font-size="18" fill="#a7b9ce">Separate paid/offline Knowledge job</text>
+<rect x="80" y="343" width="314" height="84" rx="18" fill="#14243a" stroke="#364e69" stroke-width="1.5"/>
+<rect x="80" y="343" width="6" height="84" rx="3" fill="#b49cff" stroke="#b49cff" stroke-width="0"/>
+<text x="101" y="381" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="750" font-size="19" fill="#f2f7ff">Advisory Lock</text>
+<text x="101" y="415" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="540" font-size="16" fill="#a7b9ce">One refresh owner</text>
+<path d="M400 385H435" stroke="#b49cff" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<path d="M431 378L444 385L431 392" stroke="#b49cff" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<rect x="454" y="343" width="314" height="84" rx="18" fill="#14243a" stroke="#364e69" stroke-width="1.5"/>
+<rect x="454" y="343" width="6" height="84" rx="3" fill="#b49cff" stroke="#b49cff" stroke-width="0"/>
+<text x="475" y="381" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="750" font-size="19" fill="#f2f7ff">Tavily + HN</text>
+<text x="475" y="415" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="540" font-size="16" fill="#a7b9ce">Discover · dedupe</text>
+<path d="M774 385H809" stroke="#b49cff" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<path d="M805 378L818 385L805 392" stroke="#b49cff" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<rect x="828" y="343" width="314" height="84" rx="18" fill="#14243a" stroke="#364e69" stroke-width="1.5"/>
+<rect x="828" y="343" width="6" height="84" rx="3" fill="#b49cff" stroke="#b49cff" stroke-width="0"/>
+<text x="849" y="381" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="750" font-size="19" fill="#f2f7ff">Quality + Nemotron</text>
+<text x="849" y="415" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="540" font-size="16" fill="#a7b9ce">Images first · enrich</text>
+<path d="M1148 385H1183" stroke="#b49cff" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<path d="M1179 378L1192 385L1179 392" stroke="#b49cff" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<rect x="1202" y="343" width="314" height="84" rx="18" fill="#14243a" stroke="#364e69" stroke-width="1.5"/>
+<rect x="1202" y="343" width="6" height="84" rx="3" fill="#b49cff" stroke="#b49cff" stroke-width="0"/>
+<text x="1223" y="381" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="750" font-size="19" fill="#f2f7ff">R2 + PostgreSQL</text>
+<text x="1223" y="415" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="540" font-size="16" fill="#a7b9ce">Story ready for SQL feed</text>
+<rect x="52" y="457" width="1496" height="147" rx="22" fill="#121f34" stroke="#314763" stroke-width="1.5"/>
+<rect x="52" y="457" width="8" height="147" rx="3" fill="#f7ca82" stroke="#f7ca82" stroke-width="0"/>
+<rect x="78" y="470" width="166" height="30" rx="15" fill="#192e43" stroke="#f7ca82" stroke-width="0.75"/>
+<text x="161" y="491" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="800" font-size="14" fill="#f7ca82">03  SYNCHRONIZE</text>
+<text x="262" y="493" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="550" font-size="18" fill="#a7b9ce">Idempotent, owner-scoped mobile protocol</text>
+<rect x="80" y="508" width="314" height="84" rx="18" fill="#14243a" stroke="#364e69" stroke-width="1.5"/>
+<rect x="80" y="508" width="6" height="84" rx="3" fill="#f7ca82" stroke="#f7ca82" stroke-width="0"/>
+<text x="101" y="546" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="750" font-size="19" fill="#f2f7ff">Device + Identity</text>
+<text x="101" y="580" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="540" font-size="16" fill="#a7b9ce">Authenticated registration</text>
+<path d="M400 550H435" stroke="#f7ca82" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<path d="M431 543L444 550L431 557" stroke="#f7ca82" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<rect x="454" y="508" width="314" height="84" rx="18" fill="#14243a" stroke="#364e69" stroke-width="1.5"/>
+<rect x="454" y="508" width="6" height="84" rx="3" fill="#f7ca82" stroke="#f7ca82" stroke-width="0"/>
+<text x="475" y="546" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="750" font-size="19" fill="#f2f7ff">Mutation Hash</text>
+<text x="475" y="580" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="540" font-size="16" fill="#a7b9ce">Reject changed-ID replay</text>
+<path d="M774 550H809" stroke="#f7ca82" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<path d="M805 543L818 550L805 557" stroke="#f7ca82" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<rect x="828" y="508" width="314" height="84" rx="18" fill="#14243a" stroke="#364e69" stroke-width="1.5"/>
+<rect x="828" y="508" width="6" height="84" rx="3" fill="#f7ca82" stroke="#f7ca82" stroke-width="0"/>
+<text x="849" y="546" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="750" font-size="19" fill="#f2f7ff">Ledger + Cursor</text>
+<text x="849" y="580" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="540" font-size="16" fill="#a7b9ce">Transactional result</text>
+<path d="M1148 550H1183" stroke="#f7ca82" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<path d="M1179 543L1192 550L1179 557" stroke="#f7ca82" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+<rect x="1202" y="508" width="314" height="84" rx="18" fill="#14243a" stroke="#364e69" stroke-width="1.5"/>
+<rect x="1202" y="508" width="6" height="84" rx="3" fill="#f7ca82" stroke="#f7ca82" stroke-width="0"/>
+<text x="1223" y="546" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="750" font-size="19" fill="#f2f7ff">Pull / Resync</text>
+<text x="1223" y="580" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="540" font-size="16" fill="#a7b9ce">Snapshot · exact ACK</text>
+<text x="54" y="626" text-anchor="start" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="570" font-size="16" fill="#a7b9ce">The separate Next.js AI runtime and ConTree judge are deliberately outside these FastAPI workflows.</text>
+</svg>
