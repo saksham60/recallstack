@@ -22,7 +22,7 @@ A crucial architecture boundary is that this service is **not the primary intera
 
 **State and security guarantees:** published content is version-controlled; progress, diagrams and sync mutations are owner-scoped and transactionally validated. **Go room presence is not persisted diagram state**, Nebius sandbox operation status is not an accepted judge verdict, and conversational memory is not FastAPI learner progress. Model/provider secrets for the Knowledge Job stay in that Job's environment rather than the online Feed API.
 
-**Code and contracts:** [FastAPI composition](src/recallstack/composition/) · [Domain modules](src/recallstack/modules/) · [Knowledge refresh job](src/recallstack/modules/knowledge/jobs/refresh.py) · [Knowledge APIs and ranking](docs/knowledge-shorts.md) · [Offline sync](docs/offline-sync.md) · [DSA execution adapter](../web/src/lib/dsa-execution/contree.ts) · [Go Live Share](../realtime/README.md).
+**Code and contracts:** [FastAPI composition](src/recallstack/composition/) · [Domain modules](src/recallstack/modules/) · [Knowledge refresh job](src/recallstack/modules/knowledge/jobs/refresh.py) · [Knowledge APIs and ranking](docs/knowledge-shorts.md) · [Offline sync protocol](src/recallstack/modules/sync/application/sync_service.py) · [DSA execution adapter](../web/src/lib/dsa-execution/contree.ts) · [Go Live Share](../realtime/README.md).
 
 ### Runtime paths
 
