@@ -93,7 +93,7 @@ test.describe('Admin user workflows', () => {
     await expect(page.getByText('Not available yet')).toBeVisible();
     await page.getByRole('tab', { name: 'Legacy Activity' }).click();
     await expect(page.getByRole('cell', { name: 'User Signed Up' })).toBeVisible();
-    await expect(page.locator('tbody tr').getByText('â€”')).toHaveCount(7);
+    await expect(page.locator('tbody tr').getByText('—')).toHaveCount(7);
   });
 
   test('confirms role grant once and displays final-admin conflict', async ({ authenticatedPage: page }) => {
@@ -177,7 +177,8 @@ test.describe('Problems and audit logs', () => {
     await expect.poll(() => requestedOffset).toBe(25);
     await expect(page.getByText('0 registered records matching filter')).toBeVisible();
     await page.getByRole('button', {name:'Previous',exact:true}).click();
-    await expect.poll(() => requestedOffset).toBe(0);
+    // The first page may be served from the query cache without another request.
+    await expect(page.getByText('26 registered records matching filter')).toBeVisible();
     await expect(page.getByRole('button', {name:'Previous',exact:true})).toBeDisabled();
   });
 

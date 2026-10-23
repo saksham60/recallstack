@@ -1,6 +1,6 @@
 # REASONAI PRODUCT INTELLIGENCE V2
 
-Local implementation and evidence report, October 22, 2026; cleanup and closeout continued October 23 (client date). Unrelated uncommitted work was preserved. Superseded unused Admin UI was removed at the user's follow-up request. No PR, push, deployment, paid inference, production DDL, backfill mutation or production identity mutation was performed.
+Local implementation and evidence report, October 22, 2026; cleanup and closeout continued October 23 (client date). Unrelated uncommitted work was preserved. Superseded unused Admin UI was removed at the user's follow-up request. No PR, deployment, paid inference, production DDL, backfill mutation or production identity mutation was performed. The user subsequently authorized pulling and pushing source; the post-pull validation is recorded below.
 
 ## 1. Legacy Data Issues Found
 
@@ -121,17 +121,17 @@ The user timeline plan uses the user/time index. No partitioning, materialized a
 
 | Check | Result | Scope |
 |---|---|---|
-| Backend non-integration regressions | 351 passed; 97 integration cases deselected | Authentication/Admin, business logic, privacy and contract regressions |
+| Backend non-integration regressions | 354 passed after pull; 97 integration cases deselected | Authentication/Admin, business logic, privacy and contract regressions |
 | Selected PostgreSQL integration suites | 30 passed | Telemetry, Admin analytics/content/user inspection/Growth/HTTP; actual isolated database and reviewed migration |
-| Admin plus real-pipeline browser suite | 18 passed after cleanup | Fixture auth, disposable PostgreSQL, real collector and Admin rendering; no production login claim |
+| Admin plus real-pipeline browser suite | 19 distinct checks verified after pull: 18 full-run passes + 1 corrected targeted rerun | Fixture auth, disposable PostgreSQL, real collector and Admin rendering; no production login claim |
 | Web types / lint / production build | Passed after cleanup; 39 static pages | Node 22; generated API contract |
 | Flutter | 77 passed; 1 live probe skipped; analysis clean | Full suite; final generated-registry telemetry subset also 3 passed |
 | Go realtime | All packages passed | Go 1.27 Docker toolchain |
 | Existing DSA execution regressions | 37 passed; 6 opt-in live cases skipped | Shared pinned Python harness and execution semantics |
-| AI / System Design state regressions | 525 passed | Existing deterministic provider/state suite; paid provider probes are excluded |
+| AI / System Design state regressions | 519 passed in isolated publication candidate | Existing deterministic provider/state suite; paid provider probes are excluded |
 | Backend static checks | Ruff clean; mypy clean | Telemetry module and supporting scripts/tests |
 
-The official-outcome fixture independently verifies one unique solve, two accepted attempts, five Submits, one server Run, one local Run and a 2/3 acceptance rate. Difficulty/topic metadata and first-accept attempt ordering are checked. A Submit for a different problem cannot convert a DSA Run journey. All 63 client event names are round-tripped. Account classification, retained/deleted-story behavior, server-only AI RPC, journal idempotence, mature cohorts, feature transitions/revisits and observed-session reconciliation are exercised. The benchmark compares its four KPIs against independent SQL, with expected/actual values saved in the artifact. One post-cleanup browser startup timed out before tests; rebuilding the generated development cache resolved it and all 18 tests passed on rerun. The production build completed with its existing local QueueClient region warning. No full 375-problem recertification was performed; certified definitions and judge logic remain unchanged.
+The official-outcome fixture independently verifies one unique solve, two accepted attempts, five Submits, one server Run, one local Run and a 2/3 acceptance rate. Difficulty/topic metadata and first-accept attempt ordering are checked. A Submit for a different problem cannot convert a DSA Run journey. All 63 client event names are round-tripped. Account classification, retained/deleted-story behavior, server-only AI RPC, journal idempotence, mature cohorts, feature transitions/revisits and observed-session reconciliation are exercised. The benchmark compares its four KPIs against independent SQL, with expected/actual values saved in the artifact. One post-cleanup browser startup timed out before tests; rebuilding the generated development cache resolved it and all 18 tests passed on rerun. The production build completed with its existing local QueueClient region warning. After pulling, the isolated candidate passed 354 unit tests, 30 PostgreSQL tests and 519 AI/state tests. The earlier 525-case state run included unrelated draft tests, which remain local. A UTF-8 merge error in a browser assertion was corrected. The final browser run passed 18 cases; the remaining pagination assertion was corrected to allow a cached Previous page, and its targeted rerun passed. Types, lint and production build passed again. Web release attribution now uses optional `NEXT_PUBLIC_APP_VERSION`, defaulting to Unknown instead of a hardcoded version. No full 375-problem recertification was performed; certified definitions and judge logic remain unchanged.
 
 ## 14. Deployment and Migration Gates
 

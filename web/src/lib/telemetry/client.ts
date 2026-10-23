@@ -18,6 +18,11 @@ type WireEvent = {
 const MAX_BUFFER = 200,
   MAX_BYTES = 128 * 1024,
   IDLE_MS = 30 * 60 * 1000;
+const configuredVersion = process.env.NEXT_PUBLIC_APP_VERSION;
+const appVersion =
+  configuredVersion && /^[a-zA-Z0-9_.-]{1,80}$/.test(configuredVersion)
+    ? configuredVersion
+    : "Unknown";
 let owner: string | undefined,
   token: string | undefined,
   queue: WireEvent[] = [];
@@ -160,7 +165,7 @@ export function setTelemetryPreference(value: boolean) {
     journey = crypto.randomUUID();
     lastAction = Date.now();
     append("session.started", {
-      app_version: "2",
+      app_version: appVersion,
       os_family: "web",
       device_class: "unknown",
     });
@@ -217,7 +222,7 @@ export function setTelemetryIdentity(id?: string, accessToken?: string) {
       journey = crypto.randomUUID();
       lastAction = Date.now();
       append("session.started", {
-        app_version: "2",
+        app_version: appVersion,
         os_family: "web",
         device_class: "unknown",
       });
@@ -243,7 +248,7 @@ export function track<N extends EventName>(
       session = crypto.randomUUID();
       journey = crypto.randomUUID();
       append("session.started", {
-        app_version: "2",
+        app_version: appVersion,
         os_family: "web",
         device_class: "unknown",
       });
