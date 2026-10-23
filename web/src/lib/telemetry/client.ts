@@ -1,6 +1,9 @@
 "use client";
 
-import { publicConfig } from "@/lib/config/public";
+import { acknowledgeAcquisition, clearAcquisition, pendingAcquisition } from "./acquisition";
+import { telemetryCollectionPermitted } from "./privacy";
+export { telemetryCollectionPermitted, telemetryPreference } from "./privacy";
+import { publicConfig } from "../config/public";
 import { registry, type EventName, type EventProperties } from "./registry";
 
 type WireEvent = {
@@ -37,12 +40,6 @@ let reportedDropped = 0,
   reportedRetries = 0;
 export const telemetryDelivery = { accepted: 0, retries: 0, dropped: 0 };
 const key = () => `reasonai:telemetry:1:${owner}`;
-const permitted = () =>
-  typeof window !== "undefined" &&
-  process.env.NEXT_PUBLIC_PRODUCT_TELEMETRY_ENABLED === "true" &&
-  navigator.doNotTrack !== "1" &&
-  !(navigator as Navigator & { globalPrivacyControl?: boolean })
-    .globalPrivacyControl;
 
 function validProperties(name: EventName, properties: object): boolean {
   if (
@@ -96,13 +93,14 @@ function append<N extends EventName>(
   properties: EventProperties[N],
   entityId?: string,
   correlationId?: string,
+  eventId?: string,
 ) {
   if (!validProperties(name, properties)) {
     telemetryDelivery.dropped++;
     return;
   }
   const event: WireEvent = {
-    event_id: crypto.randomUUID(),
+    event_id: eventId ?? crypto.randomUUID(),
     schema_version: 1,
     event_name: name,
     session_id: session,
@@ -125,22 +123,13 @@ function append<N extends EventName>(
     queue.length >= MAX_BUFFER ||
     JSON.stringify(queue).length > MAX_BYTES - 2048
   ) {
-    queue.shift();
+    const disposable = queue.findIndex((event) => event.event_name !== "acquisition.first_touch");
+    queue.splice(disposable < 0 ? 0 : disposable, 1);
     telemetryDelivery.dropped++;
   }
   queue.push(event);
   persist();
   schedule();
-}
-export function telemetryPreference(): boolean {
-  try {
-    return localStorage.getItem("reasonai:telemetry:preference") !== "off";
-  } catch {
-    return true;
-  }
-}
-export function telemetryCollectionPermitted() {
-  return permitted() && telemetryPreference();
 }
 export function setTelemetryPreference(value: boolean) {
   try {
@@ -148,14 +137,14 @@ export function setTelemetryPreference(value: boolean) {
   } catch {
     /* Restricted storage. */
   }
-  enabled = permitted() && value;
+  enabled = telemetryCollectionPermitted() && value;
   if (!enabled) {
     queue = [];
     persist();
     clearTimeout(timer);
     timer = undefined;
     try {
-      sessionStorage.removeItem("reasonai:first-touch:1");
+      clearAcquisition();
     } catch {
       /* Restricted storage. */
     }
@@ -171,10 +160,11 @@ export function setTelemetryPreference(value: boolean) {
     });
   }
 }
-export function setTelemetryIdentity(id?: string, accessToken?: string) {
+export function setTelemetryIdentity(id?: string, accessToken?: string, createdAt?: string, signedInAt?: string) {
   try {
     if (owner !== id) {
       clearTimeout(timer);
+      timer = undefined;
       queue = [];
       owner = id;
       session = "";
@@ -216,8 +206,8 @@ export function setTelemetryIdentity(id?: string, accessToken?: string) {
       }
     }
     token = accessToken;
-    enabled = permitted() && telemetryPreference();
-    if (enabled && id && !session) {
+    enabled = telemetryCollectionPermitted();
+    if (enabled && id && accessToken && !session) {
       session = crypto.randomUUID();
       journey = crypto.randomUUID();
       lastAction = Date.now();
@@ -226,11 +216,13 @@ export function setTelemetryIdentity(id?: string, accessToken?: string) {
         os_family: "web",
         device_class: "unknown",
       });
-      const touch = sessionStorage.getItem("reasonai:first-touch:1");
-      if (touch) {
-        append("acquisition.first_touch", JSON.parse(touch));
-        sessionStorage.removeItem("reasonai:first-touch:1");
-      }
+    }
+    if (enabled && id && accessToken) {
+      const acquisition = pendingAcquisition(id, createdAt, signedInAt);
+      if (acquisition && !queue.some((event) => event.event_id === acquisition.eventId))
+        append("acquisition.first_touch", acquisition.properties, undefined, undefined, acquisition.eventId);
+      // Restored queues must flush even when no new navigation event is emitted.
+      if (queue.length) schedule();
     }
   } catch {
     /* Noncritical telemetry must not break authentication. */
@@ -299,6 +291,9 @@ export async function flushTelemetry(keepalive = false): Promise<void> {
     );
     if (sendingOwner !== owner) return;
     if (response.ok) {
+      for (const event of batch)
+        if (event.event_name === "acquisition.first_touch")
+          acknowledgeAcquisition(sendingOwner, event.event_id);
       const sent = new Set(batch.map((e) => e.event_id));
       queue = queue.filter((e) => !sent.has(e.event_id));
       telemetryDelivery.accepted += batch.length;
@@ -334,8 +329,11 @@ export async function flushTelemetry(keepalive = false): Promise<void> {
       failures++;
       telemetryDelivery.retries++;
       if (failures >= 5) {
-        queue.splice(0, batch.length);
-        telemetryDelivery.dropped += batch.length;
+        // Keep the one first-touch event retryable with its original UUID.
+        // Other optional events retain the existing bounded retry policy.
+        const dropped = new Set(batch.filter((event) => event.event_name !== "acquisition.first_touch").map((event) => event.event_id));
+        queue = queue.filter((event) => !dropped.has(event.event_id));
+        telemetryDelivery.dropped += dropped.size;
         failures = 0;
         persist();
       }

@@ -89,6 +89,94 @@ def event(name="dsa.problem_opened", **changes):
     }
 
 
+async def test_first_touch_new_signup_retry_immutability_and_admin_projection(telemetry_db):
+    engine = create_async_engine(telemetry_db)
+    user, old_user = uuid4(), uuid4()
+    app = create_app(
+        Settings(
+            supabase_project_url="https://example.supabase.co", app_env="test", database_url=None
+        )
+    )
+    app.state.telemetry_session_factory = SimpleNamespace(
+        create_session=lambda: AsyncSession(engine)
+    )
+    app.state.telemetry_environment = "test"
+    current = user
+    app.dependency_overrides[get_current_user] = lambda: CurrentUser(
+        current, current, frozenset({"admin"})
+    )
+    props = {
+        "utm_source": "devpost",
+        "utm_medium": "referral",
+        "utm_campaign": "hackathon",
+        "landing": "home",
+    }
+    batch = {"events": [event("acquisition.first_touch", properties=props)]}
+    try:
+        async with engine.begin() as c:
+            await c.execute(text("INSERT INTO profiles(id) VALUES(:id)"), {"id": user})
+            await c.execute(
+                text("INSERT INTO profiles(id,created_at) VALUES(:id,now()-interval '2 days')"),
+                {"id": old_user},
+            )
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.post("/api/v1/telemetry/events", json=batch)
+            assert response.status_code == 200, response.text
+            assert (await client.post("/api/v1/telemetry/events", json=batch)).json()[
+                "duplicates"
+            ] == 1
+            # A later source cannot change the immutable signup attribution.
+            later = {
+                "events": [event("acquisition.first_touch", properties={"utm_source": "youtube"})]
+            }
+            assert (await client.post("/api/v1/telemetry/events", json=later)).status_code == 200
+            details = await client.get(f"/api/v1/admin/users/{user}/features?days=7")
+            assert details.status_code == 200, details.text
+            assert details.json()["details"]["attribution"] == props
+            users = await client.get("/api/v1/admin/analytics/users?days=7")
+            record = next(row for row in users.json()["items"] if row["user_id"] == str(user))
+            assert record["signup_source"] == "devpost"
+            current = old_user
+            assert (
+                await client.post(
+                    "/api/v1/telemetry/events",
+                    json={"events": [event("acquisition.first_touch", properties=props)]},
+                )
+            ).status_code == 200
+        async with engine.connect() as c:
+            assert (
+                await c.scalar(
+                    text(
+                        "SELECT properties FROM telemetry_private.user_acquisition WHERE user_id=:id"
+                    ),
+                    {"id": user},
+                )
+                == props
+            )
+            assert (
+                await c.scalar(
+                    text(
+                        "SELECT count(*) FROM telemetry_private.product_events WHERE event_id=:id"
+                    ),
+                    {"id": batch["events"][0]["event_id"]},
+                )
+                == 1
+            )
+            assert (
+                await c.scalar(
+                    text(
+                        "SELECT count(*) FROM telemetry_private.user_acquisition WHERE user_id=:id"
+                    ),
+                    {"id": old_user},
+                )
+                == 0
+            )
+    finally:
+        await engine.dispose()
+
+
 async def test_round_trip_and_official_semantics(telemetry_db):
     engine = create_async_engine(telemetry_db)
     user, problem = uuid4(), uuid4()

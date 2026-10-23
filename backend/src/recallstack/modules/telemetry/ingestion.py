@@ -1,7 +1,7 @@
 # SQL formatting is intentionally preserved for review.
 # ruff: noqa: E501
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -13,8 +13,17 @@ from recallstack.shared.errors import AppError
 
 
 async def ingest(session: AsyncSession, batch: Batch, user_id: UUID, environment: str) -> Receipt:
-    now = datetime.now(UTC)
-    if not await session.scalar(text("SELECT to_regclass('telemetry_private.product_events')")):
+    # Eligibility and received_at must use the same database clock.
+    # API host clock skew must not reject an account just created by Supabase.
+    installation = (
+        await session.execute(
+            text(
+                "SELECT clock_timestamp() AS now, to_regclass('telemetry_private.product_events') AS events"
+            )
+        )
+    ).one()
+    now = installation.now
+    if not installation.events:
         raise AppError(
             error_type="telemetry-unavailable",
             title="Telemetry unavailable",
@@ -47,6 +56,7 @@ async def ingest(session: AsyncSession, batch: Batch, user_id: UUID, environment
         entry.update(
             user_id=str(user_id),
             environment=environment,
+            received_at=now.isoformat(),
             feature=REGISTRY["events"][event.event_name]["feature"],
             engaged=REGISTRY["events"][event.event_name]["engaged"],
             effective_at=(min(occurred, now) if valid else now).isoformat(),
@@ -59,13 +69,13 @@ async def ingest(session: AsyncSession, batch: Batch, user_id: UUID, environment
                 text("""
       INSERT INTO telemetry_private.product_events
         (event_id,schema_version,user_id,session_id,journey_id,correlation_id,event_name,
-         feature,source,environment,entity_id,occurred_at,effective_at,clock_quality,engaged,properties)
+         feature,source,environment,entity_id,occurred_at,received_at,effective_at,clock_quality,engaged,properties)
       SELECT event_id,schema_version,user_id,session_id,journey_id,correlation_id,event_name,
-        feature,source,environment,entity_id,occurred_at,effective_at,clock_quality,engaged,properties
+        feature,source,environment,entity_id,occurred_at,received_at,effective_at,clock_quality,engaged,properties
       FROM jsonb_to_recordset(CAST(:rows AS jsonb)) AS x(
         event_id uuid,schema_version int,user_id uuid,session_id uuid,journey_id uuid,
         correlation_id uuid,event_name text,feature text,source text,environment text,entity_id uuid,
-        occurred_at timestamptz,effective_at timestamptz,clock_quality text,engaged boolean,properties jsonb)
+        occurred_at timestamptz,received_at timestamptz,effective_at timestamptz,clock_quality text,engaged boolean,properties jsonb)
       ON CONFLICT(event_id) DO NOTHING
       RETURNING session_id,source,event_name,properties,clock_quality
     """),

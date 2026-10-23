@@ -3,12 +3,12 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/features/auth";
+import { captureFirstTouch } from "./acquisition";
 import {
   activeTelemetryPulse,
   beginJourney,
   flushTelemetry,
   setTelemetryIdentity,
-  telemetryCollectionPermitted,
   track,
 } from "./client";
 
@@ -36,50 +36,11 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const previous = useRef("");
   useEffect(() => {
-    setTelemetryIdentity(user?.id, session?.access_token);
-  }, [user?.id, session?.access_token]);
+    // Fallback for route changes; early landing capture runs before hydration.
+    if (!user?.id) captureFirstTouch();
+    setTelemetryIdentity(user?.id, session?.access_token, user?.created_at, user?.last_sign_in_at);
+  }, [pathname, user?.id, user?.created_at, user?.last_sign_in_at, session?.access_token]);
   useEffect(() => {
-    // Capture bounded first touch before OAuth, without URLs or personal parameters.
-    try {
-      if (
-        telemetryCollectionPermitted() &&
-        !sessionStorage.getItem("reasonai:first-touch:1") &&
-        !user
-      ) {
-        const url = new URL(location.href),
-          properties: Record<string, string> = {
-            landing:
-              screenFor(pathname) === "problem"
-                ? "dsa"
-                : ["home", "feed", "dsa", "system_design"].includes(
-                      screenFor(pathname),
-                    )
-                  ? screenFor(pathname)
-                  : "other",
-          };
-        if (document.referrer) {
-          const host = new URL(document.referrer).hostname;
-          if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(host) && !host.includes(":"))
-            properties.referrer_host = host;
-        }
-        for (const name of [
-          "utm_source",
-          "utm_medium",
-          "utm_campaign",
-          "referral_code",
-        ]) {
-          const value = url.searchParams.get(name);
-          if (value && /^[a-zA-Z0-9_.-]{1,80}$/.test(value))
-            properties[name] = value;
-        }
-        sessionStorage.setItem(
-          "reasonai:first-touch:1",
-          JSON.stringify(properties),
-        );
-      }
-    } catch {
-      /* Restricted storage or invalid referrer. */
-    }
     if (!user || pathname.startsWith("/admin")) return;
     const screen = screenFor(pathname);
     const feature =

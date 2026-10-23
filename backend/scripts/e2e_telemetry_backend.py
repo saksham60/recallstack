@@ -5,15 +5,21 @@ No environment database URL or production credentials are read.
 """
 
 import asyncio
+import base64
+import hashlib
 import sys
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
-from uuid import UUID
+from urllib.parse import urlencode
+from uuid import UUID, uuid4
 
+import jwt
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from testcontainers.postgres import PostgresContainer
@@ -60,9 +66,18 @@ def main() -> None:
             create_session=lambda: AsyncSession(async_engine)
         )
         app.state.telemetry_environment = "test"
-        app.dependency_overrides[get_current_user] = lambda: CurrentUser(
-            USER, USER, frozenset({"admin"})
-        )
+        # Loopback-only OAuth transport fixture. The real Supabase SDK performs
+        # PKCE, callback exchange, cookie restoration and subsequent logins.
+        codes: dict[str, dict] = {}
+        sessions: dict[str, dict] = {}
+
+        def fixture_user(request: Request):
+            token = request.headers.get("authorization", "").removeprefix("Bearer ")
+            identity = sessions.get(token)
+            owner = UUID(identity["user"]["id"]) if identity else USER
+            return CurrentUser(owner, owner, frozenset({"admin"}))
+
+        app.dependency_overrides[get_current_user] = fixture_user
         app.add_middleware(
             CORSMiddleware,
             allow_origins=["http://localhost:3000"],
@@ -78,6 +93,117 @@ def main() -> None:
         @app.get("/test-health")
         def health():
             return {"fixture": True}
+
+        @app.get("/auth/v1/authorize")
+        def authorize(provider: str, redirect_to: str, code_challenge: str):
+            if provider != "google" or redirect_to != "http://localhost:3000/auth/callback":
+                raise HTTPException(400)
+            code = uuid4().hex
+            codes[code] = {"redirect": redirect_to, "challenge": code_challenge}
+            return RedirectResponse("/test-google-consent?" + urlencode({"code": code}))
+
+        @app.get("/test-google-consent", response_class=HTMLResponse)
+        def consent(code: str):
+            if code not in codes:
+                raise HTTPException(400)
+            return (
+                "<h1>Fixture Google consent</h1>"
+                f'<a href="/test-google-complete?code={code}">Complete signup</a>'
+            )
+
+        @app.get("/test-google-complete")
+        def complete(code: str, account: UUID | None = None):
+            if code not in codes:
+                raise HTTPException(400)
+            codes[code]["account"] = account
+            return RedirectResponse(codes[code]["redirect"] + "?" + urlencode({"code": code}))
+
+        @app.post("/auth/v1/token")
+        async def exchange(request: Request):
+            body = await request.json()
+            flow = codes.pop(body.get("auth_code"), None)
+            verifier = body.get("code_verifier", "")
+            challenge = (
+                base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
+                .rstrip(b"=")
+                .decode()
+            )
+            if not flow or not verifier or challenge != flow["challenge"]:
+                raise HTTPException(400, "Fixture PKCE verification failed")
+            owner = flow.get("account") or uuid4()
+            async with async_engine.begin() as c:
+                await c.execute(
+                    text(
+                        "INSERT INTO profiles(id,display_name,email) "
+                        "VALUES(:id,'Acquisition learner','acquisition@example.test') "
+                        "ON CONFLICT DO NOTHING"
+                    ),
+                    {"id": owner},
+                )
+                created = await c.scalar(
+                    text("SELECT created_at FROM profiles WHERE id=:id"), {"id": owner}
+                )
+            now = datetime.now(UTC)
+            user = {
+                "id": str(owner),
+                "aud": "authenticated",
+                "role": "authenticated",
+                "email": "acquisition@example.test",
+                "created_at": created.isoformat(),
+                "last_sign_in_at": now.isoformat(),
+                "app_metadata": {"provider": "google", "providers": ["google"]},
+                "user_metadata": {},
+            }
+            token = jwt.encode(
+                {
+                    "sub": str(owner),
+                    "aud": "authenticated",
+                    "role": "authenticated",
+                    "exp": now + timedelta(hours=1),
+                },
+                "loopback-fixture-only-signing-key-32-bytes",
+                algorithm="HS256",
+            )
+            result = {
+                "access_token": token,
+                "refresh_token": uuid4().hex,
+                "token_type": "bearer",
+                "expires_in": 3600,
+                "expires_at": int(now.timestamp()) + 3600,
+                "user": user,
+            }
+            sessions[token] = result
+            return result
+
+        @app.get("/auth/v1/user")
+        def auth_user(request: Request):
+            token = request.headers.get("authorization", "").removeprefix("Bearer ")
+            if token not in sessions:
+                raise HTTPException(401)
+            return sessions[token]["user"]
+
+        @app.post("/auth/v1/logout")
+        def logout():
+            return Response(status_code=204)
+
+        @app.get("/test-acquisition/{user_id}")
+        async def acquisition_state(user_id: UUID):
+            async with async_engine.connect() as c:
+                source = await c.scalar(
+                    text(
+                        "SELECT properties FROM telemetry_private.user_acquisition "
+                        "WHERE user_id=:id"
+                    ),
+                    {"id": user_id},
+                )
+                events = await c.scalar(
+                    text(
+                        "SELECT count(*) FROM telemetry_private.product_events "
+                        "WHERE user_id=:id AND event_name='acquisition.first_touch'"
+                    ),
+                    {"id": user_id},
+                )
+            return {"properties": source, "events": events}
 
         try:
             server = uvicorn.Server(

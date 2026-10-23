@@ -62,7 +62,7 @@ function SupabaseAuthProvider({ children }: { children: React.ReactNode }) {
         if (error) {
           console.error("Failed to initialize authentication", error);
         }
-        setTelemetryIdentity(session?.user.id,session?.access_token);
+        setTelemetryIdentity(session?.user.id,session?.access_token,session?.user.created_at,session?.user.last_sign_in_at);
         setSession(session);
         setUser(session?.user ?? null);
       } catch (error) {
@@ -77,9 +77,8 @@ function SupabaseAuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setTelemetryIdentity(session?.user.id,session?.access_token);
+      setTelemetryIdentity(session?.user.id,session?.access_token,session?.user.created_at,session?.user.last_sign_in_at);
       if (_event === "SIGNED_IN" && session && lastLoginUser.current!==session.user.id) {
-        setTelemetryIdentity(session.user.id,session.access_token);
         track("auth.login_succeeded");
       }
       if (_event === "SIGNED_IN" || _event === "INITIAL_SESSION") lastLoginUser.current=session?.user.id??null;

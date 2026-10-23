@@ -486,20 +486,9 @@ export function UserIntelligencePanel({
 
           <p className="text-sm text-muted">
             Classification:{" "}
-            {String(query.data.details?.classification ?? "Unknown")} ·
-            Acquisition:{" "}
-            {typeof query.data.details?.attribution === "string"
-              ? query.data.details?.attribution
-              : "Recorded first touch"}
+            {String(query.data.details?.classification ?? "Unknown")}
           </p>
-          {typeof query.data.details?.attribution === "object" &&
-            query.data.details?.attribution && (
-              <DataRows
-                items={[
-                  query.data.details?.attribution as Record<string, unknown>,
-                ]}
-              />
-            )}
+          <AcquisitionDetails attribution={query.data.details?.attribution} />
           <DataRows items={query.data.features ?? []} />
           <FeatureDetails
             section={section}
@@ -523,6 +512,28 @@ export function UserIntelligencePanel({
         </>
       )}
     </div>
+  );
+}
+function AcquisitionDetails({ attribution }: { attribution: unknown }) {
+  const touch = attribution && typeof attribution === "object"
+    ? attribution as Record<string, unknown> : {};
+  const value = (key: string) => typeof touch[key] === "string" && touch[key] ? String(touch[key]) : "Unknown";
+  return (
+    <section aria-label="First-touch acquisition" className="rounded-lg border border-border p-4">
+      <h3 className="mb-3 font-medium">First-touch acquisition</h3>
+      <dl className="grid gap-3 sm:grid-cols-3">
+        {[
+          ["Source", value("utm_source") !== "Unknown" ? value("utm_source") : value("referrer_host")],
+          ["Medium", value("utm_medium")],
+          ["Campaign", value("utm_campaign")],
+          ["Referrer", value("referrer_host")],
+          ["Referral code", value("referral_code")],
+          ["Landing feature", value("landing")],
+        ].map(([label, content]) => (
+          <div key={label}><dt className="text-xs text-muted">{label}</dt><dd className="break-words text-sm">{content}</dd></div>
+        ))}
+      </dl>
+    </section>
   );
 }
 function UserTimeline({ userId, days }: { userId: string; days: Days }) {

@@ -1,0 +1,70 @@
+{
+  "verified_at": "2026-10-23T08:18:00.108510+00:00",
+  "scope": "Local acquisition fix only; no push, deploy, production mutation, schema migration or historical backfill.",
+  "acceptance": {
+    "source": "devpost",
+    "medium": "referral",
+    "campaign": "hackathon",
+    "result": "passed in Admin through real local ingestion and PostgreSQL"
+  },
+  "checks": [
+    {
+      "command": "cd web && playwright test --config=playwright.acquisition-unit.config.ts",
+      "result": "20 passed"
+    },
+    {
+      "command": "cd web && playwright test --config=playwright.acquisition.config.ts",
+      "result": "4 passed (complete final run)"
+    },
+    {
+      "command": "cd backend; RUN_INTEGRATION_TESTS=1 uv run pytest tests/integration/test_product_intelligence.py tests/unit/test_telemetry_contract.py -q",
+      "result": "28 passed"
+    },
+    {
+      "command": "cd web && tsc --noEmit",
+      "result": "passed"
+    },
+    {
+      "command": "cd web && eslint (changed telemetry/auth/Admin sources and acquisition tests/configs)",
+      "result": "passed; no warnings"
+    },
+    {
+      "command": "cd backend && uv run ruff check (changed Python files)",
+      "result": "passed"
+    },
+    {
+      "command": "cd backend && uv run mypy src/recallstack/modules/telemetry/ingestion.py",
+      "result": "passed"
+    },
+    {
+      "command": "cd web && npm run build (Node 22)",
+      "result": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "auth_scope": "Real Supabase SDK PKCE exchange, callback route and cookie restoration against loopback Auth/Google fixtures. Real disposable PostgreSQL using existing Supabase migration; real ingestion and modern Admin responses. Legacy profile envelope fixture-supplied. Hosted provider login not exercised.",
+  "retry_semantics": "One persisted account-scoped UUID is reused for transport retries; the existing event primary key and acquisition user primary key ensure idempotent persistence. Same-tab delivered receipt suppresses repeat-login emission.",
+  "source_sha256_canonical_lf": {
+    "web/src/instrumentation-client.ts": "a563cccf229fc226ee9037efa786b591db8ea5b7f253a2ad812c60084e296f30",
+    "web/src/lib/telemetry/acquisition.ts": "43e6897ee5bf5433d3cf48e8f8990d8c128a3c0c67896b42a706e132abdc9dbd",
+    "web/src/lib/telemetry/privacy.ts": "79e6bbdce2aa4e66d98129952df63ed44429171cb51c2abe7bb4e53e6dcbea78",
+    "web/src/lib/telemetry/client.ts": "f63b30c7925e31cd2b05acf5a16b176f14e7d4979a014bcee7bb43098305aa08",
+    "web/src/lib/telemetry/TelemetryProvider.tsx": "8031b1a0cc02497e8ad4579579ec4c3e0628068cd1466be7a0d56370b2f4b7ef",
+    "web/src/features/auth/AuthProvider.tsx": "48500b89297d7b14024b295bd7a390803644368fbc93737450fdffc35490e6e5",
+    "web/src/features/admin/intelligence/IntelligenceScreen.tsx": "7490804e7874783e74abe89256e2dd66a3ebc0099995be86d2a9d0d8878ad767",
+    "backend/src/recallstack/modules/telemetry/ingestion.py": "6964ad31236a0a0b20733e2167b1539266297f65d906822790dc7c7d7c2a3f6b",
+    "backend/scripts/e2e_telemetry_backend.py": "adbbc57ef14a67d0c754e502f383de086b17bce61b72d6852436a1b624d8a2cd",
+    "backend/tests/integration/test_product_intelligence.py": "b43b187a883afc95df60acb2810e5ce617f7abe197f4432752cf47336019087b",
+    "web/e2e/acquisition-unit.spec.ts": "c5936f74d117ac64cfa7bfea0533aacbc83365b10d5c94e42eb8748499ea6d63",
+    "web/e2e/acquisition.spec.ts": "e8462d9a49084ac7238d2dd0381e289f328e760593a4ac0f7f08bdc5c68f4475",
+    "web/playwright.acquisition.config.ts": "eb1377ff37329f4057f5c0ac551e4cf197a5a50be5d13213c030bc74810ee367",
+    "web/playwright.acquisition-unit.config.ts": "f19315a9e5b668bedf8db0fe3bdf5584fa1eaf0df16242fe779c181836116180",
+    "web/playwright.config.ts": "6cda5b4e40b85f4e0c7b574a80147bb60c0abe8b10568fd5388bef9ca7ce3514",
+    "web/package.json": "eba662f1ee6107bbb8149e16eb8d36817813cd39c41100ded9d6df9ce8f63ef7",
+    "docs/admin/FIRST_TOUCH_ACQUISITION_FIX.md": "26aa779986f05759019a5070c399f797f2df5a71ded8c52e3d9e387a41555a7d",
+    "docs/evidence/screenshots/2026-10-23/acquisition/devpost-fixture.png": "ce42dc78bebd391ebabacc73167b2e45ae2231caea8b138fd204c7d6e1795e30"
+  }
+}
