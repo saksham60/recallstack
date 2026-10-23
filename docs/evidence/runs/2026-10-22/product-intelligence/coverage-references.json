@@ -1,0 +1,405 @@
+{
+  "note": "Static source references, not proof of runtime delivery. Conditional/dynamic emitters may share a call site. Canonical outcomes are queried/journaled separately.",
+  "events": {
+    "session.started": {
+      "source_references": [
+        "web/src/lib/telemetry/client.ts",
+        "mobile/lib/core/telemetry/product_telemetry.dart"
+      ],
+      "has_source_reference": true
+    },
+    "session.ended": {
+      "source_references": [
+        "web/src/features/auth/AuthProvider.tsx",
+        "web/src/lib/telemetry/TelemetryProvider.tsx"
+      ],
+      "has_source_reference": true
+    },
+    "session.backgrounded": {
+      "source_references": [
+        "web/src/lib/telemetry/TelemetryProvider.tsx",
+        "mobile/lib/core/telemetry/product_telemetry.dart"
+      ],
+      "has_source_reference": true
+    },
+    "session.foregrounded": {
+      "source_references": [
+        "web/src/lib/telemetry/TelemetryProvider.tsx",
+        "mobile/lib/core/telemetry/product_telemetry.dart"
+      ],
+      "has_source_reference": true
+    },
+    "session.active": {
+      "source_references": [
+        "web/src/lib/telemetry/client.ts",
+        "mobile/lib/core/telemetry/product_telemetry.dart"
+      ],
+      "has_source_reference": true
+    },
+    "navigation.screen_opened": {
+      "source_references": [
+        "web/src/lib/telemetry/TelemetryProvider.tsx",
+        "mobile/lib/app/router.dart"
+      ],
+      "has_source_reference": true
+    },
+    "navigation.feature_entered": {
+      "source_references": [
+        "web/src/lib/telemetry/TelemetryProvider.tsx"
+      ],
+      "has_source_reference": true
+    },
+    "navigation.feature_exited": {
+      "source_references": [
+        "web/src/lib/telemetry/TelemetryProvider.tsx"
+      ],
+      "has_source_reference": true
+    },
+    "auth.login_succeeded": {
+      "source_references": [
+        "web/src/features/auth/AuthProvider.tsx"
+      ],
+      "has_source_reference": true
+    },
+    "auth.logout_requested": {
+      "source_references": [
+        "web/src/features/auth/AuthProvider.tsx"
+      ],
+      "has_source_reference": true
+    },
+    "auth.signup_started": {
+      "source_references": [
+        "web/src/features/auth/AuthProvider.tsx"
+      ],
+      "has_source_reference": true
+    },
+    "acquisition.first_touch": {
+      "source_references": [
+        "web/src/lib/telemetry/client.ts"
+      ],
+      "has_source_reference": true
+    },
+    "dsa.explorer_opened": {
+      "source_references": [
+        "web/src/lib/telemetry/TelemetryProvider.tsx",
+        "mobile/lib/app/router.dart"
+      ],
+      "has_source_reference": true
+    },
+    "dsa.history_opened": {
+      "source_references": [
+        "web/src/features/dsa/workspace/Workspace.tsx"
+      ],
+      "has_source_reference": true
+    },
+    "dsa.report_opened": {
+      "source_references": [
+        "web/src/features/dsa/workspace/Workspace.tsx"
+      ],
+      "has_source_reference": true
+    },
+    "dsa.tutor_opened": {
+      "source_references": [
+        "web/src/features/dsa/workspace/Workspace.tsx"
+      ],
+      "has_source_reference": true
+    },
+    "dsa.editor_initialized": {
+      "source_references": [
+        "web/src/features/dsa/workspace/Workspace.tsx"
+      ],
+      "has_source_reference": true
+    },
+    "dsa.draft_restored": {
+      "source_references": [
+        "web/src/features/dsa/workspace/Workspace.tsx"
+      ],
+      "has_source_reference": true
+    },
+    "dsa.starter_loaded": {
+      "source_references": [
+        "web/src/features/dsa/workspace/Workspace.tsx"
+      ],
+      "has_source_reference": true
+    },
+    "dsa.problem_opened": {
+      "source_references": [
+        "web/src/features/dsa/workspace/Workspace.tsx",
+        "mobile/lib/features/dsa/canonical_api.dart"
+      ],
+      "has_source_reference": true
+    },
+    "dsa.filter_changed": {
+      "source_references": [
+        "web/src/features/dsa/workspace/Explorer.tsx"
+      ],
+      "has_source_reference": true
+    },
+    "dsa.language_selected": {
+      "source_references": [
+        "web/src/features/dsa/workspace/Workspace.tsx"
+      ],
+      "has_source_reference": true
+    },
+    "dsa.draft_saved": {
+      "source_references": [
+        "web/src/features/dsa/workspace/Workspace.tsx"
+      ],
+      "has_source_reference": true
+    },
+    "dsa.draft_failed": {
+      "source_references": [
+        "web/src/features/dsa/workspace/Workspace.tsx"
+      ],
+      "has_source_reference": true
+    },
+    "dsa.editing_started": {
+      "source_references": [
+        "web/src/features/dsa/workspace/Workspace.tsx"
+      ],
+      "has_source_reference": true
+    },
+    "dsa.local_run_started": {
+      "source_references": [
+        "web/src/features/dsa/execution/use-local-python-run.ts"
+      ],
+      "has_source_reference": true
+    },
+    "dsa.local_run_completed": {
+      "source_references": [
+        "web/src/features/dsa/execution/use-local-python-run.ts"
+      ],
+      "has_source_reference": true
+    },
+    "dsa.local_run_failed": {
+      "source_references": [
+        "web/src/features/dsa/execution/use-local-python-run.ts"
+      ],
+      "has_source_reference": true
+    },
+    "dsa.submit_initiated": {
+      "source_references": [
+        "web/src/features/dsa/execution/use-execution.ts",
+        "mobile/lib/features/dsa/execution_session.dart"
+      ],
+      "has_source_reference": true
+    },
+    "dsa.run_initiated": {
+      "source_references": [
+        "web/src/features/dsa/execution/use-execution.ts",
+        "mobile/lib/features/dsa/execution_session.dart"
+      ],
+      "has_source_reference": true
+    },
+    "feed.opened": {
+      "source_references": [
+        "web/src/lib/telemetry/TelemetryProvider.tsx",
+        "mobile/lib/app/router.dart"
+      ],
+      "has_source_reference": true
+    },
+    "feed.empty": {
+      "source_references": [
+        "web/src/features/feed/use-feed.ts"
+      ],
+      "has_source_reference": true
+    },
+    "feed.request_failed": {
+      "source_references": [
+        "web/src/features/feed/use-feed.ts"
+      ],
+      "has_source_reference": true
+    },
+    "feed.preferences_changed": {
+      "source_references": [
+        "web/src/features/feed/FeedPreferences.tsx"
+      ],
+      "has_source_reference": true
+    },
+    "feed.source_clicked": {
+      "source_references": [
+        "web/src/features/feed/StoryCard.tsx"
+      ],
+      "has_source_reference": true
+    },
+    "feed.ask_invoked": {
+      "source_references": [
+        "web/src/features/feed/use-feed.ts",
+        "mobile/lib/features/feed/presentation/feed_api.dart"
+      ],
+      "has_source_reference": true
+    },
+    "feed.followup_started": {
+      "source_references": [
+        "web/src/features/feed/StoryChat.tsx"
+      ],
+      "has_source_reference": true
+    },
+    "ai.message_submitted": {
+      "source_references": [
+        "web/src/components/reasonai/ReasonAIComposer.tsx",
+        "mobile/lib/core/reasonai/reasonai_stream.dart"
+      ],
+      "has_source_reference": true
+    },
+    "ai.followup_submitted": {
+      "source_references": [
+        "web/src/features/dsa/reasonai/use-dsa-tutor.ts",
+        "web/src/features/feed/StoryChat.tsx",
+        "web/src/features/system-design/reasonai/ReasonAIPanel.tsx"
+      ],
+      "has_source_reference": true
+    },
+    "ai.cancellation_requested": {
+      "source_references": [
+        "web/src/components/reasonai/ReasonAIComposer.tsx"
+      ],
+      "has_source_reference": true
+    },
+    "ai.conversation_opened": {
+      "source_references": [
+        "web/src/features/dsa/reasonai/use-dsa-tutor.ts",
+        "web/src/features/system-design/reasonai/ReasonAIPanel.tsx"
+      ],
+      "has_source_reference": true
+    },
+    "ai.conversation_resumed": {
+      "source_references": [
+        "web/src/features/dsa/reasonai/use-dsa-tutor.ts",
+        "web/src/features/system-design/reasonai/ReasonAIPanel.tsx"
+      ],
+      "has_source_reference": true
+    },
+    "system_design.workspace_opened": {
+      "source_references": [
+        "web/src/features/system-design/components/SystemDesignWorkspace.tsx"
+      ],
+      "has_source_reference": true
+    },
+    "system_design.design_loaded": {
+      "source_references": [
+        "web/src/features/system-design/hooks/use-system-design-persistence.ts"
+      ],
+      "has_source_reference": true
+    },
+    "system_design.export_requested": {
+      "source_references": [
+        "web/src/features/system-design/components/SystemDesignWorkspace.tsx"
+      ],
+      "has_source_reference": true
+    },
+    "system_design.editing_started": {
+      "source_references": [
+        "web/src/features/system-design/components/SystemDesignWorkspace.tsx"
+      ],
+      "has_source_reference": true
+    },
+    "system_design.suggestion_accepted": {
+      "source_references": [
+        "web/src/features/system-design/reasonai/ReasonAIPanel.tsx"
+      ],
+      "has_source_reference": true
+    },
+    "system_design.suggestion_rejected": {
+      "source_references": [
+        "web/src/features/system-design/reasonai/ReasonAIPanel.tsx"
+      ],
+      "has_source_reference": true
+    },
+    "system_design.analysis_requested": {
+      "source_references": [
+        "web/src/features/system-design/reasonai/ReasonAIPanel.tsx"
+      ],
+      "has_source_reference": true
+    },
+    "system_design.save_succeeded": {
+      "source_references": [
+        "web/src/features/system-design/hooks/use-system-design-persistence.ts"
+      ],
+      "has_source_reference": true
+    },
+    "system_design.save_failed": {
+      "source_references": [
+        "web/src/features/system-design/hooks/use-system-design-persistence.ts"
+      ],
+      "has_source_reference": true
+    },
+    "collaboration.joined": {
+      "source_references": [
+        "web/src/features/system-design/realtime/use-system-design-realtime.ts"
+      ],
+      "has_source_reference": true
+    },
+    "collaboration.left": {
+      "source_references": [
+        "web/src/features/system-design/realtime/use-system-design-realtime.ts"
+      ],
+      "has_source_reference": true
+    },
+    "collaboration.reconnect_succeeded": {
+      "source_references": [
+        "web/src/features/system-design/realtime/use-system-design-realtime.ts"
+      ],
+      "has_source_reference": true
+    },
+    "collaboration.reconnect_failed": {
+      "source_references": [
+        "web/src/features/system-design/realtime/use-system-design-realtime.ts"
+      ],
+      "has_source_reference": true
+    },
+    "collaboration.connection_failed": {
+      "source_references": [
+        "web/src/features/system-design/realtime/use-system-design-realtime.ts"
+      ],
+      "has_source_reference": true
+    },
+    "collaboration.sync_recovered": {
+      "source_references": [
+        "web/src/features/system-design/realtime/use-system-design-realtime.ts"
+      ],
+      "has_source_reference": true
+    },
+    "collaboration.snapshot_recovered": {
+      "source_references": [
+        "web/src/features/system-design/realtime/use-system-design-realtime.ts"
+      ],
+      "has_source_reference": true
+    },
+    "diagnostics.client_error": {
+      "source_references": [
+        "web/src/lib/telemetry/TelemetryProvider.tsx",
+        "mobile/lib/main.dart"
+      ],
+      "has_source_reference": true
+    },
+    "diagnostics.api_failed": {
+      "source_references": [
+        "web/src/lib/api/client.ts",
+        "mobile/lib/core/telemetry/product_telemetry.dart"
+      ],
+      "has_source_reference": true
+    },
+    "diagnostics.network_changed": {
+      "source_references": [
+        "web/src/lib/telemetry/TelemetryProvider.tsx"
+      ],
+      "has_source_reference": true
+    },
+    "diagnostics.delivery": {
+      "source_references": [
+        "web/src/lib/telemetry/client.ts",
+        "mobile/lib/core/telemetry/product_telemetry.dart"
+      ],
+      "has_source_reference": true
+    },
+    "system_design.operations_summarized": {
+      "source_references": [
+        "web/src/features/system-design/hooks/use-canvas-telemetry.ts"
+      ],
+      "has_source_reference": true
+    }
+  },
+  "registered_events": 63,
+  "events_with_source_references": 63
+}

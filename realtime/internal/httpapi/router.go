@@ -23,14 +23,17 @@ func NewRouter(cfg config.Config, manager *room.Manager, registry *metrics.Regis
 	})
 	mux.HandleFunc("POST /v1/rooms", createRoom(manager, cfg.MaxHTTPBodyBytes, cfg.MaxRoomParticipants))
 	mux.Handle("GET /v1/rooms/{roomToken}/ws", ws.NewHandler(manager, registry, logger, ws.ClientOptions{SendQueueCapacity: cfg.MaxClientSendQueue, MaxMessageBytes: cfg.MaxWSMessageBytes, MaxMessagesPerSecond: cfg.MaxClientMessagesPerSecond, PingInterval: cfg.WSPingInterval, PongTimeout: cfg.WSPongTimeout, WriteTimeout: cfg.WSWriteTimeout}, cfg.MaxRoomParticipants))
-	return originMiddleware(cfg.AllowedOrigins, mux)
+	return originMiddleware(cfg.AllowedOrigins, mux, registry)
 }
 
-func originMiddleware(allowed map[string]struct{}, next http.Handler) http.Handler {
+func originMiddleware(allowed map[string]struct{}, next http.Handler, registries ...*metrics.Registry) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := strings.ToLower(strings.TrimSpace(r.Header.Get("Origin")))
 		if origin != "" {
 			if _, ok := allowed[origin]; !ok {
+				for _, registry := range registries {
+					registry.AuthRejected()
+				}
 				http.Error(w, "origin not allowed", http.StatusForbidden)
 				return
 			}

@@ -24,6 +24,7 @@ import {
 import { useSystemDesignKeyboardShortcuts } from "../hooks/use-system-design-keyboard-shortcuts";
 import { useSystemDesignClipboard } from "../hooks/use-system-design-clipboard";
 import { useSystemDesignPersistence } from "../hooks/use-system-design-persistence";
+import { useCanvasTelemetry } from "../hooks/use-canvas-telemetry";
 import { createSystemDesignRepository } from "../repository/createSystemDesignRepository";
 import {
   systemDesignEditorActions,
@@ -62,6 +63,7 @@ import {
   readSystemDesignImportFile,
 } from "../utils/diagram-import-export";
 import { downloadInteractiveSystemDesignHtml } from "../utils/interactive-html-export";
+import { track } from "@/lib/telemetry/client";
 import {
   DEFAULT_SYSTEM_DESIGN_VIEWPORT,
   countSystemDesignElements,
@@ -481,13 +483,16 @@ export function SystemDesignWorkspace({
   const collaborationActive =
     mode.kind === "live" || realtime.roomToken !== null;
   const sendCommittedOperation = realtime.sendCommittedOperation;
+  const recordCanvasTelemetry = useCanvasTelemetry(problem?.id);
 
   const commitCanvasOperation = useCallback(
     (operation: CanvasOperation) => {
+      const beforeDocument = stateRef.current.document;
       const applied = applyCanvasOperation(stateRef.current, operation, {
         selectAddedNode:
           operation.kind === "node.add" || operation.kind === "edge.add",
       });
+      recordCanvasTelemetry(beforeDocument, applied.state.document);
       stateRef.current = applied.state;
       dispatch(applied.action);
       if (collaborationActive) {
@@ -498,7 +503,7 @@ export function SystemDesignWorkspace({
       }
       return applied.operation;
     },
-    [collaborationActive, sendCommittedOperation],
+    [collaborationActive, sendCommittedOperation, recordCanvasTelemetry],
   );
 
   const commitEditorActionWithConcreteOperations = useCallback(
@@ -538,6 +543,7 @@ export function SystemDesignWorkspace({
         return false;
       }
 
+      recordCanvasTelemetry(current.document, next.document);
       stateRef.current = next;
       dispatch(action);
       if (!collaborationActive) return true;
@@ -607,7 +613,7 @@ export function SystemDesignWorkspace({
       );
       return true;
     },
-    [collaborationActive, sendCommittedOperation],
+    [collaborationActive, sendCommittedOperation, recordCanvasTelemetry],
   );
 
   const documentCounts = useMemo(
@@ -660,6 +666,14 @@ export function SystemDesignWorkspace({
       : null;
   const selectedCount =
     state.selectedNodeIds.length + state.selectedEdgeIds.length;
+  const telemetryEditing = useRef(false);
+  useEffect(()=>{track("system_design.workspace_opened",{},problem?.id);},[problem?.id]);
+  useEffect(() => {
+    if (state.isDirty && !telemetryEditing.current) {
+      telemetryEditing.current = true;
+      track("system_design.editing_started", {}, problem?.id);
+    }
+  }, [state.isDirty, problem?.id]);
 
   const saveState: SystemDesignSaveState =
     state.saveStatus === "saving"
@@ -1059,6 +1073,7 @@ export function SystemDesignWorkspace({
   );
 
   const handleExport = useCallback(() => {
+    track("system_design.export_requested", {}, problem?.id);
     setUiError(null);
     try {
       downloadInteractiveSystemDesignHtml(

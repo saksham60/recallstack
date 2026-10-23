@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/env.dart';
 import '../auth/auth_repository.dart';
+import '../telemetry/diagnostic_sink.dart';
 
 class AuthInterceptor extends Interceptor {
   AuthInterceptor(this.dio, this.auth, {this.signOutOnUnauthorized = true});
@@ -73,7 +74,37 @@ Dio createApiDio(String baseUrl, AuthRepository auth) {
     ),
   );
   dio.interceptors.add(AuthInterceptor(dio, auth));
+  dio.interceptors.add(_ProductDiagnostics(auth));
   return dio;
+}
+
+class _ProductDiagnostics extends Interceptor {
+  _ProductDiagnostics(this.auth);
+  final AuthRepository auth;
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    final owner = err.requestOptions.extra['requestOwner'];
+    if (owner == auth.current?.user.id &&
+        owner != null &&
+        !err.requestOptions.path.contains('telemetry/') &&
+        err.type != DioExceptionType.cancel) {
+      final status = err.response?.statusCode;
+      productApiFailureSink?.call(
+        status != null
+            ? status >= 500
+                  ? 'http_5xx'
+                  : 'http_4xx'
+            : [
+                DioExceptionType.connectionTimeout,
+                DioExceptionType.sendTimeout,
+                DioExceptionType.receiveTimeout,
+              ].contains(err.type)
+            ? 'timeout'
+            : 'network',
+      );
+    }
+    handler.next(err);
+  }
 }
 
 final backendDioProvider = Provider<Dio>((ref) {

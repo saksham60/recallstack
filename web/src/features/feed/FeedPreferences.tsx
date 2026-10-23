@@ -6,6 +6,7 @@ import { SlidersHorizontal } from "lucide-react";
 import { feedApi, feedErrorMessage } from "./api";
 import { feedCategories } from "./model";
 import { feedButton } from "./StoryCard";
+import { track } from "@/lib/telemetry/client";
 
 const interests = feedCategories.filter((category) => category.value !== "");
 const interestKeys = new Set<string>(interests.map((category) => category.value));
@@ -38,6 +39,7 @@ export function FeedPreferences({ userId, onSaved }: { userId: string; onSaved: 
         ...selected.map((topic) => ({ topic, weight: 2, blocked: false })),
       ];
       const updated = await feedApi.savePreferences(topics, promptSupported ? prompt.trim() : undefined);
+      track("feed.preferences_changed");
       client.setQueryData(["feed-preferences", userId], updated);
       setOpen(false);
       setDraft(null);

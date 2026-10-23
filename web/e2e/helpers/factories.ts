@@ -3,7 +3,6 @@ import type { components } from '../../src/lib/api/types';
 type PublishedStudyNoteResponse = components['schemas']['PublishedStudyNoteResponse'];
 type ProfileResponse = components['schemas']['ProfileResponse'];
 type OverviewResponse = components['schemas']['OverviewResponse'];
-type AdminUserListItem = components['schemas']['AdminUserListItem'];
 type UserDetailResponse = components['schemas']['UserDetailResponse'];
 type ProblemAnalyticsItem = components['schemas']['ProblemAnalyticsItem'];
 
@@ -72,31 +71,6 @@ export function createAdminOverview(overrides: Partial<OverviewResponse> = {}): 
       users_with_100_or_more_completions: 134,
     },
     generated_at: '2026-07-28T12:00:00Z',
-    ...overrides,
-  };
-}
-
-export function createAdminUser(
-  completed: number,
-  overrides: Partial<AdminUserListItem> = {},
-): AdminUserListItem {
-  return {
-    user_id: `00000000-0000-0000-0000-000000000${completed}`,
-    name: `User ${completed}`,
-    email: `user${completed}@example.com`,
-    created_at: '2026-07-01T10:00:00Z',
-    last_active_at: null,
-    account_status: 'active',
-    unique_problems_attempted: completed + 5,
-    unique_problems_completed: completed,
-    current_streak: null,
-    readiness_score: null,
-    interview_unlock: {
-      required_completions: 100,
-      current_completions: completed,
-      remaining_completions: Math.max(0, 100 - completed),
-      eligible: completed >= 100,
-    },
     ...overrides,
   };
 }

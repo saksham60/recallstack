@@ -7,6 +7,7 @@ import '../../core/api/api_failure.dart';
 import '../../core/db/app_database.dart';
 import 'canonical_api.dart';
 import 'canonical_models.dart';
+import '../../core/telemetry/product_telemetry.dart';
 
 /// Local receipts contain a frozen retry request/server ID, never grading truth.
 class ExecutionSession extends ChangeNotifier {
@@ -77,6 +78,7 @@ class ExecutionSession extends ChangeNotifier {
       _notify();
       return;
     }
+    productEvent(mode == 'submit' ? TelemetryEvent.dsaSubmitInitiated : TelemetryEvent.dsaRunInitiated, entityId: problem.id);
     pending = Map.unmodifiable({
       'problemId': problem.id,
       'problemVersionId': problem.version,

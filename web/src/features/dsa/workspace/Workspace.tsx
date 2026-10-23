@@ -70,6 +70,7 @@ import { usePracticeSubmissions } from "../execution/use-practice-submissions";
 import { problemHref } from "../navigation/urls";
 import { LearningResources } from "./LearningResources";
 import { rememberProblem } from "../navigation/resume";
+import { beginJourney, track } from "@/lib/telemetry/client";
 import "./workspace.css";
 
 const CodeEditor = dynamic(() => import("./CodeEditor"), {
@@ -113,9 +114,14 @@ export default function Workspace({
   const [explorerOpen, setExplorerOpen] = useState(!problemId);
   const problem = useProblem(scope, problemId, versionId);
   useEffect(() => {
-    if (user?.id && problem.data && !preview)
+    if (user?.id && problem.data && !preview) {
       rememberProblem(user.id, problem.data);
-  }, [user?.id, problem.data, preview]);
+      beginJourney();
+      track("dsa.problem_opened", { entry_point: "link" }, problem.data.id);
+    }
+  // Opening identifies the problem; background cache refreshes are not new visits.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, problem.data?.id, preview]);
   const canPreview = profile.data?.roles.some(
     (role) => role === "admin" || role === "reviewer",
   );
@@ -362,7 +368,7 @@ function EditorWorkspace({
     submissionId && submissionId !== latestJob?.submissionId
       ? selected.data
       : latestJob;
-  const localPython = useLocalPythonRun();
+  const localPython = useLocalPythonRun(problem.id);
   const { invalidate: invalidateLocalRun } = localPython;
   const practice = usePracticeSubmissions(
     problem.id,
@@ -396,6 +402,14 @@ function EditorWorkspace({
     readDraft(storageKey, starterCode(language)),
   );
   const currentDraft = useRef(draft);
+  const editingTracked = useRef(false);
+  const draftTelemetryAt = useRef(0);
+  useEffect(() => {
+    track("dsa.editor_initialized", {}, problem.id);
+    try {
+      track(localStorage.getItem(storageKey) ? "dsa.draft_restored" : "dsa.starter_loaded", {}, problem.id);
+    } catch { /* Restricted storage is surfaced by existing draft controls. */ }
+  }, [problem.id, storageKey]);
   const [previousDraft] = useState(() =>
     approved?.contract.adapter
       ? readDraft(
@@ -468,12 +482,22 @@ function EditorWorkspace({
       if (render) setDraft(next);
       try {
         localStorage.setItem(storageKey, JSON.stringify(next));
+        if ("code" in change && !editingTracked.current) {
+          editingTracked.current = true;
+          track("dsa.editing_started", {}, problem.id);
+        }
+        if ("code" in change && Date.now()-draftTelemetryAt.current > 60000) {
+          draftTelemetryAt.current = Date.now(); track("dsa.draft_saved", {}, problem.id);
+        }
         setStorageError(false);
       } catch {
+        if (Date.now()-draftTelemetryAt.current > 60000) {
+          draftTelemetryAt.current = Date.now(); track("dsa.draft_failed", {}, problem.id);
+        }
         setStorageError(true);
       }
     },
-    [storageKey, invalidateLocalRun],
+    [storageKey, invalidateLocalRun, problem.id],
   );
   const changeCode = useCallback(
     (code: string) => persist({ code }),
@@ -501,6 +525,9 @@ function EditorWorkspace({
     execution.needsRetry ||
     localPython.run?.state === "running";
   function openReasonAI(tab: string) {
+    if (tab === "tutor") track("dsa.tutor_opened", {}, problem.id);
+    if (tab === "history") track("dsa.history_opened", {}, problem.id);
+    if (tab === "results") track("dsa.report_opened", {}, problem.id);
     setRightTab(tab);
     setMobile("tutor");
     if (layout !== "judgment") setPanel("tutor");
@@ -559,7 +586,7 @@ function EditorWorkspace({
               problemVersionId: problem.problem_version_id,
             }
           : approved
-            ? { contract: approved.contract }
+            ? { contract: approved.contract, problemId: problem.id, userId, problemVersionId: problem.problem_version_id }
             : undefined,
       );
       return;
@@ -591,6 +618,7 @@ function EditorWorkspace({
     }
   }
   function changeLanguage(next: string) {
+    if (next === "python" || next === "typescript" || next === "cpp") track("dsa.language_selected", { language: next }, problem.id);
     localPython.invalidate();
     const recovered = readDraft(
       draftKey(
@@ -827,6 +855,7 @@ function EditorWorkspace({
                 type="button"
                 onClick={() => {
                   persist({ code: starterCode(language), view: undefined });
+                  track("dsa.starter_loaded", {}, problem.id);
                   setReset(false);
                 }}
               >
@@ -1043,7 +1072,7 @@ function EditorWorkspace({
                 id={`reasonai-tab-${id}`}
                 aria-selected={rightTab === id}
                 aria-controls={`reasonai-panel-${id}`}
-                onClick={() => setRightTab(String(id))}
+                onClick={() => openReasonAI(String(id))}
               >
                 {typeof Icon !== "string" && <Icon size={15} />} {String(label)}
               </button>

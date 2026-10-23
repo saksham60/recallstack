@@ -149,6 +149,7 @@ func (c *Client) writeLoop(ctx context.Context) error {
 			err := c.conn.Ping(pingContext)
 			cancel()
 			if err != nil {
+				c.registry.HeartbeatTimeout()
 				return fmt.Errorf("websocket heartbeat: %w", err)
 			}
 		}

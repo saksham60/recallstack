@@ -32,16 +32,19 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	token := r.PathValue("roomToken")
 	roomValue, ok := h.manager.Find(token)
 	if !ok {
+		h.registry.JoinFailed()
 		writeHTTPError(w, http.StatusNotFound, protocol.ErrorRoomNotFound, "room not found")
 		return
 	}
 	actorID := strings.TrimSpace(r.URL.Query().Get("actorId"))
 	if !protocol.ValidIdentifier(actorID) {
+		h.registry.JoinFailed()
 		writeHTTPError(w, http.StatusBadRequest, protocol.ErrorInvalidOperation, "actorId query parameter is invalid")
 		return
 	}
 	lastSequence, err := parseLastSequence(r.URL.Query().Get("lastSequence"))
 	if err != nil {
+		h.registry.JoinFailed()
 		writeHTTPError(w, http.StatusBadRequest, protocol.ErrorInvalidOperation, "lastSequence must be an unsigned integer")
 		return
 	}
@@ -58,6 +61,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if metadata.ParticipantCount >= h.maxParticipants {
+		h.registry.JoinFailed()
+		h.registry.CapacityRejected()
 		writeHTTPError(w, http.StatusConflict, protocol.ErrorRoomFull, "room is full")
 		return
 	}
@@ -67,6 +72,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	conn, err := coderws.Accept(w, r, &coderws.AcceptOptions{InsecureSkipVerify: true, CompressionMode: coderws.CompressionContextTakeover})
 	if err != nil {
 		h.logger.Warn("websocket upgrade failed", "room", roomValue.Fingerprint(), "error", err)
+		h.registry.JoinFailed()
 		return
 	}
 	client, err := NewClient(actorID, conn, h.options, h.registry)
@@ -75,6 +81,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := roomValue.Join(r.Context(), client, lastSequence); err != nil {
+		h.registry.JoinFailed()
 		switch {
 		case errors.Is(err, room.ErrFull):
 			client.Disconnect(protocol.CloseRoomFull, "room is full")
@@ -94,6 +101,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		client.CloseWithError(err)
+		h.registry.TransportFailed()
 		h.logger.Info("websocket disconnected", "room", roomValue.Fingerprint(), "error", safeConnectionError(err))
 	}
 }

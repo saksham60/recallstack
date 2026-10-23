@@ -3,6 +3,7 @@ import { Geist } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/features/auth";
 import QueryProvider from "@/lib/query/QueryProvider";
+import { TelemetryProvider } from "@/lib/telemetry/TelemetryProvider";
 
 const geist = Geist({
   subsets: ["latin"],
@@ -27,7 +28,7 @@ export default function RootLayout({
     <html lang="en" className={`${geist.variable} h-full antialiased dark`}>
       <body className="min-h-full flex flex-col">
         <QueryProvider>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider><TelemetryProvider>{children}</TelemetryProvider></AuthProvider>
         </QueryProvider>
       </body>
     </html>

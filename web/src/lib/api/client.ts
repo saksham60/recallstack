@@ -5,9 +5,11 @@ import type { paths } from "./types";
 import { publicConfig } from "@/lib/config/public";
 import { getBrowserClient } from "@/lib/supabase/client";
 import { createApiError } from "./errors";
+import { track } from "@/lib/telemetry/client";
 
 const authMiddleware: Middleware = {
   async onRequest({ request }) {
+    if (!request.headers.has("X-Request-ID")) request.headers.set("X-Request-ID",crypto.randomUUID());
     if (typeof window !== "undefined") {
       const supabase = getBrowserClient();
       const {
@@ -22,6 +24,9 @@ const authMiddleware: Middleware = {
   },
   async onResponse({ response }) {
     if (!response.ok) {
+      if (!response.url.includes("/telemetry/") && !response.url.includes("/admin/")) {
+        track("diagnostics.api_failed", {category:response.status>=500?"http_5xx":"http_4xx",count:1}, undefined, response.headers.get("X-Request-ID") ?? undefined);
+      }
       let errorData;
       try {
         errorData = await response.clone().json();

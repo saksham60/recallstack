@@ -5,6 +5,7 @@ import Image from "next/image";
 import { ArrowUpRight, Bookmark, Check, EyeOff, Share2, Sparkles } from "lucide-react";
 import { storyAge, storyCategory, type FeedStory } from "./model";
 import type { FeedActions } from "./use-feed";
+import { track as trackTelemetry } from "@/lib/telemetry/client";
 
 export const feedButton = "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm transition-colors hover:bg-surface-elevated focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-wait disabled:opacity-50";
 
@@ -49,7 +50,7 @@ export function StoryCard({ story, actions, onOpen, onAsk, onHide, eager = false
     let timer: ReturnType<typeof setTimeout> | undefined;
     const observer = new IntersectionObserver(([entry]) => {
       clearTimeout(timer);
-      if (entry.isIntersecting) timer = setTimeout(() => { track(story.id, "VIEW"); observer.disconnect(); }, 800);
+      if (entry.isIntersecting && entry.intersectionRatio >= 0.5 && document.visibilityState === "visible") timer = setTimeout(() => { if (document.visibilityState === "visible") { track(story.id, "VIEW"); observer.disconnect(); } }, 800);
     }, { threshold: 0.5 });
     observer.observe(card.current);
     return () => { clearTimeout(timer); observer.disconnect(); };
@@ -67,7 +68,7 @@ export function StoryCard({ story, actions, onOpen, onAsk, onHide, eager = false
         {story.whyItMatters && <div className="mt-3 border-l-2 border-accent/35 pl-3"><p className="text-xs font-medium text-accent">Why it matters</p><p className="mt-1 line-clamp-2 whitespace-pre-line break-words text-sm leading-5 text-muted">{story.whyItMatters}</p></div>}
       </div>
       <div className="self-start rounded-xl bg-surface-elevated/35"><StoryImage key={story.imageUrl} story={story} eager={eager} /></div>
-      <a href={story.sourceUrl} target="_blank" rel="noopener noreferrer" className="relative z-20 col-span-2 mt-2 inline-flex min-h-10 max-w-full items-center gap-1 text-xs text-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-accent">
+      <a href={story.sourceUrl} onClick={() => trackTelemetry("feed.source_clicked", {}, story.id)} target="_blank" rel="noopener noreferrer" className="relative z-20 col-span-2 mt-2 inline-flex min-h-10 max-w-full items-center gap-1 text-xs text-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-accent">
         <span className="min-w-0 truncate">{story.source.name}</span><ArrowUpRight size={13} className="shrink-0" aria-hidden="true" /><span className="sr-only"> (opens in a new tab)</span>
       </a>
       <div className="relative z-20 col-span-2"><StoryActions story={story} actions={actions} onAsk={onAsk} onHide={onHide} /></div>

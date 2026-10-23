@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import type { User, Session } from "@supabase/supabase-js";
 import { getBrowserClient } from "@/lib/supabase/client";
 import { usePathname, useRouter } from "next/navigation";
@@ -8,6 +8,7 @@ import {
   getSafeAuthRedirect,
   POST_AUTH_REDIRECT_COOKIE,
 } from "./auth-redirect";
+import { flushTelemetry, setTelemetryIdentity, track } from "@/lib/telemetry/client";
 
 interface AuthContextType {
   user: User | null;
@@ -49,6 +50,7 @@ function SupabaseAuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const [supabase] = useState(() => getBrowserClient());
+  const lastLoginUser=useRef<string|null>(null);
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -60,6 +62,7 @@ function SupabaseAuthProvider({ children }: { children: React.ReactNode }) {
         if (error) {
           console.error("Failed to initialize authentication", error);
         }
+        setTelemetryIdentity(session?.user.id,session?.access_token);
         setSession(session);
         setUser(session?.user ?? null);
       } catch (error) {
@@ -74,6 +77,13 @@ function SupabaseAuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      setTelemetryIdentity(session?.user.id,session?.access_token);
+      if (_event === "SIGNED_IN" && session && lastLoginUser.current!==session.user.id) {
+        setTelemetryIdentity(session.user.id,session.access_token);
+        track("auth.login_succeeded");
+      }
+      if (_event === "SIGNED_IN" || _event === "INITIAL_SESSION") lastLoginUser.current=session?.user.id??null;
+      if (_event === "SIGNED_OUT") lastLoginUser.current=null;
       setSession(session);
       setUser(session?.user ?? null);
       if (_event === "SIGNED_OUT") {
@@ -81,15 +91,19 @@ function SupabaseAuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => { subscription.unsubscribe(); setTelemetryIdentity(undefined); };
   }, [supabase, router]);
 
   const signOut = async () => {
+    track("auth.logout_requested");
+    track("session.ended", { reason: "logout" });
+    void flushTelemetry(true);
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
   };
 
   const signInWithGoogle = async (nextPath = "/feed") => {
+    track("auth.signup_started");
     const safeNextPath = getSafeAuthRedirect(nextPath);
     const secureAttribute = window.location.protocol === "https:" ? "; Secure" : "";
     document.cookie = `${POST_AUTH_REDIRECT_COOKIE}=${encodeURIComponent(safeNextPath)}; Path=/; Max-Age=600; SameSite=Lax${secureAttribute}`;

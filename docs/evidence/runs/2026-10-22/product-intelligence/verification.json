@@ -1,0 +1,174 @@
+{
+  "client_closeout_date": "2026-10-23",
+  "captured_at_utc": "2026-10-23T05:51:27.371002+00:00",
+  "scope": "Local candidate; disposable databases, fixture authentication and deterministic tests. No production rollout certification.",
+  "production_mutations": false,
+  "push": false,
+  "pull_request": false,
+  "deployment": false,
+  "paid_provider_inference": false,
+  "checks": [
+    {
+      "name": "backend non-integration",
+      "status": "passed",
+      "passed": 351,
+      "deselected": 97,
+      "command": ".venv/Scripts/python.exe -m pytest -m 'not integration' -q --tb=short",
+      "log": "backend/.pytest_cache/telemetry-regression-final.log"
+    },
+    {
+      "name": "PostgreSQL integration",
+      "status": "passed",
+      "passed": 30,
+      "command": "RUN_INTEGRATION_TESTS=1 .venv/Scripts/python.exe -m pytest tests/integration/test_product_intelligence.py tests/integration/test_admin_analytics.py tests/integration/test_admin_content_management.py tests/integration/test_admin_user_inspection.py tests/integration/test_admin_growth.py tests/integration/test_admin_http_workflow.py -q --tb=short",
+      "log": "backend/.pytest_cache/telemetry-integration-final.log"
+    },
+    {
+      "name": "web typecheck and lint after cleanup",
+      "status": "passed",
+      "command": "npm run typecheck; npm run lint"
+    },
+    {
+      "name": "Admin and real-pipeline browser after cleanup",
+      "status": "passed",
+      "command": "npx --yes --package=node@22 node node_modules/@playwright/test/cli.js test --config=playwright.intelligence.config.ts",
+      "scope": "15 Admin regressions plus 3 real local collector/Admin checks; production authentication is not exercised",
+      "passed": 18,
+      "exit_code": 0
+    },
+    {
+      "name": "web production build after cleanup",
+      "status": "passed",
+      "command": "npx --yes --package=node@22 --call \"npm run build\"",
+      "exit_code": 0,
+      "static_pages": 39
+    },
+    {
+      "name": "AI and System Design deterministic state",
+      "status": "passed",
+      "passed": 525,
+      "command": "npx --yes --package=node@22 node node_modules/@playwright/test/cli.js test --config=playwright.system-design-state.config.ts"
+    },
+    {
+      "name": "Flutter full suite",
+      "status": "passed",
+      "passed": 77,
+      "skipped": 1,
+      "command": "flutter test",
+      "scope": "Full suite before additive registry entry; final registry covered by targeted test below",
+      "log": "mobile/.dart_tool/telemetry-tests-final.log"
+    },
+    {
+      "name": "Flutter final telemetry subset",
+      "status": "passed",
+      "passed": 3,
+      "command": "flutter test test/product_telemetry_test.dart",
+      "log": "mobile/.dart_tool/telemetry-last-targeted.log"
+    },
+    {
+      "name": "Flutter final analysis",
+      "status": "passed",
+      "command": "flutter analyze",
+      "log": "mobile/.dart_tool/telemetry-analyze-final.log",
+      "issues": 0
+    },
+    {
+      "name": "Go realtime",
+      "status": "passed",
+      "command": "docker run --rm -v D:/Code/RecallStack/Code/realtime:/src -w /src golang:1.27.0-bookworm go test ./...",
+      "scope": "All packages passed; observed earlier in this session, unchanged since"
+    },
+    {
+      "name": "DSA execution regression",
+      "status": "passed",
+      "passed": 37,
+      "skipped": 6,
+      "command": "npx --yes --package=node@22 --call \"npm run test:executions\"",
+      "scope": "Six opt-in live checks skipped; no full 375-problem recertification"
+    },
+    {
+      "name": "backend static checks",
+      "status": "passed",
+      "command": "uv run ruff check src/recallstack/modules/telemetry scripts/generate_telemetry.py scripts/telemetry_lifecycle.py scripts/e2e_telemetry_backend.py scripts/benchmark_product_intelligence.py tests/unit/test_telemetry_contract.py tests/integration/test_product_intelligence.py; uv run mypy src/recallstack/modules/telemetry --follow-imports=silent"
+    },
+    {
+      "name": "whitespace integrity",
+      "status": "passed",
+      "command": "git diff --check"
+    }
+  ],
+  "independent_kpi_reconciliation": "benchmark.json: expected/actual SQL for registered users, server Submits, official accepted attempts and unique solved user/problem pairs",
+  "additional_reconciliation": "PostgreSQL fixture validates local Run/server Run/Submit/provisional/pending/repeated accepted separation, topic/difficulty metadata, first-accept ordering, all 63 registry events, mature retention and observed journey/session queries. DSA Run-to-Submit requires the same recorded problem; a Submit for a different problem is explicitly tested not to convert the journey.",
+  "shared_python_harness_sha256": "adfd22cd51c2a806854223c38e666601a6382003946fe78ef7d7a733f8846486",
+  "cleanup": {
+    "removed_files": [
+      "web/src/features/admin/screens/GrowthScreen.tsx",
+      "web/src/features/admin/screens/UsersScreen.tsx",
+      "web/e2e/fixtures/admin-growth-observed.json"
+    ],
+    "removed_symbols": [
+      "useGrowth",
+      "useAdminUsers",
+      "adminKeys.users",
+      "createAdminUser",
+      "nine unused Admin type aliases",
+      "orphaned barrel exports"
+    ],
+    "basis": "No remaining source/test/script consumers after Product Intelligence route replacement; checked with rg and compiler.",
+    "retained": "Routed Legacy Practice screen, legacy detail history, role management, generated API contracts, supported backend compatibility APIs and historical evidence artifacts"
+  },
+  "unverified_release_gates": [
+    "Authorized live signup/login and Admin journeys",
+    "Paid live provider/judge probes",
+    "Full mobile device journeys",
+    "Production migration and grants validation",
+    "Retention scheduling",
+    "Unrelated pre-existing production RLS/grant findings"
+  ],
+  "source_sha256": {
+    "backend/scripts/benchmark_product_intelligence.py": "09f4afd0882f712ff020028bad9cf2651d37413ea3a6f88e177ce733c7220fb8",
+    "backend/scripts/e2e_telemetry_backend.py": "5e969692f4e614b285c0b5483086133b8b4c84a63b8497b66aa66fcde407cd42",
+    "backend/scripts/generate_telemetry.py": "895be9539491753cbe9161a26bfa830f6fcfab2a9b467c3da5502f08c8e5e7eb",
+    "backend/scripts/telemetry_lifecycle.py": "c4af9b07481fe558f485d82b1312ebde674de4df979ca5b68a90c32703c1c32d",
+    "backend/src/recallstack/modules/telemetry/__init__.py": "f446eb6192b214276bfae13205a3cffe7a87422a4ed842a6d265cae20b7a1cf7",
+    "backend/src/recallstack/modules/telemetry/contract.py": "e7b77a4e9e619f76242c9153535bf615c644055f2b268fb9752d5ee6821e4336",
+    "backend/src/recallstack/modules/telemetry/ingestion.py": "b0f3481311c074938e6d44a26dd06348f50195912c01f012039ed5476fc081d7",
+    "backend/src/recallstack/modules/telemetry/middleware.py": "92689e2c71b4a7c63ac1352102681434bfcb0ff739018079385db44c7997f22a",
+    "backend/src/recallstack/modules/telemetry/registry.json": "332684df010a8f4a805c4a16e3369f7c71ce8db1d816a1f99599a83eb32bb7b3",
+    "backend/src/recallstack/modules/telemetry/repository.py": "95321b69ccaf3bcb40d239db0dadc1f5e5a64f6ca0315501e1b813eaeb1ac829",
+    "backend/src/recallstack/modules/telemetry/routes.py": "790484fe323e673b9cb8eed07a881c00f8f7d66324906ce5556b1edd8bd92196",
+    "backend/tests/integration/test_product_intelligence.py": "ac0d4dc760f822e081af01be1eb72d4d04f7a76c32f9916396ecec91337cbede",
+    "backend/tests/unit/test_telemetry_contract.py": "d0e649bd942ee24ebd2b8532719c509597d59c3a03a21f7e64f0df8e9c0a7bc3",
+    "mobile/lib/core/telemetry/app_logger.dart": "7de185fcff1afb197c9a18f9b6d7c1014c14862d3659f8cdb08ebe0396fe81bf",
+    "mobile/lib/core/telemetry/diagnostic_sink.dart": "f89c0c060bd374531a6722903ebc8884fbe0a6730383f4a73fe0e0fa6def3600",
+    "mobile/lib/core/telemetry/product_telemetry.dart": "8afa2e7902af4e79c3a186225c4faf33ae45c3d789203aae6f12f54a8ea1701c",
+    "mobile/lib/core/telemetry/registry.dart": "ae5cabfe71f80fa033f07905e5cceb67c0648615d1f65a7d68588b6ecdb9d586",
+    "mobile/test/product_telemetry_test.dart": "29edb334da06b651a9942efb02a55fcbd54e1ac5940a5da7af978edc3f7b3b1a",
+    "realtime/internal/metrics/metrics.go": "76f53bfee3b5037b15919254e18ff89bb008eb7822a85e99513351fb979584a2",
+    "realtime/internal/metrics/metrics_test.go": "97684b06ff343a2f7a6b2bd052c95c2e49c039f218115c20a5f142a757789427",
+    "web/e2e/product-intelligence.spec.ts": "ae33339367491e487e2d5d0f8af520e1b5cfc1ea6c5dc5c749b06d39e85797f2",
+    "web/src/features/admin/index.ts": "81e50bb0d588b940bd66670a7815f893ddba9b95c5f8c67e01a7f8a4c10ea7c1",
+    "web/src/features/admin/intelligence/AccountClassification.tsx": "00cc02e919e9cfab67cd5fbe6e7d933074a58e3ec4e695d88d0c17dee93e87fe",
+    "web/src/features/admin/intelligence/IntelligenceScreen.tsx": "c1d810ad0a8c40e3864659072c8d617193d92becdfc8648894fa2de06abaa800",
+    "web/src/features/admin/intelligence/use-intelligence.ts": "90027ceaa63ae35c921a83c9618aba4bc2fc5c86802783b22b1c35562b0174c8",
+    "web/src/features/admin/keys.ts": "686590c4ebc3aea3c95e271592ecd7a9ca17228898b0252ec6ee2d920a86d9b4",
+    "web/src/features/admin/types.ts": "a9faf05e7b83a4e5c868d9d89323b7c29376e0d9fc7e0cafe18df771d011384c",
+    "web/src/features/admin/use-admin.ts": "feed6dda46a79682be43c1af74be9ccbc05d35e9180b2b84886d0bf26b72557b",
+    "web/src/features/system-design/hooks/use-canvas-telemetry.ts": "55cafbbf19547e13a48436d06f35b7281f6268124d7f5a8d0d0c490aea9fc99c",
+    "web/src/lib/telemetry/ai-measurements.ts": "ea2070b41cb83645e430a11cefca521207440a50104a4d81b5eba1a2fcded6dd",
+    "web/src/lib/telemetry/client.ts": "7cd1c605bd0559ee579698a638e6de0f1d73f71b8e9774395eca79dc568244b5",
+    "web/src/lib/telemetry/registry.ts": "566b555b11bda94bc90e06347421bf77fcba7e4197e1158ee90d6adf575a3d69",
+    "web/src/lib/telemetry/TelemetryPreference.tsx": "ec2ae547ad5100b4067eeaf9c07b0b7a85b5310de0bac23e5699cb90a6ac6015",
+    "web/src/lib/telemetry/TelemetryProvider.tsx": "8649b0dbc273e6e198c1425ef1fe2b07c4f5d8f8ddc06d2f3f7f77b03dfea64e",
+    "web/supabase/migrations/20261022134712_product_intelligence_v2.sql": "bd4a0b3b72279e7de4ec86d01accdf011c4032496e1e169cf6fd994b0fbc8909"
+  },
+  "completed_at_utc": "2026-10-23T06:05:13.426058+00:00",
+  "latest_required_local_checks": "passed",
+  "resolved_environment_issues": [
+    "One post-cleanup Playwright attempt timed out before tests while Next.js compiled /login. Backing up the generated .next/dev cache within the workspace allowed a clean rerun; all 18 tests then passed.",
+    "DSA regression requires the repository-supported Node 22 toolchain; the earlier default Node 20 run was replaced by the recorded passing Node 22 run."
+  ],
+  "non_blocking_build_warnings": [
+    "Existing QueueClient defaults to iad1 outside Vercel because VERCEL_REGION is absent in local builds."
+  ]
+}

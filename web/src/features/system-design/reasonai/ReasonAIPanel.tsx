@@ -1,4 +1,5 @@
 "use client";
+import { track } from "@/lib/telemetry/client";
 
 import {
   useCallback,
@@ -177,6 +178,8 @@ export function ReasonAIPanel({
         const stored = body.state && typeof body.state === "object" ? record(body.state) : undefined;
         const pendingProposal = stored?.pendingProposal && typeof stored.pendingProposal === "object" ? record(stored.pendingProposal) : undefined;
         conversationId.current = latest.id;
+        track("ai.conversation_opened",{},latest.id);
+        track("ai.conversation_resumed",{},latest.id);
         conversationDiagramId.current = diagram.id;
         if (!pendingProposal || pendingProposal.diagramId !== diagram.id) return;
         if (pendingProposal.status === "stale") {
@@ -274,6 +277,7 @@ export function ReasonAIPanel({
   async function send(retry?: Generation, explicitQuestion?: string) {
     const question = explicitQuestion ?? message.trim();
     if (pending.current || (!retry && !question)) return;
+    if(!retry && conversationId.current) track("ai.followup_submitted",{},conversationId.current);
     setError(null);
     const controller = new AbortController();
     pending.current = controller;
@@ -741,12 +745,14 @@ export function ReasonAIPanel({
                 onAcceptAll={async (proposal, proposalId, version, fingerprint) => {
                   if (!conversationId.current) throw new Error("Wait for the proposal to finish saving, then try again.");
                   await onAcceptAll(proposal, proposalId, version, fingerprint, conversationId.current);
+                  track("system_design.suggestion_accepted");
                   onProposalChange?.(undefined);
                   setTurns((previous) => previous.map((item) => item.id === turn.id ? { ...item, proposal: undefined, notice: "Proposal accepted. One Undo step restores the prior diagram." } : item));
                 }}
                 onDiscard={async (proposalId, version) => {
                   if (!conversationId.current) throw new Error("Wait for the proposal to finish saving, then try again.");
                   await onDiscard(proposalId, version, conversationId.current);
+                  track("system_design.suggestion_rejected");
                   onProposalChange?.(undefined);
                   setTurns((previous) => previous.map((item) => item.id === turn.id ? { ...item, proposal: undefined, notice: "Proposal discarded. The diagram was not changed." } : item));
                 }}
@@ -865,7 +871,7 @@ export function ReasonAIPanel({
         <details className="text-xs text-muted"><summary className="cursor-pointer py-1 hover:text-foreground">Visual analysis</summary><div className="grid grid-cols-2 gap-1 py-2">{[
           ["Show bottlenecks", "Show bottlenecks in"], ["Simulate failure", "Simulate a hypothetical failure affecting"],
           ["Capacity analysis", "Analyze capacity risks in"], ["Reliability analysis", "Show reliability risks in"],
-        ].map(([label, prompt]) => <button key={label} type="button" disabled={busy} onClick={() => quick("chat", prompt)} className="rounded-md bg-background/50 px-2 py-2 text-left hover:text-accent disabled:opacity-40">{label}</button>)}</div></details>
+        ].map(([label, prompt]) => <button key={label} type="button" disabled={busy} onClick={() => { track("system_design.analysis_requested"); quick("chat", prompt); }} className="rounded-md bg-background/50 px-2 py-2 text-left hover:text-accent disabled:opacity-40">{label}</button>)}</div></details>
         <div className="flex items-center justify-between text-[10px] text-muted">
           <span>
             {selected ? `${selected} selected · ` : ""}

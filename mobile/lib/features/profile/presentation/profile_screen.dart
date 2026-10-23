@@ -9,6 +9,7 @@ import '../../../core/auth/auth_repository.dart';
 import '../../../shared/widgets/states.dart';
 import '../../../app/env.dart';
 import '../../feed/presentation/feed_preferences_sheet.dart';
+import '../../../core/telemetry/product_telemetry.dart';
 
 final profileProvider = FutureProvider.autoDispose<Map<String, dynamic>>((
   ref,
@@ -100,6 +101,7 @@ class ProfileScreen extends ConsumerWidget {
                   ref.watch(versionProvider).value ?? 'Loading version…',
                 ),
               ),
+              const _ProductAnalyticsPreference(),
               ListTile(
                 leading: const Icon(Icons.logout),
                 title: const Text('Sign out'),
@@ -129,6 +131,35 @@ class ProfileScreen extends ConsumerWidget {
           );
         },
       ),
+    );
+  }
+}
+
+class _ProductAnalyticsPreference extends ConsumerStatefulWidget {
+  const _ProductAnalyticsPreference();
+  @override
+  ConsumerState<_ProductAnalyticsPreference> createState() =>
+      _ProductAnalyticsPreferenceState();
+}
+
+class _ProductAnalyticsPreferenceState
+    extends ConsumerState<_ProductAnalyticsPreference> {
+  bool? _allowed;
+  @override
+  Widget build(BuildContext context) {
+    final telemetry = ref.watch(productTelemetryProvider);
+    return SwitchListTile(
+      title: const Text('Optional product analytics'),
+      subtitle: const Text(
+        'Feature usage and diagnostics only. No code, prompts, private diagrams, advertising IDs or location. Collection also requires release configuration.',
+      ),
+      value: _allowed ?? telemetry?.enabled ?? false,
+      onChanged: telemetry == null
+          ? null
+          : (value) async {
+              await telemetry.preference(value);
+              if (mounted) setState(() => _allowed = value);
+            },
     );
   }
 }

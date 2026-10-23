@@ -6,6 +6,7 @@ import '../../core/auth/auth_repository.dart';
 import '../../core/reasonai/reasonai_client.dart';
 import '../../app/env.dart';
 import 'canonical_models.dart';
+import '../../core/telemetry/product_telemetry.dart';
 
 class CanonicalDsaApi {
   const CanonicalDsaApi(this.backend, this.web);
@@ -61,6 +62,7 @@ class CanonicalDsaApi {
             cancelToken: token,
           )).data,
         );
+        productEvent(TelemetryEvent.dsaProblemOpened, entityId: result.id, properties: {'entry_point': 'link'});
         return result;
       });
   Future<List<Json>> categories({CancelToken? token}) => _call(

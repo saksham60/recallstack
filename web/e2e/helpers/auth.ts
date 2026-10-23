@@ -10,6 +10,11 @@ import { getSupabaseAuthCookieName } from '../../src/lib/supabase/constants';
  *    the application clients.
  */
 export async function setupAuth(page: Page, userParams?: { id?: string, email?: string }) {
+  // Optional analytics must never escape a fixture browser to a deployed API.
+  // Dedicated pipeline tests register a later loopback forwarding handler.
+  await page.route('**/api/v1/telemetry/events', route => route.fulfill({
+    status: 503, json: { detail: 'Collection disabled in default browser fixture' },
+  }));
   const jwtPayload = {
     aud: 'authenticated',
     exp: Math.floor(Date.now() / 1000) + 3600,

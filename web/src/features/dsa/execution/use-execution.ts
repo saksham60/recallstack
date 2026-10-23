@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getBrowserClient } from "@/lib/supabase/client";
+import { track } from "@/lib/telemetry/client";
 import { createAuthenticatedReasonAIFetch } from "@/lib/reasonai/authenticated-request";
 import {
   executionRequestSchema,
@@ -169,6 +170,7 @@ export function useExecution(
     setError(undefined);
     setCancelRequested(false);
     save({ schema: 1, pending: request });
+    track(request.mode === "submit" ? "dsa.submit_initiated" : "dsa.run_initiated", {}, problemId);
     try {
       const result = await parse<ExecutionView>(
         await transport()(

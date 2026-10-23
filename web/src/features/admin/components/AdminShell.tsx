@@ -10,7 +10,7 @@ import { LoadingSkeleton, QueryError } from "./AdminPrimitives";
 
 const coreNavigation = [
   { href: "/admin", label: "Platform Overview" },
-  { href: "/admin/dsa", label: "DSA Overview" },
+  { href: "/admin/dsa", label: "Legacy Practice" },
   { href: "/admin/users", label: "Users" },
   { href: "/admin/problems", label: "Problem Analytics" },
   { href: "/admin/audit-logs", label: "Audit Logs" },

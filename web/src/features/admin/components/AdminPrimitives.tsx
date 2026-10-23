@@ -56,7 +56,7 @@ export function QueryError({ error, retry, resource = "data" }: { error: unknown
   return (
     <ErrorState
       title={title}
-      description={getApiErrorMessage(error)}
+      description={error instanceof ApiError && error.status >= 500 ? error.message : getApiErrorMessage(error)}
       action={<button className={buttonClass} onClick={retry}>Try again</button>}
     />
   );

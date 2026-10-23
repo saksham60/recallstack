@@ -73,6 +73,8 @@ from recallstack.modules.recall.application.review_submission import (
 from recallstack.modules.recall.presentation.routes import router as recall_router
 from recallstack.modules.sync.application.sync_service import SyncService
 from recallstack.modules.sync.presentation.routes import router as sync_router
+from recallstack.modules.telemetry.middleware import TelemetryHealthMiddleware
+from recallstack.modules.telemetry.routes import router as telemetry_router
 from recallstack.shared.auth.jwt_verifier import SupabaseJwtVerifier
 from recallstack.shared.config import Settings, get_settings
 from recallstack.shared.database import Database
@@ -163,6 +165,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             lambda: SqlAlchemyAdminUserUnitOfWork(database.session_factory)
         )
         app.state.admin_analytics_service = AdminAnalyticsService(database.session_factory)
+        app.state.telemetry_session_factory = database.session_factory
+        app.state.telemetry_environment = resolved.app_env
         app.state.practice_attempt_service = PracticeAttemptService(
             lambda: SqlAlchemyPracticeAttemptUnitOfWork(
                 database.session_factory, sync_retention_days=resolved.sync_retention_days
@@ -227,6 +231,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(RequestContextMiddleware)
     app.add_middleware(DsaCacheMiddleware)
     app.add_middleware(AdminCacheMiddleware)
+    app.add_middleware(TelemetryHealthMiddleware)
     install_error_handlers(app)
     app.include_router(health_router)
     app.include_router(identity_router, prefix="/api/v1")
@@ -240,6 +245,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(admin_content_router, prefix="/api/v1")
     app.include_router(admin_user_router, prefix="/api/v1")
     app.include_router(admin_analytics_router, prefix="/api/v1")
+    app.include_router(telemetry_router, prefix="/api/v1")
     app.include_router(sync_router, prefix="/api/v1")
     app.include_router(diagram_router, prefix="/api/v1")
     app.include_router(dsa_router, prefix="/api/v1")

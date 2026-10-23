@@ -10,6 +10,7 @@ import { ReasonAIStreamResponseError } from "@/lib/reasonai/streaming-client";
 import { createReasonAIRuntimeState, interruptReasonAIRun, reduceReasonAIEvent } from "@/lib/reasonai/runtime/reducer";
 import { storyCategory, storyLink, type FeedStory } from "./model";
 import { feedButton } from "./StoryCard";
+import { track } from "@/lib/telemetry/client";
 
 const suggestions = ["Explain this simply", "Why does this matter?", "Explain the architecture", "Give me a practical example", "What could an interviewer ask?"];
 type Turn = { role: "user" | "assistant"; content: string; complete?: boolean };
@@ -29,6 +30,10 @@ export function StoryChat({ story }: { story: FeedStory }) {
     if (active.current || !message.trim()) return;
     const request = retry ? lastRequest.current : { message: message.trim(), history: turns.filter((turn) => turn.complete).slice(-12) };
     if (!request) return;
+    if(!retry && request.history.length) {
+      track("feed.followup_started",{},story.id);
+      track("ai.followup_submitted");
+    }
     lastRequest.current = request;
     const controller = new AbortController();
     active.current = controller;

@@ -715,6 +715,193 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/telemetry/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Collect */
+        post: operations["collectProductEvents"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/analytics/features": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Overview */
+        get: operations["productIntelligenceFeatures"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/analytics/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Overview */
+        get: operations["productIntelligenceOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{user_id}/features": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Features */
+        get: operations["userIntelligenceFeatures"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{user_id}/telemetry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Timeline */
+        get: operations["userIntelligenceTimeline"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{user_id}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Sessions */
+        get: operations["userIntelligenceSessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/analytics/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Health */
+        get: operations["productIntelligenceHealth"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/analytics/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Users */
+        get: operations["productIntelligenceUsers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/analytics/funnels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Funnels */
+        get: operations["productIntelligenceFunnels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/analytics/cohorts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Cohorts */
+        get: operations["productIntelligenceCohorts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/analytics/users/{user_id}/classification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Classify */
+        put: operations["classifyIntelligenceAccount"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/devices/register": {
         parameters: {
             query?: never;
@@ -1490,6 +1677,11 @@ export interface components {
             items: components["schemas"]["AuditLogItem"][];
             pagination: components["schemas"]["recallstack__modules__admin__presentation__schemas__PaginationResponse"];
         };
+        /** Batch */
+        Batch: {
+            /** Events */
+            events: components["schemas"]["Event"][];
+        };
         /** BookmarkCreate */
         BookmarkCreate: {
             /**
@@ -1843,11 +2035,52 @@ export interface components {
              */
             changed_at: string;
         };
+        /** ClassificationRequest */
+        ClassificationRequest: {
+            /** Classification */
+            classification: ("internal" | "judge" | "demo" | "test") | null;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "admin_verified" | "managed_test_identity" | "judge_invitation";
+        };
         /** ContentUserProgressResponse */
         ContentUserProgressResponse: {
             status: components["schemas"]["LearningStatus"];
             /** Confidence */
             confidence: number;
+        };
+        /** Coverage */
+        Coverage: {
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /**
+             * Since
+             * Format: date-time
+             */
+            since: string;
+            /**
+             * Until
+             * Format: date-time
+             */
+            until: string;
+            /** Telemetry Since */
+            telemetry_since: string | null;
+            /**
+             * Schema Version
+             * @default 1
+             * @constant
+             */
+            schema_version: 1;
+            /**
+             * History
+             * @default Canonical history plus observed client events; missing navigation is not reconstructed.
+             */
+            history: string;
         };
         /**
          * CreateContentRequest
@@ -2238,6 +2471,46 @@ export interface components {
             items: components["schemas"]["DueItem"][];
             pagination: components["schemas"]["Pagination"];
         };
+        /** Event */
+        Event: {
+            /**
+             * Event Id
+             * Format: uuid
+             */
+            event_id: string;
+            /**
+             * Schema Version
+             * @constant
+             */
+            schema_version: 1;
+            /** Event Name */
+            event_name: string;
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /** Journey Id */
+            journey_id?: string | null;
+            /** Correlation Id */
+            correlation_id?: string | null;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "web" | "mobile";
+            /** Entity Id */
+            entity_id?: string | null;
+            /** Properties */
+            properties?: {
+                [key: string]: unknown;
+            };
+        };
         /** EventBatch */
         EventBatch: {
             /** Events */
@@ -2561,6 +2834,34 @@ export interface components {
             items: components["schemas"]["HistoryItem"][];
             pagination: components["schemas"]["Pagination"];
         };
+        /** Intelligence */
+        Intelligence: {
+            coverage: components["schemas"]["Coverage"];
+            /** Metrics */
+            metrics: {
+                [key: string]: components["schemas"]["Metric"];
+            };
+            /** Features */
+            features?: {
+                [key: string]: unknown;
+            }[];
+            /** Daily */
+            daily?: {
+                [key: string]: unknown;
+            }[];
+            /** Details */
+            details?: {
+                [key: string]: unknown;
+            };
+        };
+        /** IntelligenceUsers */
+        IntelligenceUsers: {
+            coverage: components["schemas"]["Coverage"];
+            /** Total */
+            total: number;
+            /** Items */
+            items: components["schemas"]["UserIntelligenceItem"][];
+        };
         /** InterviewUnlock */
         InterviewUnlock: {
             /**
@@ -2581,6 +2882,20 @@ export interface components {
          * @enum {string}
          */
         LearningStatus: "new" | "learning" | "attempted" | "confident" | "mastered";
+        /** Metric */
+        Metric: {
+            /** Value */
+            value?: number | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "measured" | "partial_history" | "not_tracked" | "unknown" | "not_applicable";
+            /** Definition */
+            definition: string;
+            /** Source */
+            source: string;
+        };
         /** MockTestSummary */
         MockTestSummary: {
             /**
@@ -3354,6 +3669,18 @@ export interface components {
              */
             published_by: string;
         };
+        /** Receipt */
+        Receipt: {
+            /** Accepted */
+            accepted: number;
+            /** Duplicates */
+            duplicates: number;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+        };
         /** RecentAttempt */
         RecentAttempt: {
             /**
@@ -3908,6 +4235,47 @@ export interface components {
             /** Has Verified Public Tests */
             has_verified_public_tests: boolean;
         };
+        /** Timeline */
+        Timeline: {
+            coverage: components["schemas"]["Coverage"];
+            /** Items */
+            items: components["schemas"]["TimelineItem"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
+        /** TimelineItem */
+        TimelineItem: {
+            /** Id */
+            id: string;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Name */
+            name: string;
+            /** Feature */
+            feature: string;
+            /** Source */
+            source: string;
+            /** Evidence */
+            evidence: string;
+            /** Session Id */
+            session_id?: string | null;
+            /** Entity Id */
+            entity_id?: string | null;
+            /** Correlation Id */
+            correlation_id?: string | null;
+            /** Properties */
+            properties?: {
+                [key: string]: unknown;
+            };
+        };
         /** TopicAssignmentRequest */
         TopicAssignmentRequest: {
             /**
@@ -4026,6 +4394,45 @@ export interface components {
             }[];
             /** Review Cards */
             review_cards: components["schemas"]["UserReviewCardSnapshotResponse"][];
+        };
+        /** UserIntelligenceItem */
+        UserIntelligenceItem: {
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** Name */
+            name: string | null;
+            /** Email */
+            email: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Last Activity */
+            last_activity: string | null;
+            /** Active Days */
+            active_days: number | null;
+            /** Last Feature */
+            last_feature: string | null;
+            /** Last Platform */
+            last_platform: string | null;
+            /** Official Solves */
+            official_solves: number | null;
+            /** Ai Runs */
+            ai_runs: number | null;
+            /** Feed Actions */
+            feed_actions: number | null;
+            /** Design Actions */
+            design_actions: number | null;
+            /** Sessions */
+            sessions: number | null;
+            /** Signup Source */
+            signup_source: string;
+            /** Classification */
+            classification: string;
         };
         /** UserMetrics */
         UserMetrics: {
@@ -5897,6 +6304,382 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuditLogListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    collectProductEvents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Batch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Receipt"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    productIntelligenceFeatures: {
+        parameters: {
+            query?: {
+                days?: components["schemas"]["GrowthDays"];
+                exclude_internal?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Intelligence"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    productIntelligenceOverview: {
+        parameters: {
+            query?: {
+                days?: components["schemas"]["GrowthDays"];
+                exclude_internal?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Intelligence"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    userIntelligenceFeatures: {
+        parameters: {
+            query?: {
+                days?: components["schemas"]["GrowthDays"];
+            };
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Intelligence"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    userIntelligenceTimeline: {
+        parameters: {
+            query?: {
+                days?: components["schemas"]["GrowthDays"];
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Timeline"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    userIntelligenceSessions: {
+        parameters: {
+            query?: {
+                days?: components["schemas"]["GrowthDays"];
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    productIntelligenceHealth: {
+        parameters: {
+            query?: {
+                days?: components["schemas"]["GrowthDays"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    productIntelligenceUsers: {
+        parameters: {
+            query?: {
+                days?: components["schemas"]["GrowthDays"];
+                search?: string;
+                segment?: string;
+                exclude_internal?: boolean;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntelligenceUsers"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    productIntelligenceFunnels: {
+        parameters: {
+            query?: {
+                days?: components["schemas"]["GrowthDays"];
+                exclude_internal?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    productIntelligenceCohorts: {
+        parameters: {
+            query?: {
+                days?: components["schemas"]["GrowthDays"];
+                exclude_internal?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    classifyIntelligenceAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClassificationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string | null;
+                    };
                 };
             };
             /** @description Validation Error */

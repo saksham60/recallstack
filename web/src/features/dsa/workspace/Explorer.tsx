@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Search, X, ArrowUpRight, Layers3 } from "lucide-react";
 import { getApiErrorMessage } from "@/lib/api/errors";
 import { progressCounts, progressLabel } from "../progress/contract";
+import { track } from "@/lib/telemetry/client";
 import {
   useCatalog,
   useCatalogProgress,
@@ -52,6 +53,12 @@ export function Explorer({
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
   const [filters, setFilters] = useState<Filters>({});
+  const priorFilters=useRef<Filters>({});
+  useEffect(()=>{
+    if(filters.difficulty!==priorFilters.current.difficulty) track("dsa.filter_changed",{filter:"difficulty",value:filters.difficulty??"all"});
+    if(filters.topic!==priorFilters.current.topic) track("dsa.filter_changed",{filter:"topic",value:filters.topic??"all"});
+    priorFilters.current=filters;
+  },[filters]);
   useEffect(() => {
     const id = setTimeout(() => setDebounced(search.trim()), 300);
     return () => clearTimeout(id);

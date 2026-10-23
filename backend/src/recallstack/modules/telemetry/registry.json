@@ -1,0 +1,642 @@
+{
+  "schema_version": 1,
+  "events": {
+    "session.started": {
+      "feature": "session",
+      "engaged": false,
+      "properties": {
+        "app_version": "slug",
+        "build_version": "slug",
+        "os_family": [
+          "web",
+          "android",
+          "ios",
+          "windows",
+          "macos",
+          "linux"
+        ],
+        "device_class": [
+          "phone",
+          "tablet",
+          "desktop",
+          "unknown"
+        ],
+        "reason": [
+          "logout",
+          "background",
+          "inactivity",
+          "closed"
+        ]
+      }
+    },
+    "session.ended": {
+      "feature": "session",
+      "engaged": false,
+      "properties": {
+        "app_version": "slug",
+        "build_version": "slug",
+        "os_family": [
+          "web",
+          "android",
+          "ios",
+          "windows",
+          "macos",
+          "linux"
+        ],
+        "device_class": [
+          "phone",
+          "tablet",
+          "desktop",
+          "unknown"
+        ],
+        "reason": [
+          "logout",
+          "background",
+          "inactivity",
+          "closed"
+        ]
+      }
+    },
+    "session.backgrounded": {
+      "feature": "session",
+      "engaged": false,
+      "properties": {
+        "app_version": "slug",
+        "build_version": "slug",
+        "os_family": [
+          "web",
+          "android",
+          "ios",
+          "windows",
+          "macos",
+          "linux"
+        ],
+        "device_class": [
+          "phone",
+          "tablet",
+          "desktop",
+          "unknown"
+        ],
+        "reason": [
+          "logout",
+          "background",
+          "inactivity",
+          "closed"
+        ]
+      }
+    },
+    "session.foregrounded": {
+      "feature": "session",
+      "engaged": false,
+      "properties": {
+        "app_version": "slug",
+        "build_version": "slug",
+        "os_family": [
+          "web",
+          "android",
+          "ios",
+          "windows",
+          "macos",
+          "linux"
+        ],
+        "device_class": [
+          "phone",
+          "tablet",
+          "desktop",
+          "unknown"
+        ],
+        "reason": [
+          "logout",
+          "background",
+          "inactivity",
+          "closed"
+        ]
+      }
+    },
+    "session.active": {
+      "feature": "session",
+      "engaged": false,
+      "properties": {
+        "active_seconds": "active"
+      }
+    },
+    "navigation.screen_opened": {
+      "feature": "navigation",
+      "engaged": false,
+      "properties": {
+        "screen": [
+          "home",
+          "feed",
+          "dsa",
+          "problem",
+          "system_design",
+          "library",
+          "revise",
+          "profile",
+          "login",
+          "other"
+        ],
+        "feature": [
+          "dsa",
+          "feed",
+          "ai",
+          "system_design",
+          "learning",
+          "other"
+        ]
+      }
+    },
+    "navigation.feature_entered": {
+      "feature": "navigation",
+      "engaged": false,
+      "properties": {
+        "screen": [
+          "home",
+          "feed",
+          "dsa",
+          "problem",
+          "system_design",
+          "library",
+          "revise",
+          "profile",
+          "login",
+          "other"
+        ],
+        "feature": [
+          "dsa",
+          "feed",
+          "ai",
+          "system_design",
+          "learning",
+          "other"
+        ]
+      }
+    },
+    "navigation.feature_exited": {
+      "feature": "navigation",
+      "engaged": false,
+      "properties": {
+        "screen": [
+          "home",
+          "feed",
+          "dsa",
+          "problem",
+          "system_design",
+          "library",
+          "revise",
+          "profile",
+          "login",
+          "other"
+        ],
+        "feature": [
+          "dsa",
+          "feed",
+          "ai",
+          "system_design",
+          "learning",
+          "other"
+        ]
+      }
+    },
+    "auth.login_succeeded": {
+      "feature": "auth",
+      "engaged": false,
+      "properties": {}
+    },
+    "auth.logout_requested": {
+      "feature": "auth",
+      "engaged": false,
+      "properties": {}
+    },
+    "auth.signup_started": {
+      "feature": "auth",
+      "engaged": false,
+      "properties": {}
+    },
+    "acquisition.first_touch": {
+      "feature": "acquisition",
+      "engaged": false,
+      "properties": {
+        "referrer_host": "host",
+        "landing": [
+          "home",
+          "feed",
+          "dsa",
+          "system_design",
+          "other"
+        ],
+        "utm_source": "slug",
+        "utm_medium": "slug",
+        "utm_campaign": "slug",
+        "referral_code": "slug"
+      }
+    },
+    "dsa.explorer_opened": {
+      "feature": "dsa",
+      "engaged": false,
+      "properties": {}
+    },
+    "dsa.history_opened": {
+      "feature": "dsa",
+      "engaged": false,
+      "properties": {}
+    },
+    "dsa.report_opened": {
+      "feature": "dsa",
+      "engaged": false,
+      "properties": {}
+    },
+    "dsa.tutor_opened": {
+      "feature": "dsa",
+      "engaged": false,
+      "properties": {}
+    },
+    "dsa.editor_initialized": {
+      "feature": "dsa",
+      "engaged": false,
+      "properties": {}
+    },
+    "dsa.draft_restored": {
+      "feature": "dsa",
+      "engaged": false,
+      "properties": {}
+    },
+    "dsa.starter_loaded": {
+      "feature": "dsa",
+      "engaged": false,
+      "properties": {}
+    },
+    "dsa.problem_opened": {
+      "feature": "dsa",
+      "engaged": false,
+      "properties": {
+        "difficulty": [
+          "beginner",
+          "easy",
+          "medium",
+          "hard",
+          "expert"
+        ],
+        "entry_point": [
+          "explorer",
+          "resume",
+          "link",
+          "history",
+          "unknown"
+        ]
+      }
+    },
+    "dsa.filter_changed": {
+      "feature": "dsa",
+      "engaged": false,
+      "properties": {
+        "filter": [
+          "topic",
+          "difficulty",
+          "company"
+        ],
+        "value": "slug"
+      }
+    },
+    "dsa.language_selected": {
+      "feature": "dsa",
+      "engaged": false,
+      "properties": {
+        "language": [
+          "python",
+          "typescript",
+          "cpp"
+        ]
+      }
+    },
+    "dsa.draft_saved": {
+      "feature": "dsa",
+      "engaged": true,
+      "properties": {}
+    },
+    "dsa.draft_failed": {
+      "feature": "dsa",
+      "engaged": true,
+      "properties": {}
+    },
+    "dsa.editing_started": {
+      "feature": "dsa",
+      "engaged": true,
+      "properties": {}
+    },
+    "dsa.local_run_started": {
+      "feature": "dsa",
+      "engaged": true,
+      "properties": {
+        "purpose": [
+          "run",
+          "submit"
+        ],
+        "test_source": [
+          "verified",
+          "examples",
+          "custom"
+        ]
+      }
+    },
+    "dsa.local_run_completed": {
+      "feature": "dsa",
+      "engaged": true,
+      "properties": {
+        "duration_ms": "duration",
+        "initialization_ms": "duration",
+        "passed": "count",
+        "total": "count",
+        "outcome": [
+          "passed",
+          "failed",
+          "cancelled"
+        ],
+        "test_source": [
+          "verified",
+          "examples",
+          "custom"
+        ]
+      }
+    },
+    "dsa.local_run_failed": {
+      "feature": "dsa",
+      "engaged": true,
+      "properties": {
+        "category": [
+          "initialization",
+          "execution",
+          "cancelled"
+        ],
+        "duration_ms": "duration"
+      }
+    },
+    "dsa.submit_initiated": {
+      "feature": "dsa",
+      "engaged": true,
+      "properties": {}
+    },
+    "dsa.run_initiated": {
+      "feature": "dsa",
+      "engaged": true,
+      "properties": {}
+    },
+    "feed.opened": {
+      "feature": "feed",
+      "engaged": false,
+      "properties": {}
+    },
+    "feed.empty": {
+      "feature": "feed",
+      "engaged": false,
+      "properties": {}
+    },
+    "feed.request_failed": {
+      "feature": "feed",
+      "engaged": false,
+      "properties": {}
+    },
+    "feed.preferences_changed": {
+      "feature": "feed",
+      "engaged": false,
+      "properties": {}
+    },
+    "feed.source_clicked": {
+      "feature": "feed",
+      "engaged": false,
+      "properties": {}
+    },
+    "feed.ask_invoked": {
+      "feature": "feed",
+      "engaged": true,
+      "properties": {}
+    },
+    "feed.followup_started": {
+      "feature": "feed",
+      "engaged": true,
+      "properties": {}
+    },
+    "ai.message_submitted": {
+      "feature": "ai",
+      "engaged": true,
+      "properties": {}
+    },
+    "ai.followup_submitted": {
+      "feature": "ai",
+      "engaged": true,
+      "properties": {}
+    },
+    "ai.cancellation_requested": {
+      "feature": "ai",
+      "engaged": true,
+      "properties": {}
+    },
+    "ai.conversation_opened": {
+      "feature": "ai",
+      "engaged": false,
+      "properties": {}
+    },
+    "ai.conversation_resumed": {
+      "feature": "ai",
+      "engaged": false,
+      "properties": {}
+    },
+    "system_design.workspace_opened": {
+      "feature": "system_design",
+      "engaged": false,
+      "properties": {}
+    },
+    "system_design.design_loaded": {
+      "feature": "system_design",
+      "engaged": false,
+      "properties": {}
+    },
+    "system_design.export_requested": {
+      "feature": "system_design",
+      "engaged": false,
+      "properties": {}
+    },
+    "system_design.editing_started": {
+      "feature": "system_design",
+      "engaged": true,
+      "properties": {
+        "nodes_added": "count",
+        "nodes_deleted": "count",
+        "edges_added": "count",
+        "edges_deleted": "count"
+      }
+    },
+    "system_design.suggestion_accepted": {
+      "feature": "system_design",
+      "engaged": true,
+      "properties": {
+        "nodes_added": "count",
+        "nodes_deleted": "count",
+        "edges_added": "count",
+        "edges_deleted": "count"
+      }
+    },
+    "system_design.suggestion_rejected": {
+      "feature": "system_design",
+      "engaged": true,
+      "properties": {
+        "nodes_added": "count",
+        "nodes_deleted": "count",
+        "edges_added": "count",
+        "edges_deleted": "count"
+      }
+    },
+    "system_design.analysis_requested": {
+      "feature": "system_design",
+      "engaged": true,
+      "properties": {
+        "nodes_added": "count",
+        "nodes_deleted": "count",
+        "edges_added": "count",
+        "edges_deleted": "count"
+      }
+    },
+    "system_design.save_succeeded": {
+      "feature": "system_design",
+      "engaged": true,
+      "properties": {
+        "node_count": "count",
+        "edge_count": "count"
+      }
+    },
+    "system_design.save_failed": {
+      "feature": "system_design",
+      "engaged": true,
+      "properties": {
+        "node_count": "count",
+        "edge_count": "count"
+      }
+    },
+    "system_design.operations_summarized": {
+      "feature": "system_design",
+      "engaged": true,
+      "properties": {
+        "nodes_added": "count",
+        "nodes_deleted": "count",
+        "edges_added": "count",
+        "edges_removed": "count"
+      }
+    },
+    "collaboration.joined": {
+      "feature": "collaboration",
+      "engaged": false,
+      "properties": {}
+    },
+    "collaboration.left": {
+      "feature": "collaboration",
+      "engaged": false,
+      "properties": {}
+    },
+    "collaboration.reconnect_succeeded": {
+      "feature": "collaboration",
+      "engaged": false,
+      "properties": {}
+    },
+    "collaboration.reconnect_failed": {
+      "feature": "collaboration",
+      "engaged": false,
+      "properties": {}
+    },
+    "collaboration.connection_failed": {
+      "feature": "collaboration",
+      "engaged": false,
+      "properties": {}
+    },
+    "collaboration.sync_recovered": {
+      "feature": "collaboration",
+      "engaged": false,
+      "properties": {}
+    },
+    "collaboration.snapshot_recovered": {
+      "feature": "collaboration",
+      "engaged": false,
+      "properties": {}
+    },
+    "diagnostics.client_error": {
+      "feature": "diagnostics",
+      "engaged": false,
+      "properties": {
+        "category": [
+          "runtime",
+          "network",
+          "timeout",
+          "http_4xx",
+          "http_5xx",
+          "offline",
+          "online",
+          "buffer_full",
+          "retry_exhausted",
+          "invalid_payload"
+        ],
+        "count": "count",
+        "retry_count": "count"
+      }
+    },
+    "diagnostics.api_failed": {
+      "feature": "diagnostics",
+      "engaged": false,
+      "properties": {
+        "category": [
+          "runtime",
+          "network",
+          "timeout",
+          "http_4xx",
+          "http_5xx",
+          "offline",
+          "online",
+          "buffer_full",
+          "retry_exhausted",
+          "invalid_payload"
+        ],
+        "count": "count",
+        "retry_count": "count"
+      }
+    },
+    "diagnostics.network_changed": {
+      "feature": "diagnostics",
+      "engaged": false,
+      "properties": {
+        "category": [
+          "runtime",
+          "network",
+          "timeout",
+          "http_4xx",
+          "http_5xx",
+          "offline",
+          "online",
+          "buffer_full",
+          "retry_exhausted",
+          "invalid_payload"
+        ],
+        "count": "count",
+        "retry_count": "count"
+      }
+    },
+    "diagnostics.delivery": {
+      "feature": "diagnostics",
+      "engaged": false,
+      "properties": {
+        "category": [
+          "runtime",
+          "network",
+          "timeout",
+          "http_4xx",
+          "http_5xx",
+          "offline",
+          "online",
+          "buffer_full",
+          "retry_exhausted",
+          "invalid_payload",
+          "delivery"
+        ],
+        "count": "count",
+        "retry_count": "count"
+      }
+    }
+  }
+}

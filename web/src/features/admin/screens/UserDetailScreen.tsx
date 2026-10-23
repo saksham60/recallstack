@@ -11,6 +11,7 @@ import { useAdminIdentity, useAdminUser, useCurrentAdminRoleId, useGrantRole, us
 import { positiveInt, useAdminUrlState } from "../use-url-state";
 import type { ActivityParams } from "../types";
 import { CopyId, InlineNotice, LoadingSkeleton, MetricCard, Modal, PageHeader, Pagination, QueryError, ResultsState, buttonClass, inputClass } from "../components/AdminPrimitives";
+import { UserIntelligencePanel } from "../intelligence/IntelligenceScreen";
 
 const difficulties = ["beginner", "easy", "medium", "hard", "expert"] as const;
 const activityTypes = ["problem_attempted", "problem_reattempted", "problem_completed", "revision_completed", "user_signed_up"] as const;
@@ -27,14 +28,14 @@ export function UserDetailScreen({ userId }: { userId: string }) {
     <div className="space-y-6">
       <div className="text-sm text-muted"><Link href="/admin/users" className="hover:text-accent">Users</Link> <span aria-hidden> / </span> {detail.profile.name || detail.profile.email}</div>
       <PageHeader title={detail.profile.name || "Unnamed user"} description={detail.profile.email} actions={<CopyId value={detail.profile.user_id} label="user ID" />} />
-      <div role="tablist" aria-label="User detail sections" className="flex gap-2 border-b border-border">
-        {["overview", "activity", "roles"].map((value) => (
+      <div role="tablist" aria-label="User detail sections" className="flex flex-wrap gap-2 border-b border-border">
+        {["overview", "timeline", "dsa", "ai", "feed", "system_design", "sessions", "roles", "legacy_practice", "legacy_activity"].map((value) => (
           <button key={value} role="tab" aria-selected={tab === value} className={`border-b-2 px-4 py-2 text-sm font-medium ${tab === value ? "border-accent text-accent" : "border-transparent text-muted"}`} onClick={() => update({ tab: value === "overview" ? null : value })}>
             {titleCase(value)}
           </button>
         ))}
       </div>
-      {tab === "activity" ? <ActivityTab userId={userId} /> : tab === "roles" ? <RolesTab userId={userId} /> : <UserOverview detail={detail} />}
+      {tab === "activity" || tab === "legacy_activity" ? <ActivityTab userId={userId} /> : tab === "roles" ? <RolesTab userId={userId} /> : tab === "legacy_practice" ? <><InlineNotice tone="info">Legacy Practice: self-reported learning outcomes, separate from official DSA judging.</InlineNotice><UserOverview detail={detail} /></> : <UserIntelligencePanel key={tab} userId={userId} section={tab} />}
     </div>
   );
 }

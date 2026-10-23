@@ -1,4 +1,5 @@
 "use client";
+import { track } from "@/lib/telemetry/client";
 
 import { useEffect, useRef, useState } from "react";
 import { cancelReasonAIRun, fetchReasonAIConversation, fetchReasonAIStreamResponse } from "@/lib/reasonai/client";
@@ -113,6 +114,8 @@ export function useDSATutor(context: DSAProblemContext, persistenceKey?: string)
       if (signal?.aborted || (inFlight.current && inFlight.current.signal !== signal)) return;
       conversationId.current = id;
       webContextToken.current = latestToken;
+      track("ai.conversation_opened",{},id);
+      if(next.length) track("ai.conversation_resumed",{},id);
       setMessages(next);
     } catch { /* Restoration is optional for the current workspace session. */ }
   }
@@ -178,6 +181,7 @@ export function useDSATutor(context: DSAProblemContext, persistenceKey?: string)
   }
 
   async function perform(request: DSATutorRequest) {
+    if(conversationId.current) track("ai.followup_submitted",{},conversationId.current);
     const controller = new AbortController();
     inFlight.current = controller;
     setPending(true); setError(undefined); setAuthExpired(false);

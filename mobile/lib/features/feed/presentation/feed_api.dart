@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/api_failure.dart';
 import 'feed_models.dart';
+import '../../../core/telemetry/product_telemetry.dart';
 
 class FeedApi {
   const FeedApi(this.dio);
@@ -41,6 +42,7 @@ class FeedApi {
   }
 
   Future<void> event(String storyId, String type) async {
+    if (type == 'ASK_REASONAI') productEvent(TelemetryEvent.feedAskInvoked, entityId: storyId);
     await events([
       {
         'eventId': const Uuid().v4(),

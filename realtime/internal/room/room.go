@@ -239,6 +239,7 @@ func (r *Room) run(state roomState, options Options, registry *metrics.Registry,
 			}
 			message := initialStateMessage(state, command.lastSequence)
 			if !command.participant.Send(message) {
+				registry.AckFailed()
 				command.response <- errors.New("participant output queue unavailable")
 				continue
 			}
@@ -247,6 +248,9 @@ func (r *Room) run(state roomState, options Options, registry *metrics.Registry,
 			registry.ConnectionJoined()
 			if command.lastSequence > 0 {
 				registry.Reconnect()
+				if state.snapshotSequence > command.lastSequence {
+					registry.SnapshotRecovered()
+				}
 			}
 			command.response <- nil
 			broadcastPresenceLifecycle(&state, command.participant, "joined", registry)

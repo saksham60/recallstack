@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import type { SystemDesignDocument } from "../types/system-design.types";
+import { track } from "@/lib/telemetry/client";
 import {
   applyCanvasOperationsToDocument,
   reconstructRoomDocument,
@@ -104,6 +105,7 @@ export function useSystemDesignRealtime({
   const [status, setStatus] =
     useState<RealtimeConnectionStatus>(initialRoomToken ? "connecting" : "idle");
   const [failure, setFailure] = useState<RealtimeFailure | null>(null);
+  const telemetryStatus = useRef<RealtimeConnectionStatus>("idle");
   const [roomToken, setRoomToken] = useState<string | null>(
     initialRoomToken ?? null,
   );
@@ -222,6 +224,13 @@ export function useSystemDesignRealtime({
         actorId: actorIdRef.current,
         callbacks: {
           onStatus: (nextStatus) => {
+            const previous = telemetryStatus.current;
+            if (nextStatus !== previous) {
+              if (nextStatus === "live") track(previous === "reconnecting" ? "collaboration.reconnect_succeeded" : "collaboration.joined");
+              if (nextStatus === "closed") track("collaboration.left");
+              if (nextStatus === "error") track(previous === "reconnecting" ? "collaboration.reconnect_failed" : "collaboration.connection_failed");
+            }
+            telemetryStatus.current = nextStatus;
             setStatus(nextStatus);
             if (nextStatus !== "live") callbacksRef.current.onTransientReset();
             if (
@@ -296,6 +305,9 @@ export function useSystemDesignRealtime({
               reconstructed,
               pendingOperations,
             );
+            if(telemetryStatus.current==="reconnecting" || receivedStateRef.current) {
+              track(message.stateMode==="full" ? "collaboration.snapshot_recovered" : "collaboration.sync_recovered");
+            }
             const isFirstState = !receivedStateRef.current;
             const localActorId = actorIdRef.current;
             const seeded: CollaborationParticipant[] = message.presence.flatMap((entry) => {

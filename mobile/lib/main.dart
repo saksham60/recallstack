@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app/app.dart';
 import 'app/env.dart';
+import 'core/telemetry/product_telemetry.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,6 +18,12 @@ Future<void> main() async {
     url: AppEnv.supabaseUrl,
     publishableKey: AppEnv.supabaseAnonKey,
   );
-  FlutterError.onError = (details) => FlutterError.presentError(details);
-  runApp(const ProviderScope(child: ReasonAIApp()));
+  FlutterError.onError = (details) {
+    productEvent(
+      TelemetryEvent.diagnosticsClientError,
+      properties: {'category': 'runtime', 'count': 1},
+    );
+    FlutterError.presentError(details);
+  };
+  runApp(const ProviderScope(child: TelemetryLifecycle(child: ReasonAIApp())));
 }

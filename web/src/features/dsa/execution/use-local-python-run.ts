@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { equal, safeJson } from "@/lib/dsa-execution/public-comparator";
 import type { PythonContract } from "@/lib/dsa-execution/python-contract";
+import { track } from "@/lib/telemetry/client";
 
 export type LocalTestCase = { id: string; input: unknown; expected: unknown };
 export type LocalCaseResult = LocalTestCase & { passed: boolean; actual?: unknown; error?: string; stdout?: string; durationMs?: number; status?: string };
@@ -21,7 +22,7 @@ const INITIALIZATION_LIMIT_MS = 60000, CASE_LIMIT_MS = 3000, RUN_LIMIT_MS = 1200
 type WorkerResult = { id: string; status: string; actual?: unknown; stderr?: string; stdout?: string; durationMs?: number };
 function createWorker() { return new Worker("/dsa/python-worker.mjs", { type: "module", name: "reasonai-local-python" }); }
 
-export function useLocalPythonRun() {
+export function useLocalPythonRun(telemetryProblemId?: string) {
   const idle = useRef<Worker | null>(null), active = useRef<Worker | null>(null);
   const busy = useRef(false), serial = useRef(0), activeCancel = useRef<(() => void) | null>(null);
   const [run, setRun] = useState<LocalRun | null>(null);
@@ -45,7 +46,9 @@ export function useLocalPythonRun() {
     }
     if (source === "verified" && (!options?.harnessSha256 || !options.publicRevision)) { const result = failed("The certified runner contract is not loaded. Refresh and try again."); setRun(result); return result; }
     busy.current = true;
+    track("dsa.local_run_started", { purpose, test_source: source }, options?.problemId ?? telemetryProblemId);
     const current = ++serial.current, started = performance.now(), contract = options?.contract ?? PROVISIONAL;
+    let failurePhase: "initialization" | "execution" = "initialization";
     let cancelled = false, terminateCase: (() => void) | undefined, initializationMs = 0;
     const results: LocalCaseResult[] = [];
     const update = (state: Partial<LocalRun>) => { if (serial.current === current) setRun({ code, source, purpose, state: "running", results: [...results], totalCases: cases.length, initializationMs, ...state }); };
@@ -59,6 +62,7 @@ export function useLocalPythonRun() {
         if (cancelled || serial.current !== current) throw new Error("Local Run cancelled.");
         if (performance.now() - started > RUN_LIMIT_MS) throw new Error("The whole-run execution budget was exceeded.");
         const test = cases[index];
+        failurePhase = "initialization";
         update({ phase: "initializing", currentCase: index + 1 });
         const worker = idle.current ?? createWorker(); idle.current = null; active.current = worker;
         const response = await new Promise<{ result: WorkerResult; initializationMs: number }>((resolve, reject) => {
@@ -78,6 +82,7 @@ export function useLocalPythonRun() {
             if (data.error) { finish(new Error(data.error)); return; }
             if (data.phase === "initializing") return;
             if (data.phase === "running") {
+              failurePhase = "execution";
               initialized = typeof data.initializationMs === "number" ? data.initializationMs : 0;
               update({ phase: "running", currentCase: index + 1 });
               arm(CASE_LIMIT_MS, `Timeout: case ${index + 1} exceeded the 3-second execution budget.`); return;
@@ -103,10 +108,12 @@ export function useLocalPythonRun() {
       const receipt = passed && source === "verified" && options?.userId && options.problemId && options.problemVersionId && options.publicRevision && options.harnessSha256 ? { userId: options.userId, problemId: options.problemId, problemVersionId: options.problemVersionId, language: "python" as const, codeSha256, adapterVersion: contract.adapter ? `${contract.adapter.id}:${contract.adapter.version}:${options.contractRevision}` : "legacy-function:1", publicRevision: options.publicRevision, harnessSha256: options.harnessSha256 } : undefined;
       const next: LocalRun = { code, source, purpose, state: passed ? "passed" : "failed", phase: "completed", results, totalCases: cases.length, currentCase: cases.length, initializationMs, totalExecutionMs: results.reduce((sum, row) => sum + (row.durationMs ?? 0), 0), durationMs: Math.round(performance.now() - started), ...(receipt ? { receipt } : {}) };
       if (serial.current === current) { setRun(next); prewarm(); }
+      track("dsa.local_run_completed", { duration_ms: Math.min(600000, next.durationMs ?? 0), initialization_ms: Math.min(600000, Math.round(initializationMs)), passed: results.filter(r => r.passed).length, total: results.length, outcome: next.state === "passed" ? "passed" : "failed", test_source: source }, options?.problemId ?? telemetryProblemId);
       return next;
     } catch (error) {
       const next: LocalRun = { code, source, purpose, state: cancelled ? "cancelled" : "failed", phase: cancelled ? "cancelled" : "failed", results, initializationMs, durationMs: Math.round(performance.now() - started), message: error instanceof Error ? error.message : "Local Python could not complete." };
       if (serial.current === current) setRun(next);
+      track("dsa.local_run_failed", { category: cancelled ? "cancelled" : failurePhase, duration_ms: Math.min(600000, next.durationMs ?? 0) }, options?.problemId ?? telemetryProblemId);
       return next;
     } finally { window.clearTimeout(wholeTimer); active.current?.terminate(); active.current = null; activeCancel.current = null; busy.current = false; }
   }

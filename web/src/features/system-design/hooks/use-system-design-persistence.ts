@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { track } from "@/lib/telemetry/client";
 import type { SystemDesignRepository } from "../repository/SystemDesignRepository";
 import {
   systemDesignEditorActions,
@@ -52,6 +53,7 @@ export function useSystemDesignPersistence({
   initializeWhenDisabled = true,
 }: UseSystemDesignPersistenceOptions) {
   const activeLoad = useRef(0);
+  const lastTelemetrySave = useRef(0);
   const [reloadVersion, setReloadVersion] = useState(0);
   const latest = useRef({ document, isDirty, loadStatus });
   const previousDocumentUpdatedAt = useRef(document.updatedAt);
@@ -79,6 +81,7 @@ export function useSystemDesignPersistence({
       .getDocument(problemId)
       .then((savedDocument) => {
         if (activeLoad.current !== loadId) return;
+        track("system_design.design_loaded", {}, problemId);
         dispatch(
           systemDesignEditorActions.loadSuccess(
             savedDocument ?? fallbackDocument,
@@ -119,6 +122,9 @@ export function useSystemDesignPersistence({
       try {
         recordSystemDesignPersistenceWrite();
         await repository.saveDocument(snapshot);
+        if (Date.now()-lastTelemetrySave.current>60000) {
+          lastTelemetrySave.current=Date.now(); track("system_design.save_succeeded", {}, snapshot.problemId);
+        }
         dispatch(
           systemDesignEditorActions.saveSucceeded(
             documentUpdatedAt,
@@ -126,6 +132,7 @@ export function useSystemDesignPersistence({
           ),
         );
       } catch (error) {
+        track("system_design.save_failed", {}, snapshot.problemId);
         dispatch(
           systemDesignEditorActions.saveFailed(
             documentUpdatedAt,

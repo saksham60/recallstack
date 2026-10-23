@@ -4,6 +4,7 @@ import { createReasonAIRuntimeState, interruptReasonAIRun, reduceReasonAIEvent }
 import type { ReasonAIRuntimeMessage } from "@/lib/reasonai/runtime/types";
 import type { PersistedRunStatus, ReasonAIPersistenceRepository } from "./types";
 import { RUN_HEARTBEAT_INTERVAL_MS } from "./lease";
+import { AIRunMeasurements } from "@/lib/telemetry/ai-measurements";
 
 function usefulAssistant(messages: ReasonAIRuntimeMessage[]): ReasonAIRuntimeMessage | undefined {
   return [...messages].reverse().find((message) => message.role === "assistant" && message.parts.some((part) =>
@@ -40,6 +41,7 @@ export async function* persistReasonAITranscript(
   getNextConversationState?: () => unknown,
 ): AsyncGenerator<ReasonAIKnownEvent> {
   let state = createReasonAIRuntimeState();
+  const measurements = new AIRunMeasurements();
   let persisted = false;
   let persisting: Promise<void> | undefined;
 
@@ -109,6 +111,7 @@ export async function* persistReasonAITranscript(
         break;
       }
       const event = result.value.value;
+      measurements.observe(event);
       state = reduceReasonAIEvent(state, event);
       if (Date.now() >= nextHeartbeatAt && !state.terminalEventReceived) {
         const alive = await repository.heartbeatRun(userId, conversationId, runId);
@@ -149,5 +152,7 @@ export async function* persistReasonAITranscript(
         });
       }
     }
+    // Transcript/judge correctness does not depend on optional measurements.
+    await measurements.persist(userId, runId, state.status === "completed" || state.status === "failed" || state.status === "cancelled" ? state.status : "interrupted");
   }
 }

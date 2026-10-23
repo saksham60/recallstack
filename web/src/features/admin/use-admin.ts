@@ -4,25 +4,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { profileKeys, useProfile } from "@/features/profile/use-profile";
 import { adminKeys } from "./keys";
-import type { ActivityParams, AuditLogParams, ProblemListParams, UserListParams } from "./types";
+import type { ActivityParams, AuditLogParams, ProblemListParams } from "./types";
 
 function required<T>(data: T | undefined): T {
   if (data === undefined) throw new Error("The server returned an empty response.");
   return data;
-}
-
-export function useGrowth(days: 7 | 30 | 90) {
-  return useQuery({
-    queryKey: [...adminKeys.all, "growth", days] as const,
-    queryFn: async ({ signal }) => {
-      const { data } = await apiClient.GET("/api/v1/admin/growth", {
-        params: { query: { days } }, signal,
-      });
-      return required(data);
-    },
-    staleTime: 30_000,
-    retry: false,
-  });
 }
 
 export function useAdminIdentity() {
@@ -43,20 +29,6 @@ export function useOverview() {
       return required(data);
     },
     staleTime: 30_000,
-  });
-}
-
-export function useAdminUsers(params: UserListParams) {
-  return useQuery({
-    queryKey: adminKeys.users(params),
-    queryFn: async ({ signal }) => {
-      const { data } = await apiClient.GET("/api/v1/admin/users", {
-        params: { query: params },
-        signal,
-      });
-      return required(data);
-    },
-    placeholderData: (previous) => previous,
   });
 }
 

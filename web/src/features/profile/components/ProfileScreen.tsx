@@ -5,6 +5,7 @@ import { useAuth } from "@/features/auth";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { getApiErrorMessage } from "@/lib/api/errors";
 import { useProfile, useUpdateProfile, type ProfileResponse } from "../use-profile";
+import { TelemetryPreference } from "@/lib/telemetry/TelemetryPreference";
 
 function ProfileForm({ profile }: { profile: ProfileResponse }) {
   const { mutate: updateProfile, isPending: isUpdating, error } = useUpdateProfile();
@@ -64,6 +65,7 @@ export function ProfileScreen() {
         </div>
         <ProfileForm key={profile.id} profile={profile} />
       </div>
+      <TelemetryPreference />
     </div>
   );
 }

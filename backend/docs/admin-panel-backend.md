@@ -129,3 +129,8 @@ The indexes in migration `0015` use normal transactional Alembic DDL, matching t
 established migration style. Creating the two indexes on an already large `practice_attempts` table
 can briefly block writes; schedule that migration during a low-write window. They are deliberately
 not created concurrently inside the normal migration transaction.
+
+
+## Product Intelligence V2
+
+The versioned canonical/client telemetry implementation, migration gates, source audit and measured verification are documented in [the Product Intelligence V2 report](../../docs/admin/PRODUCT_INTELLIGENCE_V2.md). Existing legacy Admin API contracts remain available. New collection is disabled until reviewed rollout configuration enables it.

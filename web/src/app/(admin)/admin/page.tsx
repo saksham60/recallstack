@@ -1,5 +1,5 @@
-import { GrowthScreen } from "@/features/admin";
+import { ProductIntelligenceScreen } from "@/features/admin/intelligence/IntelligenceScreen";
 
 export default function AdminOverviewPage() {
-  return <GrowthScreen />;
+  return <ProductIntelligenceScreen />;
 }

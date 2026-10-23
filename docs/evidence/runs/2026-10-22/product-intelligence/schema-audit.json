@@ -1,0 +1,135 @@
+{
+  "observed_date": "2026-10-22",
+  "mode": "connected Supabase read-only schema/count/advisor inspection",
+  "project": "jlqawpdsyptfxspyqnsu",
+  "baseline": {
+    "profiles": 45,
+    "published_problems": 375,
+    "server_jobs": 15,
+    "server_submits": 12,
+    "official_accepted_attempts": 7
+  },
+  "latest_inspected_migrations": [
+    {
+      "version": "20261021071723",
+      "name": "dsa_official_plan_lossless_integer_wire"
+    },
+    {
+      "version": "20261021071300",
+      "name": "admin_role_audit_security_lockdown"
+    }
+  ],
+  "telemetry_schema_installed": false,
+  "role_and_audit_tables": {
+    "rls_enabled": true,
+    "inspected_browser_grants_restricted": true
+  },
+  "advisories": [
+    {
+      "name": "rls_enabled_no_policy",
+      "level": "INFO",
+      "count": 35
+    },
+    {
+      "name": "function_search_path_mutable",
+      "level": "WARN",
+      "count": 1
+    },
+    {
+      "name": "rls_disabled_in_public",
+      "level": "ERROR",
+      "count": 35
+    },
+    {
+      "name": "extension_in_public",
+      "level": "WARN",
+      "count": 1
+    },
+    {
+      "name": "anon_security_definer_function_executable",
+      "level": "WARN",
+      "count": 2
+    },
+    {
+      "name": "authenticated_security_definer_function_executable",
+      "level": "WARN",
+      "count": 8
+    },
+    {
+      "name": "auth_allow_anonymous_sign_ins",
+      "level": "WARN",
+      "count": 1
+    },
+    {
+      "name": "auth_allow_anonymous_sign_ins",
+      "level": "WARN",
+      "count": 1
+    },
+    {
+      "name": "auth_allow_anonymous_sign_ins",
+      "level": "WARN",
+      "count": 1
+    },
+    {
+      "name": "auth_allow_anonymous_sign_ins",
+      "level": "WARN",
+      "count": 1
+    },
+    {
+      "name": "auth_allow_anonymous_sign_ins",
+      "level": "WARN",
+      "count": 1
+    },
+    {
+      "name": "auth_allow_anonymous_sign_ins",
+      "level": "WARN",
+      "count": 1
+    },
+    {
+      "name": "auth_allow_anonymous_sign_ins",
+      "level": "WARN",
+      "count": 1
+    },
+    {
+      "name": "auth_allow_anonymous_sign_ins",
+      "level": "WARN",
+      "count": 1
+    },
+    {
+      "name": "auth_allow_anonymous_sign_ins",
+      "level": "WARN",
+      "count": 1
+    },
+    {
+      "name": "auth_allow_anonymous_sign_ins",
+      "level": "WARN",
+      "count": 1
+    },
+    {
+      "name": "auth_allow_anonymous_sign_ins",
+      "level": "WARN",
+      "count": 1
+    },
+    {
+      "name": "auth_allow_anonymous_sign_ins",
+      "level": "WARN",
+      "count": 1
+    },
+    {
+      "name": "auth_allow_anonymous_sign_ins",
+      "level": "WARN",
+      "count": 1
+    },
+    {
+      "name": "auth_allow_anonymous_sign_ins",
+      "level": "WARN",
+      "count": 1
+    },
+    {
+      "name": "auth_leaked_password_protection",
+      "level": "WARN",
+      "count": 1
+    }
+  ],
+  "production_mutations": false
+}

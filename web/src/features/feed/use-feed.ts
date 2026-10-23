@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { feedApi, feedErrorMessage, retryFeedRequest } from "./api";
 import type { FeedEvent, FeedPage, FeedStory } from "./model";
+import { track as productTrack } from "@/lib/telemetry/client";
 
 export const feedKeys = {
   saved: (userId: string) => ["saved-stories", userId] as const,
@@ -24,7 +25,13 @@ export function useSavedStories(userId: string) {
 export function useFeed(userId: string, topic: string, start: string | null) {
   return useInfiniteQuery({
     queryKey: feedKeys.list(userId, topic, start),
-    queryFn: ({ pageParam, signal }) => feedApi.list(topic, pageParam, signal),
+    queryFn: async ({ pageParam, signal }) => {
+      try {
+        const page=await feedApi.list(topic,pageParam,signal);
+        if(!page.items.length) productTrack("feed.empty");
+        return page;
+      } catch(error) { if(!signal.aborted) productTrack("feed.request_failed"); throw error; }
+    },
     initialPageParam: start,
     getNextPageParam: (page, _pages, lastCursor, cursors) => page.hasMore && page.nextCursor !== lastCursor && !cursors.includes(page.nextCursor) ? page.nextCursor : undefined,
     enabled: Boolean(userId), retry: retryFeedRequest,
@@ -54,6 +61,7 @@ export function useFeedActions(userId: string) {
   const [notice, setNotice] = useState<{ storyId: string; text: string; failed?: boolean }>();
   const mutation = useMutation({ mutationFn: (item: FeedEvent) => feedApi.events([item]), retry: retryFeedRequest });
   const track = useCallback((id: string, type: FeedEvent["type"]) => {
+    if (type === "ASK_REASONAI") productTrack("feed.ask_invoked", {}, id);
     if (type === "VIEW") {
       if (viewed.current.has(id)) return;
       viewed.current.add(id);

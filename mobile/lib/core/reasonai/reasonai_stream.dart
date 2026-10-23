@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import '../telemetry/app_logger.dart';
 import 'reasonai_events.dart';
+import '../telemetry/product_telemetry.dart';
 
 class ReasonAIHttpException implements Exception {
   const ReasonAIHttpException(this.statusCode, this.message, {this.code});
@@ -60,6 +61,7 @@ class ReasonAIStream {
     required CancelToken token,
     void Function(Headers)? onHeaders,
   }) async* {
+    productEvent(TelemetryEvent.aiMessageSubmitted);
     Timer? timer;
     var timedOut = false;
     void arm() {

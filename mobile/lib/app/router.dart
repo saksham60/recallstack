@@ -13,6 +13,7 @@ import '../features/revise/revise_screen.dart';
 import '../features/library/presentation/library_screen.dart';
 import '../features/profile/presentation/profile_screen.dart';
 import '../shared/widgets/app_shell.dart';
+import '../core/telemetry/product_telemetry.dart';
 
 final _root = GlobalKey<NavigatorState>();
 String? authRedirect(Session? session, Uri uri) {
@@ -122,7 +123,46 @@ final routerProvider = Provider<GoRouter>((ref) {
       router.refresh();
     },
   );
+  String? previousScreen;
+  void recordScreen() {
+    final path = router.routeInformationProvider.value.uri.path;
+    final screen = path.startsWith('/dsa/problems/')
+        ? 'problem'
+        : path.startsWith('/dsa')
+        ? 'dsa'
+        : path.startsWith('/feed') || path.startsWith('/stories/')
+        ? 'feed'
+        : path.startsWith('/library')
+        ? 'library'
+        : path.startsWith('/revise')
+        ? 'revise'
+        : path.startsWith('/me')
+        ? 'profile'
+        : path.startsWith('/login')
+        ? 'login'
+        : 'other';
+    if (previousScreen == screen) return;
+    previousScreen = screen;
+    final telemetry = ref.read(productTelemetryProvider);
+    telemetry?.newJourney();
+    telemetry?.track(
+      TelemetryEvent.navigationScreenOpened,
+      properties: {
+        'screen': screen,
+        'feature': screen == 'problem'
+            ? 'dsa'
+            : ['feed', 'dsa'].contains(screen)
+            ? screen
+            : 'other',
+      },
+    );
+    if (screen == 'feed') telemetry?.track(TelemetryEvent.feedOpened);
+    if (screen == 'dsa') telemetry?.track(TelemetryEvent.dsaExplorerOpened);
+  }
+
+  router.routeInformationProvider.addListener(recordScreen);
   ref.onDispose(() {
+    router.routeInformationProvider.removeListener(recordScreen);
     subscription.cancel();
     router.dispose();
   });

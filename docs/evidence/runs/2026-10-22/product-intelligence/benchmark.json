@@ -1,0 +1,68 @@
+{
+  "fixture": true,
+  "measured_at": "2026-10-23T06:03:41.516137+00:00",
+  "repository_sha256": "95321b69ccaf3bcb40d239db0dadc1f5e5a64f6ca0315501e1b813eaeb1ac829",
+  "users": 100,
+  "client_events": 10000,
+  "judge_jobs": 500,
+  "read_path": "IntelligenceRepository.overview, 30 days, PostgreSQL 17, loopback",
+  "samples_ms": [
+    360.37,
+    283.753,
+    292.846,
+    274.373,
+    283.854,
+    288.954,
+    452.111,
+    278.252,
+    270.231,
+    275.546
+  ],
+  "p50_ms": 283.8035,
+  "p95_ms": 452.111,
+  "p95_method": "nearest rank, n=10",
+  "reconciliation": [
+    {
+      "metric": "registered_users",
+      "expected": 100,
+      "actual": 100.0,
+      "passed": true
+    },
+    {
+      "metric": "server_submits",
+      "expected": 500,
+      "actual": 500.0,
+      "passed": true
+    },
+    {
+      "metric": "official_accepted",
+      "expected": 300,
+      "actual": 300.0,
+      "passed": true
+    },
+    {
+      "metric": "official_solves",
+      "expected": 100,
+      "actual": 100.0,
+      "passed": true
+    }
+  ],
+  "timeline_query_plan": [
+    "Limit  (cost=0.31..100.51 rows=30 width=24) (actual time=0.043..0.070 rows=30 loops=1)",
+    "  Buffers: shared hit=33",
+    "  InitPlan 1",
+    "    ->  Limit  (cost=0.00..0.02 rows=1 width=16) (actual time=0.010..0.010 rows=1 loops=1)",
+    "          Buffers: shared hit=1",
+    "          ->  Seq Scan on profiles  (cost=0.00..17.00 rows=700 width=16) (actual time=0.009..0.009 rows=1 loops=1)",
+    "                Buffers: shared hit=1",
+    "  ->  Index Only Scan using product_events_user_time on product_events  (cost=0.29..334.27 rows=100 width=24) (actual time=0.043..0.067 rows=30 loops=1)",
+    "        Index Cond: ((user_id = (InitPlan 1).col1) AND (effective_at >= (now() - '30 days'::interval)))",
+    "        Heap Fetches: 30",
+    "        Buffers: shared hit=33",
+    "Planning:",
+    "  Buffers: shared hit=11",
+    "Planning Time: 0.184 ms",
+    "Execution Time: 0.093 ms"
+  ],
+  "limits": "Synthetic metadata fixture, not production latency, throughput or browser timing."
+}

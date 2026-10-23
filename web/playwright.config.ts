@@ -6,6 +6,7 @@ loadEnvConfig(process.cwd());
 export default defineConfig({
   testDir: './e2e',
   testIgnore: [
+    '**/product-intelligence.spec.ts',
     '**/dsa-progress-unit.spec.ts',
     '**/dsa-v3-live-component.spec.ts',
     '**/dsa-certification-unit.spec.ts',
