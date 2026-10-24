@@ -49,11 +49,11 @@ export function createSystemDesignAgentNode(
       proposal: state.proposal,
       pendingProposal: usablePending ? { ...usablePending, proposal: remainingReasonAIProposal(usablePending) } : undefined,
       visualization: state.visualization,
-      notice: state.notice,
       allowTools: rounds < maxToolRounds && !(state.correctionAttempts ?? 0),
       correctionOnly: Boolean(state.correctionAttempts),
       requireProposal: proposalRequired,
       proposalRetry: state.proposalRetries ?? 0,
+      proposalCorrection: state.proposalCorrection,
     }, signal)) {
       signal.throwIfAborted();
       if (event.type === "text.delta") {
@@ -67,6 +67,10 @@ export function createSystemDesignAgentNode(
     config.signal?.throwIfAborted();
     state.budget.check();
     if (!round) throw new ReasonAIProviderError("ReasonAI could not complete that response. Please try again.");
+    if (state.proposalCorrection && (round.kind !== "tools" || round.calls.length !== 1
+      || round.calls[0].name !== "propose_canvas_changes" || round.calls[0].invalidReason)) {
+      throw new ReasonAIProviderError("ReasonAI could not correct the invalid canvas proposal. Please try again.", 502, "INVALID_PROPOSAL");
+    }
     if (proposalRequired && round.kind === "final" && !/\?\s*$/u.test(round.result.text)) {
       const retries = state.proposalRetries ?? 0;
       if (retries >= 1) throw new ReasonAIProviderError("ReasonAI could not prepare canvas suggestions. Please try again.");

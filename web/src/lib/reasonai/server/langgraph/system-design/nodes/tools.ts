@@ -86,6 +86,7 @@ export function createSystemDesignToolsNode(
           proposal: checkpoint?.proposal ?? state.proposal,
           workingCheckpoint: checkpoint,
           proposalBatches: (state.proposalBatches ?? 0) + (result.proposal ? 1 : 0),
+          ...(result.proposal ? { proposalCorrection: undefined } : {}),
           visualization: result.visualization ?? state.visualization,
           toolRounds: (state.toolRounds ?? 0) + 1,
           executedToolCalls: [...(state.executedToolCalls ?? []), key],
@@ -116,9 +117,10 @@ export function createSystemDesignToolsNode(
         agentMessages: [...(state.agentMessages ?? []), result.message],
         searchStatus: result.retrievalStatus ?? state.searchStatus,
         searchCount: (state.searchCount ?? 0) + (call.name === "search_web" ? 1 : 0),
-        notice: [state.notice, result.notice].filter(Boolean).join(" ") || undefined,
+        notices: [...new Set([...(state.notices ?? []), ...(result.notice ? [result.notice] : [])])],
         toolRounds: (state.toolRounds ?? 0) + 1,
         validationRepairs: (state.validationRepairs ?? 0) + (result.code === "validation" ? 1 : 0),
+        ...(result.code === "validation" ? { proposalCorrection: result.diagnostic ?? { code: "INVALID_PROPOSAL" } } : {}),
       };
     } catch (error) {
       onStage?.("tool.failed", call.name);

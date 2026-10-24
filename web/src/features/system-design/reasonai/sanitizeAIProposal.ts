@@ -35,7 +35,7 @@ export function sanitizeAIProposal(value: unknown, context: Context): { proposal
   try { input = record(value); }
   catch { throw new ReasonAIValidationError("Expected a proposal object.", { code: "WRONG_PROPOSAL_CONTRACT" }); }
   if (Object.keys(input).some((key) => key !== "summary" && key !== "operations") || !Array.isArray(input.operations)) {
-    throw new ReasonAIValidationError("Expected a summary and operations proposal, not a canvas document.", { code: "WRONG_PROPOSAL_CONTRACT" });
+    throw new ReasonAIValidationError("Expected only summary and operations, with an operations array.", { code: "WRONG_PROPOSAL_CONTRACT" });
   }
   if (input.operations.length > 50) throw new ReasonAIValidationError("Invalid or oversized operation list.", { code: "OPERATION_LIMIT" });
   const warnings: ProposalDiagnostic[] = [];

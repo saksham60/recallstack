@@ -22,6 +22,7 @@ export default defineConfig({
     "**/system-design-model.spec.ts",
     "**/system-design-reasonai-agent.spec.ts",
     "**/system-design-reasonai-reliability.spec.ts",
+    "**/system-design-reasonai-production-proposal.spec.ts",
     "**/system-design-export.spec.ts",
     "**/diagram-engine.spec.ts",
   ],

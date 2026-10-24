@@ -2,7 +2,7 @@ import "server-only";
 
 import { StateSchema, UntrackedValue } from "@langchain/langgraph";
 import { z } from "zod";
-import { parseReasonAIProposal, parseReasonAIRequest, type ReasonAIModelTier, type ReasonAIRequest, type ReasonAIResponse } from "@/features/system-design/reasonai/contract";
+import { parseReasonAIProposal, parseReasonAIRequest, type ReasonAIModelTier, type ReasonAIRequest, type ReasonAIResponse, type ReasonAIValidationError } from "@/features/system-design/reasonai/contract";
 import { createPendingReasonAIProposal, fingerprintReasonAIContext, fingerprintReasonAIProposal, type ReasonAIPendingProposal } from "@/features/system-design/reasonai/proposal-state";
 import type { SystemDesignAgentMessage, SystemDesignAgentToolCall } from "@/features/system-design/reasonai/agent-provider";
 import type { TavilyEvidence } from "@/lib/tavily/search";
@@ -89,6 +89,7 @@ export const SystemDesignGraphState = new StateSchema({
   proposalRetries: new UntrackedValue<number | undefined>(),
   correctionAttempts: new UntrackedValue<number | undefined>(),
   validationRepairs: new UntrackedValue<number | undefined>(),
+  proposalCorrection: new UntrackedValue<ReasonAIValidationError["diagnostic"] | undefined>(),
   executedToolCalls: new UntrackedValue<string[] | undefined>(),
   result: new UntrackedValue<ReasonAIResponse | undefined>(),
   pendingToolCalls: new UntrackedValue<SystemDesignAgentToolCall[] | undefined>(),
@@ -100,7 +101,7 @@ export const SystemDesignGraphState = new StateSchema({
   proposalBatches: new UntrackedValue<number | undefined>(),
   terminalToolFailure: new UntrackedValue<boolean | undefined>(),
   visualization: new UntrackedValue<ReasonAIResponse["visualization"] | undefined>(),
-  notice: new UntrackedValue<string | undefined>(),
+  notices: new UntrackedValue<string[] | undefined>(),
   toolRounds: new UntrackedValue<number | undefined>(),
 });
 

@@ -85,8 +85,12 @@ export function allowsReasonAIProposal(request: Pick<ReasonAIRequest, "mode" | "
 /** Explicit requests must produce reviewable canvas suggestions, not drawing instructions. */
 export function requiresReasonAIProposal(request: Pick<ReasonAIRequest, "mode" | "message"> & Partial<Pick<ReasonAIRequest, "history">>): boolean {
   if (!allowsReasonAIProposal(request)) return false;
-  const message = request.message.trim().toLowerCase().replace(/\bu\b/g, "you").replace(/\u2019/g, "'").replace(/\s+/g, " ");
-  return hasReasonAIEditIntent(message) || /^(?:(?:now|next|please|can you|could you)\s+)*(?:draw|map|put)\b/.test(message);
+  const message = request.message.trim().toLowerCase().replace(/\bu\b/g, "you").replace(/\u2019/g, "'").replace(/[^\S\r\n]+/g, " ");
+  // Review can be the first step of an explicit proposal request. Examine
+  // imperative clauses, rather than matching edit words inside explanations.
+  const clauses = message.split(/[.!?;:\r\n]+\s*|(?:,\s*)?\b(?:and(?:\s+then)?|then|but)\s+/);
+  return clauses.some((clause) => hasReasonAIEditIntent(clause)
+    || /^(?:(?:now|next|please|can you|could you)\s+)*(?:draw|map|put)\b/.test(clause.trim()));
 }
 
 const reasonAIEditVerbs = new Set([
@@ -227,7 +231,7 @@ export const REASONAI_TOOL = {
   type: "function",
   function: {
     name: "propose_canvas_changes",
-    description: "Propose a reviewable architecture batch. Declare new nodes before their connections. add_node uses a stable ref such as new:redis; edge endpoints and node targets may use existing canvas IDs or earlier new: refs. Provide all required connections across bounded batches when needed. The server computes final layout and the user may Accept All, review items, or discard. This tool never changes the real canvas. Summarize tradeoffs using component names in plain text.",
+    description: "Propose a reviewable architecture batch using only summary and operations as top-level arguments. Translate canvas or clipboard data into flat operations; do not submit documents, analysis results or proposal envelopes. Declare new nodes before their connections. add_node uses a stable ref such as new:redis; edge endpoints and node targets may use existing canvas IDs or earlier new: refs. Provide all required connections across bounded batches when needed. The server computes final layout and the user may Accept All, review items, or discard. This tool never changes the real canvas. Summarize tradeoffs using component names in plain text.",
     parameters: { type: "object", additionalProperties: false, required: ["summary", "operations"], properties: { summary: textField(2000), operations: { type: "array", minItems: 1, maxItems: 50, items: { oneOf: operationSchemas } } } },
   },
 };

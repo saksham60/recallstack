@@ -22,7 +22,7 @@ export interface SystemDesignToolExecutionContext {
 
 export type SystemDesignToolExecutionResult =
   | { ok: true; message: SystemDesignAgentMessage; searchEvidence?: Array<TavilyEvidence & { id: number }>; retrievalStatus?: "used" | "empty"; proposal?: ReturnType<typeof parseReasonAIProposal>; visualization?: ReturnType<typeof parseReasonAIVisualization> }
-  | { ok: false; message: SystemDesignAgentMessage; reason: string; code?: "authorization" | "validation" | "recoverable" | "duplicate"; retrievalStatus?: "unavailable"; notice?: string };
+  | { ok: false; message: SystemDesignAgentMessage; reason: string; code?: "authorization" | "validation" | "recoverable" | "duplicate"; diagnostic?: ReasonAIValidationError["diagnostic"]; retrievalStatus?: "unavailable"; notice?: string };
 
 export interface SystemDesignToolExecutor {
   execute(call: SystemDesignAgentToolCall, context: SystemDesignToolExecutionContext): Promise<SystemDesignToolExecutionResult>;
@@ -40,6 +40,16 @@ function parseObject(value: string): Record<string, unknown> {
 
 function invalid(call: SystemDesignAgentToolCall, reason: string, notice?: string): Extract<SystemDesignToolExecutionResult, { ok: false }> {
   return { ok: false, reason, ...(notice ? { notice } : {}), message: toolMessage(call, { ok: false, error: reason }) };
+}
+
+function proposalArgumentShape(value: unknown) {
+  const input = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+  const knownKeys = new Set(["summary", "operations", "proposal", "nodes", "edges", "title", "requirements", "scaleAssumptions", "type", "version"]);
+  const type = (item: unknown) => item === null ? "null" : Array.isArray(item) ? "array" : typeof item;
+  return {
+    topLevelKeys: input ? Object.keys(input).slice(0, 30).map((key) => knownKeys.has(key) ? key : "[unknown]") : [],
+    summaryType: type(input?.summary), operationsType: type(input?.operations),
+  };
 }
 
 export const systemDesignToolExecutor: SystemDesignToolExecutor = {
@@ -81,8 +91,9 @@ export const systemDesignToolExecutor: SystemDesignToolExecutor = {
         console.warn("[SYSTEM_DESIGN_V2_TOOL_REJECTED]", { tool: call.name, reason: "not_authorized" });
         return { ...invalid(call, "Canvas changes are not authorized for this turn.", "No canvas changes were prepared because this turn does not authorize edits."), code: "authorization" };
       }
+      let raw: Record<string, unknown> | undefined;
       try {
-        const raw = parseObject(call.arguments);
+        raw = parseObject(call.arguments);
         const pending = context.pendingProposal;
         const pendingNodes = pending?.operations.filter((op) => op.op === "add_node").map((op) => ({ id: op.ref, type: op.type, x: op.x, y: op.y, label: op.label, subtitle: op.subtitle, description: op.description, technology: op.technology })) ?? [];
         const contextWithPending = { ...context.request.context, nodes: [...context.request.context.nodes, ...pendingNodes] };
@@ -96,10 +107,10 @@ export const systemDesignToolExecutor: SystemDesignToolExecutor = {
         return { ok: true, proposal, message: toolMessage(call, { ok: true, proposal }) };
       } catch (error) {
         const diagnostic = error instanceof ReasonAIValidationError ? error.diagnostic : { code: "INVALID_PROPOSAL" };
-        // Fixed diagnostic identifiers only; never log model arguments, source
-        // text, credentials, or the full diagram when a proposal is rejected.
-        console.warn("reasonai.proposal.validation_failed", { code: diagnostic.code, ...(diagnostic.operationIndex === undefined ? {} : { operationIndex: diagnostic.operationIndex }) });
-        return { ...invalid(call, "The canvas proposal was invalid.", "Canvas suggestions could not be prepared safely. Your diagram is unchanged."), code: "validation", message: toolMessage(call, { ok: false, diagnostic }) };
+        // Allowlisted shape metadata distinguishes contract failures without
+        // logging arbitrary keys, argument values, credentials or canvas data.
+        console.warn("reasonai.proposal.validation_failed", { code: diagnostic.code, ...(diagnostic.operationIndex === undefined ? {} : { operationIndex: diagnostic.operationIndex }), ...proposalArgumentShape(raw) });
+        return { ...invalid(call, "The canvas proposal was invalid.", "A canvas proposal attempt failed validation. Only validated suggestions are shown."), code: "validation", diagnostic, message: toolMessage(call, { ok: false, diagnostic }) };
       }
     }
     if (call.name === "show_architecture_analysis") {

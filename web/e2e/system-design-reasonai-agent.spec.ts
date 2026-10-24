@@ -400,8 +400,9 @@ test("explicit draw retries a text-only provider response and emits only a valid
   expect(bodies).toHaveLength(3);
   for (const body of bodies.slice(0, 2)) {
     expect((body.tools as Array<{ function: { name: string } }>).map((tool) => tool.function.name)).toContain("propose_canvas_changes");
-    expect(body.tool_choice).toBe("auto");
   }
+  expect(bodies[0].tool_choice).toBe("auto");
+  expect(bodies[1].tool_choice).toEqual({ type: "function", function: { name: "propose_canvas_changes" } });
   expect(JSON.stringify(events)).not.toContain("Draw a gateway yourself");
   expect(events.find((event) => event.type === "artifact.proposal")).toMatchObject({ data: { operations: [{ op: "add_node" }, { op: "add_edge" }] } });
   expect(events.at(-1)?.type).toBe("run.completed");
@@ -720,12 +721,11 @@ test("an actual provider contract mismatch receives one correction without execu
 for (const [label, name, args] of [
   ["unknown tool", "delete_canvas", {}],
   ["malformed arguments", "show_architecture_analysis", "{"],
-  ["invalid node reference", "propose_canvas_changes", { summary: "Move it", operations: [{ op: "move_node", nodeId: "missing", x: 10, y: 10 }] }],
 ] as const) {
   test(`${label} fails its tool safely and allows a final answer`, async () => {
     const events = [];
     for await (const event of streamSystemDesignGraph(
-      { ...request, mode: name === "propose_canvas_changes" ? "fix" : request.mode },
+      request,
       { durableState: defaultSystemDesignDurableConversationState(), provider: scripted([tool(name, args), final("The optional tool could not run; the canvas is unchanged.")]) },
     )) events.push(event);
     expect(events.some((event) => event.type === "tool.failed")).toBe(true);
