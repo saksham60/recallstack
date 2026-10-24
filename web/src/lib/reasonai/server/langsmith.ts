@@ -106,13 +106,13 @@ export async function flushLangSmith() {
   }
 }
 
-export async function traceTurn<T>(name: string, input: unknown, metadata: Record<string, unknown>, execute: () => Promise<T>): Promise<T> {
-  const span = start(name, "chain", input, metadata);
+export async function traceTurn<T>(name: string, input: unknown, metadata: Record<string, unknown>, execute: () => Promise<T>, options?: { metadataOnly: boolean }): Promise<T> {
+  const span = start(name, "chain", options?.metadataOnly ? { mode: metadata.mode, surface: metadata.surface } : input, metadata);
   if (!span) return execute();
   return activeRun.run(span.run, async () => {
     try {
       const result = await execute();
-      span.finish({ result });
+      span.finish(options?.metadataOnly ? { status: "completed" } : { result });
       return result;
     } catch (error) {
       span.finish({ status: "failed" }, error instanceof Error ? error.name : "unknown");
@@ -166,8 +166,8 @@ function traceStreamSummaryEvent(
   }
 }
 
-export async function* traceTurnStream<T extends { type?: string }>(name: string, input: unknown, metadata: Record<string, unknown>, source: AsyncIterable<T>): AsyncGenerator<T> {
-  const span = start(name, "chain", input, metadata);
+export async function* traceTurnStream<T extends { type?: string }>(name: string, input: unknown, metadata: Record<string, unknown>, source: AsyncIterable<T>, options?: { metadataOnly: boolean }): AsyncGenerator<T> {
+  const span = start(name, "chain", options?.metadataOnly ? { mode: metadata.mode, surface: metadata.surface } : input, metadata);
   if (!span) { yield* source; return; }
   const iterator = source[Symbol.asyncIterator]();
   const startedAt = Date.now();
@@ -206,17 +206,17 @@ export async function* traceTurnStream<T extends { type?: string }>(name: string
     span.finish({
       status,
       duration_ms: Date.now() - startedAt,
-      ...(summary.finalAnswer ? { final_answer: summary.finalAnswer } : {}),
+      ...(summary.finalAnswer && !options?.metadataOnly ? { final_answer: summary.finalAnswer } : {}),
       ...(summary.toolsUsed.size ? { tools_used: [...summary.toolsUsed] } : {}),
-      ...(summary.sources.length ? { sources: summary.sources } : {}),
+      ...(summary.sources.length ? options?.metadataOnly ? { source_count: summary.sources.length } : { sources: summary.sources } : {}),
       ...(summary.model ? { model: summary.model } : {}),
       ...(summary.failureCode ? { failure_code: summary.failureCode } : {}),
-      ...(summary.failureMessage ? { failure_message: summary.failureMessage } : {}),
+      ...(summary.failureMessage && !options?.metadataOnly ? { failure_message: summary.failureMessage } : {}),
     }, failure);
   }
 }
 
-export async function traceTool<T>(name: string, input: unknown, execute: () => Promise<T>): Promise<T> {
+export async function traceTool<T>(name: string, input: unknown, execute: () => Promise<T>, options?: { metadataOnly: boolean }): Promise<T> {
   const span = start(name, "tool", input);
   if (!span) return execute();
   return activeRun.run(span.run, async () => {
@@ -225,7 +225,7 @@ export async function traceTool<T>(name: string, input: unknown, execute: () => 
       if (result && typeof result === "object" && "ok" in result && result.ok === false) {
         const code = "code" in result && typeof result.code === "string" ? result.code : "tool_failed";
         span.finish({ status: "failed", code }, code);
-      } else span.finish({ result });
+      } else span.finish(options?.metadataOnly ? { status: "completed" } : { result });
       return result;
     } catch (error) {
       span.finish({ status: "failed" }, error instanceof Error ? error.name : "unknown");
@@ -235,8 +235,10 @@ export async function traceTool<T>(name: string, input: unknown, execute: () => 
 }
 
 /** Capture the actual provider request and its consumed response without buffering the user stream. */
-export async function traceLLMResponse(body: Record<string, unknown>, execute: () => Promise<Response>, signal?: AbortSignal): Promise<Response> {
-  const span = start("nebius.chat.completions", "llm", { messages: body.messages, tools: body.tools, tool_choice: body.tool_choice }, {
+export async function traceLLMResponse(body: Record<string, unknown>, execute: () => Promise<Response>, signal?: AbortSignal, options?: { metadataOnly: boolean }): Promise<Response> {
+  const span = start("nebius.chat.completions", "llm", options?.metadataOnly
+    ? { message_count: Array.isArray(body.messages) ? body.messages.length : 0, tool_choice: body.tool_choice }
+    : { messages: body.messages, tools: body.tools, tool_choice: body.tool_choice }, {
     model: body.model, temperature: body.temperature, max_tokens: body.max_tokens, stream: body.stream,
   });
   if (!span) return execute();
@@ -301,7 +303,11 @@ export async function traceLLMResponse(body: Record<string, unknown>, execute: (
         usage = value.usage;
       } catch { /* The caller validates malformed provider JSON. */ }
     }
-    span.finish({ content, tool_calls: [...calls.values()], finish_reason: finishReason, usage, httpStatus: response.status }, error);
+    const safeUsage = usage && typeof usage === "object" ? Object.fromEntries(Object.entries(usage)
+      .filter(([key, value]) => ["prompt_tokens", "completion_tokens", "total_tokens"].includes(key) && typeof value === "number" && Number.isFinite(value))) : undefined;
+    span.finish(options?.metadataOnly
+      ? { content_chars: content.length, tool_call_count: calls.size, finish_reason: typeof finishReason === "string" && ["stop", "length", "tool_calls"].includes(finishReason) ? finishReason : "unknown", usage: safeUsage, httpStatus: response.status }
+      : { content, tool_calls: [...calls.values()], finish_reason: finishReason, usage, httpStatus: response.status }, error);
   };
   const onAbort = () => finish("aborted");
   signal?.addEventListener("abort", onAbort, { once: true });

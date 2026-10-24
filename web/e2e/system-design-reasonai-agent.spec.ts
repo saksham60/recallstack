@@ -86,7 +86,9 @@ function execution(provider: SystemDesignAgentProvider, toolExecutor?: SystemDes
     durableState: defaultSystemDesignDurableConversationState(),
     runId: crypto.randomUUID(),
     messageId: crypto.randomUUID(),
-    provider,
+    // These cases exercise primary-provider behavior. Dedicated reliability
+    // tests exercise the real reviewer transport and its failure boundaries.
+    provider: provider === systemDesignAgentProvider ? { ...provider, reviewArchitecture: async () => ({ verdict: "pass" as const, findings: [], suggestedImprovements: [] }) } : provider,
     toolExecutor,
   };
 }
@@ -445,8 +447,9 @@ test("tool cap prevents post-execution escalation", async () => {
   const executor: SystemDesignToolExecutor = { async execute(call) { return { ok: true, retrievalStatus: "empty", searchEvidence: [], message: { role: "tool", tool_call_id: call.id, content: "{}" } }; } };
   const events = [];
   for await (const event of streamSystemDesignEvents(request, new AbortController().signal, execution(scripted([...rounds, { kind: "escalate" }, final("Ultra completes after the tool cap.")], received), executor))) events.push(event);
-  expect(received).toHaveLength(MAX_SYSTEM_DESIGN_TOOL_ROUNDS + 1);
-  expect(received[MAX_SYSTEM_DESIGN_TOOL_ROUNDS]).toMatchObject({ modelTier: "super", allowTools: false, canEscalate: false });
+  expect(received).toHaveLength(MAX_SYSTEM_DESIGN_TOOL_ROUNDS);
+  expect(received.every((input) => input.modelTier === "super")).toBe(true);
+  expect(received.slice(1).every((input) => !input.canEscalate)).toBe(true);
   expect(events.filter((event) => event.type === "tool.started")).toHaveLength(MAX_SYSTEM_DESIGN_TOOL_ROUNDS);
   expect(events.at(-1)?.type).toBe("run.failed");
 });
@@ -730,7 +733,7 @@ for (const [label, name, args] of [
   });
 }
 
-test("tool rounds are capped at four and the next provider pass must finalize", async () => {
+test("tool budget exhaustion without a checkpoint stops before another provider call", async () => {
   let executions = 0;
   const allowTools: boolean[] = [];
   const provider: SystemDesignAgentProvider = {
@@ -745,9 +748,11 @@ test("tool rounds are capped at four and the next provider pass must finalize", 
       return { ok: false, reason: "No results", message: { role: "tool", tool_call_id: call.id, content: '{"ok":false}' } };
     },
   };
-  for await (const _event of streamSystemDesignGraph(request, { durableState: defaultSystemDesignDurableConversationState(), provider, toolExecutor: executor })) void _event;
+  await expect(async () => {
+    for await (const _event of streamSystemDesignGraph(request, { durableState: defaultSystemDesignDurableConversationState(), provider, toolExecutor: executor })) void _event;
+  }).rejects.toThrow("execution budget");
   expect(executions).toBe(MAX_SYSTEM_DESIGN_TOOL_ROUNDS);
-  expect(allowTools).toEqual([true, true, true, true, false]);
+  expect(allowTools).toEqual([true, true, true, true]);
 });
 
 test("cancellation reaches an active System Design tool and ends the run without a final answer", async () => {

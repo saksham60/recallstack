@@ -37,7 +37,7 @@ import { fingerprintReasonAIContext, remainingReasonAIProposal, remainingReasonA
 
 import { createReasonAITrace, REASONAI_SUGGESTIONS_UNAVAILABLE } from "./trace";
 
-interface Turn extends ReasonAIMessage { id: string; proposal?: ReasonAIProposal; proposalId?: string; proposalVersion?: number; baseFingerprint?: string; partial?: boolean; operationIndexes?: number[]; refs?: Record<string, string>; sources?: ReasonAISource[]; notice?: string; tools?: SystemDesignToolActivity[]; model?: ReasonAIModelMetadata; outcome?: ReasonAITaskOutcome; diagramId?: string; traceId?: string; suggestionsUnavailable?: boolean }
+interface Turn extends ReasonAIMessage { id: string; proposal?: ReasonAIProposal; proposalId?: string; proposalVersion?: number; baseFingerprint?: string; persistenceStatus?: "working" | "saved"; partial?: boolean; operationIndexes?: number[]; refs?: Record<string, string>; sources?: ReasonAISource[]; notice?: string; tools?: SystemDesignToolActivity[]; model?: ReasonAIModelMetadata; outcome?: ReasonAITaskOutcome; diagramId?: string; traceId?: string; suggestionsUnavailable?: boolean }
 interface Generation { question: string; mode: ReasonAIMode; modelPreference: ReasonAIModelPreference; history: ReasonAIMessage[] }
 
 function modelBadge(model: ReasonAIModelMetadata): string {
@@ -201,7 +201,7 @@ export function ReasonAIPanel({
         if (typeof pendingProposal.proposalId !== "string" || typeof pendingProposal.version !== "number") return;
         const refs = pending.refMappings;
         onProposalChange?.(proposal, { proposalId: pendingProposal.proposalId, version: pendingProposal.version, baseFingerprint: expectedFingerprint as string, refs });
-        setTurns((previous) => previous.length ? previous : [{ id: crypto.randomUUID(), role: "assistant", content: "Your pending architecture proposal is ready to review.", proposal, proposalId: pendingProposal.proposalId as string, proposalVersion: pendingProposal.version as number, baseFingerprint: expectedFingerprint as string, partial: pendingProposal.status === "partially_accepted", operationIndexes, refs, diagramId: diagram.id }]);
+        setTurns((previous) => previous.length ? previous : [{ id: crypto.randomUUID(), role: "assistant", content: "Your pending architecture proposal is ready to review.", proposal, persistenceStatus: "saved", proposalId: pendingProposal.proposalId as string, proposalVersion: pendingProposal.version as number, baseFingerprint: expectedFingerprint as string, partial: pendingProposal.status === "partially_accepted", operationIndexes, refs, diagramId: diagram.id }]);
       } catch { /* History is optional; a new conversation can still start. */ }
     }
     void restore();
@@ -352,8 +352,8 @@ export function ReasonAIPanel({
           if (event.type === "visual.ready" && next.visualization) {
             onVisualization?.(next.visualization, reasonAIAnalysisScope(diagram));
           }
-          if (event.type === "artifact.proposal" && next.proposal) {
-            onProposalChange?.(next.proposal, next.proposalId && next.proposalVersion && next.baseFingerprint ? { proposalId: next.proposalId, version: next.proposalVersion, baseFingerprint: next.baseFingerprint } : undefined);
+          if ((event.type === "artifact.proposal" || event.type === "artifact.persistence") && next.proposal) {
+            onProposalChange?.(next.persistenceStatus === "working" ? undefined : next.proposal, next.persistenceStatus !== "working" && next.proposalId && next.proposalVersion && next.baseFingerprint ? { proposalId: next.proposalId, version: next.proposalVersion, baseFingerprint: next.baseFingerprint } : undefined);
             setTurns((previous) => previous.map((turn) => turn.id === assistantId ? turn : { ...turn, proposal: undefined }));
           }
           const content = normalizeReasonAIVisibleText(next.text, context, next.proposal);
@@ -366,6 +366,7 @@ export function ReasonAIPanel({
               proposalId: next.proposalId,
               proposalVersion: next.proposalVersion,
               baseFingerprint: next.baseFingerprint,
+              persistenceStatus: next.persistenceStatus,
               sources: next.sources,
               notice: next.notice,
               tools: next.tools,
@@ -738,7 +739,7 @@ export function ReasonAIPanel({
                 initialRefs={turn.refs}
                 traceId={turn.traceId}
                 diagram={diagram}
-                canApply={canApply && !busy}
+                canApply={canApply && !busy && turn.persistenceStatus !== "working"}
                 live={live}
                 onCommit={(operation, refs, index, position) => onCommit(operation, refs, index, position, conversationId.current)}
                 onDismiss={(operation, index) => onDismiss(operation, index, conversationId.current)}
@@ -766,7 +767,21 @@ export function ReasonAIPanel({
                 }}
               />
             )}
-            {turn.outcome === "awaiting_approval" && turn.proposal && <p className="text-xs text-muted">Awaiting your approval. The diagram has not changed.</p>}
+            {turn.proposal?.review && (
+              <div className="space-y-1 text-xs text-muted" role="status">
+                <p>{({ not_started: "Architecture review not started", passed: "Architecture review passed · advisory, not a security approval", needs_revision: "Architecture review: unresolved concerns", incomplete: "Architecture review incomplete", failed: "Architecture review failed" } as const)[turn.proposal.review.status]}</p>
+                {turn.proposal.review.reviewedProposalVersion !== undefined && turn.proposal.review.reviewedProposalVersion !== turn.proposal.review.lastValidatedProposalVersion && (
+                  <p>Findings below concern version {turn.proposal.review.reviewedProposalVersion}. Version {turn.proposal.review.lastValidatedProposalVersion} has not completed review.</p>
+                )}
+                {turn.proposal.review.findings.map((finding, index) => (
+                  <p key={`${finding.category}:${index}`} className={finding.severity === "high" ? "text-warning" : undefined}>
+                    {finding.severity}: {finding.explanation} {finding.recommendation}
+                  </p>
+                ))}
+              </div>
+            )}
+            {turn.proposal && turn.persistenceStatus === "working" && <p className="text-xs text-warning">Validated working proposal. Saving has not been confirmed.</p>}
+            {turn.proposal && turn.persistenceStatus === "saved" && <p className="text-xs text-muted">Proposal saved. Awaiting your approval. The diagram has not changed.</p>}
             {turn.notice && <p className="text-xs leading-5 text-warning">{turn.notice}</p>}
             {!!turn.sources?.length && <ReasonAISources sources={turn.sources} />}
             {turn.role === "assistant" && turn.model && (

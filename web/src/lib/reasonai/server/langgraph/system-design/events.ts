@@ -7,9 +7,9 @@ export type SystemDesignGraphStreamEvent =
   | { type: "result"; result: ReasonAIResponse }
   | { type: "tool.started"; toolCallId: string; toolName: string; summary: string }
   | { type: "tool.completed"; toolCallId: string; summary: string }
-  | { type: "tool.failed"; toolCallId: string; summary: string; code?: "authorization" | "validation" | "recoverable" | "duplicate" | "timeout" }
+  | { type: "tool.failed"; toolCallId: string; summary: string; code?: "authorization" | "validation" | "recoverable" | "duplicate" | "timeout" | "review" | "repair" }
   | { type: "sources"; sources: Array<TavilyEvidence & { id: number }>; retrievalStatus: "used" | "empty" }
-  | { type: "proposal"; proposal: ReasonAIProposal }
+  | { type: "proposal"; proposal: ReasonAIProposal; checkpoint?: import("@/features/system-design/reasonai/proposal-state").ReasonAIPendingProposal }
   | { type: "analysis"; visualization: ReasonAIVisualization };
 
 export type SystemDesignGraphStage =
@@ -22,4 +22,8 @@ export type SystemDesignGraphStage =
   | "tool.started"
   | "tool.completed"
   | "tool.failed"
-  | "tool.limit_reached";
+  | "tool.limit_reached"
+  | "review.started"
+  | "review.completed"
+  | "repair.started"
+  | "repair.completed";

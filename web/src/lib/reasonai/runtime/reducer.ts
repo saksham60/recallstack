@@ -233,6 +233,7 @@ export function reduceReasonAIEvent(state: ReasonAIRuntimeState, event: ReasonAI
         partId: event.partId,
         proposalId: event.proposalId,
         ...(event.proposalVersion === undefined ? {} : { proposalVersion: event.proposalVersion }),
+        ...(event.persistenceStatus === undefined ? {} : { persistenceStatus: event.persistenceStatus }),
         status: "proposed",
         data: event.data,
         ...(event.baseArtifactFingerprint === undefined ? {} : { baseArtifactFingerprint: event.baseArtifactFingerprint }),
@@ -240,6 +241,11 @@ export function reduceReasonAIEvent(state: ReasonAIRuntimeState, event: ReasonAI
       }));
     case "artifact.status":
       return advance(state, event, updateArtifactStatus(state.messages, event.messageId, event.proposalId, event.status));
+    case "artifact.persistence":
+      return advance(state, event, updateAssistantMessage(state.messages, event.messageId, (message) => ({
+        ...message, parts: message.parts.map((part) => part.type === "artifact" && part.proposalId === event.proposalId
+          && part.proposalVersion === event.proposalVersion ? { ...part, persistenceStatus: "saved" as const } : part),
+      })));
     case "run.completed":
       return {
         ...state,

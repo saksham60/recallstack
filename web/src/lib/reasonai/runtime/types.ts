@@ -50,6 +50,7 @@ export interface ReasonAIArtifactPart {
   partId: string;
   proposalId: string;
   proposalVersion?: number;
+  persistenceStatus?: "working" | "saved";
   status: ReasonAIArtifactStatus;
   data: unknown;
   baseArtifactFingerprint?: string;

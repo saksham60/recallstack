@@ -9,7 +9,12 @@ export function createSystemDesignFinalizeNode(
   onCandidate?: (state: SystemDesignDurableConversationState) => void,
 ): typeof SystemDesignGraphState.Node {
   return async (state, config) => {
+    config.signal?.throwIfAborted();
     if (!state.result) throw new ReasonAIProviderError("ReasonAI could not complete that response. Please try again.");
+    const review = state.workingCheckpoint?.proposal.review;
+    const reviewNotice = review && review.status !== "passed" && review.incompleteReason !== "layout_only"
+      ? review.status === "needs_revision" ? "Architecture review found unresolved concerns. Review the findings before approving." : "Architecture review was not completed. This proposal has not passed architecture review."
+      : undefined;
     const result = {
       ...state.result,
       model: {
@@ -21,7 +26,7 @@ export function createSystemDesignFinalizeNode(
       ...(state.proposal ? { proposal: state.proposal } : {}),
       outcome: state.proposal ? "awaiting_approval" as const : state.result.outcome ?? "completed" as const,
       ...(state.visualization ? { visualization: state.visualization } : {}),
-      ...([state.result.notice, state.notice].filter(Boolean).join(" ") ? { notice: [state.result.notice, state.notice].filter(Boolean).join(" ") } : {}),
+      ...([state.result.notice, state.notice, reviewNotice].filter(Boolean).join(" ") ? { notice: [state.result.notice, state.notice, reviewNotice].filter(Boolean).join(" ") } : {}),
     };
     const candidate = nextSystemDesignConversationState({ ...state, result });
     onCandidate?.(candidate);
