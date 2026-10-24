@@ -173,6 +173,7 @@ test("correction uses the shared model budget and cannot make a call after exhau
   const events: ReasonAIKnownEvent[] = [];
   for await (const event of streamSystemDesignEvents(request, new AbortController().signal, {
     provider, durableState: defaultSystemDesignDurableConversationState(), budgets: { totalModelCalls: 1 },
+    runId: crypto.randomUUID(), messageId: crypto.randomUUID(),
   })) events.push(event);
   expect(received).toHaveLength(1);
   expect(events.at(-1)).toMatchObject({ type: "run.failed", code: "BUDGET_EXHAUSTED" });
