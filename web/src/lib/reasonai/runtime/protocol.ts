@@ -18,6 +18,7 @@ const KNOWN_EVENT_TYPES = new Set<ReasonAIKnownEvent["type"]>([
   "visual.ready",
   "artifact.proposal",
   "artifact.status",
+  "artifact.persistence",
   "run.completed",
   "run.failed",
   "run.cancelled",
@@ -224,6 +225,7 @@ export function parseReasonAIEvent(value: unknown): ReasonAIEvent {
     case "artifact.proposal": {
       if (!("data" in event)) throw new ReasonAIProtocolError("ReasonAI artifact event is missing data.");
       const touchedEntities = parseTouchedEntities(event.touchedEntities);
+      if (event.persistenceStatus !== undefined && !["working", "saved"].includes(String(event.persistenceStatus))) throw new ReasonAIProtocolError("Invalid artifact persistence status.");
       return {
         ...base,
         type: event.type,
@@ -231,11 +233,16 @@ export function parseReasonAIEvent(value: unknown): ReasonAIEvent {
         partId: stringField(event, "partId", MAX_ID_LENGTH),
         proposalId: stringField(event, "proposalId", MAX_ID_LENGTH),
         ...(event.proposalVersion === undefined ? {} : { proposalVersion: integerField(event, "proposalVersion", 1, 1000000) }),
+        ...(event.persistenceStatus === undefined ? {} : { persistenceStatus: event.persistenceStatus as "working" | "saved" }),
         data: event.data,
         ...(event.baseArtifactFingerprint === undefined ? {} : { baseArtifactFingerprint: stringField(event, "baseArtifactFingerprint", 500) }),
         ...(touchedEntities === undefined ? {} : { touchedEntities }),
       };
     }
+    case "artifact.persistence":
+      if (event.persistenceStatus !== "saved") throw new ReasonAIProtocolError("Invalid artifact persistence confirmation.");
+      return { ...base, type: event.type, messageId: stringField(event, "messageId", MAX_ID_LENGTH),
+        proposalId: stringField(event, "proposalId", MAX_ID_LENGTH), proposalVersion: integerField(event, "proposalVersion", 1, 1000000), persistenceStatus: "saved" };
     case "artifact.status":
       if (!['applied', 'discarded', 'stale'].includes(String(event.status))) {
         throw new ReasonAIProtocolError("ReasonAI artifact event has an invalid status.");

@@ -96,6 +96,9 @@ export const systemDesignToolExecutor: SystemDesignToolExecutor = {
         return { ok: true, proposal, message: toolMessage(call, { ok: true, proposal }) };
       } catch (error) {
         const diagnostic = error instanceof ReasonAIValidationError ? error.diagnostic : { code: "INVALID_PROPOSAL" };
+        // Fixed diagnostic identifiers only; never log model arguments, source
+        // text, credentials, or the full diagram when a proposal is rejected.
+        console.warn("reasonai.proposal.validation_failed", { code: diagnostic.code, ...(diagnostic.operationIndex === undefined ? {} : { operationIndex: diagnostic.operationIndex }) });
         return { ...invalid(call, "The canvas proposal was invalid.", "Canvas suggestions could not be prepared safely. Your diagram is unchanged."), code: "validation", message: toolMessage(call, { ok: false, diagnostic }) };
       }
     }
@@ -109,6 +112,6 @@ export const systemDesignToolExecutor: SystemDesignToolExecutor = {
       }
     }
     return invalid(call, "The requested tool is not available.");
-    });
+    }, { metadataOnly: true });
   },
 };

@@ -48,9 +48,10 @@ export function createPendingReasonAIProposal(proposal: ReasonAIProposal, contex
   });
   const operationIds = validated.operations.map((operation: ReasonAIOperation) => oldIds.get(JSON.stringify(canonical(operation)))?.shift() ?? crypto.randomUUID());
   const rebased = previous?.status === "partially_accepted" && previous.lastReportedFingerprint === fingerprintReasonAIContext(context);
+  const changed = !previous || proposalContentKey(validated) !== proposalContentKey(previous.proposal);
   return {
     proposalId: previous?.proposalId ?? crypto.randomUUID(),
-    version: (previous?.version ?? 0) + versionIncrement,
+    version: (previous?.version ?? 0) + (changed ? versionIncrement : 0),
     diagramId: context.diagramId ?? "",
     baseFingerprint: rebased ? fingerprintReasonAIContext(context) : previous?.baseFingerprint ?? fingerprintReasonAIContext(context),
     lastReportedFingerprint: fingerprintReasonAIContext(context),
@@ -63,6 +64,17 @@ export function createPendingReasonAIProposal(proposal: ReasonAIProposal, contex
     refMappings: previous?.refMappings ?? {},
     warnings: previous?.warnings ?? [],
   };
+}
+
+/** Review metadata is not proposal content and never increments its version. */
+export function proposalContentKey(proposal: ReasonAIProposal): string {
+  return JSON.stringify(canonical({ summary: proposal.summary, operations: proposal.operations }));
+}
+
+export function fingerprintReasonAIProposal(proposal: ReasonAIProposal): string {
+  let hash = BigInt("0xcbf29ce484222325");
+  for (const byte of new TextEncoder().encode(proposalContentKey(proposal))) hash = BigInt.asUintN(64, (hash ^ BigInt(byte)) * BigInt("0x100000001b3"));
+  return `fnv64:${hash.toString(16).padStart(16, "0")}`;
 }
 
 function resolveReasonAIRefs(operation: ReasonAIOperation, mappings: Record<string, string>): ReasonAIOperation {

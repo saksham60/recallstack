@@ -77,6 +77,7 @@ export interface ReasonAIArtifactProposalEvent extends ReasonAIEventBase {
   partId: string;
   proposalId: string;
   proposalVersion?: number;
+  persistenceStatus?: "working" | "saved";
   data: unknown;
   baseArtifactFingerprint?: string;
   touchedEntities?: ReasonAIArtifactTouchedEntity[];
@@ -87,6 +88,14 @@ export interface ReasonAIArtifactStatusEvent extends ReasonAIEventBase {
   messageId: string;
   proposalId: string;
   status: Exclude<ReasonAIArtifactStatus, "proposed">;
+}
+
+export interface ReasonAIArtifactPersistenceEvent extends ReasonAIEventBase {
+  type: "artifact.persistence";
+  messageId: string;
+  proposalId: string;
+  proposalVersion: number;
+  persistenceStatus: "saved";
 }
 
 export interface ReasonAIRunCompletedEvent extends ReasonAIEventBase { type: "run.completed" }
@@ -111,6 +120,7 @@ export type ReasonAIKnownEvent =
   | ReasonAIVisualReadyEvent
   | ReasonAIArtifactProposalEvent
   | ReasonAIArtifactStatusEvent
+  | ReasonAIArtifactPersistenceEvent
   | ReasonAIRunCompletedEvent
   | ReasonAIRunFailedEvent
   | ReasonAIRunCancelledEvent;

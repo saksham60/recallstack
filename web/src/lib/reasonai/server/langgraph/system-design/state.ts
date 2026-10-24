@@ -3,9 +3,10 @@ import "server-only";
 import { StateSchema, UntrackedValue } from "@langchain/langgraph";
 import { z } from "zod";
 import { parseReasonAIProposal, parseReasonAIRequest, type ReasonAIModelTier, type ReasonAIRequest, type ReasonAIResponse } from "@/features/system-design/reasonai/contract";
-import { createPendingReasonAIProposal, fingerprintReasonAIContext, type ReasonAIPendingProposal } from "@/features/system-design/reasonai/proposal-state";
+import { createPendingReasonAIProposal, fingerprintReasonAIContext, fingerprintReasonAIProposal, type ReasonAIPendingProposal } from "@/features/system-design/reasonai/proposal-state";
 import type { SystemDesignAgentMessage, SystemDesignAgentToolCall } from "@/features/system-design/reasonai/agent-provider";
 import type { TavilyEvidence } from "@/lib/tavily/search";
+import type { SystemDesignBudget } from "./budget";
 
 export const MAX_SYSTEM_DESIGN_RECENT_TURNS = 6;
 export const MAX_SYSTEM_DESIGN_SUMMARY_CHARS = 4_000;
@@ -47,7 +48,12 @@ export function parseSystemDesignDurableConversationState(value: unknown): Syste
     } }).context;
     const proposal = parseReasonAIProposal(pending.proposal, context, "accumulated");
     if (pending.diagramId !== (context.diagramId ?? "") || pending.baseFingerprint !== fingerprintReasonAIContext(context)
-      || pending.operationIds.length !== proposal.operations.length) throw new Error("Invalid pending proposal state.");
+      || pending.operationIds.length !== proposal.operations.length
+      || new Set(pending.operationIds).size !== pending.operationIds.length
+      || new Set([...pending.acceptedOperationIds, ...pending.dismissedOperationIds]).size !== pending.acceptedOperationIds.length + pending.dismissedOperationIds.length
+      || [...pending.acceptedOperationIds, ...pending.dismissedOperationIds].some((id) => !pending.operationIds.includes(id))
+      || (proposal.review && proposal.review.lastValidatedProposalVersion !== pending.version)
+      || (proposal.review?.status === "passed" && proposal.review.reviewedFingerprint !== fingerprintReasonAIProposal(proposal))) throw new Error("Invalid pending proposal state.");
   }
   if (new TextEncoder().encode(JSON.stringify(state)).byteLength > MAX_SYSTEM_DESIGN_STATE_BYTES) {
     throw new Error("ReasonAI conversation state exceeds the maximum size.");
@@ -64,6 +70,15 @@ export const SystemDesignGraphState = new StateSchema({
   lastMode: z.enum(["chat", "review", "fix", "eagle"]).optional(),
   diagramId: z.string().max(256).optional(),
   pendingProposal: new UntrackedValue<ReasonAIPendingProposal | undefined>(),
+  // pendingProposal is the last confirmed durable input; these are working copies.
+  workingCheckpoint: new UntrackedValue<ReasonAIPendingProposal | undefined>(),
+  baselineCheckpoint: new UntrackedValue<ReasonAIPendingProposal | undefined>(),
+  budget: new UntrackedValue<SystemDesignBudget>(),
+  generationComplete: new UntrackedValue<boolean | undefined>(),
+  recoveryReason: new UntrackedValue<string | undefined>(),
+  reviewNeedsRepair: new UntrackedValue<boolean | undefined>(),
+  duplicateCallCount: new UntrackedValue<number | undefined>(),
+  completedToolResults: new UntrackedValue<Record<string, string> | undefined>(),
   request: new UntrackedValue<ReasonAIRequest>(),
   runId: new UntrackedValue<string | undefined>(),
   modelTier: new UntrackedValue<ReasonAIModelTier>(),
@@ -124,7 +139,8 @@ export function nextSystemDesignConversationState(state: SystemDesignGraphStateV
     summary: summary.length <= MAX_SYSTEM_DESIGN_SUMMARY_CHARS ? summary : summary.slice(-MAX_SYSTEM_DESIGN_SUMMARY_CHARS),
     lastMode: state.request.mode,
     ...(state.request.context.diagramId ? { diagramId: state.request.context.diagramId } : {}),
-    ...(state.proposal ? { pendingProposal: createPendingReasonAIProposal(state.proposal, state.request.context, priorMatchesCanvas ? prior : undefined, state.proposalBatches ?? 1) }
+    ...(state.workingCheckpoint ? { pendingProposal: state.workingCheckpoint }
+      : state.proposal ? { pendingProposal: createPendingReasonAIProposal(state.proposal, state.request.context, priorMatchesCanvas ? prior : undefined, state.proposalBatches ?? 1) }
       : prior ? { pendingProposal: priorMatchesCanvas ? prior : { ...prior, status: "stale" } } : {}),
   });
 }

@@ -3,6 +3,7 @@ import { SYSTEM_DESIGN_PRIMARY_EDGE_TYPES, SYSTEM_DESIGN_LEGACY_EDGE_TYPES } fro
 import type { SystemDesignDiagram, SystemDesignEdge, SystemDesignNode, SystemDesignProblem } from "../types/system-design.types";
 import type { ReasonAIVisualization } from "./visualization";
 import type { ReasonAISource } from "./sources";
+import { ArchitectureReviewMetadataSchema, type ArchitectureReviewMetadata } from "./architecture-review";
 
 export const REASONAI_MODES = { chat: "Chat", review: "Review", fix: "Fix", eagle: "Eagle View" } as const;
 export type ReasonAIMode = keyof typeof REASONAI_MODES;
@@ -25,7 +26,7 @@ export type ReasonAIOperation =
   | ({ op: "add_edge" } & EdgeFields)
   | ({ op: "update_edge"; edgeId: string } & Partial<EdgeFields>)
   | { op: "delete_edge"; edgeId: string };
-export interface ReasonAIProposal { summary: string; operations: ReasonAIOperation[] }
+export interface ReasonAIProposal { summary: string; operations: ReasonAIOperation[]; review?: ArchitectureReviewMetadata }
 export type ReasonAITaskOutcome = "completed" | "awaiting_approval" | "needs_clarification" | "blocked" | "failed";
 export interface ReasonAIResponse { text: string; proposal?: ReasonAIProposal; visualization?: ReasonAIVisualization; sources?: ReasonAISource[]; notice?: string; model?: ReasonAIModelMetadata; outcome?: ReasonAITaskOutcome }
 export const REASONAI_INVALID_PROPOSAL = "ReasonAI returned an invalid canvas proposal. No changes were applied.";
@@ -212,7 +213,7 @@ const edgeFields = { type: { type: "string", enum: edgeTypes }, sourceNodeId: fi
 function operationSchema(op: ReasonAIOperation["op"], properties: Record<string, object>, required: string[]) {
   return { type: "object", additionalProperties: false, properties: { op: { type: "string", enum: [op] }, ...properties }, required: ["op", ...required] };
 }
-const operationSchemas = [
+export const reasonAIOperationSchemas = [
   operationSchema("add_node", { ref: fields.ref, type: { type: "string", enum: nodeTypes.filter((t) => t !== "image" && t !== "freehand") }, ...nodeFields, x: fields.x, y: fields.y }, ["ref", "type", "label", "x", "y"]),
   operationSchema("update_node", { nodeId: fields.nodeId, ...nodeFields }, ["nodeId"]),
   operationSchema("move_node", { nodeId: fields.nodeId, x: fields.x, y: fields.y }, ["nodeId", "x", "y"]),
@@ -221,6 +222,7 @@ const operationSchemas = [
   operationSchema("update_edge", { edgeId: fields.edgeId, ...edgeFields }, ["edgeId"]),
   operationSchema("delete_edge", { edgeId: fields.edgeId }, ["edgeId"]),
 ];
+const operationSchemas = reasonAIOperationSchemas;
 export const REASONAI_TOOL = {
   type: "function",
   function: {
@@ -231,7 +233,7 @@ export const REASONAI_TOOL = {
 };
 export function parseReasonAIProposal(value: unknown, context: Pick<ReasonAIContext, "nodes" | "edges">, validation: "model_batch" | "accumulated" | "acceptance" = "model_batch"): ReasonAIProposal {
   const proposal = record(value);
-  if (Object.keys(proposal).some((k) => k !== "summary" && k !== "operations")) throw new ReasonAIValidationError("Unsupported proposal field.", { code: "WRONG_PROPOSAL_CONTRACT" });
+  if (Object.keys(proposal).some((k) => k !== "summary" && k !== "operations" && !(k === "review" && validation !== "model_batch"))) throw new ReasonAIValidationError("Unsupported proposal field.", { code: "WRONG_PROPOSAL_CONTRACT" });
   let summary: string;
   try { summary = string(proposal.summary); }
   catch { throw new ReasonAIValidationError("Invalid or oversized text.", { code: "INVALID_PROPOSAL_FIELD", field: "summary" }); }
@@ -293,5 +295,5 @@ export function parseReasonAIProposal(value: unknown, context: Pick<ReasonAICont
       throw error;
     }
   }
-  return { summary, operations };
+  return { summary, operations, ...(proposal.review === undefined ? {} : { review: ArchitectureReviewMetadataSchema.parse(proposal.review) }) };
 }

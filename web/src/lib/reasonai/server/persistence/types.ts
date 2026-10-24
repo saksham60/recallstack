@@ -61,6 +61,8 @@ export interface FinalizeRunInput {
   errorCode?: string;
   assistant?: Omit<PersistedReasonAIMessage, "conversationId" | "runId" | "createdAt">;
   nextConversationState?: unknown;
+  /** System Design only: guarded completion must match the state read at start. */
+  expectedStateVersion?: number;
 }
 
 export interface ReasonAIProposalTransition {
@@ -94,7 +96,7 @@ export interface ReasonAIPersistenceRepository {
 
 export class ReasonAIPersistenceError extends Error {
   constructor(
-    readonly code: "NOT_FOUND" | "RUN_IN_PROGRESS" | "PERSISTENCE_UNAVAILABLE" | "STATE_INVALID" | "STATE_UNAVAILABLE",
+    readonly code: "NOT_FOUND" | "RUN_IN_PROGRESS" | "PERSISTENCE_UNAVAILABLE" | "STATE_INVALID" | "STATE_UNAVAILABLE" | "STATE_CONFLICT" | "RUN_TERMINATED",
     message: string,
   ) {
     super(message);

@@ -77,9 +77,11 @@ export async function POST(request: Request) {
         return finish(Response.json({ conversationId: prepared.conversation.id, runId: prepared.run.id, status: prepared.run.status, replayed: true }, { headers }));
       }
       let durableState: SystemDesignDurableConversationState;
+      let expectedStateVersion = 0;
       try {
         const persistedState = await persistenceContext.repository.getConversationState(persistenceContext.userId, prepared.conversation.id);
         durableState = persistedState ? parseSystemDesignDurableConversationState(persistedState.state) : defaultSystemDesignDurableConversationState();
+        expectedStateVersion = persistedState?.stateVersion ?? 0;
       } catch (error) {
         if (error instanceof ReasonAIPersistenceError) throw error;
         throw new ReasonAIPersistenceError("STATE_INVALID", "Conversation state is invalid.");
@@ -89,6 +91,7 @@ export async function POST(request: Request) {
         durableState,
         runId: prepared.run.id,
         messageId: prepared.assistantMessageId,
+        startedAt: started,
         onConversationState: (state) => { nextConversationState = state; },
       });
       const persistedStream = persistReasonAITranscript(
@@ -99,6 +102,7 @@ export async function POST(request: Request) {
         events,
         undefined,
         () => nextConversationState,
+        { confirmArtifactPersistence: true, expectedStateVersion },
       );
       return createReasonAINDJSONResponse(traceTurnStream("reasonai.system_design", {
         query: input.message,
@@ -115,7 +119,7 @@ export async function POST(request: Request) {
         ...(input.context.diagramId ? { diagram_id: input.context.diagramId } : {}),
         selected_node_count: input.context.selectedNodeIds.length,
         selected_edge_count: input.context.selectedEdgeIds.length,
-      }, persistedStream), { headers }, request.signal);
+      }, persistedStream, { metadataOnly: true }), { headers }, request.signal);
     } catch (error) {
       if (prepared?.kind === "acquired") {
         try {
@@ -156,7 +160,7 @@ export async function POST(request: Request) {
       const result = await reasonAIProvider.complete(input, request.signal, traceId);
       console.info("reasonai.run.completed", { runId: traceId, feature: "system-design", route: "/api/reasonai/chat", modelPreference: result.model?.preference, modelsUsed: result.model?.modelsUsed, finalModel: result.model?.finalModel });
       return result;
-    }));
+    }, { metadataOnly: true }));
   }
   catch (error) {
     return error instanceof ReasonAIProviderError

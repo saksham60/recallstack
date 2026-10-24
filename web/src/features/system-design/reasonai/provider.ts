@@ -14,7 +14,7 @@ import { createReasonAITrace, REASONAI_SUGGESTIONS_UNAVAILABLE, type ReasonAITra
 
 export interface ReasonAIProvider { complete(request: ReasonAIRequest, signal?: AbortSignal, traceId?: string): Promise<ReasonAIResponse> }
 export class ReasonAIProviderError extends Error {
-  constructor(message: string, public readonly status = 502) { super(message); }
+  constructor(message: string, public readonly status = 502, public readonly failureCode = "PROVIDER_FAILURE") { super(message); }
 }
 const RESEARCH_NOTICE = "Some current external facts could not be verified. Treat unsupported limits or prices as unknown.";
 const INCOMPLETE_RESPONSE = "ReasonAI could not complete that response. Please try again.";
@@ -243,7 +243,7 @@ export const reasonAIProvider: ReasonAIProvider = {
           method: "POST", cache: "no-store", redirect: "error", signal: repairing ? AbortSignal.any([combined, AbortSignal.timeout(12_000)]) : combined,
           headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
           body: JSON.stringify(requestBody),
-        }), combined);
+        }), combined, { metadataOnly: true });
         if (!response.ok) {
           diagnostic("PROVIDER_HTTP_ERROR", { status: response.status });
           if (response.status === 401 || response.status === 403) throw new ReasonAIProviderError("ReasonAI provider authentication failed. Check the server configuration.", 503);
@@ -264,7 +264,7 @@ export const reasonAIProvider: ReasonAIProvider = {
         if (fn?.name !== "search_web") {
           let invalidReason: string | undefined, invalidProposal: ProposalFailure | undefined;
           const normalize = () => normalizeResponse(raw, request, keys, evidence, (reason) => { invalidReason = reason; }, model, (failure) => { invalidProposal = failure; }, trace);
-          const result = typeof fn?.name === "string" ? await traceTool(fn.name, { arguments: fn.arguments }, async () => normalize()) : normalize();
+          const result = typeof fn?.name === "string" ? await traceTool(fn.name, { toolCallId: call?.id }, async () => normalize(), { metadataOnly: true }) : normalize();
           if (proposalFailure) {
             trace(result.proposal ? "PROPOSAL_REPAIR_COMPLETED" : "PROPOSAL_REPAIR_FAILED", { status: result.proposal ? "success" : "failed", repairAttempt: 1 });
             if (!result.proposal) return analysisFallback!;

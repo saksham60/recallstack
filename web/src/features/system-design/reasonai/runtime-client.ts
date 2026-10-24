@@ -17,6 +17,7 @@ export interface SystemDesignRuntimeResponse {
   proposalId?: string;
   proposalVersion?: number;
   baseFingerprint?: string;
+  persistenceStatus?: "working" | "saved";
   visualization?: ReasonAIVisualization;
   sources: ReasonAISource[];
   notice?: string;
@@ -61,7 +62,7 @@ export function systemDesignRuntimeResponse(
     tools,
     ...(assistant.model ? { model: assistant.model } : {}),
     ...(outcome ? { outcome } : {}),
-    ...(proposal ? { proposal, proposalId: artifact?.type === "artifact" ? artifact.proposalId : undefined, proposalVersion: artifact?.type === "artifact" ? artifact.proposalVersion : undefined, baseFingerprint: artifact?.type === "artifact" ? artifact.baseArtifactFingerprint : undefined } : {}),
+    ...(proposal ? { proposal, proposalId: artifact?.type === "artifact" ? artifact.proposalId : undefined, proposalVersion: artifact?.type === "artifact" ? artifact.proposalVersion : undefined, baseFingerprint: artifact?.type === "artifact" ? artifact.baseArtifactFingerprint : undefined, persistenceStatus: artifact?.type === "artifact" ? artifact.persistenceStatus : undefined } : {}),
     ...(visualization ? { visualization } : {}),
     ...(sourcePart?.notice ? { notice: sourcePart.notice } : {}),
   };

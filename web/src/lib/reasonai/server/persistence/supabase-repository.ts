@@ -190,7 +190,8 @@ export class SupabaseReasonAIPersistenceRepository implements ReasonAIPersistenc
 
   async finalizeRun(userId: string, conversationId: string, runId: string, input: FinalizeRunInput) {
     void userId;
-    const { data, error } = await this.client.rpc("reasonai_finalize_run", {
+    const guarded = input.status === "completed" && input.expectedStateVersion !== undefined;
+    const { data, error } = await this.client.rpc(guarded ? "reasonai_finalize_checkpoint_run" : "reasonai_finalize_run", {
       p_conversation_id: conversationId,
       p_run_id: runId,
       p_status: input.status,
@@ -199,7 +200,9 @@ export class SupabaseReasonAIPersistenceRepository implements ReasonAIPersistenc
       p_assistant_id: input.assistant?.id ?? null,
       p_assistant_parts: input.assistant?.parts ?? null,
       p_next_state: input.nextConversationState ?? null,
+      ...(guarded ? { p_expected_state_version: input.expectedStateVersion } : {}),
     });
+    if (error?.code === "40001") throw new ReasonAIPersistenceError("STATE_CONFLICT", "Conversation state changed while the proposal was generated.");
     if (error) unavailable();
     const row = (Array.isArray(data) ? data[0] : data) as Row | undefined;
     return row ? run(row) : undefined;

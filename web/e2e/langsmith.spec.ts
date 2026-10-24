@@ -3,7 +3,7 @@ import { Client } from "langsmith";
 import { RunTree } from "langsmith/run_trees";
 import { streamStoryAnswer } from "../src/features/feed/reasonai";
 import type { FeedStory } from "../src/features/feed/model";
-import { flushLangSmith, traceTool, traceTurn, traceTurnStream } from "../src/lib/reasonai/server/langsmith";
+import { flushLangSmith, traceLLMResponse, traceTool, traceTurn, traceTurnStream } from "../src/lib/reasonai/server/langsmith";
 
 const originalFetch = globalThis.fetch;
 const originalPost = RunTree.prototype.postRun;
@@ -14,6 +14,28 @@ const originalEnv = {
   smithKey: process.env.LANGSMITH_API_KEY,
   nebiusKey: process.env.NEBIUS_API_KEY,
 };
+
+test("System Design metadata-only traces omit conversation, tool arguments and model content", async () => {
+  process.env.LANGSMITH_TRACING = "true";
+  process.env.LANGSMITH_API_KEY = "test-smith-key";
+  const runs: RunTree[] = [];
+  RunTree.prototype.postRun = async function () { runs.push(this); };
+  RunTree.prototype.patchRun = async function () {};
+  Client.prototype.flush = async function () {};
+  const secret = "private-architecture-sentinel";
+  const response = await traceLLMResponse({ messages: [{ role: "user", content: secret }], model: "fixture", stream: false }, async () => Response.json({
+    choices: [{ finish_reason: "tool_calls", message: { content: secret, tool_calls: [{ function: { name: "propose_canvas_changes", arguments: secret } }] } }],
+  }), undefined, { metadataOnly: true });
+  await response.json();
+  await traceTool("propose_canvas_changes", { toolCallId: "fixture" }, async () => ({ ok: true, private: secret }), { metadataOnly: true });
+  const source = [{ type: "text.final", text: secret }, { type: "run.completed" }];
+  async function* stream() { yield* source; }
+  for await (const _event of traceTurnStream("reasonai.system_design", { query: secret }, { mode: "fix" }, stream(), { metadataOnly: true })) void _event;
+  await flushLangSmith();
+  expect(runs).toHaveLength(3);
+  expect(JSON.stringify(runs.map((run) => ({ inputs: run.inputs, outputs: run.outputs })))).not.toContain(secret);
+  expect(runs.find((run) => run.run_type === "llm")?.outputs).toMatchObject({ content_chars: secret.length });
+});
 
 test.afterEach(() => {
   globalThis.fetch = originalFetch;

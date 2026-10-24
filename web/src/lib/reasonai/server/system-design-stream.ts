@@ -7,7 +7,9 @@ import type { ReasonAIKnownEvent } from "@/lib/reasonai/runtime/events";
 import { streamSystemDesignGraph } from "./langgraph/system-design/graph";
 import type { SystemDesignDurableConversationState } from "./langgraph/system-design/state";
 import type { SystemDesignToolExecutor } from "./langgraph/system-design/tools";
-import { fingerprintReasonAIContext } from "@/features/system-design/reasonai/proposal-state";
+import { fingerprintReasonAIContext, usablePendingReasonAIProposal, type ReasonAIPendingProposal } from "@/features/system-design/reasonai/proposal-state";
+import { SystemDesignBudgetError, type SystemDesignBudgetLimits } from "./langgraph/system-design/budget";
+import { systemDesignFailureCode } from "./langgraph/system-design/recovery";
 
 export interface SystemDesignStreamExecution {
   durableState: SystemDesignDurableConversationState;
@@ -16,6 +18,8 @@ export interface SystemDesignStreamExecution {
   provider?: SystemDesignAgentProvider;
   toolExecutor?: SystemDesignToolExecutor;
   toolTimeoutMs?: number;
+  budgets?: Partial<SystemDesignBudgetLimits>;
+  startedAt?: number;
   onConversationState?: (state: SystemDesignDurableConversationState) => void;
   onFinalResult?: (result: ReasonAIResponse) => void;
 }
@@ -41,15 +45,16 @@ export async function* streamSystemDesignEvents(
   const started = Date.now();
   const partId = crypto.randomUUID();
   const currentFingerprint = fingerprintReasonAIContext(input.context);
-  const previous = execution.durableState.pendingProposal;
-  const canRevise = previous?.diagramId === (input.context.diagramId ?? "") && (previous.lastReportedFingerprint ?? previous.baseFingerprint) === currentFingerprint;
-  const proposalId = canRevise ? previous.proposalId : crypto.randomUUID();
-  const baseFingerprint = canRevise ? previous.baseFingerprint : currentFingerprint;
+  const previous = usablePendingReasonAIProposal(execution.durableState.pendingProposal, input.context);
+  let proposalId = previous?.proposalId ?? crypto.randomUUID();
+  let baseFingerprint = previous?.baseFingerprint ?? currentFingerprint;
   let seq = 0;
   let activeTool: { toolCallId: string; toolName: string; started: number } | undefined;
   let toolAttempt = 0;
   let proposalEmitted = false;
-  let proposalVersion = canRevise ? previous.version : 0;
+  let proposalVersion = previous?.version ?? 0;
+  let lastCheckpoint: ReasonAIPendingProposal | undefined;
+  let lastEmittedProposal: string | undefined;
   let analysisEmitted = false;
   let sourcesEmitted = false;
   let completedModel: ReasonAIResponse["model"];
@@ -64,7 +69,9 @@ export async function* streamSystemDesignEvents(
       provider: execution.provider,
       toolExecutor: execution.toolExecutor,
       toolTimeoutMs: execution.toolTimeoutMs,
-      onConversationState: execution.onConversationState,
+      budgets: execution.budgets,
+      startedAt: execution.startedAt,
+      onConversationState: (state) => { lastCheckpoint = state.pendingProposal; execution.onConversationState?.(state); },
       onStage: (stage, toolName) => console.info("[SYSTEM_DESIGN_V2]", { runId, stage, ...(toolName ? { toolName } : {}) }),
     })) {
       if (event.type === "text.delta") {
@@ -99,7 +106,13 @@ export async function* streamSystemDesignEvents(
       }
       if (event.type === "proposal") {
         proposalEmitted = true;
-        proposalVersion++;
+        lastEmittedProposal = JSON.stringify(event.proposal);
+        if (event.checkpoint) {
+          lastCheckpoint = event.checkpoint;
+          proposalId = event.checkpoint.proposalId;
+          proposalVersion = event.checkpoint.version;
+          baseFingerprint = event.checkpoint.baseFingerprint;
+        } else proposalVersion++;
         yield {
           protocolVersion: 1,
           runId,
@@ -109,6 +122,7 @@ export async function* streamSystemDesignEvents(
           partId: `${partId}-proposal`,
           proposalId,
           proposalVersion,
+          persistenceStatus: "working",
           data: event.proposal,
           baseArtifactFingerprint: baseFingerprint,
           touchedEntities: touchedEntities(event.proposal),
@@ -125,11 +139,13 @@ export async function* streamSystemDesignEvents(
       taskOutcome = event.result.outcome;
       execution.onFinalResult?.(event.result);
       yield { protocolVersion: 1, runId, seq: ++seq, type: "text.final", messageId, partId, text: event.result.text, ...(event.result.model ? { model: event.result.model } : {}), ...(event.result.outcome ? { outcome: event.result.outcome } : {}) };
-      if (!proposalEmitted && event.result.proposal) {
-        proposalVersion++;
+      if (event.result.proposal && (!proposalEmitted || lastEmittedProposal !== JSON.stringify(event.result.proposal))) {
+        proposalId = lastCheckpoint?.proposalId ?? proposalId;
+        proposalVersion = lastCheckpoint?.version ?? proposalVersion + 1;
         yield {
           protocolVersion: 1, runId, seq: ++seq, type: "artifact.proposal", messageId,
           partId: `${partId}-proposal`, proposalId, proposalVersion, data: event.result.proposal,
+          persistenceStatus: "working",
           baseArtifactFingerprint: baseFingerprint,
           touchedEntities: touchedEntities(event.result.proposal),
         };
@@ -148,7 +164,7 @@ export async function* streamSystemDesignEvents(
     }
     if (!receivedResult) throw new ReasonAIProviderError("ReasonAI could not complete that response. Please try again.");
     // Model metadata comes from graph state, never from provider text.
-    console.info("reasonai.run.completed", { runId, feature: "system-design", route: "/api/reasonai/chat", durationMs: Date.now() - started, taskOutcome, modelPreference: input.modelPreference ?? "auto", modelsUsed: completedModel?.modelsUsed, finalModel: completedModel?.finalModel });
+    console.info("reasonai.generation.completed", { runId, feature: "system-design", route: "/api/reasonai/chat", durationMs: Date.now() - started, taskOutcome, modelPreference: input.modelPreference ?? "auto", modelsUsed: completedModel?.modelsUsed, finalModel: completedModel?.finalModel });
     yield { protocolVersion: 1, runId, seq: ++seq, type: "run.completed" };
   } catch (error) {
     if (activeTool) console.error("reasonai.tool.failed", { runId, feature: "system-design", route: "/api/reasonai/chat", toolName: activeTool.toolName, attempt: toolAttempt, durationMs: Date.now() - activeTool.started, errorCode: signal.aborted ? "TOOL_CANCELLED" : "TOOL_EXECUTION_FAILED" });
@@ -160,14 +176,15 @@ export async function* streamSystemDesignEvents(
       yield { protocolVersion: 1, runId, seq: ++seq, type: "run.cancelled" };
       return;
     }
-    console.error("reasonai.run.failed", { runId, feature: "system-design", route: "/api/reasonai/chat", errorCode: "PROVIDER_FAILURE", durationMs: Date.now() - started });
+    const errorCode = systemDesignFailureCode(error);
+    console.error("reasonai.run.failed", { runId, feature: "system-design", route: "/api/reasonai/chat", errorCode, durationMs: Date.now() - started });
     yield {
       protocolVersion: 1,
       runId,
       seq: ++seq,
       type: "run.failed",
-      message: error instanceof ReasonAIProviderError ? error.message : "ReasonAI is temporarily unavailable. Please try again.",
-      code: "PROVIDER_FAILURE",
+      message: error instanceof ReasonAIProviderError ? error.message : error instanceof SystemDesignBudgetError ? "ReasonAI reached its execution budget before preparing a usable proposal. Please try again." : "ReasonAI is temporarily unavailable. Please try again.",
+      code: errorCode,
     };
   }
 }

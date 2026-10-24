@@ -1,5 +1,6 @@
 import "server-only";
 import type { ReasonAIMessagePart } from "@/lib/reasonai/runtime/types";
+import { ReasonAIPersistenceError } from "./types";
 import type {
   FinalizeRunInput,
   PersistedReasonAIMessage,
@@ -172,6 +173,9 @@ export class MemoryReasonAIPersistenceRepository implements ReasonAIPersistenceR
     if (!run || run.conversationId !== conversationId) return;
     if (run.status !== "running") return clone(run);
     if (input.status === "completed") {
+      if (input.expectedStateVersion !== undefined && (this.states.get(conversationId)?.stateVersion ?? 0) !== input.expectedStateVersion) {
+        throw new ReasonAIPersistenceError("STATE_CONFLICT", "Conversation state changed while the proposal was generated.");
+      }
       if (input.nextConversationState === undefined) throw new Error("Completed runs require conversation state.");
       const surface = this.conversations.get(conversationId)?.surface;
       if (surface === "system_design") parseSystemDesignDurableConversationState(input.nextConversationState);
