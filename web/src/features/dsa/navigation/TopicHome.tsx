@@ -9,6 +9,7 @@ import { RequestError } from "../workspace/Explorer";
 import { useTopicProgress } from "./api";
 import { readResume } from "./resume";
 import { problemHref } from "./urls";
+import { TopicLinkStatus } from "./TopicLinkStatus";
 import "./navigation.css";
 
 const symbols: Record<string, string> = {
@@ -148,6 +149,7 @@ export function TopicHome({ preview = false }: { preview?: boolean }) {
                 className={`dsa-topic-card tone-${index % 4}`}
                 key={topic.id}
               >
+                <TopicLinkStatus name={topic.name} />
                 <span className="dsa-topic-symbol" aria-hidden="true">
                   {symbols[topic.slug] ?? "⌘"}
                 </span>

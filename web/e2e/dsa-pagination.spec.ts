@@ -7,10 +7,10 @@ for (const count of [0, 1, 24, 25, 26, 50, 51, 151]) {
   }) => {
     const data = await installV3API(page, { count });
     await page.goto("/dsa/arrays");
-    await expect(page.locator(".dsa-problem-card")).toHaveCount(count);
-    await expect(page.locator(".dsa-count")).toHaveText(`${count} problems`);
+    await expect(page.locator(".dsa-problem-card:visible")).toHaveCount(count);
+    await expect(page.locator(".dsa-count:visible")).toHaveText(`${count} problems`);
     const ids = await page
-      .locator(".dsa-problem-link")
+      .locator(".dsa-problem-link:visible")
       .evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href")));
     expect(new Set(ids).size).toBe(count);
     const requests = data.calls.filter((u) => u.pathname.endsWith("/problems"));
@@ -27,16 +27,19 @@ test("filters survive refresh and browser back from a workspace", async ({
 }) => {
   await installV3API(page, { count: 51 });
   await page.goto("/dsa/arrays");
-  await page.getByLabel("Difficulty filter").selectOption("easy");
-  await page.getByLabel("Search problems").fill("Array total");
-  await expect(page.locator(".dsa-problem-card")).toHaveCount(1);
+  const difficulty = page.getByRole("combobox", { name: "Difficulty filter" });
+  const search = page.getByRole("textbox", { name: "Search problems" });
+  await difficulty.selectOption("easy");
+  await search.fill("Array total");
+  await expect(page.locator(".dsa-problem-card:visible")).toHaveCount(1);
   await page.reload();
-  await expect(page.getByLabel("Difficulty filter")).toHaveValue("easy");
-  await expect(page.getByLabel("Search problems")).toHaveValue("Array total");
-  await page.locator(".dsa-problem-link").click();
-  await expect(page.locator(".studio-title h1")).toHaveText("Array total");
+  // Streamed HTML can temporarily retain a hidden copy during hydration.
+  await expect(difficulty).toHaveValue("easy");
+  await expect(search).toHaveValue("Array total");
+  await page.locator(".dsa-problem-link:visible").click();
+  await expect(page.locator(".studio-title h1:visible")).toHaveText("Array total");
   await page.goBack();
-  await expect(page.getByLabel("Search problems")).toHaveValue("Array total");
+  await expect(search).toHaveValue("Array total");
 });
 
 test("malformed cursors fail explicitly instead of silently showing a partial board", async ({
@@ -56,3 +59,28 @@ test("malformed cursors fail explicitly instead of silently showing a partial bo
     page.getByRole("button", { name: "Try again" }).first(),
   ).toBeVisible();
 });
+
+for (const corruption of ["duplicate", "cycle"] as const) {
+  test(`${corruption} on a later page stops safely and preserves a recoverable board`, async ({ authenticatedPage: page }) => {
+    const fixture = await installV3API(page, { count: 51 });
+    let corrupt = true;
+    await page.route("**/api/v1/dsa/problems?**", async route => {
+      const cursor = new URL(route.request().url()).searchParams.get("cursor");
+      if (cursor && corrupt) return route.fulfill({ json: {
+        items: [fixture.problems[corruption === "duplicate" ? 0 : 50]],
+        has_more: corruption === "cycle",
+        next_cursor: corruption === "cycle" ? cursor : null,
+      } });
+      return route.fallback();
+    });
+    await page.goto("/dsa/arrays");
+    await expect(page.getByRole("button", { name: "Retry remaining problems" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Reorder Array total", exact: true })).toBeDisabled();
+    const links = await page.locator(".dsa-problem-link:visible").evaluateAll(nodes => nodes.map(n => n.getAttribute("href")));
+    expect(new Set(links).size).toBe(links.length);
+    corrupt = false;
+    await page.getByRole("button", { name: "Retry remaining problems" }).click();
+    await expect(page.locator(".dsa-count:visible")).toHaveText("51 problems");
+    await expect(page.locator(".dsa-problem-card:visible")).toHaveCount(51);
+  });
+}

@@ -18,6 +18,7 @@ async function catalogRead(
   path: string,
   query: URLSearchParams,
   preview = false,
+  refresh = false,
 ) {
   const headers = new Headers();
   if (preview) {
@@ -34,7 +35,11 @@ async function catalogRead(
   url.search = query.toString();
   const response = await fetch(url, {
     headers,
-    cache: "no-store",
+    // Only unauthenticated taxonomy can be shared. Problem resolution and every
+    // reviewer-preview request retain their original no-store semantics.
+    ...(!preview && !refresh && path === "/api/v1/dsa/categories"
+      ? { cache: "force-cache" as const, next: { revalidate: 60, tags: ["dsa-public-categories"] } }
+      : { cache: "no-store" as const }),
     signal: AbortSignal.timeout(12000),
   });
   if (response.status === 404) notFound();
@@ -61,18 +66,19 @@ export async function resolveProblem(
 }
 
 export async function resolveTopic(identifier: string, preview = false) {
-  const data = z
-    .object({ items: z.array(taxonomy) })
-    .parse(
-      await catalogRead(
-        "/api/v1/dsa/categories",
-        new URLSearchParams({ preview: String(preview) }),
-        preview,
-      ),
-    );
-  const topic = data.items.find(
+  if (!/^[a-zA-Z0-9_-]{1,160}$/.test(identifier)) notFound();
+  const schema = z.object({ items: z.array(taxonomy) });
+  const query = new URLSearchParams({ preview: String(preview) });
+  const data = schema.parse(await catalogRead("/api/v1/dsa/categories", query, preview));
+  let topic = data.items.find(
     (entry) => entry.slug === identifier || entry.id === identifier,
   );
+  // A newly published/renamed category must work before the public cache's next
+  // revalidation. The backend remains the single source of category identity.
+  if (!topic && !preview) {
+    const fresh = schema.parse(await catalogRead("/api/v1/dsa/categories", query, false, true));
+    topic = fresh.items.find(entry => entry.slug === identifier || entry.id === identifier);
+  }
   if (!topic) notFound();
   return topic;
 }

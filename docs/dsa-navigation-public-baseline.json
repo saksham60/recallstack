@@ -1,0 +1,149 @@
+{
+  "capturedAt": "2026-10-27T08:04:57.690Z",
+  "source": "public production API; unauthenticated read-only requests",
+  "categories": [
+    {
+      "id": "b90e8927-2058-4d33-8606-f660e980a2cc",
+      "slug": "2d-arrays",
+      "name": "2D Arrays",
+      "problem_count": 10
+    },
+    {
+      "id": "5b0a3f6a-6a21-4811-9a5c-fcaabb23c0f3",
+      "slug": "arrays",
+      "name": "Arrays",
+      "problem_count": 26
+    },
+    {
+      "id": "ba1491c3-3e6b-459f-8704-9a69fc5444e3",
+      "slug": "backtracking",
+      "name": "Backtracking",
+      "problem_count": 21
+    },
+    {
+      "id": "646cb2e6-6d6a-4f32-af19-57ddd960958e",
+      "slug": "binary-search-trees",
+      "name": "Binary Search Trees",
+      "problem_count": 21
+    },
+    {
+      "id": "eebf023a-d33d-48ea-a7b6-6f52843dfbcb",
+      "slug": "binary-trees",
+      "name": "Binary Trees",
+      "problem_count": 33
+    },
+    {
+      "id": "b7d25e4e-7a5f-4e62-b7fd-daeb14c7aad1",
+      "slug": "bit-manipulation",
+      "name": "Bit Manipulation",
+      "problem_count": 10
+    },
+    {
+      "id": "6c3e51af-8ff9-4825-b072-7edccf882569",
+      "slug": "dynamic-programming",
+      "name": "DP",
+      "problem_count": 54
+    },
+    {
+      "id": "537f8ac4-6aff-40ba-b585-ab19f34bf5cb",
+      "slug": "graphs",
+      "name": "Graphs",
+      "problem_count": 40
+    },
+    {
+      "id": "edac5689-edcf-4b89-a295-d881b8eaceae",
+      "slug": "greedy",
+      "name": "Greedy",
+      "problem_count": 22
+    },
+    {
+      "id": "1344fa19-6e35-4e1c-a41e-5ca0793ab640",
+      "slug": "heaps-hashing",
+      "name": "Heaps & Hashing",
+      "problem_count": 28
+    },
+    {
+      "id": "6a5191f7-6865-41cd-823e-3ab4ef32ade6",
+      "slug": "linked-list",
+      "name": "Linked List",
+      "problem_count": 26
+    },
+    {
+      "id": "7ebf6d38-ac0c-4c59-a84d-88173e37144c",
+      "slug": "searching-sorting",
+      "name": "Searching & Sorting",
+      "problem_count": 23
+    },
+    {
+      "id": "1a52533b-cf91-4223-bc6b-f978ee6df465",
+      "slug": "segment-trees",
+      "name": "Segment Trees",
+      "problem_count": 6
+    },
+    {
+      "id": "683b34f7-d97c-45a6-8ff8-826dcddba241",
+      "slug": "stacks-queues",
+      "name": "Stacks & Queues",
+      "problem_count": 27
+    },
+    {
+      "id": "00cd18d6-636f-4709-9441-c1ffc66f8377",
+      "slug": "strings",
+      "name": "Strings",
+      "problem_count": 22
+    },
+    {
+      "id": "9b7b3093-2f16-4daf-b25c-71c598255508",
+      "slug": "tries",
+      "name": "Tries",
+      "problem_count": 6
+    }
+  ],
+  "runs": [
+    {
+      "endpoint": "categories",
+      "status": 200,
+      "durationMs": 383,
+      "bytes": 1726
+    },
+    {
+      "endpoint": "categories",
+      "status": 200,
+      "durationMs": 273,
+      "bytes": 1726
+    },
+    {
+      "endpoint": "categories",
+      "status": 200,
+      "durationMs": 249,
+      "bytes": 1726
+    },
+    {
+      "endpoint": "problems",
+      "category": "arrays",
+      "status": 200,
+      "durationMs": 331,
+      "bytes": 9367,
+      "items": 26,
+      "hasMore": false
+    },
+    {
+      "endpoint": "problems",
+      "category": "dynamic-programming",
+      "status": 200,
+      "durationMs": 548,
+      "bytes": 17903,
+      "items": 50,
+      "hasMore": true
+    },
+    {
+      "endpoint": "problems",
+      "category": "dynamic-programming",
+      "status": 200,
+      "durationMs": 298,
+      "bytes": 1383,
+      "items": 4,
+      "hasMore": false
+    }
+  ]
+}

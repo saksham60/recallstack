@@ -13,6 +13,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
+    "test:dsa-navigation": "node scripts/test-dsa-navigation.mjs",
     "test:acquisition": "playwright test --config=playwright.acquisition-unit.config.ts && playwright test --config=playwright.acquisition.config.ts",
     "test:system-design-state": "playwright test --config=playwright.system-design-state.config.ts",
     "test:e2e:system-design-disabled": "playwright test --config=playwright.system-design-disabled.config.ts",

@@ -1,0 +1,55 @@
+{
+  "mode": "next build + next start",
+  "categoryDelayMs": 900,
+  "problemPageDelayMs": 250,
+  "problemCount": 151,
+  "samples": [
+    {
+      "topic": "/dsa/arrays",
+      "feedbackMs": 1185.699999988079,
+      "pendingMs": null,
+      "skeletonMs": 1185.699999988079,
+      "routeMs": 1185.699999988079,
+      "firstContentMs": 2398,
+      "completeMs": 2398
+    },
+    {
+      "topic": "/dsa/graphs",
+      "feedbackMs": 951.2999999821186,
+      "pendingMs": null,
+      "skeletonMs": 951.2999999821186,
+      "routeMs": 951.2999999821186,
+      "firstContentMs": 2061.699999988079,
+      "completeMs": 2061.699999988079
+    },
+    {
+      "topic": "/dsa/arrays",
+      "feedbackMs": 1010,
+      "pendingMs": null,
+      "skeletonMs": null,
+      "routeMs": 1010,
+      "firstContentMs": 1010,
+      "completeMs": 1010
+    }
+  ],
+  "categoryRequests": [
+    {
+      "preview": false,
+      "authenticated": false,
+      "started": 1793088716115,
+      "durationMs": 914
+    },
+    {
+      "preview": false,
+      "authenticated": false,
+      "started": 1793088718904,
+      "durationMs": 901
+    },
+    {
+      "preview": false,
+      "authenticated": false,
+      "started": 1793088721520,
+      "durationMs": 908
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 "use client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { getBrowserClient } from "@/lib/supabase/client";
 import { createAuthenticatedReasonAIFetch } from "@/lib/reasonai/authenticated-request";
@@ -13,16 +14,26 @@ export function useTopicProgress(scope: Scope) {
   const query = useLearnerProgress(scope);
   return { ...query, data: query.data ? topicProgress(query.data) : undefined };
 }
+type BoardPage = { items: ProblemItem[]; has_more: boolean; next_cursor?: string | null };
+class BoardCatalogChangedError extends Error {}
+function flattenBoardPages(data: InfiniteData<BoardPage, string | undefined>) {
+  const items = data.pages.flatMap(page => page.items);
+  if (new Set(items.map(item => item.id)).size !== items.length)
+    throw new BoardCatalogChangedError("The catalog changed during loading. Please refresh.");
+  const last = data.pages.at(-1);
+  if (last?.has_more && data.pageParams.includes(last.next_cursor ?? undefined))
+    throw new BoardCatalogChangedError("The catalog pagination could not continue safely.");
+  if (data.pages.length >= 100 && last?.has_more)
+    throw new BoardCatalogChangedError("This board exceeds the supported catalog size.");
+  return items;
+}
 export function useBoardProblems(scope: Scope, category: string) {
-  return useQuery({
+  const query = useInfiniteQuery({
     queryKey: [...scope.key, "board-problems", category],
     retry: 1,
     staleTime: 30000,
-    queryFn: async ({ signal }) => {
-      const items: ProblemItem[] = [],
-        seen = new Set<string>();
-      let cursor: string | undefined;
-      for (let page = 0; page < 100; page++) {
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ signal, pageParam: cursor }) => {
         const { data, error } = await apiClient.GET("/api/v1/dsa/problems", {
           signal,
           params: {
@@ -36,22 +47,29 @@ export function useBoardProblems(scope: Scope, category: string) {
           },
         });
         if (error) throw error;
-        for (const item of data!.items) {
-          if (seen.has(item.id))
-            throw new Error(
-              "The catalog changed during loading. Please refresh.",
-            );
-          seen.add(item.id);
-          items.push(item);
-        }
-        if (!data!.has_more) return items;
-        if (!data!.next_cursor || data!.next_cursor === cursor)
+        if (data!.has_more && (!data!.items.length || !data!.next_cursor || data!.next_cursor === cursor))
           throw new Error("The catalog pagination could not continue safely.");
-        cursor = data!.next_cursor;
-      }
-      throw new Error("This board exceeds the supported catalog size.");
+        return data!;
     },
+    getNextPageParam: page => page.has_more ? page.next_cursor ?? undefined : undefined,
+    select: flattenBoardPages,
   });
+  const { hasNextPage, isFetching, isError, fetchNextPage } = query;
+  useEffect(() => {
+    // Cursor pages remain sequential. Never interrupt a background refetch or
+    // automatically loop on an error; a failed continuation has an explicit retry.
+    if (hasNextPage && !isFetching && !isError)
+      void fetchNextPage({ cancelRefetch: false });
+  }, [hasNextPage, isFetching, isError, fetchNextPage]);
+  return {
+    ...query,
+    complete: !!query.data && !hasNextPage && !query.error,
+    // A transport error leaves valid earlier pages intact. A validation error
+    // invalidates the cursor history, so rebuild it from page one on retry.
+    retryRemaining: () => query.isFetchNextPageError && !(query.error instanceof BoardCatalogChangedError)
+      ? query.fetchNextPage()
+      : query.refetch(),
+  };
 }
 export function useBoardBookmarks(scope: Scope) {
   return useQuery({

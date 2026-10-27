@@ -31,6 +31,7 @@ import {
   type BoardLayout,
 } from "./contracts";
 import { problemHref } from "./urls";
+import { ProblemLaneSkeleton } from "./TopicBoardSkeleton";
 import { useToggleBookmark } from "@/features/bookmarks/use-bookmarks";
 import "./navigation.css";
 import {
@@ -50,7 +51,9 @@ export function TopicBoard({
     problems = useBoardProblems(scope, topic.id);
   const progress = useCatalogProgress(scope),
     bookmarks = useBoardBookmarks(scope);
-  const companies = useCompanies(scope, problems.data),
+  // Keep company batching independent; don't repeatedly download earlier tags
+  // as each catalog page arrives. Basic problem browsing needs no company data.
+  const companies = useCompanies(scope, problems.complete ? problems.data : undefined),
     personal = usePersonalBoard(scope, topic.id);
   const toggleBookmark = useToggleBookmark();
   const params = useSearchParams();
@@ -101,7 +104,15 @@ export function TopicBoard({
   const items = problems.data ?? [],
     layout = personal.query.data?.layout ?? emptyLayout();
   const editable =
-    !!personal.query.data && !personal.change.isPending && !preview;
+    problems.complete && !!personal.query.data && !personal.change.isPending && !preview;
+  const filtersPending =
+    (!!company && companies.isPending && !!scope.userId && !preview) ||
+    (onlyBookmarks && bookmarks.isPending && !!scope.userId) ||
+    (status !== "all" && progress.isPending && !!scope.userId);
+  const filtersUnavailable =
+    (!!company && (!!companies.error || !scope.userId || preview)) ||
+    (onlyBookmarks && (!!bookmarks.error || !scope.userId)) ||
+    (status !== "all" && (!!progress.error || !scope.userId));
   const companyOptions = [
     ...new Map(companies.data?.map((c) => [c.slug, c])).values(),
   ].sort((a, b) => a.name.localeCompare(b.name));
@@ -118,7 +129,7 @@ export function TopicBoard({
       )) &&
     (!pattern || p.topics.some((t) => t.id === pattern)) &&
     (!onlyBookmarks || bookmarks.data?.includes(p.id)) &&
-    (status === "all" ||
+    !filtersPending && !filtersUnavailable && (status === "all" ||
       (status === "unsolved"
         ? !hasPassed(progress.data?.[p.id], p.problem_version_id)
         : status === "mastered"
@@ -329,7 +340,7 @@ export function TopicBoard({
           </p>
         </div>
         <span className="dsa-count">
-          {problems.isPending ? "Loading…" : `${items.length} problems`}
+          {problems.isPending ? "Loading…" : problems.complete ? `${items.length} problems` : `${items.length} loaded · incomplete`}
         </span>
       </header>
       {preview && (
@@ -462,13 +473,21 @@ export function TopicBoard({
           </button>
         </div>
       )}
-      {problems.error ? (
+      {!problems.isPending && !problems.complete && (
+        <div className="dsa-banner" role="status">
+          {problems.error ? "Some problems could not be loaded. Available challenges remain browsable." : "Loading remaining problems. Counts and matches cover loaded problems; personal arrangements unlock when loading finishes."}
+          {problems.error && <button type="button" onClick={() => void problems.retryRemaining()}>Retry remaining problems</button>}
+        </div>
+      )}
+      {filtersPending && <p role="status" className="dsa-banner">Loading data for your saved filters…</p>}
+      {filtersUnavailable && <p role="status" className="dsa-banner">Data for your saved filters is unavailable. Retry the service or clear filters to browse challenges.</p>}
+      {problems.error && !items.length ? (
         <RequestError
           error={problems.error}
           retry={() => void problems.refetch()}
         />
       ) : (
-        <div className="dsa-board" aria-busy={problems.isPending}>
+        <div className="dsa-board" aria-busy={problems.isPending || problems.hasNextPage || filtersPending}>
           {laneNames.map((lane) => {
             const visible = ordered(lane).filter(matches);
             return (
@@ -479,17 +498,18 @@ export function TopicBoard({
               >
                 <header>
                   <h2>{lane}</h2>
-                  <span>{visible.length} problems</span>
+                  <span>{visible.length} {problems.complete ? "problems" : "loaded"}</span>
                 </header>
                 <div className="dsa-lane-body">
                   {problems.isPending ? (
-                    <div className="dsa-topic-skeleton" role="status">
-                      Loading challenges…
+                    <div role="status" aria-label="Loading challenges">
+                      <span className="sr-only">Loading challenges…</span>
+                      <ProblemLaneSkeleton />
                     </div>
                   ) : visible.length ? (
                     visible.map((p) => card(p, lane))
                   ) : (
-                    <p className="dsa-empty">No matching problems</p>
+                    <p className="dsa-empty">{filtersPending ? "Waiting for filter data…" : filtersUnavailable ? "Filter data unavailable" : !problems.complete ? "More challenges are still loading…" : "No matching problems"}</p>
                   )}
                 </div>
               </section>
@@ -664,7 +684,7 @@ export function TopicBoard({
                   </div>
                 ) : (
                   <p key={id}>
-                    Previously saved problem is currently unavailable.
+                    {problems.complete ? "Previously saved problem is currently unavailable." : "Loading saved problem…"}
                   </p>
                 );
               })}

@@ -1,0 +1,46 @@
+{
+  "mode": "next build + next start",
+  "categoryDelayMs": 900,
+  "problemPageDelayMs": 250,
+  "problemCount": 151,
+  "samples": [
+    {
+      "topic": "/dsa/arrays",
+      "feedbackMs": 10.099999994039536,
+      "pendingMs": 10.099999994039536,
+      "skeletonMs": 210.7999999821186,
+      "routeSkeletonMs": 210.7999999821186,
+      "routeMs": 1072.2999999821186,
+      "firstContentMs": 1364.0999999940395,
+      "completeMs": 2191.399999976158
+    },
+    {
+      "topic": "/dsa/graphs",
+      "feedbackMs": 8.699999988079071,
+      "pendingMs": 8.699999988079071,
+      "skeletonMs": 25.5,
+      "routeSkeletonMs": 25.5,
+      "routeMs": 327.5,
+      "firstContentMs": 598.3999999761581,
+      "completeMs": 1418.7999999821186
+    },
+    {
+      "topic": "/dsa/arrays",
+      "feedbackMs": 1.5,
+      "pendingMs": 1.5,
+      "skeletonMs": 22.900000005960464,
+      "routeSkeletonMs": 22.900000005960464,
+      "routeMs": 339.40000000596046,
+      "firstContentMs": 339.40000000596046,
+      "completeMs": 339.40000000596046
+    }
+  ],
+  "categoryRequests": [
+    {
+      "preview": false,
+      "authenticated": false,
+      "started": 1793090258582,
+      "durationMs": 910
+    }
+  ]
+}

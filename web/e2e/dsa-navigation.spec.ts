@@ -39,40 +39,43 @@ test("board separates official, provisional, attempted and infrastructure outcom
   ].entries())
     await expect(
       page
-        .locator(".dsa-problem-card")
+        .locator(".dsa-problem-card:visible")
         .filter({ hasText: fixture.problems[i].title }),
     ).toContainText(label);
   await page
-    .getByLabel("Completion filter")
+    .getByRole("combobox", { name: "Completion filter" })
     .selectOption("passed_current_tests");
-  await expect(page.locator(".dsa-problem-card")).toHaveCount(1);
-  await expect(page.locator(".dsa-problem-card")).toContainText(
+  await expect(page.locator(".dsa-problem-card:visible")).toHaveCount(1);
+  await expect(page.locator(".dsa-problem-card:visible")).toContainText(
     "Passed current tests",
   );
   await page.reload();
-  await expect(page.locator(".dsa-problem-card")).toHaveCount(1);
-  await page.getByLabel("Completion filter").selectOption("unsolved");
-  await expect(page.locator(".dsa-problem-card")).toHaveCount(2);
+  await expect(page.locator(".dsa-problem-card:visible")).toHaveCount(1);
+  await page.getByRole("combobox", { name: "Completion filter" }).selectOption("unsolved");
+  await expect(page.locator(".dsa-problem-card:visible")).toHaveCount(2);
   await expect(
-    page.locator(".dsa-problem-card").filter({ hasText: "Solved" }),
+    page.locator(".dsa-problem-card:visible").filter({ hasText: "Solved" }),
   ).toHaveCount(0);
 });
 
 test("progress outages do not turn saved completion into Not started and the real endpoint rejects anonymous callers", async ({
   authenticatedPage: page,
+  request,
 }) => {
   await installV3API(page);
   await page.route("**/api/dsa/learner-progress", (r) =>
     r.fulfill({ status: 503, json: { error: "Fixture storage outage" } }),
   );
   await page.goto("/dsa/arrays");
-  await expect(page.locator(".dsa-problem-card").first()).toContainText(
+  await expect(page.locator(".dsa-problem-card:visible").first()).toContainText(
     "Progress unavailable",
   );
-  await expect(page.locator(".dsa-problem-card").first()).not.toContainText(
+  await expect(page.locator(".dsa-problem-card:visible").first()).not.toContainText(
     "Not started",
   );
-  const response = await page.request.get(
+  // The page's request context carries its authenticated cookies. This isolated
+  // API context is actually anonymous in both development and production tests.
+  const response = await request.get(
     `/api/dsa/learner-progress?userId=${ID}`,
   );
   expect(response.status()).toBe(401);
@@ -87,16 +90,16 @@ test("topic-first home uses actual counts and never fetches full specifications"
   await expect(
     page.getByRole("heading", { name: "Choose a topic." }),
   ).toBeVisible();
-  await expect(page.locator(".dsa-topic-card")).toHaveCount(2);
-  await expect(page.locator(".dsa-topic-card").first()).toContainText(
+  await expect(page.locator(".dsa-topic-card:visible")).toHaveCount(2);
+  await expect(page.locator(".dsa-topic-card:visible").first()).toContainText(
     "4 problems",
   );
-  await expect(page.locator(".dsa-topic-card").first()).toContainText(
+  await expect(page.locator(".dsa-topic-card:visible").first()).toContainText(
     "1 mastered",
   );
   expect(calls.some((u) => /\/problems(?:\/|$)/.test(u.pathname))).toBe(false);
-  await page.getByLabel("Search topics").fill("graph");
-  await expect(page.locator(".dsa-topic-card")).toHaveCount(1);
+  await page.getByRole("textbox", { name: "Search topics", exact: true }).fill("graph");
+  await expect(page.locator(".dsa-topic-card:visible")).toHaveCount(1);
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
@@ -111,7 +114,7 @@ test("legacy library, category UUID and problem query resolve to canonical route
   await expect(page).toHaveURL(/\/dsa\/arrays$/);
   await page.goto(`/dsa?problem=${ID}&version=${VERSION}`);
   await expect(page).toHaveURL(canonical);
-  await expect(page.locator(".studio-title h1")).toHaveText("Array total");
+  await expect(page.locator(".studio-title h1:visible")).toHaveText("Array total");
   await expect(
     page.getByRole("navigation", { name: "Breadcrumb" }),
   ).toContainText("Arrays");
@@ -122,17 +125,17 @@ test("board composes difficulty, company, search, status and bookmark filters", 
 }) => {
   await installV3API(page, { count: 12 });
   await page.goto("/dsa/arrays");
-  await expect(page.locator(".dsa-problem-card")).toHaveCount(12);
-  await page.getByLabel("Company filter").selectOption("amazon");
-  await page.getByLabel("Difficulty filter").selectOption("medium");
-  await expect(page.locator(".dsa-problem-card")).toHaveCount(2);
-  await page.getByLabel("Search problems").fill("008");
-  await expect(page.locator(".dsa-problem-card")).toHaveCount(1);
+  await expect(page.locator(".dsa-problem-card:visible")).toHaveCount(12);
+  await page.getByRole("combobox", { name: "Company filter" }).selectOption("amazon");
+  await page.getByRole("combobox", { name: "Difficulty filter" }).selectOption("medium");
+  await expect(page.locator(".dsa-problem-card:visible")).toHaveCount(2);
+  await page.getByRole("textbox", { name: "Search problems" }).fill("008");
+  await expect(page.locator(".dsa-problem-card:visible")).toHaveCount(1);
   await page.getByRole("button", { name: "Clear filters" }).click();
-  await page.getByLabel("Bookmarked", { exact: true }).check();
-  await expect(page.locator(".dsa-problem-card")).toHaveCount(1);
-  await page.getByLabel("Completion filter").selectOption("unsolved");
-  await expect(page.locator(".dsa-problem-card")).toHaveCount(0);
+  await page.getByRole("checkbox", { name: "Bookmarked", exact: true }).check();
+  await expect(page.locator(".dsa-problem-card:visible")).toHaveCount(1);
+  await page.getByRole("combobox", { name: "Completion filter" }).selectOption("unsolved");
+  await expect(page.locator(".dsa-problem-card:visible")).toHaveCount(0);
 });
 
 test("keyboard ordering persists after refresh and rolls back failed writes", async ({
@@ -148,12 +151,12 @@ test("keyboard ordering persists after refresh and rolls back failed writes", as
   await handle.focus();
   await page.keyboard.press("ArrowDown");
   await expect(
-    page.locator(".dsa-lane.easy .dsa-problem-link").first(),
+    page.locator(".dsa-lane.easy .dsa-problem-link:visible").first(),
   ).toContainText("Problem 004");
   await expect.poll(() => data.getBoard().rowVersion).toBe(1);
   await page.reload();
   await expect(
-    page.locator(".dsa-lane.easy .dsa-problem-link").first(),
+    page.locator(".dsa-lane.easy .dsa-problem-link:visible").first(),
   ).toContainText("Problem 004");
   data.failNextSave();
   await page
@@ -164,7 +167,7 @@ test("keyboard ordering persists after refresh and rolls back failed writes", as
     page.getByRole("alert").filter({ hasText: "Changed" }),
   ).toContainText("Changed in another session");
   await expect(
-    page.locator(".dsa-lane.easy .dsa-problem-link").first(),
+    page.locator(".dsa-lane.easy .dsa-problem-link:visible").first(),
   ).toContainText("Problem 004");
 });
 
@@ -179,25 +182,25 @@ test("pointer drag saves order; collections preserve canonical lane membership",
       page.getByRole("button", { name: "Reorder Problem 007", exact: true }),
     );
   await expect.poll(() => data.getBoard().rowVersion).toBe(1);
-  await page.getByLabel("Collection name").fill("Interview week");
+  await page.getByRole("textbox", { name: "Collection name" }).fill("Interview week");
   await page.getByRole("button", { name: "Create collection" }).click();
   await expect(
     page.getByRole("heading", { name: "Interview week" }),
   ).toBeVisible();
   const collection = data.getBoard().layout.collections[0].id;
   await page
-    .getByLabel("Add Array total to collection", { exact: true })
+    .getByRole("combobox", { name: "Add Array total to collection", exact: true })
     .selectOption(collection);
-  await expect(page.locator(".dsa-collection-item")).toContainText(
+  await expect(page.locator(".dsa-collection-item:visible")).toContainText(
     "Array total",
   );
   await expect(
     page
-      .locator(".dsa-lane.easy .dsa-problem-link")
+      .locator(".dsa-lane.easy .dsa-problem-link:visible")
       .filter({ hasText: "Array total" }),
   ).toHaveCount(1);
   await page.reload();
-  await expect(page.locator(".dsa-collection-item")).toContainText(
+  await expect(page.locator(".dsa-collection-item:visible")).toContainText(
     "Array total",
   );
 });
@@ -207,16 +210,16 @@ test("pending schema exposes truthful limitations without disabling discovery", 
 }) => {
   await installV3API(page, { metadataUnavailable: true });
   await page.goto("/dsa/arrays");
-  await expect(page.locator(".dsa-problem-card")).toHaveCount(4);
+  await expect(page.locator(".dsa-problem-card:visible")).toHaveCount(4);
   await expect(
     page.getByText(/Personal arrangements are unavailable/),
   ).toBeVisible();
-  await expect(page.getByLabel("Company filter")).toBeDisabled();
+  await expect(page.getByRole("combobox", { name: "Company filter" })).toBeDisabled();
   await expect(
     page.getByRole("button", { name: "Reorder Array total", exact: true }),
   ).toBeDisabled();
-  await page.getByLabel("Search problems").fill("Array total");
-  await expect(page.locator(".dsa-problem-card")).toHaveCount(1);
+  await page.getByRole("textbox", { name: "Search problems" }).fill("Array total");
+  await expect(page.locator(".dsa-problem-card:visible")).toHaveCount(1);
 });
 
 test("narrow browser and reduced-motion preserve navigation without overflow", async ({
@@ -231,7 +234,7 @@ test("narrow browser and reduced-motion preserve navigation without overflow", a
     await page.goto(path);
     await expect(
       page
-        .locator(path === "/dsa" ? ".dsa-topic-card" : ".dsa-problem-card")
+        .locator(path === "/dsa" ? ".dsa-topic-card:visible" : ".dsa-problem-card:visible")
         .first(),
     ).toBeVisible();
     expect(
@@ -251,13 +254,13 @@ test("desktop reference screens render without page errors", async ({
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/dsa");
-  await expect(page.locator(".dsa-topic-card")).toHaveCount(2);
+  await expect(page.locator(".dsa-topic-card:visible")).toHaveCount(2);
   await page.screenshot({
     path: info.outputPath("dsa-v3-home.png"),
     fullPage: true,
   });
   await page.goto("/dsa/arrays");
-  await expect(page.locator(".dsa-problem-card")).toHaveCount(4);
+  await expect(page.locator(".dsa-problem-card:visible")).toHaveCount(4);
   await page.screenshot({
     path: info.outputPath("dsa-v3-board.png"),
     fullPage: true,
